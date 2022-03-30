@@ -4,14 +4,14 @@
 
 pkgname=busybox
 pkgver=1.35.0
-pkgrel=20
+pkgrel=21
 pkgdesc="Modular toolbox of common UNIX utilities"
 url="https://busybox.net/"
 arch="all"
 license="GPL-2.0-only"
 depends="glibc:glibc-utils"
 makedepends_build="perl"
-makedepends_host="linux-headers openssl-dev"
+makedepends_host="linux-headers openssl-dev>3"
 # Only build with utmps support if we are not bootstraping.
 # skalibs-static is needed for utmps-static
 [ -z "$BOOTSTRAP" ] && makedepends_host="$makedepends_host utmps-dev utmps-static skalibs-static"
@@ -267,7 +267,7 @@ ssl_client() {
 	pkgdesc="EXternal ssl_client for busybox wget"
 	local _sslver=$(pkg-config --modversion libssl)
 	# automatically pull in if both busybox and libssl is installed
-	install_if="$pkgname=$pkgver-r$pkgrel libssl${_sslver%.*}"
+	install_if="$pkgname=$pkgver-r$pkgrel libssl${_sslver%%.*}"
 	mkdir -p "$subpkgdir"/usr/bin
 	install -m755 "$_dyndir"/ssl_client \
 		"$subpkgdir"/usr/bin/ssl_client
