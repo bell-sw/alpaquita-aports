@@ -2,15 +2,15 @@
 # /sbin/init.
 
 pkgname=openrc
-pkgver=0.44.10
+pkgver=0.45.2
 _ver=${pkgver/_git*/}
-pkgrel=9
+pkgrel=0
 pkgdesc="OpenRC dependency-based init system"
 url="https://github.com/OpenRC/openrc"
 arch="all"
 license="BSD-2-Clause"
 depends="ifupdown-any"
-makedepends="bsd-compat-headers linux-headers meson"
+makedepends="bsd-compat-headers libcap-dev linux-headers meson"
 checkdepends="sed"
 subpackages="$pkgname-dbg $pkgname-doc $pkgname-dev
 	agetty-openrc:_agetty_openrc:noarch
@@ -27,9 +27,6 @@ source="$pkgname-$pkgver.tar.gz::https://github.com/OpenRC/openrc/archive/$pkgve
 	0006-Add-support-for-starting-services-in-a-specified-VRF.patch
 	0007-Clean-up-staticroute-config-remove-irrelevant-parts-.patch
 	0008-bootmisc-switch-wipe_tmp-setting-to-no-by-default.patch
-	0009-fix-bootmisc-mv-error.patch
-	0010-noexec-devfs.patch
-	seedrng.patch
 
 	openrc.logrotate
 	hostname.initd
@@ -60,8 +57,8 @@ prepare() {
 	# meson overrides this with the aports tag,
 	# we get there first :)
 	sed -i -e "s|@VCS_TAG@|$pkgver|" \
-		src/common/version.h.in \
-		src/common/version.in
+		src/shared/version.h.in \
+		src/shared/version.in
 }
 
 build() {
@@ -72,11 +69,11 @@ build() {
 		-Dsplit-usr=false \
 		-Dpkgconfig=true \
 		--default-library=both \
-		--prefix=/ \
-		--libdir=/usr/lib \
-		--libexecdir=/usr/lib \
-		--bindir=/usr/bin \
-		--sbindir=/usr/sbin \
+		--prefix=/usr \
+		--libdir=lib \
+		--libexecdir=lib \
+		--bindir=bin \
+		--sbindir=sbin \
 		-Dbranding='"Alpaquita Linux"' \
 		. output
 	meson compile -C output
@@ -122,7 +119,7 @@ package() {
 
 	# additional documentation considered useful
 	mkdir -p "$pkgdir"/usr/share/doc/$pkgname/
-	install -m644 ChangeLog ./*.md "$pkgdir"/usr/share/doc/$pkgname/
+	install -m644 ./*.md "$pkgdir"/usr/share/doc/$pkgname/
 
 	# we use a virtual keymaps services to allow users to set their
 	# keymaps either with the OpenRC loadkeys service provided by
@@ -159,17 +156,14 @@ _agetty_openrc() {
 }
 
 sha512sums="
-0e41f5268c6b8c325a6773511ca58c38ba52a1987aa47165794df8a99359bd1bfcb99d30e0d129b9242a2661663234f6f85c92c55c891dbb6c5b8a11d93edea4  openrc-0.44.10.tar.gz
+ca2958772240f6e5037e39db1ee62a81091a2efa654da967f68e03a721868c6c0a41d32a2bddf55c8eadbc9bf5837b710cc2e4564844a7fbc0e585366da4fdf9  openrc-0.45.2.tar.gz
 6085d127f7385eb86a00676a263c8613748fb0cbbf064bc908d346a1b368e226d8a3014e871d281f57d334a70ec1301269fe431e085f0e907b4f6ef8a99bf07f  0001-call-sbin-mkmntdirs-in-localmount-OpenRC-service.patch
-61c72be18283108163bde4349616e55adb535bd34312ee09f90fcd85277ffe17dcef792bbf465877c0d8b1fec87a3836f714d8d849a9cf322902a89bc1256e13  0003-rc-pull-in-sysinit-and-boot-as-stacked-levels-when-n.patch
+0bd69d9e8e9c321a5e67cf924be07b9dd0b58801143c18f74bebf442958fc878e46a65f07cc2842566a8c3434e788ef3ca0c90c607de6b10931f01324bfc1b11  0003-rc-pull-in-sysinit-and-boot-as-stacked-levels-when-n.patch
 71a743bf969110a27259405ef4b4dc4fad608b8e49039fd6afb1b1486d0f1dfccc3ef5275410fa3d6d1554ccee59c5a3424be4f2919e14453ebb709282c588a7  0004-make-consolefont-service-compatible-with-busyboxs-se.patch
 9e2ae6c8e189ceae0f3f2662d9504f796e9a6a987a26ee2e10add85746b6596eb04cc256dc532a39f711b4e1aa07f1d12a384ef45d23cab49878b887bf0a878c  0005-Support-early-loading-of-keymap-if-kbd-is-installed.patch
 8bf00b82d7fc0eb1b529ec735009f91d277141ba7e5c04e23d10bbcf36eb453f0b31d48aec45e50b5be4c14f611acc4454933f3cefdf8beab07d851328223464  0006-Add-support-for-starting-services-in-a-specified-VRF.patch
 431ac28808e684bea5511386bf5f06efe7f509f1dbe7e15ae6309563d813deae8f3edd872a0943ef8088e3cf778d7bc5ebd15a893dc4a08f4022b7a56bbafc63  0007-Clean-up-staticroute-config-remove-irrelevant-parts-.patch
 475f4ea63b9b5d7eb9c623e96b6cc3d3072abcb7194d0045b84e0688836c8514fccfc68b0eae0b4bee60878cdea8042c3ce7e48406ee7a2f0e4a3e128a153468  0008-bootmisc-switch-wipe_tmp-setting-to-no-by-default.patch
-354b2df343ddf82aedba104039bbdb1dd5fdd9c4abac52f89e881341443b73fcf000ed9e8b88e9610f1c3218cb89722ff6a774e1ef2f7fe71fa6ff62b75f572b  0009-fix-bootmisc-mv-error.patch
-0535d7837ae0c695f25208199f4dec3a4031558366da346a8a1dd13c0fa2a044f14088b75eca37ce0f4a681e85c82b84aac3d65aac9176639e82b33a9355cb2a  0010-noexec-devfs.patch
-715af2188cf4d1ed42f75b31ad718f5c533ea6f8cfc3c5df0fd7fc4240cd342dc637b7edf358c5da1e77d700618adaa7927ddaeae60698dd9f130dd64d83d8d5  seedrng.patch
 12bb6354e808fbf47bbab963de55ee7901738b4a912659982c57ef2777fff9a670e867fcb8ec316a76b151032c92dc89a950d7d1d835ef53f753a8f3b41d2cec  openrc.logrotate
 b92796bc10edccc5cf3ddacb80e8cde87ab7aaecf741beae62fcc2e8e753efa809a7da19b392cff8bcbc8600fda2f0b0acfb12928056a6f0f2f77ea0e214368d  hostname.initd
 c15c5e55ae2d021785cc016f409daf165d1879e131f47408a7e507a776e3b62592e12f92b96963149180e1b7b68487fcd2e2bb23216a0b3a42e9a6cdaabe589e  modules.initd
@@ -183,7 +177,7 @@ ed7ce279a18a3e845e6b1c42f5ea5f0dcb4df2cc742f2c088bad9439ea437756a4d277b1dc9ba1a4
 af17947aa3954e317dc06580da829200e0b0f2ddc37ce842c3fc7fc0d8ca2f40220e4f4665f61b4b5ec47c96416db0127e2ed979b9421bf21df89d4c4f998b7f  test-networking.sh
 68905ab5fa852e3bfcd1a26b7211ad1e4e9abc7d9c8621649cb00a94c4797a62ce54abce10e4a8a92546c8fb344c4042bb4725cb8d1e759200c0b9e08fed9a97  0100-init.d-fsck.in-remove-C0-option.patch
 aaf51536d18188951fe20da1b4459ae8b976f7bb6a1927d5cace1c305037b40481c496d71e6677bad2bb2dbfdeefaa5d54b6f5e326ddd5b471d3ddfff440621c  0101-init.d-agetty-depend-on-hostname-to-show-in-prompt.patch
-3579eb3831c7d306fabf24a119d575b705dac790f9e06779813ceccf58b5adfe2687b5d46cb2f31eae3e1b67ce468d1ceab4d30f46176a6fe1a9b3206b5d42e3  0102-openrc-add-rc_quiet_openrc-for-openrc-binary.patch
-866bcc43bfa9d98cfb1c60f4dbb3df610f437d74a422e62a533821c0595d7e823d1be687c39bc0f98746ba7d221fa1259284c9b1f5a4216ec71159d6143e5758  0103-mountinfo-only-explicit-quiet.patch
+2f55eb788c49a87031e2311dd549d720650b48b00bb562e1797e18b1a85f523525b50639d0601040a7f23574988d07b16cd603669ce1d90ee03d75b4fb37b608  0102-openrc-add-rc_quiet_openrc-for-openrc-binary.patch
+bfa580eeac40aba91c98e0e754c3e198068f12d2570c02dfe5a74233cab141514a7a9e7e6d4dea613846a1a8f96ed0ab349194497f63b80ea09cc43a2ba7d79c  0103-mountinfo-only-explicit-quiet.patch
 018add9815c058bd6fe7c1d4fb60169169275582264add8e4d2a7f2be3b7193512a42c440ceebf7b199bdac1f5ba95e6f636cc0370b99fc2c224ee8c8848baaf  0104-init.sh.Linux.in-add-missing-eend.patch
 "
