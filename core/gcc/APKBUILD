@@ -9,7 +9,7 @@ _pkgbase=${pkgver%_*}
 [ "$CHOST" != "$CTARGET" ] && _target="-$CTARGET_ARCH" || _target=""
 
 pkgname="$pkgname$_target"
-pkgrel=4
+pkgrel=5
 pkgdesc="The GNU Compiler Collection"
 url="https://gcc.gnu.org"
 arch="all"
@@ -530,6 +530,7 @@ gdc() {
 	pkgdesc="GCC-based D language compiler"
 	depends="gcc=$_gccrel libgphobos=$_gccrel musl:musl-dev"
 	depends="$depends libucontext-dev"
+	provides="gcc-gdc-bootstrap=$_gccrel"
 
 	mkdir -p "$subpkgdir/$_gcclibexec" \
 		"$subpkgdir"/$_gcclibdir/include/d/ \
@@ -641,7 +642,7 @@ libgnatstatic() {
 gnat() {
 	pkgdesc="Ada support for GCC"
 	depends="gcc=$_gccrel"
-	provides="$pkgname-gnat-bootstrap"
+	provides="$pkgname-gnat-bootstrap=$_gccrel"
 	[ "$CHOST" = "$CTARGET" ] && depends="$depends libgnat=$_gccrel"
 
 	mkdir -p "$subpkgdir"/$_gcclibexec \
