@@ -5,7 +5,7 @@
 
 pkgname=isl22
 pkgver=0.22
-pkgrel=0
+pkgrel=1
 pkgdesc="Manipulating sets and relations of integer points bounded by linear constraints"
 url="http://isl.gforge.inria.fr/"
 arch="all"
@@ -13,7 +13,7 @@ license="MIT"
 depends_dev="gmp-dev"
 makedepends_host="$depends_dev"
 makedepends="$makedepends_host"
-subpackages="isl-dev:_dev"
+subpackages=""
 source="https://libisl.sourceforge.io/isl-$pkgver.tar.bz2"
 
 builddir="$srcdir"/isl-$pkgver
@@ -41,13 +41,13 @@ check() {
 
 package() {
 	make DESTDIR="$pkgdir" INSTALL="install -D" install
-}
 
-_dev() {
-	default_dev
-	mkdir -p "$subpkgdir"/usr/share/gdb/python/auto-load/usr/lib
-	mv "$pkgdir"/usr/lib/*-gdb.py \
-		"$subpkgdir"/usr/share/gdb/python/auto-load/usr/lib/
+	# isl-dev is provided by isl25
+	rm -rf "$pkgdir"/usr/include \
+		"$pkgdir"/usr/lib/pkgconfig \
+		"$pkgdir"/usr/lib/*.a \
+		"$pkgdir"/usr/lib/*.so \
+		"$pkgdir"/usr/lib/*.py
 }
 
 sha512sums="
