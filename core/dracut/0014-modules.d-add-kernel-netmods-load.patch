@@ -1,0 +1,65 @@
+From b6af366cc9807d4ebd01cf64acce8f1829aad569 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Thu, 14 Jul 2022 10:13:34 +0300
+Subject: [PATCH] modules.d: add kernel-netmods-load
+
+---
+ .../90kernel-netmods-load/module-setup.sh     | 46 +++++++++++++++++++
+ 1 file changed, 46 insertions(+)
+ create mode 100755 modules.d/90kernel-netmods-load/module-setup.sh
+
+diff --git a/modules.d/90kernel-netmods-load/module-setup.sh b/modules.d/90kernel-netmods-load/module-setup.sh
+new file mode 100755
+index 00000000..97bc45b8
+--- /dev/null
++++ b/modules.d/90kernel-netmods-load/module-setup.sh
+@@ -0,0 +1,46 @@
++#!/bin/bash
++# This file is part of dracut.
++# SPDX-License-Identifier: GPL-2.0-or-later
++
++check() {
++
++    return 0
++}
++
++depends() {
++
++    return 0
++}
++
++preload_nic_module() {
++
++    local _nic="$@"
++    local _mod
++
++    _mod="$(get_dev_module $_nic)"
++
++    [ "$_mod" ] || return
++
++    lsmod | grep -qw "$_mod" && force_drivers+=" $_mod "
++}
++
++get_nics() {
++
++    if [ "$hostonly_mode" = "strict" -a "$hostonly_nics" ]; then
++        echo "$hostonly_nics"
++        return
++    fi
++
++    ls /sys/class/net
++}
++
++installkernel() {
++
++    local _nic
++
++    for _nic in $(get_nics); do
++            preload_nic_module /sys/class/net/"$_nic"
++    done
++
++    return 0
++}
+-- 
+2.25.1
+
