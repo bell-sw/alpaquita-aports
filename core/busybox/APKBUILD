@@ -4,7 +4,7 @@
 
 pkgname=busybox
 pkgver=1.35.0
-pkgrel=21
+pkgrel=22
 pkgdesc="Modular toolbox of common UNIX utilities"
 url="https://busybox.net/"
 arch="all"
@@ -17,11 +17,17 @@ makedepends_host="linux-headers openssl-dev>3"
 [ -z "$BOOTSTRAP" ] && makedepends_host="$makedepends_host utmps-dev utmps-static skalibs-static"
 makedepends="$makedepends_build $makedepends_host"
 checkdepends="zip"
-provides="/bin/sh"
-provider_priority=100
 install="$pkgname.post-install $pkgname.post-upgrade
 	$pkgname-extras.post-install $pkgname-extras.pre-deinstall"
-subpackages="$pkgname-static $pkgname-doc $pkgname-suid $pkgname-extras ssl_client $pkgname-ifupdown"
+subpackages="
+	$pkgname-static
+	$pkgname-doc
+	$pkgname-suid
+	$pkgname-extras
+	ssl_client
+	$pkgname-ifupdown
+	$pkgname-binsh
+	"
 options="suid net"
 replaces="busybox-initscripts" # move of default.script
 triggers="busybox.trigger=/usr/bin:/usr/sbin:/lib/modules/*"
@@ -194,8 +200,6 @@ package() {
 		"$pkgdir"/usr/share/man/man1
 	chmod 1777 "$pkgdir"/tmp
 	install -m755 busybox "$pkgdir"/usr/bin/busybox
-	# we need /bin/sh to be able to execute post-install
-	ln -s /bin/busybox "$pkgdir"/usr/bin/sh
 
 	install -m 644 docs/busybox.1 "$pkgdir"/usr/share/man/man1/busybox.1
 
@@ -278,6 +282,16 @@ ifupdown() {
 	provides="ifupdown-any"
 	provider_priority=200
 	mkdir -p "$subpkgdir"
+}
+
+binsh() {
+	pkgdesc="busybox ash /bin/sh"
+	provides="/bin/sh"
+	provider_priority=100
+
+	mkdir -p "$subpkgdir"/usr/bin
+
+	ln -s /bin/busybox "$subpkgdir"/usr/bin/sh
 }
 
 sha512sums="
