@@ -10,7 +10,9 @@ depends="py3-cparser"
 makedepends="python3-dev py3-setuptools libffi-dev"
 checkdepends="py3-pytest"
 source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz
-	musl:musl-compat.patch"
+	musl:musl-compat.patch
+	musl:musl-no-libdl.patch
+	"
 builddir="$srcdir/$_pkgname-$pkgver"
 
 replaces="py-cffi" # Backwards compatibility
@@ -26,7 +28,7 @@ build() {
 
 check() {
 	python3 setup.py build_ext -i
-	python3 -m pytest --disable-pytest-warnings c/ testing/ || true
+	python3 -m pytest --disable-pytest-warnings c/ testing/
 }
 
 package() {
@@ -36,4 +38,5 @@ package() {
 sha512sums="
 ee83efde6f77f4a0c5889088c4c208ed7b9071fe06dfc16a8d2396de07f78fe859e1e39866760198a9d700f3b7359e8715e8a3e4907feb81d3fc4b8dd0dbaca1  cffi-1.15.0.tar.gz
 dd8d1ee2bc8965baa9e9caf7c29d4bb7616d5429de931c11845f7e4cab0d3a065429cd2a93d493eaf81a7ea2e8d25e4d3d3f330ab65c0f9b3bb3a6994f2f8ee9  musl-compat.patch
+13b329310652820b72ad59ca2cf57de1e17104c6804c2a13ed90fe5d19420010c09106f197266d49ed077b74139e6400560c626bfa664a8bd547f9b3fba79790  musl-no-libdl.patch
 "
