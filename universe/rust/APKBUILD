@@ -1,8 +1,8 @@
 pkgname=rust
-pkgver=1.59.0
+pkgver=1.60.0
 _llvmver=13
-_bootver=1.58.0
-pkgrel=1
+_bootver=1.59.0
+pkgrel=2
 pkgdesc="The Rust Programming Language"
 url="https://www.rust-lang.org/"
 arch="x86_64 aarch64"
@@ -13,7 +13,6 @@ license="Apache-2.0 AND MIT"
 # See: https://github.com/rust-lang/rust/issues/11937
 depends="$pkgname-stdlib=$pkgver-r$pkgrel gcc musl:musl-dev"
 
-_python=python3
 # * Rust is self-hosted, so you need rustc (and cargo) to build rustc...
 #   The last revision of this abuild that does not depend on itself (uses
 #   prebuilt rustc and cargo) is 2e6769eb39eaff3029d8298fc02856623c563cd8.
@@ -23,25 +22,26 @@ _python=python3
 #   cargo and since we need cargo to rebuild cargo... this already happened
 #   several times. For this reason we build cargo with vendored libgit2.
 makedepends_build="
-	$_python
 	!libgit2-dev
-	file
-	tar
+	cargo-bootstrap=>$_bootver
 	coreutils
+	curl-dev
+	file
+	libssh2-dev
 	llvm$_llvmver-dev
 	llvm$_llvmver-test-utils
-	rust-bootstrap=>$_bootver
-	cargo-bootstrap=>$_bootver
-	curl-dev
-	libssh2-dev
 	openssl1.1-compat-dev
+	python3
+	rust-bootstrap=>$_bootver
+	tar
+	wasi-libc
 	zlib-dev
 "
 makedepends_host="
 	curl-dev
 	libssh2-dev
-	openssl1.1-compat-dev
 	llvm$_llvmver-dev
+	openssl1.1-compat-dev
 	zlib-dev
 "
 
@@ -56,9 +56,11 @@ options="!archcheck !check"
 subpackages="
 	$pkgname-dbg
 	$pkgname-stdlib
+	$pkgname-wasm
 	$pkgname-analysis
 	$pkgname-gdb::noarch
 	$pkgname-lldb::noarch
+	$pkgname-clippy
 	$pkgname-doc
 	$pkgname-src::noarch
 	cargo
@@ -120,6 +122,9 @@ prepare() {
 
 	# to dynamically link against libc
 	_clear_vendor_checksums libc
+
+	# this is hardcoded to rust-lld, but we use system llvm tools
+	sed -i '/linker:/ s/rust-lld/wasm-ld/' compiler/rustc_target/src/spec/wasm_base.rs
 }
 
 build() {
@@ -130,7 +135,7 @@ build() {
 	./configure \
 		--build="$_build" \
 		--host="$_target" \
-		--target="$_target" \
+		--target="$_target,wasm32-wasi,wasm32-unknown-unknown" \
 		--prefix="/usr" \
 		--release-channel="stable" \
 		--enable-local-rust \
@@ -138,12 +143,13 @@ build() {
 		--llvm-root="/usr/lib/llvm$_llvmver" \
 		--disable-docs \
 		--enable-extended \
-		--tools="analysis,cargo,src,rustfmt" \
+		--tools="analysis,cargo,clippy,src,rustfmt" \
 		--enable-llvm-link-shared \
 		--enable-option-checking \
 		--enable-locked-deps \
 		--enable-vendor \
-		--python="$_python" \
+		--dist-compression-formats=gz \
+		--python="python3" \
 		--set="rust.musl-root=/usr" \
 		--set="rust.codegen-units=1" \
 		--set="rust.codegen-units-std=1" \
@@ -160,13 +166,19 @@ build() {
 		--set="target.$_build.cc=gcc" \
 		--set="target.$_build.cxx=c++" \
 		--set="target.$_build.ar=ar" \
-		--set="target.$_build.linker=gcc"
+		--set="target.$_build.linker=gcc" \
+		--set="target.wasm32-unknown-unknown.sanitizers=false" \
+		--set="target.wasm32-unknown-unknown.profiler=false" \
+		--set="target.wasm32-unknown-unknown.linker=lld" \
+		--set="target.wasm32-wasi.sanitizers=false" \
+		--set="target.wasm32-wasi.profiler=false" \
+		--set="target.wasm32-wasi.wasi-root=/usr/share/wasi-sysroot"
 
 	# Allow warnings instead of just aborting the build
 	sed 's/#deny-warnings = .*/deny-warnings = false/' -i config.toml
 	sed 's|deny(warnings,|deny(|' -i src/bootstrap/lib.rs
 
-	$_python ./x.py dist -v --jobs ${JOBS:-2}
+	python3 ./x.py dist --jobs ${JOBS:-2}
 }
 
 check() {
@@ -184,7 +196,7 @@ check() {
 #		VERBOSE=1
 
 	msg "Running tests for cargo..."
-	CFG_DISABLE_CROSS_TESTS=1 $_python ./x.py test --no-fail-fast src/tools/cargo
+	CFG_DISABLE_CROSS_TESTS=1 python3 ./x.py test --no-fail-fast src/tools/cargo
 
 	unset LD_LIBRARY_PATH
 }
@@ -208,13 +220,17 @@ package() {
 		-C "$pkgdir/usr" --strip-components=2 --exclude=manifest.in --no-same-owner
 	tar xf "$builddir"/build/dist/cargo-$pkgver-$_target.tar.gz \
 		-C "$pkgdir/usr" --strip-components=2 --exclude=manifest.in --no-same-owner
-#	tar xf "$builddir"/build/dist/clippy-$pkgver-$_target.tar.gz \
-#		-C "$pkgdir/usr" --strip-components=2 --exclude=manifest.in --no-same-owner
+	tar xf "$builddir"/build/dist/clippy-$pkgver-$_target.tar.gz \
+		-C "$pkgdir/usr" --strip-components=2 --exclude=manifest.in --no-same-owner
 #	tar xf "$builddir"/build/dist/miri-$pkgver-$_target.tar.gz \
 #		-C "$pkgdir/usr" --strip-components=2 --exclude=manifest.in --no-same-owner
 #	tar xf "$builddir"/build/dist/rls-$pkgver-$_target.tar.gz \
 #		-C "$pkgdir/usr" --strip-components=2 --exclude=manifest.in --no-same-owner
 	tar xf "$builddir"/build/dist/rustfmt-$pkgver-$_target.tar.gz \
+		-C "$pkgdir/usr" --strip-components=2 --exclude=manifest.in --no-same-owner
+	tar xf "$builddir"/build/dist/rust-std-$pkgver-wasm32-unknown-unknown.tar.gz \
+		-C "$pkgdir/usr" --strip-components=2 --exclude=manifest.in --no-same-owner
+	tar xf "$builddir"/build/dist/rust-std-$pkgver-wasm32-wasi.tar.gz \
 		-C "$pkgdir/usr" --strip-components=2 --exclude=manifest.in --no-same-owner
 
 	# We don't want to include stuff like rust-llvm-* tools, as we will use the
@@ -225,6 +241,12 @@ package() {
 	# Requires move-py-scripts-to-share.patch to be applied.
 	_mv usr/lib/rustlib/etc/*.py $_sharedir/etc/
 	rmdir -p usr/lib/rustlib/etc 2>/dev/null || true
+
+	_mv usr/etc/bash_completion.d/cargo usr/share/bash-completion/completions/
+	rmdir -p usr/etc/bash_completion.d 2>/dev/null || true
+
+	_mv usr/lib/rustlib/src/rust usr/src/
+	ln -s ../../../src/rust usr/lib/rustlib/src/rust
 
 	# Remove some clutter.
 	cd "$pkgdir"/usr/lib/rustlib
@@ -238,37 +260,45 @@ stdlib() {
 	pkgdesc="Standard library for Rust (static rlibs)"
 	depends=
 
-	_mv "$pkgdir"/$_rlibdir/*.rlib "$subpkgdir"/$_rlibdir/
+	amove $_rlibdir/*.rlib
+}
+
+wasm() {
+	pkgdesc="WebAssembly targets for rust"
+	depends="rust=$pkgver-r$pkgrel lld wasi-sdk"
+
+	amove usr/lib/rustlib/wasm32-*
 }
 
 analysis() {
 	pkgdesc="Compiler analysis data for the Rust standard library"
 	depends="$pkgname-stdlib=$pkgver-r$pkgrel"
 
-	_mv "$pkgdir"/$_rlibdir/../analysis "$subpkgdir"/${_rlibdir%/*}/
+	amove $_rlibdir/../analysis
 }
 
 gdb() {
 	pkgdesc="GDB pretty printers for Rust"
 	depends="$pkgname=$pkgver-r$pkgrel gdb"
 
-	mkdir -p "$subpkgdir"
-	cd "$subpkgdir"
-
-	_mv "$pkgdir"/usr/bin/rust-gdb usr/bin/
-	_mv "$pkgdir"/$_sharedir/etc/gdb_*.py $_sharedir/etc/
+	amove usr/bin/rust-gdb
+	amove $_sharedir/etc/gdb_*.py
 }
 
 lldb() {
-	local _pyver=${_python#python}
 	pkgdesc="LLDB pretty printers for Rust"
-	depends="$pkgname=$pkgver-r$pkgrel lldb py$_pyver-lldb"
+	depends="$pkgname=$pkgver-r$pkgrel lldb py3-lldb"
 
-	mkdir -p "$subpkgdir"
-	cd "$subpkgdir"
+	amove usr/bin/rust-lldb
+	amove $_sharedir/etc/lldb_*.py
+}
 
-	_mv "$pkgdir"/usr/bin/rust-lldb usr/bin/
-	_mv "$pkgdir"/$_sharedir/etc/lldb_*.py $_sharedir/etc/
+clippy() {
+	pkgdesc="Lints to catch common mistakes and improve your Rust code"
+	depends="$pkgname-stdlib=$pkgver-r$pkgrel"
+
+	amove usr/bin/cargo-clippy
+	amove usr/bin/clippy-driver
 }
 
 src() {
@@ -276,11 +306,8 @@ src() {
 	depends="$pkgname=$pkgver-r$pkgrel"
 	license="$license OFL-1.1 GPL-3.0-or-later GPL-3.0-with-GCC-exception CC-BY-SA-3.0 LGPL-3.0"
 
-	_mv "$pkgdir"/usr/lib/rustlib/src/rust "$subpkgdir"/usr/src/
-	rmdir -p "$pkgdir"/usr/lib/rustlib/src 2>/dev/null || true
-
-	mkdir -p "$subpkgdir"/usr/lib/rustlib/src
-	ln -s ../../../src/rust "$subpkgdir"/usr/lib/rustlib/src/rust
+	amove usr/src
+	amove usr/lib/rustlib/src
 }
 
 cargo() {
@@ -290,7 +317,7 @@ cargo() {
 	# XXX: See comment on top-level provides=.
 	provides="cargo-bootstrap=$pkgver-r$pkgrel"
 
-	_mv "$pkgdir"/usr/bin/cargo "$subpkgdir"/usr/bin/
+	amove usr/bin/cargo
 }
 
 rustfmt() {
@@ -307,10 +334,7 @@ _cargo_bashcomp() {
 	depends=""
 	install_if="cargo=$pkgver-r$pkgrel bash-completion"
 
-	cd "$pkgdir"
-	_mv usr/etc/bash_completion.d/cargo \
-		"$subpkgdir"/usr/share/bash-completion/completions/
-	rmdir -p etc/bash_completion.d 2>/dev/null || true
+	amove usr/share/bash-completion
 }
 
 _cargo_zshcomp() {
@@ -319,10 +343,7 @@ _cargo_zshcomp() {
 	depends=""
 	install_if="cargo=$pkgver-r$pkgrel zsh"
 
-	cd "$pkgdir"
-	_mv usr/share/zsh/site-functions/_cargo \
-		"$subpkgdir"/usr/share/zsh/site-functions/
-	rmdir -p usr/share/zsh/site-functions 2>/dev/null || true
+	amove usr/share/zsh/site-functions/_cargo
 }
 
 _cargo_doc() {
@@ -342,12 +363,12 @@ _mv() {
 }
 
 sha512sums="
-acace866871d13a55d365f65d7e15c192c3cd33096862571df6317e066b7474d668b95ae281e0244967778c05f1e33966c3c55616218bd25d3770a2b2d4f0365  rustc-1.59.0-src.tar.xz
+d0c113e8c2c67bf10773c9403dc4c4700c4deb2fb287bfec51e565d3473d2b481d8ae2c90b272cd67b3a87d7443ea25a34c7b40ba8cd7106bf5d71126ab141c3  rustc-1.60.0-src.tar.xz
 4accbdf546e9f82f38d56169f65fcfb53839e1df89978b9a434a59a1dcb80b4d57c0272c0ece65530ce09ad0f7a7e880b4b97e2b8dd8f2bccace02a5874e6733  musl-fix-linux_musl_base.patch
 2d401a01d2c2db92624d672018342907a41aa4a3842708c0a2ab694af0396d568aca4835d1075f244d77c0a4c45e67f893fd175fd97cd7f758090eba9972eba6  need-rpath.patch
 bc28e1edae88f48eb0368cd0905280c323d521c7e13b6fc2bb1fb6e57274fa418afdc9cb3342f4928842e309d0573b98e82976159541c88b35694dceaf7a82e4  need-ssp_nonshared.patch
 03a179e31c95f88a98fb1ba6b2fd0baaf9fe1a74ade76d3096fe45ddc5e453c25109355e667783d9be1bcc585445d07b7270cb3e6e403de971049714f2c6f91a  alpaquita-move-py-scripts-to-share.patch
-62ca97b6539246af1f7d24c4fc4defd3a5cb82ecfe6739fa73fa575abc0645160f408c80a59cda5941b94266d10092c8ebcb85001228de91a0341a34249ae9da  alpaquita-target.patch
+da95111f5952d7795303a14b69588e0d209bf2457127a44f5aaac53cf24936f32a638a168ba3baf801fb2b3c6df5a2b4863020b163ba1042c504ceeb60042730  alpaquita-target.patch
 7d59258d4462eba0207739a5c0c8baf1f19d9a396e5547bb4d59d700eb94d50ba6add2e523f3e94e29e993821018594625ea4ac86304fb58f7f8c82622a26ab0  install-template-shebang.patch
 c31fdfe8a9b3411576c75da46645cf0465b9053000a2ab49cf9b2f2733f679d6d33acbf236d67a20e14935d094a685453b7f1840180249f39d610fd0902c3125  check-rustc
 5e1a1c645b681f921906a8cccd42259f8b2e78427adb94440fef8ac06b80aedaa108757638c97aec4386cd1c4f06fe3fd86d061afde9a36d33411aa23c53025a  link-dynamically.patch
