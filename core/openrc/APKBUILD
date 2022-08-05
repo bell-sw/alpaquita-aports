@@ -4,7 +4,7 @@
 pkgname=openrc
 pkgver=0.45.2
 _ver=${pkgver/_git*/}
-pkgrel=0
+pkgrel=1
 pkgdesc="OpenRC dependency-based init system"
 url="https://github.com/OpenRC/openrc"
 arch="all"
@@ -48,6 +48,7 @@ source="$pkgname-$pkgver.tar.gz::https://github.com/OpenRC/openrc/archive/$pkgve
 	0104-init.sh.Linux.in-add-missing-eend.patch
 	"
 options="!check" # not updated to meson build system, require makefile build
+replaces="alpaquita-baselayout" # due to move of mkmntdirs
 
 # secfixes:
 #   0.44.6-r1:
@@ -158,7 +159,7 @@ _agetty_openrc() {
 
 sha512sums="
 ca2958772240f6e5037e39db1ee62a81091a2efa654da967f68e03a721868c6c0a41d32a2bddf55c8eadbc9bf5837b710cc2e4564844a7fbc0e585366da4fdf9  openrc-0.45.2.tar.gz
-6085d127f7385eb86a00676a263c8613748fb0cbbf064bc908d346a1b368e226d8a3014e871d281f57d334a70ec1301269fe431e085f0e907b4f6ef8a99bf07f  0001-call-sbin-mkmntdirs-in-localmount-OpenRC-service.patch
+257861f5f0562e9b9a9fccebae474bd75c4bb51f005a2b8132fd551f061f65863de46c5bc4437f137b4a9d3ca741f9de9274bfa7b418eda70497ed4b5fd3056d  0001-call-sbin-mkmntdirs-in-localmount-OpenRC-service.patch
 0bd69d9e8e9c321a5e67cf924be07b9dd0b58801143c18f74bebf442958fc878e46a65f07cc2842566a8c3434e788ef3ca0c90c607de6b10931f01324bfc1b11  0003-rc-pull-in-sysinit-and-boot-as-stacked-levels-when-n.patch
 71a743bf969110a27259405ef4b4dc4fad608b8e49039fd6afb1b1486d0f1dfccc3ef5275410fa3d6d1554ccee59c5a3424be4f2919e14453ebb709282c588a7  0004-make-consolefont-service-compatible-with-busyboxs-se.patch
 9e2ae6c8e189ceae0f3f2662d9504f796e9a6a987a26ee2e10add85746b6596eb04cc256dc532a39f711b4e1aa07f1d12a384ef45d23cab49878b887bf0a878c  0005-Support-early-loading-of-keymap-if-kbd-is-installed.patch
