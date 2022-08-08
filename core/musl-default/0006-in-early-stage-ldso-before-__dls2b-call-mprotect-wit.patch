@@ -1,0 +1,49 @@
+From 63c67053a3e42e9dff788de432f82ff07d4d772a Mon Sep 17 00:00:00 2001
+From: "Alex Xu (Hello71)" <alex_y_xu@yahoo.ca>
+Date: Thu, 30 Jun 2022 13:52:43 -0400
+Subject: [PATCH] in early stage ldso before __dls2b, call mprotect with
+ __syscall
+
+if LTO is enabled, gcc hoists the call to ___errno_location outside the
+loop even though the access to errno is gated behind head != &ldso
+because ___errno_location is marked __attribute__((const)). this causes
+the program to crash because TLS is not yet initialized when called from
+__dls2. this is also possible if LTO is not enabled; even though gcc 11
+doesn't do it, it is still wrong to use errno here.
+
+since the start and end are already aligned, we can simply call
+__syscall instead of using global errno.
+
+Fixes: e13a2b8953ef ("implement PT_GNU_RELRO support")
+---
+ ldso/dynlink.c | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/ldso/dynlink.c b/ldso/dynlink.c
+index 5b9c8be4..14fdd29e 100644
+--- a/ldso/dynlink.c
++++ b/ldso/dynlink.c
+@@ -1356,12 +1356,14 @@ static void reloc_all(struct dso *p)
+ 		do_relocs(p, laddr(p, dyn[DT_REL]), dyn[DT_RELSZ], 2);
+ 		do_relocs(p, laddr(p, dyn[DT_RELA]), dyn[DT_RELASZ], 3);
+ 
+-		if (head != &ldso && p->relro_start != p->relro_end &&
+-		    mprotect(laddr(p, p->relro_start), p->relro_end-p->relro_start, PROT_READ)
+-		    && errno != ENOSYS) {
+-			error("Error relocating %s: RELRO protection failed: %m",
+-				p->name);
+-			if (runtime) longjmp(*rtld_fail, 1);
++		if (head != &ldso && p->relro_start != p->relro_end) {
++			long ret = __syscall(SYS_mprotect, laddr(p, p->relro_start),
++				p->relro_end-p->relro_start, PROT_READ);
++			if (ret != 0 && ret != -ENOSYS) {
++				error("Error relocating %s: RELRO protection failed: %m",
++					p->name);
++				if (runtime) longjmp(*rtld_fail, 1);
++			}
+ 		}
+ 
+ 		p->relocated = 1;
+-- 
+2.25.1
+
