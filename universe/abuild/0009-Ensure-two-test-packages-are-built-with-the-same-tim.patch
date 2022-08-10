@@ -1,0 +1,24 @@
+From 5337e75512a5b96d0c9eb801a7ce0cddaa4d3e21 Mon Sep 17 00:00:00 2001
+From: Denis Kononenko <denis.kononenko@bell-sw.com>
+Date: Wed, 10 Aug 2022 11:07:50 +0000
+Subject: [PATCH] Ensure two test packages are built with the same timestamp
+
+---
+ tests/abuild.bats | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tests/abuild.bats b/tests/abuild.bats
+index 151c7a9..8a03d77 100644
+--- a/tests/abuild.bats
++++ b/tests/abuild.bats
+@@ -97,6 +97,7 @@ teardown() {
+ }
+ 
+ @test "abuild: verify that packages are reproducible built" {
++	export SOURCE_DATE_EPOCH=$(date -u "+%s")
+ 	cd testrepo/pkg1
+ 	arch=$($ABUILD -A)
+ 	pkgs=$($ABUILD listpkg)
+-- 
+2.34.2
+
