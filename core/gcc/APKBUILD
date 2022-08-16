@@ -9,7 +9,7 @@ _pkgbase=${pkgver%_*}
 [ "$CHOST" != "$CTARGET" ] && _target="-$CTARGET_ARCH" || _target=""
 
 pkgname="$pkgname$_target"
-pkgrel=2
+pkgrel=3
 pkgdesc="The GNU Compiler Collection"
 url="https://gcc.gnu.org"
 arch="all"
@@ -158,7 +158,6 @@ source="
 	0001-posix_memalign.patch
 	0002-gcc-poison-system-directories.patch
 	0003-specs-turn-on-Wl-z-now-by-default.patch
-	0004-Turn-on-D_FORTIFY_SOURCE-2-by-default-for-C-C-ObjC-O.patch
 	0005-On-linux-targets-pass-as-needed-by-default-to-the-li.patch
 	0006-Enable-Wformat-and-Wformat-security-by-default.patch
 	0007-Enable-Wtrampolines-by-default.patch
@@ -305,7 +304,6 @@ build() {
 		$_symvers \
 		--enable-__cxa_atexit \
 		--enable-default-pie \
-		--enable-default-ssp \
 		--enable-cloog-backend \
 		--enable-languages=$_languages \
 		$_arch_configure \
@@ -652,7 +650,6 @@ sha512sums="
 d46a87edb919697a37c15af99c9142c6ad8ec364fe9b5747f5808368e619766163d3d8b64e987b1155785ddc91b5b191b795857cd70118d64f978e46b476bfff  0001-posix_memalign.patch
 59fa772417c1d1baf8bd8477ef4e30975fbd616d949fbd72fa88cc72d9662f2e28214305a188d75e30c54a95be111c7998784f7d1499562490acbe194a3c2116  0002-gcc-poison-system-directories.patch
 556240f9888c24706694560ad3ba1a90d3ed6da1dd3d7eebb603f4e3551d5743908840d4b1f598d6d5dc3cc52bcfafbcd777282ec8864051c3c8aba623866d3e  0003-specs-turn-on-Wl-z-now-by-default.patch
-747a2ba2c0227471dd8a327bddd4699aa6aad5ddce2e523816e43e04fd5a4d8c2f1a69f02980632263ab1c23334d01e27d5df737a0ba9f6bd16b9c85112de82a  0004-Turn-on-D_FORTIFY_SOURCE-2-by-default-for-C-C-ObjC-O.patch
 0fe2b802ce0b9c986d7ea5378df49899b028baad419ccd4071fd1a2dad90736e0f04eef29056f6c74c1fa2482359629b5e3747d58fcbf3520c6ed10c66c7b87e  0005-On-linux-targets-pass-as-needed-by-default-to-the-li.patch
 7d37f31108cddfeb25ebf7e462d999873dc184bb26f74c9d7d6d32534a15070291661ab58be41ccedb44af20de0568e704b4152668c6bd803cf88f1ddfb6e35c  0006-Enable-Wformat-and-Wformat-security-by-default.patch
 698893670d00df1ddbaa7dd970b17049f94d0cc2fec3225925bbad606e44c29288e38a7afa4b4cae3c9c26be35646c52e9eadc67022b89d7b4ce97ce64a5a2ac  0007-Enable-Wtrampolines-by-default.patch
