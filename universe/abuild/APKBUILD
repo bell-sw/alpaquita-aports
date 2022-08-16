@@ -1,13 +1,25 @@
 pkgname=abuild
 pkgver=3.9.0
 _ver=${pkgver%_git*}
-pkgrel=12
+pkgrel=14
 pkgdesc="Script to build Alpaquita Packages (Alpine compatible)"
 url="https://git.alpinelinux.org/cgit/abuild/"
 arch="all"
 license="GPL-2.0-only"
-depends="fakeroot scanelf openssl apk-tools>=2.0.7-r1 libc-utils
-	attr tar pkgconf patch lzip"
+depends="
+	fakeroot
+	scanelf
+	openssl
+	apk-tools
+	libc-utils
+	attr
+	tar
+	pkgconf
+	patch
+	lzip
+	annobin
+	"
+
 if [ "$CBUILD" = "$CHOST" ]; then
 	depends="$depends curl"
 fi
@@ -36,6 +48,7 @@ source="https://gitlab.alpinelinux.org/alpine/abuild/-/archive/$pkgver/abuild-$p
 	0008-Don-t-add-bin-sh-dependency-for-glibc-bin.trigger.patch
 	0009-fix-reproducibility-test-and-skip-locking-test.patch
 	0010-add-common-gcc-optimization-flags-for-builds.patch
+	0011-abuild.conf-enable-stack-protector-strong-and-_FORTI.patch
 	"
 builddir="$srcdir"/abuild-$pkgver
 
@@ -104,4 +117,5 @@ a6eb4fbfeeecf19df4def5495f4d6c11b95b3cc1e7f6fb1ea8068532816f2e9653b302043f24fab3
 543a22b3ee691e3507ed624b14cc9580e4f0cf093cb9670e81722f4c16f7faba8e05d9ac638001dc6ba9389d2203902b888fc4f9f6545b998b076543d5d29ca4  0008-Don-t-add-bin-sh-dependency-for-glibc-bin.trigger.patch
 f34860ef388f1f15268e4d75f95044e127caa7a73600422303848f575ce81cfb8fb3855dcc280665fa4607761d317ea833107b4eaf5663c52aa86b0d9df3c3ce  0009-fix-reproducibility-test-and-skip-locking-test.patch
 776b6b7c66ee0ab56bcecf57032e32a2d6a9ef3ec7f1997c91f5ee771b82d78104e376a07778a5ccb0aa002870a314597694a656b90a13dc4c233cf816892aae  0010-add-common-gcc-optimization-flags-for-builds.patch
+1c4cef300618bdee254fd1d06719902fdc6ee48ea5d2bbb4d098727dea46d58e8d56c10d649c8ebbbf91dc10548d11677ac91543f6293be89dc27246803529a6  0011-abuild.conf-enable-stack-protector-strong-and-_FORTI.patch
 "
