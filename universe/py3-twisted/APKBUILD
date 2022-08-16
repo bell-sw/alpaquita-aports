@@ -20,7 +20,6 @@ depends="
 	py3-pyserial
 	py3-h2
 	"
-options="!check" # Deps issue, resolve later
 makedepends="libtirpc-dev py3-setuptools python3-dev cython"
 checkdepends="xvfb-run py3-appdirs tzdata py3-asn1 py3-bcrypt"
 subpackages="$pkgname-doc"
@@ -29,6 +28,10 @@ source="https://github.com/twisted/twisted/archive/twisted-$pkgver.tar.gz
 	fix-test-import.patch
 	remove-failing-test.patch
 	"
+options="net" # Tests require network access
+case "$CLIBC" in
+glibc) options="$options !check" ;; # LIN-72
+esac
 builddir="$srcdir"/twisted-twisted-$pkgver
 
 replaces="py-twisted" # Backwards compatibility
