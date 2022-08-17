@@ -10,6 +10,7 @@ subpackages="$pkgname-doc"
 depends="python3 py3-packaging"
 makedepends="py3-setuptools"
 checkdepends="py3-pytest py3-pytest-cov python3-dev"
+[ -n "BOOTSTRAP" ] && options="!check" # To break a cyclic dependency on py3-pytest
 _pypiprefix="${_pyname%${_pyname#?}}"
 source="https://files.pythonhosted.org/packages/source/$_pypiprefix/$_pyname/$_pyname-$pkgver.tar.gz
 	use-system-packaging.patch
