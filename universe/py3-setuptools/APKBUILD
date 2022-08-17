@@ -31,8 +31,11 @@ replaces="py-setuptools" # Backwards compatiblity
 
 # py3-setuptools needs itself to build, bootstrapped with a lower version
 # in main/py3-setuptools-stage0
-provides="$provides py3-setuptools-bootstrap"
-provider_priority=100 # highest
+if [ -z "$BOOTSTRAP" ]; then
+	# During bootstrapping py3-setuptools-bootstrap is provided by py3-setuptools-stage0
+	provides="$provides py3-setuptools-bootstrap"
+	provider_priority=100 # highest
+fi
 
 export SETUPTOOLS_INSTALL_WINDOWS_SPECIFIC_FILES=0
 
