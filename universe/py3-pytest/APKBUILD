@@ -13,13 +13,13 @@ depends="py3-atomicwrites py3-attrs py3-more-itertools py3-iniconfig py3-pluggy 
 	py3-packaging py3-toml py3-pygments"
 makedepends="py3-setuptools"
 checkdepends="bash py3-hypothesis py3-virtualenv py3-xmlschema"
+[ -n "BOOTSTRAP" ] && options="!check" # To break a cyclic dependency on py3-virtualenv
 source="https://files.pythonhosted.org/packages/source/p/pytest/pytest-$pkgver.tar.gz
 	0001-remove-setuptools_scm.patch
 	0002-skip-fixup_namespace_packages.patch
 	0003-fix-test_errors_in_xfail_skip_expressions.patch
 	"
 builddir="$srcdir/pytest-$pkgver"
-options="!check" # causes bootstrapping issues because of checkdepends
 
 replaces="pytest" # Backwards compatibility
 provides="pytest=$pkgver-r$pkgrel" # Backwards compatibility
