@@ -1,0 +1,25 @@
+From 0418d6b3a640baf28d9bc8d02dabbb1f5f8a762f Mon Sep 17 00:00:00 2001
+From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
+Date: Thu, 18 Aug 2022 12:40:28 +0300
+Subject: [PATCH] GNUInstallDirs: don't use lib64 on Alpaquita Linux
+
+---
+ Modules/GNUInstallDirs.cmake | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Modules/GNUInstallDirs.cmake b/Modules/GNUInstallDirs.cmake
+index 97968549dc..a71681c1a7 100644
+--- a/Modules/GNUInstallDirs.cmake
++++ b/Modules/GNUInstallDirs.cmake
+@@ -266,6 +266,8 @@ if(NOT DEFINED CMAKE_INSTALL_LIBDIR OR (_libdir_set
+     if(NOT __system_type_for_install)
+       if (EXISTS "/etc/alpine-release")
+         set(__system_type_for_install "alpine")
++      elseif (EXISTS "/etc/alpaquita-release")
++        set(__system_type_for_install "alpaquita")
+       elseif (EXISTS "/etc/arch-release")
+         set(__system_type_for_install "arch linux")
+       elseif (EXISTS "/etc/debian_version")
+-- 
+2.34.4
+
