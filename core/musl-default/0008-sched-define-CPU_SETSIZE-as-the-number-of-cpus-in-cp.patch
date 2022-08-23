@@ -1,0 +1,39 @@
+From bb9405843349ba88e58089ed0365dc5b659acf15 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 23 Aug 2022 17:15:48 +0300
+Subject: [PATCH] sched: define CPU_SETSIZE as the number of cpus in cpu_set_t
+ struct
+
+So that it aligns with glibc definition of CPU_SETSIZE under
+__GNU_SOURCE.
+---
+ include/sched.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/include/sched.h b/include/sched.h
+index fda4b484..e28f4911 100644
+--- a/include/sched.h
++++ b/include/sched.h
+@@ -84,7 +84,9 @@ void *memset (void *, int, size_t);
+ void *calloc(size_t, size_t);
+ void free(void *);
+ 
+-typedef struct cpu_set_t { unsigned long __bits[128/sizeof(long)]; } cpu_set_t;
++#define CPU_SETSIZE 1024
++typedef struct cpu_set_t { unsigned long __bits[CPU_SETSIZE/(8*sizeof(long))]; } cpu_set_t;
++
+ int __sched_cpucount(size_t, const cpu_set_t *);
+ int sched_getcpu(void);
+ int sched_getaffinity(pid_t, size_t, cpu_set_t *);
+@@ -124,8 +126,6 @@ __CPU_op_func_S(XOR, ^)
+ #define CPU_ALLOC(n) ((cpu_set_t *)calloc(1,CPU_ALLOC_SIZE(n)))
+ #define CPU_FREE(set) free(set)
+ 
+-#define CPU_SETSIZE 128
+-
+ #define CPU_SET(i, set) CPU_SET_S(i,sizeof(cpu_set_t),set)
+ #define CPU_CLR(i, set) CPU_CLR_S(i,sizeof(cpu_set_t),set)
+ #define CPU_ISSET(i, set) CPU_ISSET_S(i,sizeof(cpu_set_t),set)
+-- 
+2.25.1
+
