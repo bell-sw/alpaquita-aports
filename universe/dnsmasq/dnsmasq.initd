@@ -8,8 +8,7 @@ description_checkconfig="Check configuration syntax"
 extra_started_commands="reload"
 description_reload="Clear cache and reload hosts files"
 
-# DNSMASQ_CONFFILE is here for backward compatibility (Alpine <3.16).
-: ${cfgfile:=${DNSMASQ_CONFFILE:-"/etc/dnsmasq.conf"}}
+: ${cfgfile:="/etc/dnsmasq.conf"}
 : ${leasefile:="/var/lib/misc/$RC_SVCNAME.leases"}
 : ${user:="dnsmasq"}
 : ${group:="dnsmasq"}
@@ -18,8 +17,7 @@ description_reload="Clear cache and reload hosts files"
 
 command="/usr/sbin/dnsmasq"
 # Tell dnsmasq to not create pidfile, that's responsibility of init system.
-# DNSMASQ_OPTS is here for backward compatibility (Alpine <3.16).
-command_args="--keep-in-foreground --pid-file= $DNSMASQ_OPTS $command_args --conf-file=$cfgfile"
+command_args="--keep-in-foreground --pid-file= $command_args --conf-file=$cfgfile"
 command_background="yes"
 pidfile="/run/$RC_SVCNAME.pid"
 
