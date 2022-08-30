@@ -6,12 +6,11 @@ url="https://github.com/bell-sw/glibc-string"
 arch="x86_64"
 license="LGPL-2.1-or-later"
 source="https://packages.bell-sw.com/alpaquita/distfiles/$pkgname-$pkgver.tar.xz"
-options="!check !libc_glibc"
+options="!check !libc_glibc !stackprot !fortify !annobin"
 
 build() {
 	cd "$builddir"
-
-	export CFLAGS="${CFLAGS/-Os/-O2}"
+	optimize_gcc_build 2
 	make
 }
 
