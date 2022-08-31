@@ -105,6 +105,12 @@ package() {
 	# Used e.g. for unprivileged LXC containers.
 	install -m644 /dev/null etc/subuid
 	install -m644 /dev/null etc/subgid
+
+	# Alpaquita: binaries and libraries must be under usr/
+	local dir; for dir in bin sbin lib; do
+		mkdir -p usr/$dir
+		mv $dir/* usr/$dir
+	done
 }
 
 login() {
@@ -158,7 +164,7 @@ subids() {
 	depends=""
 	provides="$pkgname-uidmap=$pkgver-r$pkgrel"  # for backward compatibility (Alpine <3.16)
 
-	amove bin/getsubids
+	amove usr/bin/getsubids
 	amove usr/bin/new*idmap
 	amove etc/subuid
 	amove etc/subgid
