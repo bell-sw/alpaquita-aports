@@ -58,6 +58,13 @@ install="$pkgname.pre-install $pkgname.post-install $pkgname.pre-upgrade"
 # strip fails on .img files
 # some tests does not run on our builders
 options="suid !strip !check"
+
+annocheck_skip="
+	u-boot.e500 s390-netboot.img openbios-sparc64 openbios-sparc32
+	opensbi-riscv64-generic-fw_dynamic.elf openbios-ppc s390-ccw.img
+	opensbi-riscv32-generic-fw_dynamic.elf palcode-clipper hppa-firmware.img
+	"
+
 [ "$CARCH" = "riscv64" ] && options="$options textrels"
 
 subpackages="$pkgname-doc $pkgname-lang $pkgname-guest-agent:guest
