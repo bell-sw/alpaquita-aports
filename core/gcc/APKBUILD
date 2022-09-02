@@ -9,7 +9,7 @@ _pkgbase=${pkgver%_*}
 [ "$CHOST" != "$CTARGET" ] && _target="-$CTARGET_ARCH" || _target=""
 
 pkgname="$pkgname$_target"
-pkgrel=3
+pkgrel=4
 pkgdesc="The GNU Compiler Collection"
 url="https://gcc.gnu.org"
 arch="all"
@@ -233,6 +233,7 @@ prepare() {
 }
 
 build() {
+	local _x86_64_configure=
 	local _arch_configure=
 	local _libc_configure=
 	local _cross_configure=
@@ -244,6 +245,7 @@ build() {
 
 	case "$CTARGET" in
 	aarch64-*-*-*)		_arch_configure="--with-arch=armv8-a --with-abi=lp64";;
+	x86_64-*-*-*)		_x86_64_configure="--with-arch=x86-64-v2";;
 	esac
 
 	case "$CTARGET_LIBC" in
@@ -279,6 +281,7 @@ build() {
 	echo "  CTARGET_ARCH=$CTARGET_ARCH"
 	echo "  CTARGET_LIBC=$CTARGET_LIBC"
 	echo "  languages=$_languages"
+	echo "  x86_64_configure=$_x86_64_configure"
 	echo "  arch_configure=$_arch_configure"
 	echo "  libc_configure=$_libc_configure"
 	echo "  cross_configure=$_cross_configure"
@@ -307,6 +310,8 @@ build() {
 		--enable-default-pie \
 		--enable-cloog-backend \
 		--enable-languages=$_languages \
+		--enable-cet \
+		$_x86_64_configure \
 		$_arch_configure \
 		$_libc_configure \
 		$_cross_configure \
@@ -314,7 +319,8 @@ build() {
 		$_jit_configure \
 		--with-system-zlib \
 		--with-linker-hash-style=gnu \
-		--enable-gnu-indirect-function=yes
+		--enable-gnu-indirect-function=yes \
+		--with-bugurl=https://bell-sw.com/support/
 	make
 }
 
