@@ -2,7 +2,7 @@
 
 pkgname=libssh2
 pkgver=1.10.0
-pkgrel=2
+pkgrel=3
 pkgdesc="library for accessing ssh1/ssh2 protocol servers"
 url="https://libssh2.org/"
 arch="all"
@@ -11,7 +11,9 @@ makedepends_host="openssl1.1-compat-dev zlib-dev"
 subpackages="$pkgname-dbg $pkgname-static $pkgname-dev $pkgname-doc"
 source="http://www.libssh2.org/download/libssh2-$pkgver.tar.gz
 	"
-options="!check" # FIXME: debug why integration test fails on builders but not rootbld
+
+# FIXME: debug why integration test fails on builders but not rootbld
+options="!check"
 
 # secfixes:
 #   1.9.0-r1:
@@ -36,6 +38,7 @@ build() {
 		--build=$CBUILD \
 		--host=$CHOST \
 		--prefix=/usr \
+		--disable-rpath \
 		--sysconfdir=/etc \
 		--mandir=/usr/share/man \
 		--infodir=/usr/share/info \
