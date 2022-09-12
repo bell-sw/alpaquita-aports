@@ -1,6 +1,5 @@
-# Maintainer: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 pkgname=rpmalloc
-pkgver=1.4.3
+pkgver=1.4.4
 pkgrel=0
 pkgdesc="Lock free thread caching 16-byte aligned memory allocator implemented in C"
 url="https://github.com/mjansson/rpmalloc"
@@ -10,6 +9,8 @@ makedepends_build="python3 samurai"
 subpackages="$pkgname-static $pkgname-global"
 source="$pkgname-$pkgver.tar.gz::https://github.com/mjansson/rpmalloc/archive/refs/tags/$pkgver.tar.gz
 	../mimalloc/malloc.sh
+	0001-fix-attr-mismatch-gcc11-warning-on-rpmalloc-s-reallo.patch
+	0002-fix-ignored-return-value-gcc-warning.patch
 	"
 builddir="$srcdir/$pkgname-$pkgver"
 
@@ -18,9 +19,7 @@ build() {
 
 	sed -i 's/env python/env python3/' configure.py
 
-	export CPPFLAGS="${CPPFLAGS/-Os/-O3}"
-	export CXXFLAGS="${CXXFLAGS/-Os/-O3}"
-	export CFLAGS="${CFLAGS/-Os/-O3}"
+	optimize_gcc_build
 
 	./configure.py --toolchain gcc --host linux --config release
 
@@ -48,6 +47,7 @@ EOF
 check() {
 	cd "$builddir"/bin/linux/release/x86-64
 
+	./rpmalloc-test
 	./rpmallocwrap-test
 }
 
@@ -71,6 +71,8 @@ global() {
 }
 
 sha512sums="
-deb352ef91a9d76080109c2d4624d1eb33619a7fdc3de3dee5681333708fac49491731382e16210964f8949b679a8466e83352bb0d5dd3337ca8bffbb65c2693  rpmalloc-1.4.3.tar.gz
+0a60ce5839014fe1c69f9261b51786b14cf9370dbfbff65bcd62ddd8cb995e479761d623fb3da742df8922167800788a5e722c73d3e3c0d19d0818928570e3be  rpmalloc-1.4.4.tar.gz
 237d11c69c74402a78d0fb67914144653e5215170bb8047726d35d895b6edab603189d611b2b24cf783cc93fe5f6a25bae28f659d20d44054d182faeb07bbf7c  malloc.sh
+0bf62a7dc7278732160bee701a178c343536f52375f5ec8990622dd0ef4ca06883835e88b39a4bb8d6688929d0a8332e597eee0a60e16757d38f18c30f018510  0001-fix-attr-mismatch-gcc11-warning-on-rpmalloc-s-reallo.patch
+abfc0e162d9133dc6dacacc5751c2d9272d0499efd1f7db91a055625c2eca9409e1fb5960c0d7e428b2d1c68776f5289e9abe6c8f84e392ba75b7c91fb510827  0002-fix-ignored-return-value-gcc-warning.patch
 "
