@@ -7,6 +7,8 @@ arch="all"
 license="GPL-2.0-only"
 pkggroups="shadow"
 options="!check !fhs lib64"
+depends="$pkgname-data=${pkgver}-r${pkgrel}"
+subpackages="$pkgname-data"
 install="$pkgname.pre-install $pkgname.pre-upgrade $pkgname.post-upgrade
 	$pkgname.post-install"
 _nbver=6.2
@@ -48,7 +50,7 @@ build() {
 }
 
 data() {
-	replaces="alpine-baselayout"
+	replaces="$pkgname"
 	depends=
 
 	amove etc/fstab
