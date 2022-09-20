@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.34.1
-pkgrel=2
+pkgrel=3
 _glibcver=2.34
 pkgdesc="GNU C Library"
 url="https://www.gnu.org/software/libc"
@@ -16,7 +16,6 @@ source="
 	ld.so.conf
 	locale.gen.in
 	locale-gen
-	nsswitch.conf
 	0001-ldconfig-avoid-leak-on-empty-paths-in-config-file.patch
 	0002-gconv_parseconfdir-Fix-memory-leak.patch
 	0003-gaiconf_init-Avoid-double-free-in-label-and-preceden.patch
@@ -82,7 +81,6 @@ package() {
 	rm -rf "$pkgdir"/var/db
 
 	install -m644 "$srcdir"/ld.so.conf "$pkgdir"/etc/ld.so.conf
-	install -m644 "$srcdir"/nsswitch.conf "$pkgdir"/etc/nsswitch.conf
 
 	install -m644 ../posix/gai.conf "$pkgdir"/etc/gai.conf
 
@@ -146,7 +144,6 @@ sha512sums="
 73bfefd8a1366f3bc7bbfd3f34b599b49f48278f783eb2837a414eb914ac3ae9995fe4e9fec58b9d1da1eb6ed36ccc889257ffc54031f1731e041dc18e096e6f  ld.so.conf
 47a686c2fda0f32a1e9e975f723ed96ab8125619541cf8711fa80d94428862be77c46d06f5ff17f6a978eb22c9f86929ee9bf79888e6f824beeb023f78512151  locale.gen.in
 7f4e96d99f98da0074e8020efd574b5080b3364ba014e74c3fc262af685180f92a6a08f2681c0ce8b0b78a103cafe753943836943db20fe9064ad5f380b35de0  locale-gen
-3a871c970f7cdf35637e8d10da5c9ab64f9ccf949873e085f9ecdbf5696e6463698e09097e30eabb417eed050ba37d598fe9544607869993f6da3335c91e9f0e  nsswitch.conf
 dd1d36d70f0a3939145f4647ac423fa1c4347353662ad48a6479a0e7217104fac6e759edbd7c0434b6fa568754f1d38165f7eac53410b54d498fabfbc5e45d5a  0001-ldconfig-avoid-leak-on-empty-paths-in-config-file.patch
 bfccc195d49309c0e3010cb6d711fee12bc91e96539f9cfb17e9835cd7a031590f46a5370bc2b28e62a72e28062affcd6e1c62119400c569b7933859ff2bd542  0002-gconv_parseconfdir-Fix-memory-leak.patch
 d2a85c8b3e8351f317448e00e0282b1bddaa99b5cc2d59ee7387b36024b760a50aa2426b5625decfe936051ab01e5f79c94f21672c74f913ea18eaf006f06475  0003-gaiconf_init-Avoid-double-free-in-label-and-preceden.patch
