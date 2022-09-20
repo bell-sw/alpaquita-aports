@@ -224,6 +224,9 @@ package() {
 		Bourne-compatible shells (like ash, bash or zsh) when started as a
 		login shell.
 	EOF
+
+	case "$CLIBC" in
+	musl)
 	cat > "$pkgdir"/etc/nsswitch.conf <<-EOF
 		# musl itself does not support NSS, however some third-party DNS
 		# implementations use the nsswitch.conf file to determine what
@@ -231,6 +234,27 @@ package() {
 		# Editing this file is not recommended.
 		hosts: files dns
 	EOF
+	;;
+	glibc)
+	cat > "$pkgdir"/etc/nsswitch.conf <<-EOF
+		# Begin /etc/nsswitch.conf
+
+		passwd: files
+		group: files
+		shadow: files
+
+		hosts: files dns
+		networks: files
+
+		protocols: files
+		services: files
+		ethers: files
+		rpc: files
+
+		# End /etc/nsswitch.conf
+	EOF
+	;;
+	esac
 
 	install -m644 \
 		"$srcdir"/group \
