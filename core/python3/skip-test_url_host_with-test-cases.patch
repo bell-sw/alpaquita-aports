@@ -1,0 +1,53 @@
+From 4a5b39dfd00e95b900a51f806a7e91c929e1087d Mon Sep 17 00:00:00 2001
+From: Stanislav Kholmanskikh <stanislav.kholmanskikh@bell-sw.com>
+Date: Wed, 21 Sep 2022 12:31:37 +0300
+Subject: [PATCH] test_urllib: skip test_url_host_with_* test cases
+
+The urlopen() implementation in test_urllib.py passes
+the requested url to a deprecated FancyURLopener object. The latter
+validates the url differently depending on the presense of *_proxy
+environmental variables.
+
+If there are no *_proxy variables, the validity of url is checked
+by the __init__ in http.client.HTTPConnection (and FakeHTTPConnection
+also inherits this check).
+
+However, when there are *_proxy variables set, FancyURLopener
+does not do this check and passes the url to the proxy server.
+Plus when the url is invalid, the hostname from the url is also
+inferred incorrectly, so the no_proxy value is effectively ignored.
+
+It looks like a bug in FancyURLopener, but since this class is
+deprecated, I see no reason to report about it to python.org.
+
+The recommended urllib.request.urlopen validates the url
+irrespectively of *_proxy variables, which is good and as it should be.
+---
+ Lib/test/test_urllib.py | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/Lib/test/test_urllib.py b/Lib/test/test_urllib.py
+index 82f1d9d..fd28d14 100644
+--- a/Lib/test/test_urllib.py
++++ b/Lib/test/test_urllib.py
+@@ -425,6 +425,8 @@ class urlopen_HttpTests(unittest.TestCase, FakeHTTPMixin, FakeFTPMixin):
+         finally:
+             self.unfakehttp()
+ 
++    @unittest.skipIf(any(k.lower() in ('http_proxy', 'https_proxy', 'no_proxy') for k in os.environ),
++                     "test is broken when proxy variables are set")
+     @unittest.skipUnless(ssl, "ssl module required")
+     def test_url_host_with_control_char_rejected(self):
+         for char_no in list(range(0, 0x21)) + [0x7f]:
+@@ -442,6 +444,8 @@ class urlopen_HttpTests(unittest.TestCase, FakeHTTPMixin, FakeFTPMixin):
+             finally:
+                 self.unfakehttp()
+ 
++    @unittest.skipIf(any(k.lower() in ('http_proxy', 'https_proxy', 'no_proxy') for k in os.environ),
++                     "test is broken when proxy variables set")
+     @unittest.skipUnless(ssl, "ssl module required")
+     def test_url_host_with_newline_header_injection_rejected(self):
+         self.fakehttp(b"HTTP/1.1 200 OK\r\n\r\nHello.")
+-- 
+2.37.3
+
