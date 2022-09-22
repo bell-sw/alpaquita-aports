@@ -7,7 +7,7 @@
 
 pkgname=musl-default
 pkgver=1.2.3
-pkgrel=8
+pkgrel=9
 pkgdesc="the musl c library (libc) implementation"
 url="https://musl.libc.org/"
 arch="all"
@@ -41,6 +41,10 @@ source="musl-$commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$commi
 	0006-in-early-stage-ldso-before-__dls2b-call-mprotect-wit.patch
 	0007-fix-mishandling-of-errno-in-getaddrinfo-AI_ADDRCONFI.patch
 	0008-sched-define-CPU_SETSIZE-as-the-number-of-cpus-in-cp.patch
+
+	relr-1.patch
+	relr-2.patch
+	relr-3.patch
 
 	ldconfig
 	__stack_chk_fail_local.c
@@ -207,7 +211,6 @@ compat() {
 	done
 
 }
-
 sha512sums="
 9a1b8f9208d99582ac00e3c46c829aa1fad3b7f09aa7d6822f02f25542453d3d977c69519ad01430b8dd624ac9dc70f47d611e36aefd7fef31ea47a7679e3111  musl-v1.2.3.tar.gz
 58b92d981e1cdcfe85c611b8f287b436c870e98d241249154ca83752a3aa2da71c354bc057926bd8d56e19ee3203731844d3bddb11669d06ce315cd1382b8139  0001-fix-incorrect-parameter-name-in-internal-netlink.h-R.patch
@@ -218,6 +221,9 @@ e492f2d7a03df2e5a14af6bf2d0259b21c5f7644c8d92d73614a8bb156d724acfba7610a70260659
 af641eeef42c79d63066f41c995dd88b6390dfc07596f9c1b05010020c2204256976774726b932f74ae3d310cf373d6e9123efeec0128f12d96f0c1ab1b53048  0006-in-early-stage-ldso-before-__dls2b-call-mprotect-wit.patch
 cf1fbdb259505d7b05a40dfaf461d5405cfcde64be5c2b9490756ca593723a6dbf5f463c23a36ae26518f13e6e8d23680cda9c4853468f6774560c0179461811  0007-fix-mishandling-of-errno-in-getaddrinfo-AI_ADDRCONFI.patch
 3388b9528f7edae416c3661f72a11903f4659fd3fc193f68fe6e24b62ab3d9ed32bf760e25d2068d3e6b5821247f272ddf765b580255735cd84d95f3f3f13ecd  0008-sched-define-CPU_SETSIZE-as-the-number-of-cpus-in-cp.patch
+8ebcde1e07819de208ab89ed0a71fdcc67a5b1cecec5aa19a92bc9f4f3c2708a9ff1528370089de0b71e9ec3b2e08dfa49694db433ac190ba055aa112ae12bde  relr-1.patch
+38b40ebedf57ba05ba14807a55a26261eeca8b6226a90a7aaebaaa31bae0bb7f5b98e0ce3ed727b704b828c9e509a21745f3e089585f8dea7092be164ec9d908  relr-2.patch
+9dc41f682887ef9a7b00253f576d0b738936c20d9bc5a54fa96552a82a2f056f0111936ad9778b96745befd6a660276618b4e05bef3c7f52d8c2a9e6d41e386c  relr-3.patch
 8d3a2d5315fc56fee7da9abb8b89bb38c6046c33d154c10d168fb35bfde6b0cf9f13042a3bceee34daf091bc409d699223735dcf19f382eeee1f6be34154f26f  ldconfig
 062bb49fa54839010acd4af113e20f7263dde1c8a2ca359b5fb2661ef9ed9d84a0f7c3bc10c25dcfa10bb3c5a4874588dff636ac43d5dbb3d748d75400756d0b  __stack_chk_fail_local.c
 0d80f37b34a35e3d14b012257c50862dfeb9d2c81139ea2dfa101d981d093b009b9fa450ba27a708ac59377a48626971dfc58e20a3799084a65777a0c32cbc7d  getconf.c
