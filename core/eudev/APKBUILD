@@ -7,7 +7,7 @@
 pkgname=eudev
 pkgver=3.2.11
 _pkgver=${pkgver/_pre/-pre}
-pkgrel=0
+pkgrel=2
 pkgdesc="init system agnostic fork of systemd-udev"
 url="https://github.com/eudev-project/eudev"
 arch="all"
@@ -75,10 +75,7 @@ libs() {
 	depends=""
 
 	mkdir -p "$subpkgdir"/usr/lib
-	local i; for i in "$pkgdir"/usr/lib/libudev.so.*; do
-		mv $i "$subpkgdir"/usr/lib
-		ln -s ../../lib/${i##*/} "$pkgdir"/usr/lib/${i##*/}
-	done
+	amove usr/lib/libudev.so.*
 }
 
 netifnames() {
