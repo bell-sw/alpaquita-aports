@@ -1,0 +1,17 @@
+https://bugs.gentoo.org/873244
+
+mountinfo should ignore EINFO_QUIET from its initial environment
+
+
+--- a/src/rc/mountinfo.c
++++ b/src/rc/mountinfo.c
+@@ -395,6 +395,9 @@ int main(int argc, char **argv)
+ 	args.netdev = net_ignore;
+ 	args.mounts = rc_stringlist_new();
+ 
++	/* Ensure that we are only quiet when explicitly told to be */
++	unsetenv("EINFO_QUIET");
++
+ 	while ((opt = getopt_long(argc, argv, getoptstring,
+ 		    longopts, (int *) 0)) != -1)
+ 	{
