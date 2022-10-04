@@ -1,6 +1,6 @@
 pkgname=alpaquita-baselayout
 pkgver=3.2.0
-pkgrel=23
+pkgrel=24
 pkgdesc="Alpaquita base dir structure and init scripts"
 url="https://bell-sw.com/"
 arch="all"
@@ -201,11 +201,21 @@ package() {
 		# Restarts computer after 120 seconds after kernel panic
 		kernel.panic = 120
 
+		# Hide exposed kernel pointers via /proc and other interfaces for
+		# unprivileged users.
+		kernel.kptr_restrict = 1
+
 		# Users should not be able to create soft or hard links to files
 		# which they do not own. This mitigates several privilege
 		# escalation vulnerabilities.
 		fs.protected_hardlinks = 1
 		fs.protected_symlinks = 1
+
+		# Don't allow open of FIFOs or regular files not owned by the user
+		# in world writable sticky directories, unless they are owned by the
+		# owner of the directory. This makes data spoofing attacks harder.
+		fs.protected_fifos = 1
+		fs.protected_regular = 1
 
 		# Disable unprivileged use of the bpf(2) syscall.
 		# Allowing unprivileged use of the bpf(2) syscall may allow a
