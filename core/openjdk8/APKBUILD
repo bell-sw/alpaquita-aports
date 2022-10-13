@@ -11,7 +11,7 @@ _java_name="${VENDOR_NAME} ${VENDOR_JAVA_NAME} JDK 8"
 
 pkgname=${_java_pkg_name}8
 pkgver=${_java_ver/+/_p}
-pkgrel=0
+pkgrel=1
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
@@ -55,7 +55,9 @@ subpackages="
 	$pkgname-src:_src:noarch
 	$pkgname-jre-doc:_jre_doc:noarch
 	$pkgname-doc:_doc:noarch
+	$pkgname-jre-no-deps:_jre_no_deps
 	$pkgname-jre:_jre
+	$pkgname-jdk-no-deps:_jdk_no_deps
 	$pkgname-jdk:_jdk
 	"
 
@@ -202,15 +204,15 @@ _doc() {
 	mv "$pkgdir/$_java_home/man" "$subpkgdir/$_java_home/"
 }
 
-_jre() {
-	pkgdesc="$_java_name (JRE)"
-	depends="java-common fontconfig ttf-dejavu-core freetype"
+_jre_no_deps() {
+	pkgdesc="$_java_name (JRE without dependencies)"
+	depends="java-common"
 	provides="
-		java-jre
-		java8-jre
-		$pkgname-lite-jre=$pkgver-r$pkgrel
-		openjdk8-jre=$pkgver-r$pkgrel
-		openjdk8-lite-jre=$pkgver-r$pkgrel
+		java-jre-no-deps
+		java8-jre-no-deps
+		$pkgname-lite-jre-no-deps=$pkgver-r$pkgrel
+		openjdk8-jre-no-deps=$pkgver-r$pkgrel
+		openjdk8-lite-jre-no-deps=$pkgver-r$pkgrel
 	"
 
 	mkdir -p "$subpkgdir/$_java_home/bin"
@@ -234,9 +236,39 @@ _jre() {
 	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-1.8-${pkgname%*8}
 }
 
+_jre() {
+	pkgdesc="$_java_name (JRE)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel fontconfig ttf-dejavu-core freetype"
+	provides="
+		java-jre
+		java8-jre
+		$pkgname-lite-jre=$pkgver-r$pkgrel
+		openjdk8-jre=$pkgver-r$pkgrel
+		openjdk8-lite-jre=$pkgver-r$pkgrel
+	"
+	mkdir -p "$subpkgdir"
+}
+
+_jdk_no_deps() {
+	pkgdesc="$_java_name (JDK without dependencies)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	provides="
+		java-jdk-no-deps
+		java8-jdk-no-deps
+		$pkgname-lite-jdk-no-deps=$pkgver-r$pkgrel
+		openjdk8-jdk-no-deps=$pkgver-r$pkgrel
+		openjdk8-lite-jdk-no-deps=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home/$pkgname"
+	for f in bin include lib; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+}
+
 _jdk() {
 	pkgdesc="$_java_name (JDK)"
-	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	depends="$pkgname-jre=$pkgver-r$pkgrel $pkgname-jdk-no-deps=$pkgver-r$pkgrel"
 	provides="
 		java-jdk
 		java8-jdk
@@ -246,11 +278,7 @@ _jdk() {
 		openjdk8-jdk=$pkgver-r$pkgrel
 		openjdk8-lite-jdk=$pkgver-r$pkgrel
 	"
-
-	mkdir -p "$subpkgdir/$_java_home/$pkgname"
-	for f in bin include lib; do
-		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
-	done
+	mkdir -p "$subpkgdir"
 }
 
 _dbg() {
