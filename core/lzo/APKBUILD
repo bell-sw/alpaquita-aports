@@ -6,32 +6,40 @@
 
 pkgname=lzo
 pkgver=2.10
-pkgrel=3
+pkgrel=2
 pkgdesc="LZO data compression library"
-url="https://www.oberhumer.com/opensource/lzo"
+url="http://www.oberhumer.com/opensource/lzo"
 arch="all"
-license="GPL-2.0-or-later"
-makedepends="cmake samurai"
+license="GPL"
+depends=""
+makedepends=""
+install=
 subpackages="$pkgname-dev $pkgname-doc"
-source="https://www.oberhumer.com/opensource/lzo/download/lzo-$pkgver.tar.gz"
+source="http://www.oberhumer.com/opensource/lzo/download/$pkgname-$pkgver.tar.gz"
+builddir="$srcdir"/$pkgname-$pkgver
 
 build() {
-	cmake -B build -G Ninja \
-		-DBUILD_TESTING=ON \
-		-DCMAKE_INSTALL_PREFIX=/usr \
-		-DCMAKE_BUILD_TYPE=MinSizeRel \
-		-DENABLE_SHARED=ON
-	cmake --build build
+	cd "$builddir"
+	CFLAGS="$CFLAGS -DLZO_CFG_NO_SYSCALL=1" \
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--enable-shared
+	make
 }
 
 check() {
-	cd build
-	CTEST_OUTPUT_ON_FAILURE=TRUE ctest
+	cd "$builddir"
+	make check
 }
 
 package() {
-	DESTDIR="$pkgdir" cmake --install build
-	rm -r "$pkgdir"/usr/libexec/
+	cd "$builddir"
+	make DESTDIR="$pkgdir" install
 }
 
 sha512sums="
