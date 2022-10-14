@@ -15,6 +15,15 @@ source="https://people.redhat.com/sgrubb/audit/audit-$pkgver.tar.gz
 	auditd.initd
 	auditd.confd"
 
+case "$CARCH" in
+mips*)
+	# mips builder does not have audit support enabled
+	options="$options !check"
+	;;
+esac
+
+builddir="$srcdir/audit-$pkgver"
+
 build() {
 	./configure \
 		--build=$CBUILD \
@@ -26,12 +35,13 @@ build() {
 		--disable-zos-remote \
 		--enable-shared=audit \
 		--with-arm \
-		--with-aarch64
+		--with-aarch64 \
+		$WITHOUT
 	make
 }
 
 check() {
-	make check
+	make -j1 check
 }
 
 package() {
