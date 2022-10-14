@@ -21,7 +21,6 @@ install="$pkgname.post-install $pkgname.post-upgrade"
 source="$pkgname-$pkgver.tar.gz::https://github.com/OpenRC/openrc/archive/$pkgver.tar.gz
 
 	0001-call-sbin-mkmntdirs-in-localmount-OpenRC-service.patch
-	0002-init.d-fsck.in-remove-C0-option.patch
 	0003-rc-pull-in-sysinit-and-boot-as-stacked-levels-when-n.patch
 	0004-make-consolefont-service-compatible-with-busyboxs-se.patch
 	0005-Support-early-loading-of-keymap-if-kbd-is-installed.patch
@@ -44,8 +43,9 @@ source="$pkgname-$pkgver.tar.gz::https://github.com/OpenRC/openrc/archive/$pkgve
 	machine-id.initd
 	test-networking.sh
 
-	0100-init.d-agetty-depend-on-hostname-to-show-in-prompt.patch
-	0101-openrc-add-rc_quiet_openrc-for-openrc-binary.patch
+	0100-init.d-fsck.in-remove-C0-option.patch
+	0101-init.d-agetty-depend-on-hostname-to-show-in-prompt.patch
+	0102-openrc-add-rc_quiet_openrc-for-openrc-binary.patch
 	"
 options="!check" # not updated to meson build system, require makefile build
 
@@ -93,9 +93,9 @@ package() {
 
 	DESTDIR="$pkgdir" meson install --no-rebuild -C output
 
-	# Alpine does not use openrc as its init so delete
+	# Alpaquita does not use openrc as its init so delete
 	# openrc-init & openrc-shutdown to avoid confusion.
-	rm -f "$pkgdir"/sbin/openrc-init "$pkgdir"/sbin/openrc-shutdown
+	rm -f "$pkgdir"/usr/sbin/openrc-init "$pkgdir"/usr/sbin/openrc-shutdown
 
 	# we cannot have anything turned on by default
 	rm -f "$pkgdir"/etc/runlevels/*/*
@@ -159,7 +159,6 @@ _agetty_openrc() {
 sha512sums="
 0e41f5268c6b8c325a6773511ca58c38ba52a1987aa47165794df8a99359bd1bfcb99d30e0d129b9242a2661663234f6f85c92c55c891dbb6c5b8a11d93edea4  openrc-0.44.10.tar.gz
 6085d127f7385eb86a00676a263c8613748fb0cbbf064bc908d346a1b368e226d8a3014e871d281f57d334a70ec1301269fe431e085f0e907b4f6ef8a99bf07f  0001-call-sbin-mkmntdirs-in-localmount-OpenRC-service.patch
-68905ab5fa852e3bfcd1a26b7211ad1e4e9abc7d9c8621649cb00a94c4797a62ce54abce10e4a8a92546c8fb344c4042bb4725cb8d1e759200c0b9e08fed9a97  0002-init.d-fsck.in-remove-C0-option.patch
 61c72be18283108163bde4349616e55adb535bd34312ee09f90fcd85277ffe17dcef792bbf465877c0d8b1fec87a3836f714d8d849a9cf322902a89bc1256e13  0003-rc-pull-in-sysinit-and-boot-as-stacked-levels-when-n.patch
 71a743bf969110a27259405ef4b4dc4fad608b8e49039fd6afb1b1486d0f1dfccc3ef5275410fa3d6d1554ccee59c5a3424be4f2919e14453ebb709282c588a7  0004-make-consolefont-service-compatible-with-busyboxs-se.patch
 9e2ae6c8e189ceae0f3f2662d9504f796e9a6a987a26ee2e10add85746b6596eb04cc256dc532a39f711b4e1aa07f1d12a384ef45d23cab49878b887bf0a878c  0005-Support-early-loading-of-keymap-if-kbd-is-installed.patch
@@ -180,6 +179,7 @@ a9e0c9fbc86dd084f2e73793dafc87c52fc28d13706e893b2199276d6893a3ca5e749498ecd0cd82
 682e5ad7c116789943d070658046d6036b33d2a9455322f22db5cd0e634828d92ebe11a550550bb4c3522705e7b0935d970bf78d3bbdced08e993ddd6730c19c  sysctl.initd
 ed7ce279a18a3e845e6b1c42f5ea5f0dcb4df2cc742f2c088bad9439ea437756a4d277b1dc9ba1a44d759ebb448fb86f606bf3dc87d8be31eec978d8e57181e2  machine-id.initd
 af17947aa3954e317dc06580da829200e0b0f2ddc37ce842c3fc7fc0d8ca2f40220e4f4665f61b4b5ec47c96416db0127e2ed979b9421bf21df89d4c4f998b7f  test-networking.sh
-aaf51536d18188951fe20da1b4459ae8b976f7bb6a1927d5cace1c305037b40481c496d71e6677bad2bb2dbfdeefaa5d54b6f5e326ddd5b471d3ddfff440621c  0100-init.d-agetty-depend-on-hostname-to-show-in-prompt.patch
-3579eb3831c7d306fabf24a119d575b705dac790f9e06779813ceccf58b5adfe2687b5d46cb2f31eae3e1b67ce468d1ceab4d30f46176a6fe1a9b3206b5d42e3  0101-openrc-add-rc_quiet_openrc-for-openrc-binary.patch
+68905ab5fa852e3bfcd1a26b7211ad1e4e9abc7d9c8621649cb00a94c4797a62ce54abce10e4a8a92546c8fb344c4042bb4725cb8d1e759200c0b9e08fed9a97  0100-init.d-fsck.in-remove-C0-option.patch
+aaf51536d18188951fe20da1b4459ae8b976f7bb6a1927d5cace1c305037b40481c496d71e6677bad2bb2dbfdeefaa5d54b6f5e326ddd5b471d3ddfff440621c  0101-init.d-agetty-depend-on-hostname-to-show-in-prompt.patch
+3579eb3831c7d306fabf24a119d575b705dac790f9e06779813ceccf58b5adfe2687b5d46cb2f31eae3e1b67ce468d1ceab4d30f46176a6fe1a9b3206b5d42e3  0102-openrc-add-rc_quiet_openrc-for-openrc-binary.patch
 "
