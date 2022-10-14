@@ -87,7 +87,7 @@ build() {
 		$_target \
 		--prefix=/usr \
 		--libdir=lib \
-		--openssldir=/etc/ssl3 \
+		--openssldir=/etc/ssl \
 		shared \
 		no-zlib \
 		no-async \
@@ -121,10 +121,6 @@ package() {
 	# remove the script c_rehash
 	rm "$pkgdir"/usr/bin/c_rehash
 	mv -f "$pkgdir"/usr/bin/openssl "$pkgdir"/usr/bin/openssl$_abiver
-
-	rm -r "$pkgdir"/etc/ssl3/certs "$pkgdir"/etc/ssl3/misc
-	ln -fs ../ssl/cert.pem ../ssl/certs ../ssl/ct_log_list.cnf \
-		"$pkgdir"/etc/ssl3/
 }
 
 dev() {
