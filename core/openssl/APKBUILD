@@ -12,11 +12,12 @@ url="https://www.openssl.org/"
 arch="all"
 license="OpenSSL"
 replaces="libressl"
+provides="openssl1.1-compat"
 makedepends_build="perl"
 makedepends_host="linux-headers"
 makedepends="$makedepends_host $makedepends_build"
 subpackages="$pkgname-dbg $pkgname-libs-static:_static $pkgname-dev
-	$pkgname-doc libcrypto$_abiver:_libcrypto libssl$_abiver:_libssl"
+	libcrypto$_abiver:_libcrypto libssl$_abiver:_libssl"
 source="https://www.openssl.org/source/openssl-$pkgver.tar.gz
 	man-section.patch
 	"
@@ -79,7 +80,7 @@ build() {
 		$_target \
 		--prefix=/usr \
 		--libdir=/usr/lib \
-		--openssldir=/etc/ssl \
+		--openssldir=/etc/ssl1.1 \
 		shared \
 		no-zlib \
 		no-async \
@@ -110,16 +111,24 @@ check() {
 }
 
 package() {
-	make DESTDIR="$pkgdir" install_sw install_ssldirs install_man_docs
+	make DESTDIR="$pkgdir" install_sw install_ssldirs
 	# remove the script c_rehash
 	rm "$pkgdir"/usr/bin/c_rehash
-	#mv -f "$pkgdir"/usr/bin/openssl "$pkgdir"/usr/bin/openssl$_abiver
+	ln -fs openssl "$pkgdir"/usr/bin/openssl$_abiver
+
+	rm -r "$pkgdir"/etc/ssl1.1/certs "$pkgdir"/etc/ssl1.1/misc
+	ln -fs ../ssl/cert.pem ../ssl/certs ../ssl/ct_log_list.cnf "$pkgdir"/etc/ssl1.1/
 }
 
 dev() {
 	default_dev
 	replaces="libressl-dev"
 	provides="openssl1.1-compat-dev=${pkgver}-r${pkgrel}"
+}
+
+static() {
+	default_static
+	provides="openssl1.1-compat-libs-static=${pkgver}-r${pkgrel}"
 }
 
 _libcrypto() {
@@ -136,11 +145,6 @@ _libssl() {
 
 	mkdir -p "$subpkgdir"/usr/lib
 	mv "$pkgdir"/usr/lib/libssl* "$subpkgdir"/usr/lib/
-}
-
-_static() {
-	default_static
-	provides="openssl1.1-compat-libs-static=${pkgver}-r${pkgrel}"
 }
 
 _static() {
