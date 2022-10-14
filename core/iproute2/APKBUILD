@@ -55,7 +55,7 @@ build() {
 }
 
 package() {
-	make -j1 DESTDIR="$pkgdir" install
+	make -j1 DESTDIR="$pkgdir" SBINDIR=/usr/sbin install
 
 	install -D -m644 include/libnetlink.h "$pkgdir"/usr/include/libnetlink.h
 	install -D -m644 lib/libnetlink.a "$pkgdir"/usr/lib/libnetlink.a
@@ -91,11 +91,11 @@ rdma() {
 	pkgdesc="$pkgdesc (rdma utilities)"
 	depends=""
 
-	amove sbin/dcb
-	amove sbin/devlink
-	amove sbin/rdma
-	amove sbin/tipc
-	amove sbin/vdpa
+	amove usr/sbin/dcb
+	amove usr/sbin/devlink
+	amove usr/sbin/rdma
+	amove usr/sbin/tipc
+	amove usr/sbin/vdpa
 }
 
 sha512sums="
