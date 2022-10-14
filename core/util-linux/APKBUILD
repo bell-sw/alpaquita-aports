@@ -165,10 +165,6 @@ check() {
 package() {
 	make -j1 DESTDIR="$pkgdir" -C "$builddir" install
 
-	# Move to /bin to overwrite busybox's version.
-	mv "$pkgdir"/usr/bin/getopt \
-		"$pkgdir"/usr/bin/rev "$pkgdir"/bin
-
 	# use pkg-config
 	install -D -m755 "$srcdir"/rfkill.initd "$pkgdir"/etc/init.d/rfkill
 	install -D -m644 "$srcdir"/rfkill.confd "$pkgdir"/etc/conf.d/rfkill
@@ -228,7 +224,7 @@ login() {
 
 	local cmd dir
 	for cmd in $_login_cmds; do
-		for dir in bin sbin usr/bin usr/sbin; do
+		for dir in usr/bin usr/sbin; do
 			if [ -e $dir/$cmd ] || [ -L $dir/$cmd ]; then
 				amove $dir/$cmd
 				continue 2
@@ -260,7 +256,7 @@ misc() {
 	depends=
 	install_if="$pkgname=$pkgver-r$pkgrel"
 
-	local dir; for dir in usr/bin usr/sbin bin sbin; do
+	local dir; for dir in usr/bin usr/sbin; do
 		if [ -e "$pkgdir"/$dir ]; then
 			amove $dir
 		fi
