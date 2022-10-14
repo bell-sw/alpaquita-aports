@@ -21,10 +21,11 @@ provides="/bin/sh"
 install="$pkgname.post-install $pkgname.post-upgrade
 	$pkgname-extras.post-install $pkgname-extras.pre-deinstall"
 subpackages="$pkgname-static $pkgname-doc $pkgname-suid $pkgname-extras ssl_client $pkgname-ifupdown"
-options="suid net" # net needed for check()
+options="suid net"
 replaces="busybox-initscripts" # move of default.script
-triggers="busybox.trigger=/bin:/usr/bin:/sbin:/usr/sbin:/lib/modules/*"
-source="https://busybox.net/downloads/busybox-$pkgver.tar.bz2
+triggers="busybox.trigger=/usr/bin:/usr/sbin:/lib/modules/*"
+source="
+	https://busybox.net/downloads/busybox-$pkgver.tar.bz2
 	0001-adduser-default-to-sbin-nologin-as-shell-for-system-.patch
 	0001-properly-fix-wget-https-support.patch
 	0001-modutils-check-ELF-header-before-calling-finit_module.patch
@@ -42,19 +43,17 @@ source="https://busybox.net/downloads/busybox-$pkgver.tar.bz2
 	0015-ed-don-t-use-memcpy-with-overlapping-memory-regions.patch
 	0016-ash-don-t-read-past-end-of-var-in-subvareval-for-bas.patch
 	0017-ash-Fix-use-after-free-on-idx-variable.patch
-
 	0001-ash-add-built-in-BB_ASH_VERSION-variable.patch
-
 	0001-pgrep-add-support-for-matching-against-UID-and-RUID.patch
-
 	0001-avoid-redefined-warnings-when-building-with-utmps.patch
 	test-fix-tarball-creation.patch
 	test-timezone-workaround.patch
-
 	0001-libbb-sockaddr2str-ensure-only-printable-characters-.patch
 	0002-nslookup-sanitize-all-printed-strings-with-printable.patch
 	0001-modinfo-add-k-option-for-kernel-version.patch
 	CVE-2022-30065.patch
+	0101-init-don-t-reset-init-s-tty-settings-for-every-runac.patch
+	0102-busybox-libbb-install-to-usr-s-bin.patch
 
 	acpid.logrotate
 	busyboxconfig
@@ -63,10 +62,6 @@ source="https://busybox.net/downloads/busybox-$pkgver.tar.bz2
 	dad.if-up
 	ssl_client.c
 	default.script
-
-	0100-modutils-detect-compressed-modules-earlier.patch
-	0101-init-don-t-reset-init-s-tty-settings-for-every-runac.patch
-	0102-busybox-libbb-install-to-usr-s-bin.patch
 	"
 
 # secfixes:
@@ -156,9 +151,6 @@ build() {
 		.config
 	make -C "$builddir" O="$PWD" silentoldconfig
 	make CONFIG_EXTRA_CFLAGS="$_extra_cflags" CONFIG_EXTRA_LDLIBS="$_extra_libs"
-	# Yes, the above command line is verbose, but it needs to be duplicated verbatim
-	# for every build. Because the busybox build system is extremely brittle and
-	# breaks on *any* attempt to factorize it.
 
 	# build static
 	cd "$_staticdir"
@@ -315,6 +307,8 @@ b52050678e79e4da856956906d07fcb620cbf35f2ef6b5a8ee3b8d244ea63b4b98eef505451184d5
 ead4ad65d270d8659e1898fa16f76b6cbcf567d8aba238eacccda3764edb4362240d9359d6389873bedc126d405f805fc6dfce653a7181618ebcc67c94bd08d2  0002-nslookup-sanitize-all-printed-strings-with-printable.patch
 4f6ddd59d6096943f617b0938fca428114190b8b37732d6783faab291451a2c30c452ed39299db22d1d9679d007022f87d43e93b38a4f6ced64a8659e9233773  0001-modinfo-add-k-option-for-kernel-version.patch
 22e2fa8f7a6105fd9990f93b71c235980fd4eab62269939a0e3a920fe517ee4f913c6bd0148a554b67fe01d1660bf0fd76a80e9dcac290b4b8b2c304ef6080a9  CVE-2022-30065.patch
+28c659598ba17d9a26cb5e29279a3ac3796da6f8343f3ffe3082d1cf868086b24c14d39dbbcf5a728403faa009c078bec3702850415dbb5c04e666124327a821  0101-init-don-t-reset-init-s-tty-settings-for-every-runac.patch
+539ae1292411e5f7976237954151a8eb7f401f1c6091febc7cb74a0ed721a10244ee0a66559d1f752dd62e1bed110c2b01899693534a60600b9564e5ff2984da  0102-busybox-libbb-install-to-usr-s-bin.patch
 aa93095e20de88730f526c6f463cef711b290b9582cdbd8c1ba2bd290019150cbeaa7007c2e15f0362d5b9315dd63f60511878f0ea05e893f4fdfb4a54af3fb1  acpid.logrotate
 d9639a03367ea6b5b5cdf1bb7815fd82e3902a60a5eec9e920fddfa31b6133e8439dc671bbec9773a5e79dbd705f6a448d317fee95b101807f368743607b57a3  busyboxconfig
 03d6b918a004cdc848b2620b4d37daaf1f01e83ed9f17d1f2efc3de7f946f75a11a1b171e4b4a159c163cf0b2b95d61fc5eed6e3d41f92317f4a14b1585eb6dd  busyboxconfig-extras
@@ -322,7 +316,4 @@ d9639a03367ea6b5b5cdf1bb7815fd82e3902a60a5eec9e920fddfa31b6133e8439dc671bbec9773
 6321c1d96d8938a3b5eab21731de289ede136fff550f98127c509452bfb17769ccf94b118491f7b81d3c60e1bbb3e80bb07186e4ce07e29724a52f0daba9b218  dad.if-up
 26eac967d6cfe13b7dc973112de145543ac0bdda9e9dd3a69bbd8c133ae6a20387abe9377917efb770b191130d3a6385ff5738abc84a8216d7b86ae88b159260  ssl_client.c
 c3194ccffe7300a0f55d50fb56d38c8df55d588adac13056fd0be2676594974477f94de5570a5a882bc864c3711cf67aa43b6ad6808e672f4533dd0f7363d2f5  default.script
-770b2f7f37d023ce74e8f0ebffb3d423cff4a7191c8c8b9ee221d921c2c585a7107d6feda109a4fe3c171846765b542d3c4adac3993821886aa7b47a8fc2d37b  0100-modutils-detect-compressed-modules-earlier.patch
-28c659598ba17d9a26cb5e29279a3ac3796da6f8343f3ffe3082d1cf868086b24c14d39dbbcf5a728403faa009c078bec3702850415dbb5c04e666124327a821  0101-init-don-t-reset-init-s-tty-settings-for-every-runac.patch
-539ae1292411e5f7976237954151a8eb7f401f1c6091febc7cb74a0ed721a10244ee0a66559d1f752dd62e1bed110c2b01899693534a60600b9564e5ff2984da  0102-busybox-libbb-install-to-usr-s-bin.patch
 "
