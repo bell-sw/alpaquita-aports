@@ -1,11 +1,11 @@
 pkgname=apr
 pkgver=1.7.0
-pkgrel=1
+pkgrel=0
 pkgdesc="The Apache Portable Runtime"
-url="https://apr.apache.org/"
+url="http://apr.apache.org/"
 arch="all"
 license="Apache-2.0"
-depends_dev="util-linux-dev"
+depends_dev="util-linux-dev bash"
 makedepends="$depends_dev"
 subpackages="$pkgname-dev"
 source="https://www.apache.org/dist/apr/apr-$pkgver.tar.bz2
@@ -19,6 +19,7 @@ source="https://www.apache.org/dist/apr/apr-$pkgver.tar.bz2
 #     - CVE-2021-35940.patch
 
 build() {
+	cd "$builddir"
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -30,21 +31,25 @@ build() {
 }
 
 check() {
-	make check
+	cd "$builddir"
+	make -j1 check
 }
 
 package() {
+	cd "$builddir"
 	make DESTDIR="$pkgdir" install
 }
 
 # basicly everything thats not a *.so* file belongs to the -dev package
 # we override the pre-defined func.
 dev() {
+	local i
 	depends="$pkgname $depends_dev"
 	mkdir -p "$subpkgdir"
 	mv "$pkgdir"/* "$subpkgdir"/
 	mkdir -p "$pkgdir"/usr/lib
 	mv "$subpkgdir"/usr/lib/*.so* "$pkgdir"/usr/lib/
+	return 0
 }
 
 sha512sums="
