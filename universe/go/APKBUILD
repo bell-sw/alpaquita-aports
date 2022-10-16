@@ -126,20 +126,8 @@ case "$CARCH" in
 x86_64|aarch64) export GO_LDFLAGS=-buildmode=pie ;;
 esac
 
-# Disable tests on ppc64 for now since they fail due to the
-# force-external-link-on-ppc64le.patch we employ currently.
-# See the patch description for details.
-case "$CARCH" in
-ppc64le) options="!check" ;;
-esac
-
 prepare() {
 	default_prepare
-
-	# See https://github.com/golang/go/issues/49066
-	if [ "$CTARGET_ARCH" = "ppc64le" ]; then
-		rm test/fixedbugs/bug513.go
-	fi
 }
 
 builddir="$srcdir"/go
@@ -173,7 +161,6 @@ build() {
 
 check() {
 	cd "$builddir/src"
-	[ "$CTARGET_ARCH" = "armhf" ] && GO_TEST_TIMEOUT_SCALE=2
 	# TODO: cgo_test fails due to https://github.com/golang/go/issues/39857
 	PATH="$builddir/bin:$PATH" ./run.bash -no-rebuild -run='!(^cgo_test$)'
 }
