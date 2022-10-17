@@ -8,6 +8,7 @@ license="Python-2.0"
 depends="python3"
 makedepends="py3-build py3-flit-core py3-installer py3-wheel"
 checkdepends="py3-tox python3-tests"
+options="net"
 source="https://github.com/python/typing/archive/$pkgver/typing-$pkgver.tar.gz"
 builddir="$srcdir/typing-$pkgver/typing_extensions"
 
@@ -16,7 +17,8 @@ build() {
 }
 
 check() {
-	tox --sitepackages -e py310
+	local _py3ver=$(python3 -c 'import sys; print("{}{}".format(sys.version_info.major, sys.version_info.minor))')
+	tox --sitepackages -e py$_py3ver
 }
 
 package() {
