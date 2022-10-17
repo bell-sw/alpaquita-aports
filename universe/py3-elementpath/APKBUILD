@@ -7,6 +7,9 @@ arch="noarch"
 license="MIT"
 makedepends="py3-setuptools"
 checkdepends="py3-pytest"
+case "$CLIBC" in
+glibc) options="!check" ;; # LIN-72 (no en_US.UTF-8 in the build environment)
+esac
 source="$pkgname-$pkgver.tar.gz::https://github.com/sissaschool/elementpath/archive/refs/tags/v$pkgver.tar.gz"
 builddir="$srcdir/elementpath-$pkgver/"
 
@@ -18,7 +21,9 @@ check() {
 	# disabled tests fails on locale differences
 	pytest \
 		--deselect tests/test_xpath2_functions.py::XPath2FunctionsTest::test_compare_function \
-		--deselect tests/test_xpath30.py::XPath30FunctionsTest::test_compare_function
+		--deselect tests/test_xpath2_functions.py::LxmlXPath2FunctionsTest::test_compare_function \
+		--deselect tests/test_xpath30.py::XPath30FunctionsTest::test_compare_function \
+		--deselect tests/test_xpath30.py::LxmlXPath30FunctionsTest::test_compare_function
 }
 
 package() {
