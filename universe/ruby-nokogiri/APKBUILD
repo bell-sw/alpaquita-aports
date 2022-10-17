@@ -35,15 +35,6 @@ builddir="$srcdir/$_gemname-$pkgver"
 #   1.10.4-r0:
 #     - CVE-2019-5477
 
-prepare() {
-	default_prepare
-
-	case "$CARCH" in
-		# NotImplementedError: Compaction isn't available on this platform.
-		ppc64le) rm test/test_compaction.rb ;;
-	esac
-}
-
 build() {
 	gem build $_gemname.gemspec
 	gem install \
