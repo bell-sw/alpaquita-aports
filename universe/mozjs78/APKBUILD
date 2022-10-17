@@ -75,11 +75,9 @@ build() {
 		return 1
 	fi
 
-	if [ "$CLIBC" = "musl" ] ; then
-		export LDFLAGS="$LDFLAGS -Wl,-z,stack-size=1048576"
-	fi
-
 	cd "$_builddir"
+
+	[ $CLIBC = "musl" ] && export LDFLAGS="$LDFLAGS -Wl,-z,stack-size=1048576"
 
 	# avoid complains about autoconf
 	touch configure
