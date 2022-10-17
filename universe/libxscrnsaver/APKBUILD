@@ -12,6 +12,7 @@ source="https://www.x.org/releases/individual/lib/libXScrnSaver-$pkgver.tar.bz2"
 builddir="$srcdir"/libXScrnSaver-$pkgver
 
 build() {
+	cd "$builddir"
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -25,10 +26,12 @@ build() {
 }
 
 check() {
+	cd "$builddir"
 	make check
 }
 
 package() {
+	cd "$builddir"
 	make DESTDIR="$pkgdir" install
 }
 
