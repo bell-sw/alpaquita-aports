@@ -17,7 +17,7 @@ makedepends_build="cmake chrpath python3 py3-setuptools samurai"
 checkdepends="bash coreutils diffutils"
 subpackages="$pkgname-static $pkgname-libs $pkgname-dev $pkgname-test-utils:_test_utils"
 source="https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/llvm-$pkgver.src.tar.xz
-	0001-Disable-dynamic-lib-tests-for-musl-s-dlclose-is-noop.patch
+	musl:0001-Disable-dynamic-lib-tests-for-musl-s-dlclose-is-noop.patch
 	fix-memory-mf_exec-on-aarch64.patch
 	fix-LLVMConfig-cmake-install-prefix.patch
 	"
@@ -76,24 +76,6 @@ prepare() {
 	# https://bugs.llvm.org/show_bug.cgi?id=48313
 	rm -v test/ExecutionEngine/Interpreter/intrinsics.ll
 
-	case "$CARCH" in
-	x86) rm -v test/Object/macho-invalid.test \
-		test/tools/llvm-size/radix.test
-		;;
-	armv7) rm -v test/tools/llvm-readobj/ELF/dependent-libraries.test \
-		test/Object/macho-invalid.test \
-		test/tools/llvm-size/radix.test
-		;;
-	armhf) rm -v test/tools/llvm-readobj/ELF/dependent-libraries.test \
-		test/Object/macho-invalid.test \
-		test/tools/llvm-size/radix.test \
-		test/ExecutionEngine/frem.ll \
-		unittests/ExecutionEngine/Orc/OrcCAPITest.cpp
-		sed -i "/OrcCAPITest.cpp/d" \
-			unittests/ExecutionEngine/Orc/CMakeLists.txt
-		;;
-	esac
-
 	# Known broken codegen for Hexagon target, reported upstream.
 	# https://bugs.llvm.org/show_bug.cgi?id=49592
 	rm -v \
@@ -112,9 +94,6 @@ prepare() {
 build() {
 	# Auto-detect it by guessing either.
 	local ffi_include_dir="$(pkg-config --cflags-only-I libffi | sed 's|^-I||g')"
-	case "$CARCH" in
-		x86) LDFLAGS="$LDFLAGS -Wl,--no-keep-memory";; # avoid exhausting memory limit
-	esac
 
 	# NOTE: DO NOT change CMAKE_BUILD_TYPE! Buildmodes like None will enable
 	# debug assertions for LLVM!
