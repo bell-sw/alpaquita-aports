@@ -1,11 +1,11 @@
 pkgname=yajl
 pkgver=2.1.0
-pkgrel=4
+pkgrel=3
 pkgdesc="Yet Another JSON Library (YAJL)"
 url="https://lloyd.github.io/yajl/"
 arch="all"
 license="MIT"
-makedepends="cmake samurai"
+makedepends="cmake"
 subpackages="$pkgname-dev $pkgname-tools"
 source="https://dev.alpinelinux.org/archive/yajl/yajl-$pkgver.tar.gz"
 
@@ -37,23 +37,18 @@ snapshot() {
 }
 
 build() {
-	cmake -B build -G Ninja \
+	cmake -B build . \
 		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DCMAKE_INSTALL_LIBDIR=lib \
 		-DCMAKE_INSTALL_PREFIX=/usr
-	cmake --build build
+	make -C build
 }
 
 package() {
-	DESTDIR="$pkgdir" cmake --install build
+	make install -C build DESTDIR="$pkgdir"
 
 	mkdir -p "$pkgdir"/usr/lib
 	mv "$pkgdir"/usr/share/pkgconfig "$pkgdir"/usr/lib/
-}
-
-check() {
-	cd build
-	CTEST_OUTPUT_ON_FAILURE=TRUE ctest
 }
 
 tools() {
