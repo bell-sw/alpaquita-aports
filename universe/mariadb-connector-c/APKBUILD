@@ -1,12 +1,12 @@
 pkgname=mariadb-connector-c
 pkgver=3.1.13
-pkgrel=4
+pkgrel=3
 pkgdesc="The MariaDB Native Client library (C driver)"
 url="https://mariadb.org/"
 arch="all"
 license="LGPL-2.1-or-later"
 depends_dev="openssl1.1-compat-dev zlib-dev"
-makedepends="$depends_dev cmake samurai"
+makedepends="$depends_dev cmake"
 options="!check" # no testsuite
 replaces="mariadb-client-libs"
 subpackages="$pkgname-dev"
@@ -25,7 +25,7 @@ build() {
 	fi
 
 	# INSTALL_LIBDIR and INSTALL_INCLUDEDIR are relative to CMAKE_INSTALL_PREFIX.
-	cmake -B build -G Ninja \
+	cmake \
 		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DBUILD_SHARED_LIBS=True \
@@ -39,11 +39,11 @@ build() {
 		-DWITH_MYSQLCOMPAT=ON \
 		-DWITH_SSL=OPENSSL \
 		$CMAKE_CROSSOPTS
-	cmake --build build
+	make
 }
 
 package() {
-	DESTDIR="$pkgdir" cmake --install build
+	make DESTDIR="$pkgdir" install
 
 	# purge static libs
 	rm "$pkgdir"/usr/lib/*.a
