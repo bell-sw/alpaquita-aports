@@ -12,7 +12,7 @@ _mytopdeps="perl perl-dbi perl-dbd-mysql perl-getopt-long perl-socket perl-term-
 depends_dev="openssl1.1-compat-dev zlib-dev mariadb-connector-c-dev"
 makedepends="$depends_dev bison cmake curl-dev libaio-dev libarchive-dev libevent-dev
 	libxml2-dev ncurses-dev pcre2-dev readline-dev xz-dev linux-headers linux-pam-dev
-	samurai $_mytopdeps"
+	$_mytopdeps"
 install="$pkgname.pre-install $pkgname-common.post-upgrade"
 subpackages="$pkgname-static $pkgname-test:mytest $pkgname-embedded-dev:_embedded_dev
 	$pkgname-doc $pkgname-dev $pkgname-common $pkgname-openrc
@@ -174,8 +174,7 @@ source="https://downloads.mariadb.org/interstitial/mariadb-$pkgver/source/mariad
 # All cmake configuration options can be displayed with: cmake ../server -LH
 build() {
 	# set MinSizeRel as otherwise project enables debugging for some parts
-	cmake . -G Ninja \
-		-DBUILD_CONFIG=mysql_release \
+	cmake . -DBUILD_CONFIG=mysql_release \
 		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DSYSCONFDIR=/etc \
@@ -244,16 +243,16 @@ build() {
 	# print config options to log
 	cmake -L
 
-	cmake --build .
+	make
 }
 
 check() {
 	# exclude test-connect which seems to be buggy. testsuite does not set port env var
-	ctest --output-on-failure -E '(test-connect)'
+	ctest -E '(test-connect)'
 }
 
 package() {
-	DESTDIR="$pkgdir/" cmake --install .
+	make DESTDIR="$pkgdir/" install
 
 	install -Dm 755 "$startdir"/$pkgname.initd \
 		"$pkgdir"/etc/init.d/$pkgname
