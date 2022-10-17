@@ -109,12 +109,6 @@ prepare() {
 	default_prepare
 	autoconf
 
-	# v2.7.1 - Of all the bootstraptest only test_fiber fails on s390x:
-	# test_fiber.rb bootstraptest.tmp.rb:8: [BUG] vm_call_cfunc: cfp consistency error (0x000003ffb63fefb0, 0x000003ffb42f5f58)
-	case "$CARCH" in
-		s390x) rm bootstraptest/test_fiber.rb;;
-	esac
-
 	local name ver; while read -r name ver _; do
 		case "$name=$ver" in
 			[a-z]*=[0-9]*.[0-9]*)
@@ -165,15 +159,6 @@ build() {
 check() {
 	# https://bugs.ruby-lang.org/issues/18380
 	local disable_tests="-n !/TestAddressResolve#test_socket_getnameinfo_domain_blocking/"
-
-	case "$CARCH" in
-		x86 | armhf | armv7)
-			# TestReadline#test_interrupt_in_other_thread fails on 32 bit arches according
-			# to upstream, but the test is disabled just on Travis, not in test suite.
-			# https://bugs.ruby-lang.org/issues/18393
-			disable_tests="$disable_tests -n !/TestReadline#test_interrupt_in_other_thread/"
-		;;
-	esac
 
 	make test TESTS="$disable_tests"
 }
