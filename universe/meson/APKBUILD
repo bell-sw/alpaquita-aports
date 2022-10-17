@@ -11,62 +11,25 @@ arch="noarch"
 license="Apache-2.0"
 depends="samurai python3"
 makedepends="py3-setuptools"
-# glib-dev, gobject-introspection-dev, gtk+3.0-dev is a circular dep,
-# but only during bootstrap-
-# not installing checkdepends with !check should be fine
-options="$options !check" # circular deps above with check on bootstrap
-checkdepends="
-	boost-dev
-	boost-static
-	cmake
-	cups-dev
-	doxygen
-	gettext-static
-	gfortran
-	glib-dev
-	gobject-introspection-dev
-	gtest-dev
-	gtk+3.0-dev
-	libpcap-dev
-	libxml2-dev
-	linux-headers
-	llvm-dev
-	nasm
-	ncurses-dev
-	py3-pytest
-	python3-dev
-	vala
-	zlib-dev
-	zlib-static
-	"
 subpackages="
 	$pkgname-doc
 	$pkgname-vim::noarch
 	$pkgname-bash-completion
 	$pkgname-zsh-completion
 	"
-source="https://github.com/mesonbuild/meson/releases/download/$pkgver/meson-$pkgver.tar.gz
+source="
+	https://github.com/mesonbuild/meson/releases/download/$pkgver/meson-$pkgver.tar.gz
 	skip-broken-tests.patch
 	fix-ninja-output-test.patch
 	abuild-meson
 	"
-
-prepare() {
-	default_prepare
-
-	# https://github.com/mesonbuild/meson/issues/10104
-	rm -r "$builddir/test cases/linuxlike/13 cmake dependency"
-}
 
 build() {
 	python3 setup.py build
 }
 
 check() {
-	MESON_CI_JOBNAME=thirdparty \
-		NINJA=samu \
-		NINJA_1_9_OR_NEWER=1 \
-		python3 run_tests.py
+	python3 setup.py check
 }
 
 package() {
