@@ -1,10 +1,10 @@
 pkgname=lldb
 # Note: Update together with llvm.
 pkgver=13.0.1
-pkgrel=0
+pkgrel=1
 _llvmver=${pkgver%%.*}
 pkgdesc="Next generation, high-performance debugger"
-arch="all !x86 !riscv64"
+arch="all"
 url="https://llvm.org/"
 license="Apache-2.0"
 makedepends="
@@ -31,9 +31,12 @@ source="https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/l
 	musl:musl-compat.patch
 	"
 builddir="$srcdir/$pkgname-$pkgver.src"
-options="!check" 
+options="!check" # tests don't compile
 
 build() {
+	# CMAKE_BUILD_TYPE - Don't set to None, it may result in debugging
+	#   stuff included. lldb huge, so building with MinSizeRel doesn't make
+	#   much sense.
 	CC=clang CXX=clang++ cmake -B build -G Ninja -Wno-dev \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_C_FLAGS_RELEASE_INIT="${CFLAGS/-Os/}" \
