@@ -3,9 +3,10 @@
 # for the GNU and Linux systems.
 
 pkgname=glibc
-pkgver=2.34.1
-pkgrel=3
+pkgver=2.34.2
+pkgrel=0
 _glibcver=2.34
+_patch_ver="glibc-2.34-349-g9f55d2e7c4"
 pkgdesc="GNU C Library"
 url="https://www.gnu.org/software/libc"
 arch="x86_64"
@@ -13,15 +14,10 @@ license="GPL-2.0 LGPL-2.0"
 makedepends="bison perl python3 texinfo gawk grep sed coreutils"
 source="
 	https://ftp.gnu.org/gnu/libc/glibc-$_glibcver.tar.xz
+	https://packages.bell-sw.com/alpaquita/distfiles/${_patch_ver}.patch.xz
 	ld.so.conf
 	locale.gen.in
 	locale-gen
-	0001-ldconfig-avoid-leak-on-empty-paths-in-config-file.patch
-	0002-gconv_parseconfdir-Fix-memory-leak.patch
-	0003-gaiconf_init-Avoid-double-free-in-label-and-preceden.patch
-	0004-copy_and_spawn_sgid-Avoid-double-calls-to-close.patch
-	0005-iconv_charmap-Close-output-file-when-done.patch
-	0006-Linux-Fix-fcntl-ioctl-prctl-redirects-for-_TIME_BITS.patch
 "
 builddir="$srcdir/glibc-$_glibcver"
 options="!libc_musl lib64 ldpath-recursive !check"
@@ -141,13 +137,8 @@ utils() {
 
 sha512sums="
 15252affd9ef4523a8001db16d497f4fdcb3ddf4cde7fe80e075df0bd3cc6524dc29fbe20229dbf5f97af580556e6b1fac0de321a5fe25322bc3e72f93beb624  glibc-2.34.tar.xz
+f712243350cf98d83870371eabf2531e804cdb6a9c569a74747faac62ca3e25066075899f03d9f48ca84f2926b2dc9066e273223bf6a0825666fab33b8e34329  glibc-2.34-349-g9f55d2e7c4.patch.xz
 73bfefd8a1366f3bc7bbfd3f34b599b49f48278f783eb2837a414eb914ac3ae9995fe4e9fec58b9d1da1eb6ed36ccc889257ffc54031f1731e041dc18e096e6f  ld.so.conf
 47a686c2fda0f32a1e9e975f723ed96ab8125619541cf8711fa80d94428862be77c46d06f5ff17f6a978eb22c9f86929ee9bf79888e6f824beeb023f78512151  locale.gen.in
 7f4e96d99f98da0074e8020efd574b5080b3364ba014e74c3fc262af685180f92a6a08f2681c0ce8b0b78a103cafe753943836943db20fe9064ad5f380b35de0  locale-gen
-dd1d36d70f0a3939145f4647ac423fa1c4347353662ad48a6479a0e7217104fac6e759edbd7c0434b6fa568754f1d38165f7eac53410b54d498fabfbc5e45d5a  0001-ldconfig-avoid-leak-on-empty-paths-in-config-file.patch
-bfccc195d49309c0e3010cb6d711fee12bc91e96539f9cfb17e9835cd7a031590f46a5370bc2b28e62a72e28062affcd6e1c62119400c569b7933859ff2bd542  0002-gconv_parseconfdir-Fix-memory-leak.patch
-d2a85c8b3e8351f317448e00e0282b1bddaa99b5cc2d59ee7387b36024b760a50aa2426b5625decfe936051ab01e5f79c94f21672c74f913ea18eaf006f06475  0003-gaiconf_init-Avoid-double-free-in-label-and-preceden.patch
-af027f3e93e643ce0d165935aa4be96b7f87b5edfb5b120bef133822c2b5763d25cbddc087e16152b1400f2e68c60a97048d22f006d3b25f592326b8d9235290  0004-copy_and_spawn_sgid-Avoid-double-calls-to-close.patch
-6ebbd86bb7b3a9d4abb9f14acd23e35273cee09cb6951e91062207d44ed0cfc2c6e058c97c403b5619bfdab42ad7aefb51f52bccd1dadd2a907fdb81253305df  0005-iconv_charmap-Close-output-file-when-done.patch
-5fba0b0ffc3d6306c52fe72e64574a862c4d815717e69534c91875edbd57f6fc7e47283d4c83643d536378c107886cb2221c13043f49159d4ae7890ed9bcec16  0006-Linux-Fix-fcntl-ioctl-prctl-redirects-for-_TIME_BITS.patch
 "
