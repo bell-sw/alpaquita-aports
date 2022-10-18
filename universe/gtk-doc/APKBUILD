@@ -1,0 +1,41 @@
+pkgname=gtk-doc
+pkgver=1.33.2
+pkgrel=2
+pkgdesc="Documentation tool for public library API"
+url="https://wiki.gnome.org/DocumentationProject/GtkDoc"
+arch="noarch"
+license="GPL-2.0-or-later AND GFDL-1.1-or-later"
+depends="docbook-xsl python3 py3-six pkgconf glib-dev py3-pygments"
+makedepends="rarian-dev gettext autoconf automake libtool"
+checkdepends="bc"
+source="https://download.gnome.org/sources/gtk-doc/${pkgver%.*}/gtk-doc-$pkgver.tar.xz"
+
+# it does not seem to be possible to disable tests of pdf which requires dblatex or fop
+# disable checks for now
+options="!check"
+
+prepare() {
+	default_prepare
+	autoreconf -vif
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--with-highlight=highlight
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+f50f68ab6b4bc59f55e84b49c1481f05700171cbf79eca9ba8f3a142a30a4ba88fe096983ebb8d117a9ef8bcea40934674096683d956f5c54cae457d31f651ab  gtk-doc-1.33.2.tar.xz
+"

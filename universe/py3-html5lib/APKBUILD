@@ -1,0 +1,33 @@
+pkgname=py3-html5lib
+_pkgname=html5lib
+pkgver=1.1
+pkgrel=2
+pkgdesc="A Python HTML parser"
+options="!check" # 1 test fail TypeError: object of type 'MarkDecorator' has no len()
+url="https://github.com/html5lib/html5lib-python"
+arch="noarch"
+license="MIT"
+depends="py3-six py3-webencodings"
+checkdepends="py3-pytest py3-pytest-expect py3-mock"
+makedepends="py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz"
+builddir="$srcdir"/$_pkgname-$pkgver
+
+replaces="py-html5lib" # Backwards compatibility
+provides="py-html5lib=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	py.test-3
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+af7c29591007fded99be6c38e3d0ae5a4ac32d71d26046a615918ae732cb1c1ecbf754f47ceca1a53726c3843f3ecea7af87a7362281b45ff3af495815818626  html5lib-1.1.tar.gz
+"

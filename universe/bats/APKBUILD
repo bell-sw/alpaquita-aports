@@ -1,0 +1,27 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=bats
+pkgver=1.6.0
+pkgrel=0
+pkgdesc="Bash Automated Testing System"
+options="!check" # Test passes CI/locally, fails on builders
+url="https://github.com/bats-core/bats-core"
+arch="noarch"
+license="MIT"
+depends="bash"
+subpackages="$pkgname-doc"
+source="$pkgname-$pkgver.zip::https://github.com/bats-core/bats-core/archive/v$pkgver.zip"
+builddir="$srcdir/bats-core-$pkgver"
+
+check() {
+	bash -c 'bin/bats --tap test'
+}
+
+package() {
+	./install.sh "$pkgdir"/usr
+}
+sha512sums="
+c76a219c0d6e8016bac90229b842c0666c1a63ae4c063c644a1cb2c78234e5b2685576889ca2c71cd1a6adfd3281be4c01e907b183873777e58e0d749e07d23c  bats-1.6.0.zip
+"

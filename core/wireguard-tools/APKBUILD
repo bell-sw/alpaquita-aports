@@ -1,0 +1,60 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: WireGuard is an extremely simple yet fast and modern VPN that
+# utilizes state-of-the-art cryptography. It aims to be faster, simpler, leaner,
+# and more useful than IPsec, while avoiding the massive headache. 
+
+pkgname=wireguard-tools
+pkgver=1.0.20210914
+pkgrel=0
+pkgdesc="fast modern secure VPN"
+arch="all"
+url="https://www.wireguard.com"
+# SPDX identifier headers tells us 'GPL-2.0' but considering it
+# is a kernel project i think it is safe to assume it is GPL-2.0-only just
+# like the kernel.
+license="GPL-2.0-only"
+_wg_quick_deps="iproute2 ip6tables bash openresolv"
+makedepends="libmnl-dev $_wg_quick_deps"
+depends="$pkgname-wg $pkgname-wg-quick"
+subpackages="
+	$pkgname-doc
+	$pkgname-bash-completion
+	$pkgname-wg:_split
+	$pkgname-wg-quick:_split:noarch
+	"
+options="!check"
+source="https://git.zx2c4.com/wireguard-tools/snapshot/wireguard-tools-$pkgver.tar.xz"
+
+build() {
+	make -C src
+}
+
+package() {
+	mkdir -p "$pkgdir/usr/share/doc/$pkgname"
+
+	make -C src \
+		DESTDIR="$pkgdir" \
+		WITH_BASHCOMPLETION=yes \
+		WITH_WGQUICK=yes \
+		WITH_SYSTEMDUNITS=no \
+		install
+
+	find "$builddir"/contrib -name '.gitignore' -delete
+	cp -rf "$builddir"/contrib "$pkgdir/usr/share/doc/$pkgname/"
+}
+
+_split() {
+	local cmd=${subpkgname/$pkgname-}
+	pkgdesc="$pkgdesc ($cmd)"
+	case $cmd in
+		wg-quick) depends="$pkgname-wg=$pkgver-r$pkgrel $_wg_quick_deps" ;;
+		*) depends= ;;
+	esac
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/$cmd "$subpkgdir"/usr/bin/
+}
+
+sha512sums="
+6727ea65551dbb064457449b93a943bd6534ca93bc7fa5704c2f6826266c98688ee9ea28731fda57a5245d5f63c05f3899fcca54e40c0b6251b7c4796e957445  wireguard-tools-1.0.20210914.tar.xz
+"

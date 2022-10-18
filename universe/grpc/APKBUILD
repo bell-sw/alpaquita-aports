@@ -1,0 +1,109 @@
+pkgname=grpc
+pkgver=1.46.3
+pkgrel=0
+pkgdesc="The C based gRPC (C++, Python, Ruby, Objective-C, PHP, C#)"
+url="https://grpc.io/"
+arch="all"
+license="Apache-2.0"
+depends="protobuf"
+makedepends="
+	abseil-cpp-dev
+	autoconf
+	automake
+	benchmark-dev
+	c-ares-dev
+	chrpath
+	cmake
+	musl:libexecinfo-dev
+	libstdc++
+	libtool
+	linux-headers
+	openssl1.1-compat-dev
+	protobuf-dev
+	re2-dev
+	samurai
+	yaml-dev
+	zlib-dev
+	"
+checkdepends="coreutils python3 py3-six"
+subpackages="$pkgname-dev $pkgname-doc"
+_googletest_rev=0e402173c97aea7a00749e825b194bfede4f2e45
+source="https://github.com/grpc/grpc/archive/v$pkgver/grpc-v$pkgver.tar.gz
+	googletest-$_googletest_rev.tar.gz::https://github.com/google/googletest/archive/$_googletest_rev.tar.gz
+	01-chttp2-maybe-uninitialized.patch
+	"
+options="!check" # sometimes hang indefinitely on builders
+
+prepare() {
+	rm -r third_party/googletest
+	mv "$srcdir"/googletest-$_googletest_rev third_party/googletest
+
+	default_prepare
+}
+
+build() {
+	cmake -B build \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_CXX_FLAGS="$CXXFLAGS -w" \
+		-DCMAKE_C_FLAGS="$CFLAGS -w" \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DCMAKE_CXX_STANDARD=17 \
+		-DBUILD_SHARED_LIBS=True \
+		-DgRPC_INSTALL=ON \
+		-DgRPC_CARES_PROVIDER=package \
+		-DgRPC_PROTOBUF_PROVIDER=package \
+		-DgRPC_SSL_PROVIDER=package \
+		-DgRPC_ZLIB_PROVIDER=package \
+		-DgRPC_ABSL_PROVIDER=package \
+		-DgRPC_BENCHMARK_PROVIDER=package \
+		-DgRPC_RE2_PROVIDER=package \
+		-DgRPC_BUILD_TESTS="$(want_check && echo ON || echo OFF)" \
+		-G Ninja
+	cmake --build build
+}
+
+check() {
+	# delete times out in ci or broken for ci tests
+	rm -f build/spinlock_test build/resolve_address_using_ares_resolver_posix_test build/resolve_address_using_native_resolver_posix_test
+	rm -f build/flaky_network_test build/unknown_frame_bad_client_test build/ssl_transport_security_test build/httpscli_test
+	rm -f build/headers_bad_client_test build/httpcli_test
+	case $CARCH in
+		aarch64|ppc64le) rm -f build/server_test build/grpc_tool_test ;;
+		s390x) rm -f build/client_lb_end2end_test build/alts_frame_protector_test build/alts_iovec_record_protocol_test ;;
+		armv7) rm -f build/initial_settings_frame_bad_client_test ;;
+		x86) rm -f build/time_jump_test build/connection_prefix_bad_client_test ;;
+	esac
+
+	# start helper
+	./tools/run_tests/start_port_server.py &
+	find build/ -maxdepth 1 -type f -executable -name "*_test" -exec {} \;
+	# kill helper
+	pkill -9 python3
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+	cd doc
+	find ./ -type f -print -exec install -Dm644 {} "$pkgdir"/usr/share/doc/grpc/{} \;
+	rm "$pkgdir"/usr/share/doc/grpc/.gitignore
+
+	rm  "$pkgdir"/usr/share/grpc/roots.pem
+}
+
+cli() {
+	pkgdesc="gRPC command line tool"
+
+	install -Dm644 -t "$subpkgdir"/usr/lib "$builddir"/build/libgrpc++_test_config.so.$pkgver
+	install -Dm755 -t "$subpkgdir"/usr/bin "$builddir"/build/grpc_cli
+
+	# Fix "Has /home/... in rpath"
+	chrpath -d "$subpkgdir"/usr/lib/libgrpc++_test_config.so.$pkgver
+	chrpath -d "$subpkgdir"/usr/bin/grpc_cli
+}
+
+sha512sums="
+e80322b65c6f8d64dc91bce9f612119191e8d329cac2fbc5da6dad9a2a7ccaa7a501470ed483e555c3ba596e8aff796fbda2747f09e9c4329aed3de4d9b6b666  grpc-v1.46.3.tar.gz
+5c5eaf6ff9f3c1bca025b7ef0234ba97232ba85b43e6354a92f49b7208f5c47581ebaf18bf58618498e5d264f2620c2b6676e81bb0f7df77112b96ba271ececf  googletest-0e402173c97aea7a00749e825b194bfede4f2e45.tar.gz
+7fa146ce86ddd4f160bb1ca9ff01cb7aca6b2b8c9aa50e4fa6b84504b9117b104be0d1e31ccb452d846549dfe1e9012ceccfcdc1f2357ed567621d71fb8b08c5  01-chttp2-maybe-uninitialized.patch
+"

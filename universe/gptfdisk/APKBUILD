@@ -1,0 +1,40 @@
+pkgname=gptfdisk
+pkgver=1.0.9
+pkgrel=0
+pkgdesc="Text-mode partitioning tool that works on Globally Unique Identifier (GUID) Partition Table (GPT) disks"
+arch="all"
+url="https://www.rodsbooks.com/gdisk"
+options="!check"  # No test suite.
+license="GPL-2.0-or-later"
+makedepends="ncurses-dev e2fsprogs-dev popt-dev linux-headers"
+subpackages="$pkgname-doc sgdisk"
+source="https://downloads.sourceforge.net/project/gptfdisk/gptfdisk/$pkgver/gptfdisk-$pkgver.tar.gz
+	fix-wrong-include.patch
+	"
+# secfixes:
+#   1.0.6-r0:
+#     - CVE-2021-0308
+#     - CVE-2020-0256
+
+build() {
+	make CXX="${CXX:-g++}" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
+}
+
+package() {
+	mkdir -p "$pkgdir"/usr/bin "$pkgdir"/usr/share/man/man8
+	local i; for i in gdisk cgdisk sgdisk fixparts; do
+		install $i "$pkgdir"/usr/bin/
+		install $i.8 "$pkgdir"/usr/share/man/man8/
+	done
+}
+
+sgdisk() {
+	pkgdesc="Command-line GUID partition table (GPT) manipulator"
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/sgdisk "$subpkgdir"/usr/bin/
+}
+
+sha512sums="
+c2489ac7e196cb53b9fdb18d0e421571eca43c366de8922c5c7f550aadf192558e7af69b181c30747d6cf607c1670126223465eaa5e231cc589402d94a4e97a2  gptfdisk-1.0.9.tar.gz
+9b64c0e565137b4d4275bd6e8b050f98a73ff5593093b54d43736e6aabd24abf6e35d88ea27be17c5fee70aada4ad05a70fe5af3523212aad114f05aaf82356f  fix-wrong-include.patch
+"

@@ -1,0 +1,33 @@
+pkgname=perl-io-socket-ssl
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=IO-Socket-SSL
+pkgver=2.074
+pkgrel=0
+pkgdesc="Nearly transparent SSL encapsulation for IO::Socket::INET."
+url="https://metacpan.org/release/IO-Socket-SSL/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl ca-certificates perl-net-ssleay perl-mozilla-ca"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/S/SU/SULLR/IO-Socket-SSL-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+cafbf11a986b8fb5ce06bdf1e7a83741e2eef74d4bf054f0e0cd490959eddf54d32d3d4e786de52750dccc07139d8a1b5d5979080d0f1c1464e0004ccf98a6b0  IO-Socket-SSL-2.074.tar.gz
+"

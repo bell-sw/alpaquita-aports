@@ -1,0 +1,29 @@
+pkgname=py3-testpath
+pkgver=0.6.0
+pkgrel=0
+pkgdesc="test utilities for working with files and commands"
+url="https://testpath.readthedocs.io/en/latest/"
+arch="noarch"
+license="BSD-3-Clause"
+depends="python3"
+makedepends="py3-build py3-flit-core py3-installer py3-wheel"
+checkdepends="py3-pytest"
+source="https://files.pythonhosted.org/packages/source/t/testpath/testpath-$pkgver.tar.gz"
+builddir="$srcdir/testpath-$pkgver"
+
+build() {
+	python3 -m build --no-isolation --wheel
+}
+
+check() {
+	pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		dist/testpath-$pkgver-py3-none-any.whl
+}
+
+sha512sums="
+64ec7ee32ed766e518eabcbb552a0675b2495cac6b94adb2972dd0db97d747146d3a181e8fac59d847dbaaa4f573c349e51a4e3bf3991eb33207bb2176736649  testpath-0.6.0.tar.gz
+"

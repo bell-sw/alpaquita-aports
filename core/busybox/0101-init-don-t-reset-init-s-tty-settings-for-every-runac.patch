@@ -1,0 +1,32 @@
+From 44d1495fae85332de49a6488c2f565c2b0e4399e Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Fri, 11 Feb 2022 14:26:32 +0300
+Subject: [PATCH] init: don't reset init's tty settings for every runaction
+
+Updating term settings can be a problem if the getty service starts
+at an early runlevel. When we are at the password entry stage, and
+it so happens that the next run action starts, it will turn the echo
+mode back on and the password will become visible.
+---
+ init/init.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/init/init.c b/init/init.c
+index efab5dcb4..440cc1ffd 100644
+--- a/init/init.c
++++ b/init/init.c
+@@ -405,8 +405,10 @@ static int open_stdio_to_tty(const char* tty_name)
+ 		}
+ 		dup2(STDIN_FILENO, STDOUT_FILENO);
+ 		dup2(STDIN_FILENO, STDERR_FILENO);
++
++		set_sane_term();
+ 	}
+-	set_sane_term();
++
+ 	return 1; /* success */
+ }
+ 
+-- 
+2.25.1
+

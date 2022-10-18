@@ -1,0 +1,56 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: Libidn2 implements the revised algorithm for internationalized
+# domain names called IDNA2008/TR46.
+
+pkgname=libidn2
+pkgver=2.3.2
+pkgrel=1
+pkgdesc="Internationalized domain names (IDNA2008/TR46) library"
+url="https://www.gnu.org/software/libidn#libidn2"
+arch="all"
+license="GPL-2.0-or-later AND LGPL-3.0-or-later"
+makedepends="libunistring-dev"
+checkdepends="diffutils"
+subpackages="${pkgname#lib}-utils:utils $pkgname-static $pkgname-dev $pkgname-doc"
+source="https://ftp.gnu.org/gnu/libidn/libidn2-$pkgver.tar.gz"
+
+# secfixes:
+#   2.2.0-r0:
+#     - CVE-2019-12290
+#   2.1.1-r0:
+#     - CVE-2019-18224
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--disable-nls
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	# only keep man pages
+	rm -rf "$pkgdir"/usr/share/info
+}
+
+utils() {
+	license='GPL-3.0-or-later'
+	pkgdesc="$pkgdesc (CLI utilities)"
+
+	amove 'usr/bin/'
+}
+
+sha512sums="
+958dbf49a47a84c7627ac182f4cc8ea452696cec3f0d1ff102a6c48e89893e772b2aa81f75da8223dfc6326515cca3ae085268fbf997828de9330c3a351152f1  libidn2-2.3.2.tar.gz
+"

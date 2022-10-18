@@ -1,0 +1,35 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: mkfontscale allows you to generate an index of scalable font
+# files for the X Window system.
+
+pkgname=mkfontscale
+pkgver=1.2.2
+pkgrel=0
+pkgdesc="Generator for scalable fonts index"
+url="http://xorg.freedesktop.org"
+arch="all"
+license="MIT"
+options="!check"  # No test suite.
+subpackages="$pkgname-doc"
+makedepends="freetype-dev libfontenc-dev util-macros xorgproto zlib-dev"
+triggers="$pkgname.trigger=/usr/share/fonts/*"
+source="https://www.x.org/releases/individual/app/mkfontscale-$pkgver.tar.xz"
+replaces="mkfontdir"
+provides="mkfontdir"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+4c846816325347c91008d76b3a5610c1e58a8414fd55117e7ccf51310db4b20b8397ecf6c9177ff77322e27ee088bf034fd175c9210465c50b094bab8dada4b3  mkfontscale-1.2.2.tar.xz
+"

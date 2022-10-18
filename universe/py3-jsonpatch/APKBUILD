@@ -1,0 +1,31 @@
+pkgname=py3-jsonpatch
+_pkgname=python-json-patch
+pkgver=1.32
+pkgrel=2
+pkgdesc="Apply JSON-Patches (RFC 6902)"
+url="https://github.com/stefankoegl/python-json-patch"
+arch="noarch"
+license="BSD-3-Clause"
+depends="py3-jsonpointer"
+makedepends="py3-setuptools"
+source="$pkgname-$pkgver.tar.gz::https://github.com/stefankoegl/python-json-patch/archive/v$pkgver.tar.gz"
+builddir="$srcdir"/$_pkgname-$pkgver
+
+replaces="py-jsonpatch" # Backwards compatibility
+provides="py-jsonpatch=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+4e2978555dd506e09553014d426c4e3a6c6d5c865428f11450952704007c8a0b2060b945cf1fa33a128151427e1c66919891466e095e96fff4316304f0b3ad1d  py3-jsonpatch-1.32.tar.gz
+"

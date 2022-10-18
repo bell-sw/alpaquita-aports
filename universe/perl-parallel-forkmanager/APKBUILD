@@ -1,0 +1,32 @@
+pkgname=perl-parallel-forkmanager
+_pkgreal=Parallel-ForkManager
+pkgver=2.02
+pkgrel=3
+pkgdesc="unknown"
+url="https://metacpan.org/release/Parallel-ForkManager/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-moo"
+makedepends="perl-test-warn"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/Y/YA/YANICK/$_pkgreal-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+prepare() {
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+}
+
+build() {
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install || return 1
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="2b390ec8f252e7bf2b6be8d602b231b1fd347bc5256bf7f16a6d56f67256938f3d96b7a28c92c662d8b91441b7fa4cb5922c655e64a7a4a9332eb58f19b6bcfb  Parallel-ForkManager-2.02.tar.gz"

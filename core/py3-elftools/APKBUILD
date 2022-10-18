@@ -1,0 +1,37 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: parsing and evaluation of ELF and DWARF files. Works with Python.
+
+pkgname=py3-elftools
+_pkgname=py${pkgname##py3-}
+pkgver=0.27
+pkgrel=3
+pkgdesc="Python library for ELF and DWARF parsing"
+url="https://github.com/eliben/pyelftools"
+arch="noarch"
+license="Unlicense"
+depends="python3"
+makedepends="py3-setuptools"
+subpackages="$pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/eliben/$_pkgname/archive/v$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 test/run_all_unittests.py
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+
+	mkdir -p "$pkgdir"/usr/share/doc/$pkgname
+	install -m644 README.rst CHANGES \
+		"$pkgdir"/usr/share/doc/$pkgname/
+}
+
+sha512sums="
+bb0a00e5500016e3d4f64be0a728e190f84b11a805f78d668b5a74716a30400e6794946f198ef4a3f3b8f64a63deb1b5a96180b09e56b7357b988b28e25fad0a  py3-elftools-0.27.tar.gz
+"

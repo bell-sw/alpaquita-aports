@@ -1,0 +1,43 @@
+pkgname=execline
+pkgver=2.8.3.0
+pkgrel=1
+pkgdesc="A small scripting language, to be used in place of a shell in non-interactive scripts."
+url="http://skarnet.org/software/$pkgname/"
+arch="all"
+license="ISC"
+options="!check"
+makedepends="skalibs-dev>=2.11"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
+source="https://skarnet.org/software/execline/execline-$pkgver.tar.gz"
+
+build() {
+	./configure \
+		--enable-shared \
+		--enable-static \
+		--disable-allstatic \
+		--libdir=/usr/lib \
+		--with-dynlib=/lib
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	# Compat symlink for #!/usr/bin/execlineb shebangs, remove if usrmerge
+	mkdir -p "$pkgdir/usr/bin"
+	ln -s ../../bin/execlineb "$pkgdir/usr/bin/execlineb"
+}
+
+doc() {
+	default_doc
+	mkdir -p "$subpkgdir/usr/share/doc"
+	cp -a "$builddir/doc" "$subpkgdir/usr/share/doc/$pkgname"
+}
+
+static() {
+	default_static
+	rmdir -p "$pkgdir"/usr/lib || :
+}
+
+sha512sums="
+40f4697a8165616848ed36dcb31a5859dee55a47439d13908a387550e8f53ca8fffe3bcb3e0462cb93f694c8fb483b14e152f92e6f9d0d536cdab9d94be9c53a  execline-2.8.3.0.tar.gz
+"

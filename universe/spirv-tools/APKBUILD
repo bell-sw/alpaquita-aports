@@ -1,0 +1,45 @@
+pkgname=spirv-tools
+_pkgname=SPIRV-Tools
+pkgver=2020.3
+pkgrel=1
+pkgdesc="API and commands for processing SPIR-V modules"
+options="!check" # Requires git checkout of gtest in external/
+url="https://github.com/KhronosGroup/SPIRV-Tools"
+arch="all"
+license="Apache-2.0"
+depends_dev="spirv-headers $pkgname=$pkgver-r$pkgrel"
+makedepends="$depends_dev cmake samurai python3"
+subpackages="$pkgname-dev"
+source="$pkgname-$pkgver.tar.gz::https://github.com/KhronosGroup/$_pkgname/archive/v$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+build() {
+	if [ "$CBUILD" != "$CHOST" ]; then
+		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+	cmake \
+		-GNinja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_SHARED_LIBS=True \
+		-DCMAKE_BUILD_TYPE=None \
+		-DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+		-DCMAKE_C_FLAGS="$CFLAGS" \
+		-DSPIRV_WERROR=OFF \
+		-DSPIRV_SKIP_TESTS=ON \
+		-DSPIRV-Headers_SOURCE_DIR=/usr \
+		$CMAKE_CROSSOPTS .
+	ninja
+}
+
+check() {
+	ninja check
+}
+
+package() {
+	DESTDIR="$pkgdir" ninja install
+}
+
+sha512sums="
+8abb4fe227dbe9d0fc4279523eb714ce3a590a3c56e3dcd226317bc7835e2dceaef3a46c0873c2f144c61b28f41c0fcdf2985cc4f708fa496186c16738cc493f  spirv-tools-2020.3.tar.gz
+"

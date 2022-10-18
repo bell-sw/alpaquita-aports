@@ -1,0 +1,58 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+pkgname=libbsd
+pkgver=0.11.6
+pkgrel=1
+pkgdesc="BSD functions not implemented by all libcs"
+url="https://libbsd.freedesktop.org/"
+arch="all"
+license="BSD-3-Clause"
+case "$CLIBC" in
+musl) depends="musl" ;;
+esac
+depends_dev="bsd-compat-headers linux-headers libmd-dev libbsd=$pkgver-r$pkgrel" # libbsd.so is a GNU ld script and not symlink
+makedepends_build="autoconf automake libtool"
+makedepends_host="$depends_dev"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
+source="https://libbsd.freedesktop.org/releases/libbsd-$pkgver.tar.xz
+	disable-fpurge-test.patch"
+
+# secfixes:
+#   0.10.0-r0:
+#     - CVE-2019-20367
+
+prepare() {
+	default_prepare
+
+	./autogen
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+dev() {
+	default_dev
+	amove usr/lib/libbsd.so
+}
+
+sha512sums="
+9dbbfb84340fc69f59667241701d81d176439ce168f123344805898a269f7bd0e98abf8c7fc12d9bf539d1effb19424d93b647cc9120f693327e736d339e6075  libbsd-0.11.6.tar.xz
+c90e7d75bac79f821962227593b91d8a373b5bd991592b71b6ac20f86908bbe72af874542f591202f29ad42f57da6d5d71f445871679793b29bd3ed002beb4ce  disable-fpurge-test.patch
+"

@@ -1,0 +1,32 @@
+pkgname=py3-colorama
+_pkgname=colorama
+pkgver=0.4.4
+pkgrel=2
+pkgdesc="Simple cross-platform colored terminal text"
+url="https://pypi.python.org/pypi/colorama"
+arch="noarch"
+license="BSD-3-Clause"
+depends="python3"
+makedepends="py3-setuptools"
+checkdepends="py3-mock"
+source="$pkgname-$pkgver.tar.gz::https://github.com/tartley/colorama/archive/$pkgver.tar.gz"
+builddir="$srcdir"/$_pkgname-$pkgver
+
+replaces=py-colorama # Backwards compatibility
+provides=py-colorama=$pkgver-r$pkgrel # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 -m unittest discover -p "*_test.py"
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+35501915b79bfc5fe46a36f83790ecd79c82150d6b73a57cd55fbe6431ea5ed7a86676504af90147eeb3a963ffd16890e0220099df579a66f2d8f1f7494f862e  py3-colorama-0.4.4.tar.gz
+"

@@ -1,0 +1,42 @@
+pkgname=py3-dateutil
+_pkgname=python-dateutil
+pkgver=2.8.2
+pkgrel=1
+pkgdesc="Python3 extensions for datetime module"
+options="!check" # Requires py3-freezegun for testsuite and vice-versa
+url="https://dateutil.readthedocs.io"
+arch="noarch"
+license="Apache-2.0 AND BSD-3-Clause"
+depends="python3 py3-six"
+makedepends="py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces="py-dateutil" # Backwards compatibility
+provides="py-dateutil=$pkgver-r$pkgrel" # Backwards compatibility
+
+prepare() {
+	default_prepare
+
+	# Generate _version.py ourselves since we don't use setuptools_scm
+	cat <<- EOF >dateutil/_version.py
+	# coding: utf-8
+	version = '$pkgver'
+	version_tuple = (${pkgver//./, })
+	EOF
+
+	sed -e '/setuptools_scm/d' -i setup.cfg
+	sed -e "s/setup(/setup(\n      version='$pkgver',/" -i setup.py
+}
+
+build() {
+	python3 setup.py build
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+6538858e4a3e2d1de1bf25b6d8b25e3a8d20bf60fb85e32d07ac491c90ce193e268bb5641371b8a79fb0f033a184bac9896b3bc643c1aca9ee9c6478286ac20c  python-dateutil-2.8.2.tar.gz
+"

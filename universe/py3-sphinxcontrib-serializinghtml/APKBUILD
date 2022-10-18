@@ -1,0 +1,33 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=py3-sphinxcontrib-serializinghtml
+_pyname=sphinxcontrib-serializinghtml
+pkgver=1.1.5
+pkgrel=1
+pkgdesc="Sphinx serializinghtml extension"
+url="https://pypi.python.org/pypi/sphinxcontrib-serializinghtml"
+arch="noarch"
+license="BSD-2-Clause"
+depends="python3"
+makedepends="py3-setuptools"
+options="!check" # cyclic dependency
+source="https://files.pythonhosted.org/packages/source/${_pyname%${_pyname#?}}/$_pyname/$_pyname-$pkgver.tar.gz"
+builddir="$srcdir"/$_pyname-$pkgver
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+c5aabe4d29fd0455c269f8054089fdd61e1de5c35aa407740fc3baae4cfb3235d9fd5515c0489b0becd12abc8f18d0f42aa169ed315c00f30ba87e64ce851667  sphinxcontrib-serializinghtml-1.1.5.tar.gz
+"

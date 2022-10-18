@@ -1,0 +1,203 @@
+diff -r 1c6e1f187fdc src/os/linux/vm/jvm_linux.cpp
+--- a/hotspot/src/os/linux/vm/jvm_linux.cpp	Sat Jun 27 23:21:57 2020 +0100
++++ b/hotspot/src/os/linux/vm/jvm_linux.cpp	Wed Jul 08 10:26:02 2020 +0300
+@@ -154,7 +154,9 @@
+ #ifdef SIGSTKFLT
+   "STKFLT",     SIGSTKFLT,      /* Stack fault.  */
+ #endif
++#ifdef SIGCLD
+   "CLD",        SIGCLD,         /* Same as SIGCHLD (System V).  */
++#endif
+   "CHLD",       SIGCHLD,        /* Child status has changed (POSIX).  */
+   "CONT",       SIGCONT,        /* Continue (POSIX).  */
+   "STOP",       SIGSTOP,        /* Stop, unblockable (POSIX).  */
+diff -r 1c6e1f187fdc src/os/linux/vm/os_linux.cpp
+--- a/hotspot/src/os/linux/vm/os_linux.cpp	Sat Jun 27 23:21:57 2020 +0100
++++ b/hotspot/src/os/linux/vm/os_linux.cpp	Wed Jul 08 10:26:02 2020 +0300
+@@ -95,7 +95,6 @@
+ # include <string.h>
+ # include <syscall.h>
+ # include <sys/sysinfo.h>
+-# include <gnu/libc-version.h>
+ # include <sys/ipc.h>
+ # include <sys/shm.h>
+ # include <link.h>
+@@ -127,6 +126,16 @@
+ #define ALL_64_BITS CONST64(0xFFFFFFFFFFFFFFFF)
+ 
+ #define LARGEPAGES_BIT (1 << 6)
++
++// dlvsym is not a part of POSIX
++// and musl libc doesn't implement it.
++static void *dlvsym(void *handle,
++                    const char *symbol,
++                    const char *version) {
++   // return NULL;
++   return dlsym(handle, symbol);
++}
++
+ ////////////////////////////////////////////////////////////////////////////////
+ // global variables
+ julong os::Linux::_physical_memory = 0;
+@@ -592,6 +601,7 @@
+ # define _CS_GNU_LIBPTHREAD_VERSION 3
+ # endif
+ 
++/*
+   size_t n = confstr(_CS_GNU_LIBC_VERSION, NULL, 0);
+   if (n > 0) {
+      char *str = (char *)malloc(n, mtInternal);
+@@ -627,6 +637,10 @@
+     // glibc before 2.3.2 only has LinuxThreads.
+     os::Linux::set_libpthread_version("linuxthreads");
+   }
++*/
++
++  os::Linux::set_glibc_version("glibc 2.9");
++  os::Linux::set_libpthread_version("NPTL");
+ 
+   if (strstr(libpthread_version(), "NPTL")) {
+      os::Linux::set_is_NPTL();
+@@ -5030,6 +5044,64 @@
+   }
+ }
+ 
++// Some linux distributions (notably: Alpine Linux) include the
++// grsecurity in the kernel. Of particular interest from a JVM perspective
++// is PaX (https://pax.grsecurity.net/), which adds some security features
++// related to page attributes. Specifically, the MPROTECT PaX functionality
++// (https://pax.grsecurity.net/docs/mprotect.txt) prevents dynamic
++// code generation by disallowing a (previously) writable page to be
++// marked as executable. This is, of course, exactly what HotSpot does
++// for both JIT compiled method, as well as for stubs, adapters, etc.
++//
++// Instead of crashing "lazily" when trying to make a page executable,
++// this code probes for the presence of PaX and reports the failure
++// eagerly.
++static void check_pax(void) {
++  // Zero doesn't generate code dynamically, so no need to perform the PaX check
++#ifndef ZERO
++  size_t size = os::Linux::page_size();
++
++  void* p = ::mmap(NULL, size, PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
++  if (p == MAP_FAILED) {
++    printf("os_linux.cpp: check_pax: mmap failed (%s)" , strerror(errno));
++    vm_exit_out_of_memory(size, OOM_MMAP_ERROR, "failed to allocate memory for PaX check.");
++  }
++
++  int res = ::mprotect(p, size, PROT_WRITE|PROT_EXEC);
++  if (res == -1) {
++    printf("os_linux.cpp: check_pax: mprotect failed (%s)" , strerror(errno));
++    vm_exit_during_initialization("Failed to mark memory page as executable",
++                                  "Please check if grsecurity/PaX is enabled in your kernel.\n"
++                                  "\n"
++                                  "For example, you can do this by running (note: you may need root privileges):\n"
++                                  "\n"
++                                  "    sysctl kernel.pax.softmode\n"
++                                  "\n"
++                                  "If PaX is included in the kernel you will see something like this:\n"
++                                  "\n"
++                                  "    kernel.pax.softmode = 0\n"
++                                  "\n"
++                                  "In particular, if the value is 0 (zero), then PaX is enabled.\n"
++                                  "\n"
++                                  "PaX includes security functionality which interferes with the dynamic code\n"
++                                  "generation the JVM relies on. Specifically, the MPROTECT functionality as\n"
++                                  "described on https://pax.grsecurity.net/docs/mprotect.txt is not compatible\n"
++                                  "with the JVM. If you want to allow the JVM to run you will have to disable PaX.\n"
++                                  "You can do this on a per-executable basis using the paxctl tool, for example:\n"
++                                  "\n"
++                                  "    paxctl -cm bin/java\n"
++                                  "\n"
++                                  "Please note that this modifies the executable binary in-place, so you may want\n"
++                                  "to make a backup of it first. Also note that you have to repeat this for other\n"
++                                  "executables like javac, jar, jcmd, etc.\n"
++                                  );
++
++  }
++
++  ::munmap(p, size);
++#endif
++}
++
+ // this is called _before_ most of the global arguments have been parsed
+ void os::init(void) {
+   char dummy;   /* used to get a guess on initial stack address */
+@@ -5099,6 +5171,7 @@
+   Linux::_pthread_setname_np =
+     (int(*)(pthread_t, const char*))dlsym(RTLD_DEFAULT, "pthread_setname_np");
+ 
++    check_pax();
+ }
+ 
+ // To install functions for atexit system call
+diff -r 1c6e1f187fdc src/os/linux/vm/os_linux.inline.hpp
+--- a/hotspot/src/os/linux/vm/os_linux.inline.hpp	Sat Jun 27 23:21:57 2020 +0100
++++ b/hotspot/src/os/linux/vm/os_linux.inline.hpp	Wed Jul 08 10:26:02 2020 +0300
+@@ -33,10 +33,16 @@
+ 
+ #include <unistd.h>
+ #include <sys/socket.h>
+-#include <sys/poll.h>
++#include <poll.h>
+ #include <netdb.h>
+ 
+ inline void* os::thread_local_storage_at(int index) {
++  // fix crash in debug version
++  // do not pass negative index to
++  // __pthread_getspecific() musl libc function
++  if (index < 0) {
++    return NULL;
++  }
+   return pthread_getspecific((pthread_key_t)index);
+ }
+ 
+diff -r 1c6e1f187fdc src/os_cpu/linux_x86/vm/os_linux_x86.cpp
+--- a/hotspot/src/os_cpu/linux_x86/vm/os_linux_x86.cpp	Sat Jun 27 23:21:57 2020 +0100
++++ b/hotspot/src/os_cpu/linux_x86/vm/os_linux_x86.cpp	Wed Jul 08 10:26:02 2020 +0300
+@@ -72,7 +72,10 @@
+ # include <pwd.h>
+ # include <poll.h>
+ # include <ucontext.h>
++
++#ifndef AMD64
+ # include <fpu_control.h>
++#endif
+ 
+ #ifdef AMD64
+ #define REG_SP REG_RSP
+@@ -544,6 +547,9 @@
+   return true; // Mute compiler
+ }
+
++#define _FPU_GETCW(cw) __asm__ __volatile__ ("fnstcw %0" : "=m" (*&cw))
++#define _FPU_SETCW(cw) __asm__ __volatile__ ("fldcw %0" : : "m" (*&cw))
++
+ void os::Linux::init_thread_fpu_state(void) {
+ #ifndef AMD64
+   // set fpu to 53 bit precision
+diff -r 1c6e1f187fdc src/os_cpu/linux_x86/vm/threadLS_linux_x86.hpp
+--- a/hotspot/src/os_cpu/linux_x86/vm/threadLS_linux_x86.hpp	Sat Jun 27 23:21:57 2020 +0100
++++ b/hotspot/src/os_cpu/linux_x86/vm/threadLS_linux_x86.hpp	Wed Jul 08 10:26:02 2020 +0300
+@@ -32,7 +32,9 @@
+   // map stack pointer to thread pointer - see notes in threadLS_linux_x86.cpp
+   #define SP_BITLENGTH  32
+   #define PAGE_SHIFT    12
++  #ifndef PAGE_SIZE
+   #define PAGE_SIZE     (1UL << PAGE_SHIFT)
++  #endif
+   static Thread* _sp_map[1UL << (SP_BITLENGTH - PAGE_SHIFT)];
+ 
+ public:
+diff -r 1c6e1f187fdc src/share/vm/utilities/globalDefinitions_gcc.hpp
+--- a/hotspot/src/share/vm/utilities/globalDefinitions_gcc.hpp	Sat Jun 27 23:21:57 2020 +0100
++++ b/hotspot/src/share/vm/utilities/globalDefinitions_gcc.hpp	Wed Jul 08 10:26:02 2020 +0300
+@@ -235,7 +235,7 @@
+ #elif defined(__APPLE__)
+ inline int g_isnan(double f) { return isnan(f); }
+ #elif defined(LINUX) || defined(_ALLBSD_SOURCE)
+-inline int g_isnan(float  f) { return isnanf(f); }
++inline int g_isnan(float  f) { return isnan(f); }
+ inline int g_isnan(double f) { return isnan(f); }
+ #else
+ #error "missing platform-specific definition here"

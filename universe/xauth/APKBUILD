@@ -1,0 +1,31 @@
+pkgname=xauth
+pkgver=1.1.2
+pkgrel=0
+pkgdesc="X.Org authorization settings program"
+url="http://xorg.freedesktop.org/"
+arch="all"
+options="!check"  # Requires unpackaged, unmaintained 'cmdtest' package
+license="custom"
+makedepends="libxau-dev libxext-dev libxmu-dev libx11-dev util-macros"
+subpackages="$pkgname-doc"
+source="https://www.x.org/releases/individual/app/xauth-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+}
+
+sha512sums="
+ac23fcd166b45abf7b030994ff3332c9906023dc1ddfa9b9d3000e6a914dc5e0213c4a2aa409cb3ddb93e1f9f4f6374376109241a95ef8c36af842de1f6f76e8  xauth-1.1.2.tar.xz
+"

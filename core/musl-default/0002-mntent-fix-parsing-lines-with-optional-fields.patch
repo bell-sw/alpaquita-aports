@@ -1,0 +1,53 @@
+From 751bee0ee727e8d8b003c87cff77ac76f1dbecd6 Mon Sep 17 00:00:00 2001
+From: Alyssa Ross <hi@alyssa.is>
+Date: Wed, 15 Sep 2021 22:11:55 +0000
+Subject: [PATCH] mntent: fix parsing lines with optional fields
+
+According to fstab(5), the last two fields are optional, but this
+wasn't accepted. After this change, only the first field is required,
+which matches glibc's behaviour.
+
+Using sscanf as before, it would have been impossible to differentiate
+between 0 fields and 4 fields, because sscanf would have returned 0 in
+both cases due to the use of assignment suppression and %n for the
+string fields (which is important to avoid copying any strings). So
+instead, before calling sscanf, initialize every string to the empty
+string, and then we can check which strings are empty afterwards to
+know how many fields were matched.
+---
+ src/misc/mntent.c | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/src/misc/mntent.c b/src/misc/mntent.c
+index eabb8200..962b8767 100644
+--- a/src/misc/mntent.c
++++ b/src/misc/mntent.c
+@@ -21,7 +21,8 @@ int endmntent(FILE *f)
+ 
+ struct mntent *getmntent_r(FILE *f, struct mntent *mnt, char *linebuf, int buflen)
+ {
+-	int cnt, n[8], use_internal = (linebuf == SENTINEL);
++	int n[8], use_internal = (linebuf == SENTINEL);
++	size_t len, i;
+ 
+ 	mnt->mnt_freq = 0;
+ 	mnt->mnt_passno = 0;
+@@ -39,10 +40,13 @@ struct mntent *getmntent_r(FILE *f, struct mntent *mnt, char *linebuf, int bufle
+ 			errno = ERANGE;
+ 			return 0;
+ 		}
+-		cnt = sscanf(linebuf, " %n%*s%n %n%*s%n %n%*s%n %n%*s%n %d %d",
++
++		len = strlen(linebuf);
++		for (i = 0; i < sizeof n / sizeof *n; i++) n[i] = len;
++		sscanf(linebuf, " %n%*s%n %n%*s%n %n%*s%n %n%*s%n %d %d",
+ 			n, n+1, n+2, n+3, n+4, n+5, n+6, n+7,
+ 			&mnt->mnt_freq, &mnt->mnt_passno);
+-	} while (cnt < 2 || linebuf[n[0]] == '#');
++	} while (linebuf[n[0]] == '#' || n[1]==len);
+ 
+ 	linebuf[n[1]] = 0;
+ 	linebuf[n[3]] = 0;
+-- 
+2.25.1
+

@@ -1,0 +1,54 @@
+pkgname=wget
+pkgver=1.21.3
+pkgrel=0
+pkgdesc="Network utility to retrieve files from the Web"
+url="https://www.gnu.org/software/wget/wget.html"
+arch="all"
+license="GPL-3.0-or-later WITH OpenSSL-Exception"
+makedepends="libidn2-dev openssl1.1-compat-dev perl"
+checkdepends="perl-http-daemon"
+subpackages="$pkgname-doc"
+source="https://ftp.gnu.org/gnu/wget/wget-$pkgver.tar.gz
+	"
+
+# secfixes:
+#   1.20.3-r0:
+#     - CVE-2019-5953
+#   1.20.1-r0:
+#     - CVE-2018-20483
+#   1.19.5-r0:
+#     - CVE-2018-0494
+#   1.19.1-r1:
+#     - CVE-2017-6508
+#   1.19.2-r0:
+#     - CVE-2017-13090
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--with-libidn \
+		--with-ssl=openssl \
+		--disable-nls
+	make
+}
+
+check() {
+	# FIXME: We're not running top-level "check" to skip fuzz tests that
+	# are currently broken.
+	make -C tests check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	rm -rf "$pkgdir"/usr/lib
+}
+
+sha512sums="
+29889ecbf590dff0f39183d9e0621741d731a554d990e5c995a4644725dca62e8e19601d40db0ef7d62ebf54e5457c7409965e4832b6e60e4ccbc9c8caa30718  wget-1.21.3.tar.gz
+"

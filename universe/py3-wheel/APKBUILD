@@ -1,0 +1,35 @@
+pkgname=py3-wheel
+_pyname=wheel
+pkgver=0.37.1
+pkgrel=0
+pkgdesc="built-package format for Python"
+options="!check" # Testsuite fails
+url="https://github.com/pypa/wheel"
+arch="noarch"
+license="MIT"
+subpackages="$pkgname-doc"
+depends="python3 py3-packaging"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest"
+_pypiprefix="${_pyname%${_pyname#?}}"
+source="https://files.pythonhosted.org/packages/source/$_pypiprefix/$_pyname/$_pyname-$pkgver.tar.gz
+	use-system-packaging.patch
+	"
+builddir="$srcdir"/$_pyname-$pkgver
+options="!check"
+
+build() {
+	rm -rf src/wheel/vendored
+
+	python3 setup.py build
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+	install -Dm 0644 "$srcdir"/$_pyname-$pkgver/docs/index.rst "$pkgdir/usr/share/doc/py3-wheel"
+}
+
+sha512sums="
+c977a740c17abd1fa4b4c2382a33f3ff887baa4231c36990d988cb8531496074e39744786ef6ac0da9c9af4977bce5b2da145377a3ac15eea918f8125bff66ec  wheel-0.37.1.tar.gz
+e20281a6fd42cf6dd24be9edf6b469cc7da0c03012127f5224a03c7cd40c785a8f7ae8e4c9829b590e5ca1242300224dcb7c3e571a9347736608512065a27065  use-system-packaging.patch
+"

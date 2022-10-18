@@ -1,0 +1,38 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=libxft
+pkgver=2.3.4
+pkgrel=0
+pkgdesc="FreeType-based font drawing library for X"
+url="http://xorg.freedesktop.org/"
+arch="all"
+license="MIT"
+options="!check"  # No test suite.
+subpackages="$pkgname-dev $pkgname-doc"
+depends_dev="zlib-dev"
+makedepends="$depends_dev xorgproto fontconfig-dev freetype-dev libxrender-dev util-macros"
+source="https://www.x.org/releases/individual/lib/libXft-$pkgver.tar.bz2
+	emoji.patch"
+
+builddir="$srcdir/libXft-$pkgver"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+}
+
+sha512sums="
+5bb019750982ed4643880efd7368bc226ad49cfa8c0c8c6d4614dfeed74f588c65e1ba69adcc12284ec07d841e5b58fc1c27f3fddf83fe1a2837b29dd9ecec51  libXft-2.3.4.tar.bz2
+fd1abcb83aa44c524dc24dca9072c4370f4716a122fed55f4de6490cb179a6ea11192d4f0ba64c822c6d4eefaeaa94796da81db4ebcf32807706f45469b304a0  emoji.patch
+"

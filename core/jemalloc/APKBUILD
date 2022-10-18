@@ -1,0 +1,67 @@
+# Maintainer: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+pkgname=jemalloc
+pkgver=5.2.1
+pkgrel=0
+pkgdesc="jemalloc is a general purpose malloc(3) implementation that emphasizes fragmentation avoidance and scalable concurrency support"
+url="https://github.com/jemalloc/jemalloc"
+arch="all"
+license="BSD-2-Clause"
+options="!check"
+makedepends_build="autoconf libxslt"
+subpackages="$pkgname-utils $pkgname-dbg $pkgname-doc $pkgname-static $pkgname-dev $pkgname-global"
+source="$pkgname-$pkgver.tar.gz::https://github.com/jemalloc/jemalloc/archive/refs/tags/$pkgver.tar.gz
+	../mimalloc/malloc.sh
+	"
+builddir="$srcdir/$pkgname-$pkgver"
+
+build() {
+	cd "$builddir"
+
+	export CPPFLAGS="${CPPFLAGS/-Os/-O3}"
+	export CXXFLAGS="${CXXFLAGS/-Os/-O3}"
+	export CFLAGS="${CFLAGS/-Os/-O3}"
+
+	./autogen.sh
+	./configure \
+		--prefix=/usr \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--bindir=/bin \
+		--sbindir=/sbin \
+		--libdir=/lib \
+		--mandir=/usr/share/man \
+		--sysconfdir=/etc \
+		--docdir=/usr/share/doc \
+		--datarootdir=/usr/share
+
+	make
+}
+
+package() {
+	echo "package $pkgdir"
+	make install DESTDIR="$pkgdir"
+	rm -rf "$pkgdir"/lib/pkgconfig
+}
+
+utils()
+{
+	mkdir -p "$subpkgdir"/bin
+
+	mv "$pkgdir"/bin/jeprof "$subpkgdir"/bin/jeprof
+}
+
+global() {
+	install="$pkgname-global.post-install"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	provides="malloc-global=1"
+	provider_priority=20
+	alternative=1
+
+	install -D -m 755 "$srcdir"/malloc.sh "$subpkgdir"/etc/profile.d/jemalloc.sh
+	sed -i "s,@LIB_NAME@,libjemalloc.so.2,g" "$subpkgdir"/etc/profile.d/jemalloc.sh
+}
+
+sha512sums="
+a645cb01e9ec9947d12fad1d5584adf3996d8ae996081a089f8a0372ca05397487c60ead1c7610deac8bafd6efcdbd13119eb700371e0ca42dd356cbd4a5c81a  jemalloc-5.2.1.tar.gz
+237d11c69c74402a78d0fb67914144653e5215170bb8047726d35d895b6edab603189d611b2b24cf783cc93fe5f6a25bae28f659d20d44054d182faeb07bbf7c  malloc.sh
+"

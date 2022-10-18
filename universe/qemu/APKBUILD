@@ -1,0 +1,560 @@
+pkgname=qemu
+pkgver=7.0.0
+pkgrel=0
+pkgdesc="QEMU is a generic machine emulator and virtualizer"
+url="https://qemu.org/"
+arch="all"
+license="GPL-2.0 LGPL-2"
+makedepends="
+	meson
+	bash
+	alsa-lib-dev
+	bison
+	curl-dev
+	flex
+	glib-dev
+	glib-static
+	gnutls-dev
+	gtk+3.0-dev
+	libaio-dev
+	libcap-dev
+	libcap-ng-dev
+	libjpeg-turbo-dev
+	libnfs-dev
+	libpng-dev
+	libseccomp-dev
+	libssh-dev
+	liburing-dev
+	libusb-dev
+	libxml2-dev
+	linux-headers
+	lzo-dev
+	ncurses-dev
+	numactl-dev
+	perl
+	pulseaudio-dev
+	python3
+	py3-sphinx
+	py3-sphinx_rtd_theme
+	sdl2-dev
+	snappy-dev
+	spice-dev
+	texinfo
+	usbredir-dev
+	util-linux-dev
+	vde2-dev
+	virglrenderer-dev
+	vte3-dev
+	xfsprogs-dev
+	zlib-dev
+	zlib-static
+	zstd-dev
+	zstd-static
+	"
+pkggroups="qemu"
+install="$pkgname.pre-install $pkgname.post-install $pkgname.pre-upgrade"
+
+# suid needed for qemu-bridge-helper
+# strip fails on .img files
+# some tests does not run on our builders
+options="suid !strip !check"
+[ "$CARCH" = "riscv64" ] && options="$options textrels"
+
+subpackages="$pkgname-doc $pkgname-lang $pkgname-guest-agent:guest
+	$pkgname-tools:_tools
+	$pkgname-hppa-firmware:_hppa_firmware
+	$pkgname-ppc-firmware:_ppc_firmware
+	$pkgname-s390x-firmware:_s390x_firmware
+	$pkgname-pr-helper:_pr_helper
+	$pkgname-vhost-user-gpu:_vhost_user_gpu
+	$pkgname-virtiofsd:_virtiofsd
+	"
+
+_subsystems="
+	aarch64
+	aarch64_be
+	alpha
+	arm
+	armeb
+	cris
+	hexagon
+	hppa
+	i386
+	m68k
+	microblaze
+	microblazeel
+	mips
+	mips64
+	mips64el
+	mipsel
+	mipsn32
+	mipsn32el
+	nios2
+	or1k
+	ppc
+	ppc64
+	ppc64le
+	riscv32
+	riscv64
+	s390x
+	sh4
+	sh4eb
+	sparc
+	sparc32plus
+	sparc64
+	system-aarch64
+	system-alpha
+	system-arm
+	system-avr
+	system-cris
+	system-hppa
+	system-i386
+	system-m68k
+	system-microblaze
+	system-microblazeel
+	system-mips
+	system-mips64
+	system-mips64el
+	system-mipsel
+	system-nios2
+	system-or1k
+	system-ppc
+	system-ppc64
+	system-riscv32
+	system-riscv64
+	system-rx
+	system-s390x
+	system-sh4
+	system-sh4eb
+	system-sparc
+	system-sparc64
+	system-tricore
+	system-x86_64
+	system-xtensa
+	system-xtensaeb
+	x86_64
+	xtensa
+	xtensaeb
+	"
+for _sub in $_subsystems; do
+	subpackages="$subpackages $pkgname-$_sub:_subsys"
+done
+
+_modules="
+	audio-alsa
+	audio-dbus
+	audio-oss
+	audio-pa
+	audio-sdl
+	audio-spice
+	block-curl
+	block-dmg-bz2
+	block-nfs
+	block-ssh
+	chardev-spice
+	hw-display-qxl
+	hw-display-virtio-gpu
+	hw-display-virtio-gpu-gl
+	hw-display-virtio-gpu-pci
+	hw-display-virtio-gpu-pci-gl
+	hw-display-virtio-vga
+	hw-display-virtio-vga-gl
+	hw-s390x-virtio-gpu-ccw
+	hw-usb-host
+	hw-usb-redirect
+	ui-curses
+	ui-dbus
+	ui-egl-headless
+	ui-gtk
+	ui-opengl
+	ui-sdl
+	ui-spice-app
+	ui-spice-core
+	"
+
+case "$CARCH" in
+	mips*|riscv64) ;;
+	*)
+		makedepends="$makedepends ceph-dev"
+		_modules="$_modules block-rbd"
+		_configure_rbd="--enable-rbd"
+esac
+
+for _mod in $_modules; do
+	subpackages="$subpackages $pkgname-$_mod:_module"
+done
+subpackages="$subpackages qemu-modules:_all_modules"
+
+subpackages="$subpackages $pkgname-img"  # -img must be declared the last
+
+source="https://wiki.qemu-project.org/download/qemu-$pkgver.tar.xz
+	0006-linux-user-signal.c-define-__SIGRTMIN-MAX-for-non-GN.patch
+	xattr_size_max.patch
+	MAP_SYNC-fix.patch
+	fix-sockios-header.patch
+	guest-agent-shutdown.patch
+	glibc:statx_stx_mnt_id.patch
+	musl:musl-initialise-msghdr.patch
+
+	CVE-2021-20255.patch
+
+	$pkgname-guest-agent.confd
+	$pkgname-guest-agent.initd
+	80-kvm.rules
+	bridge.conf
+	"
+
+# secfixes:
+#   6.1.0-r0:
+#     - CVE-2020-35503
+#     - CVE-2021-3507
+#     - CVE-2021-3544
+#     - CVE-2021-3545
+#     - CVE-2021-3546
+#     - CVE-2021-3682
+#   6.0.0-r2:
+#     - CVE-2020-35504
+#     - CVE-2020-35505
+#     - CVE-2020-35506
+#     - CVE-2021-3527
+#   6.0.0-r1:
+#     - CVE-2021-20181
+#     - CVE-2021-20255
+#     - CVE-2021-3392
+#     - CVE-2021-3409
+#     - CVE-2021-3416
+#   5.2.0-r0:
+#     - CVE-2020-24352
+#     - CVE-2020-25723
+#     - CVE-2020-25742
+#     - CVE-2020-25743
+#     - CVE-2020-27661
+#     - CVE-2020-27821
+#     - CVE-2020-29443
+#     - CVE-2020-35517
+#     - CVE-2021-20203
+#   5.1.0-r1:
+#     - CVE-2020-13361
+#     - CVE-2020-13362
+#     - CVE-2020-14364
+#     - CVE-2020-15863
+#     - CVE-2020-16092
+#     - CVE-2020-17380
+#     - CVE-2020-25084
+#     - CVE-2020-25085
+#     - CVE-2020-25624
+#     - CVE-2020-25625
+#     - CVE-2020-25741
+#     - CVE-2020-28916
+#   5.0.0-r0:
+#     - CVE-2020-13659
+#     - CVE-2020-13754
+#     - CVE-2020-13791
+#     - CVE-2020-13800
+#     - CVE-2020-14415
+#     - CVE-2020-15469
+#     - CVE-2020-15859
+#     - CVE-2020-27616
+#     - CVE-2020-27617
+#     - CVE-2021-20221
+#   4.2.0-r0:
+#     - CVE-2020-13765
+#   2.8.1-r1:
+#     - CVE-2016-7994
+#     - CVE-2016-7995
+#     - CVE-2016-8576
+#     - CVE-2016-8577
+#     - CVE-2016-8578
+#     - CVE-2016-8668
+#     - CVE-2016-8909
+#     - CVE-2016-8910
+#     - CVE-2016-9101
+#     - CVE-2016-9102
+#     - CVE-2016-9103
+#     - CVE-2016-9104
+#     - CVE-2016-9105
+#     - CVE-2016-9106
+#     - CVE-2017-2615
+#     - CVE-2017-2620
+#     - CVE-2017-5525
+#     - CVE-2017-5552
+#     - CVE-2017-5578
+#     - CVE-2017-5579
+#     - CVE-2017-5667
+#     - CVE-2017-5856
+#     - CVE-2017-5857
+#     - CVE-2017-5898
+#     - CVE-2017-5931
+
+_compile_common() {
+	CFLAGS="${CFLAGS/-Os/-O2}" "$builddir"/configure \
+		--prefix=/usr \
+		--localstatedir=/var \
+		--sysconfdir=/etc \
+		--libexecdir=/usr/lib/qemu \
+		--python=/usr/bin/python3 \
+		--disable-glusterfs \
+		--disable-debug-info \
+		--disable-bsd-user \
+		--disable-werror \
+		--disable-xen \
+		--enable-kvm \
+		--enable-seccomp \
+		--cc="${CC:-gcc}" \
+		"$@"
+	make ARFLAGS="rc"
+}
+
+build() {
+	mkdir -p "$builddir"/build \
+		"$builddir"/build-static
+
+	cd "$builddir"/build-static
+	_compile_common \
+		--enable-linux-user \
+		--disable-system \
+		--static \
+		--disable-docs \
+		--disable-sdl \
+		--disable-gtk \
+		--disable-spice \
+		--disable-tools \
+		--disable-guest-agent \
+		--disable-guest-agent-msi \
+		--disable-curses \
+		--disable-curl \
+		--disable-gnutls \
+		--disable-gcrypt \
+		--disable-nettle \
+		--disable-cap-ng \
+		--disable-brlapi \
+		--disable-mpath \
+		--disable-libnfs \
+		--disable-numa \
+		--disable-capstone
+
+	cd "$builddir"/build
+	_compile_common \
+		--disable-linux-user \
+		--audio-drv-list=oss,alsa,sdl,pa \
+		--enable-cap-ng \
+		--enable-curl \
+		--enable-curses \
+		--enable-docs \
+		--enable-gtk \
+		--enable-guest-agent \
+		--enable-libnfs \
+		--enable-libssh \
+		--enable-linux-aio \
+		--enable-lzo \
+		--enable-modules \
+		--enable-numa \
+		--enable-pie \
+		--enable-sdl \
+		--enable-snappy \
+		--enable-spice \
+		--enable-tpm \
+		--enable-usb-redir \
+		--enable-vde \
+		--enable-vhost-net \
+		--enable-virglrenderer \
+		--enable-virtfs \
+		--enable-vnc \
+		--enable-vnc-jpeg \
+		--enable-vnc-png \
+		--enable-zstd \
+		$_configure_rbd \
+		--tls-priority=@QEMU,SYSTEM
+}
+
+check() {
+	cd "$builddir"/build
+
+	# XXX: ESSIV crypto tests are disabled, see test-crypto-ivgen-skip-essiv.patch.
+	make check V=1
+}
+
+package() {
+	cd "$builddir"/build-static
+	make DESTDIR="$pkgdir" install
+
+	cd "$builddir"/build
+	make DESTDIR="$pkgdir" install
+
+	install -Dm640 -g qemu "$srcdir"/bridge.conf \
+		"$pkgdir"/etc/qemu/bridge.conf
+
+	install -Dm644 "$srcdir"/80-kvm.rules \
+		"$pkgdir"/lib/udev/rules.d/80-kvm.rules
+
+	# qemu-bridge-helper needs suid to create tunX devices;
+	# allow only users in the qemu group to run it.
+	chmod 04710 "$pkgdir"/usr/lib/qemu/qemu-bridge-helper
+	chgrp qemu "$pkgdir"/usr/lib/qemu/qemu-bridge-helper
+
+	# Do not install HTML docs.
+	rm -rf "$pkgdir"/usr/share/doc
+	# remove accel-qtest-* modules, not needed for package
+	rm -f "$pkgdir"/usr/lib/qemu/accel-qtest-*
+}
+
+_subsys() {
+	local name=${1:-"${subpkgname#$pkgname-}"}
+	pkgdesc="Qemu ${name/-/ } emulator"
+	options=""
+	depends=""
+	case "$name" in
+		system*) depends="qemu";;
+	esac
+
+	amove /usr/bin/qemu-$name
+
+	local _arch=${name#system-}
+	case "$name" in
+		system-aarch64)
+			amove /usr/share/qemu/edk2-aarch64-code.fd
+			;;
+		system-arm)
+			amove /usr/share/qemu/edk2-arm-code.fd \
+				/usr/share/qemu/edk2-arm-vars.fd
+			;;
+		system-x86_64|system-i386)
+			provides="qemu-accel-tcg-$_arch"
+			amove /usr/lib/qemu/accel-tcg-$_arch.so \
+				/usr/share/qemu/edk2-$_arch-code.fd \
+				/usr/share/qemu/edk2-$_arch-secure-code.fd
+			;;
+		system-s390x|system-hppa|system-ppc)
+			depends="$pkgname-$_arch-firmware"
+			;;
+	esac
+}
+
+_tools() {
+	pkgdesc="QEMU support tools"
+	depends=""
+	options=""
+	amove /usr/bin/qemu-edid \
+		/usr/bin/qemu-keymap \
+		/usr/bin/elf2dmp
+}
+
+# keep s390x boot files in subpackage to prevent abuild from stripping it
+_s390x_firmware() {
+	pkgdesc="QEMU s390x boot devices"
+	depends=""
+	amove /usr/share/qemu/s390-ccw.img \
+		/usr/share/qemu/s390-netboot.img
+}
+
+_hppa_firmware() {
+	pkgdesc="QEMU hppa firmware"
+	depends=""
+	amove /usr/share/qemu/hppa-firmware.img
+}
+
+_ppc_firmware() {
+	pkgdesc="QEMU ppc firmware"
+	depends=""
+	amove /usr/share/qemu/openbios-ppc
+}
+
+_vhost_user_gpu() {
+	pkgdesc="QEMU vhost user GPU device"
+	depends=""
+	options=""
+	amove /usr/lib/qemu/vhost-user-gpu \
+		/usr/share/qemu/vhost-user/50-qemu-gpu.json
+}
+
+_virtiofsd() {
+	pkgdesc="QEMU virtio-fs shared file system daemon"
+	amove /usr/lib/qemu/virtiofsd \
+		/usr/share/qemu/vhost-user/50-qemu-virtiofsd.json
+}
+
+_pr_helper() {
+	pkgdesc="QEMU pr helper utility"
+	amove /usr/bin/qemu-pr-helper
+}
+
+
+img() {
+	pkgdesc="QEMU command line tool for manipulating disk images"
+	depends=""
+	options=""
+
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/qemu-img \
+		"$pkgdir"/usr/bin/qemu-io \
+		"$pkgdir"/usr/bin/qemu-nbd \
+		"$pkgdir"/usr/bin/qemu-storage-daemon \
+		"$subpkgdir"/usr/bin/
+
+	# We exploit the fact that -img subpackage are created last
+	# and check that we done have new systems that belongs in
+	# subpackage.
+	local path= retval=0
+	for path in "$pkgdir"/usr/bin/qemu-system-* "$pkgdir"/usr/lib/qemu/*.so; do
+		if [ -r "$path" ]; then
+			error "Please create a subpackage for ${path##*/}"
+			retval=1
+		fi
+	done
+	return $retval
+}
+
+guest() {
+	pkgdesc="QEMU guest agent"
+	depends=""
+	options=""
+
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/qemu-ga "$subpkgdir"/usr/bin/
+
+	install -Dm755 "$srcdir"/$pkgname-guest-agent.initd \
+		"$subpkgdir"/etc/init.d/$pkgname-guest-agent
+	install -Dm644 "$srcdir"/$pkgname-guest-agent.confd \
+		"$subpkgdir"/etc/conf.d/$pkgname-guest-agent
+}
+
+_module() {
+	local _mod=${subpkgname#qemu-}
+	local _class=${_mod%%-*}
+	local _m=${_mod#*-}
+	pkgdesc="Qemu $_m $_class module"
+	case "$_mod" in
+		ui-egl-headless|ui-gtk|ui-sdl|ui-spice-core) depends="qemu-ui-opengl";;
+		hw-display-qxl) depends="qemu-ui-spice-core";;
+		hw-display-virtio-vga|hw-display-virtio-gpu-gl) depends="qemu-hw-display-virtio-gpu";;
+	esac
+
+	mkdir -p "$subpkgdir"/usr/lib/qemu
+	mv "$pkgdir"/usr/lib/qemu/$_mod.so \
+		"$subpkgdir"/usr/lib/qemu/
+}
+
+_all_modules() {
+	pkgdesc="Meta package for all qemu modules"
+	local _i
+	for _i in $_modules; do
+		depends="$depends qemu-$_i"
+	done
+	mkdir -p "$subpkgdir"
+}
+
+sha512sums="
+44ecd10c018a3763e1bc87d1d35b98890d0d5636acd69fe9b5cadf5024d5af6a31684d60cbe1c3370e02986434c1fb0ad99224e0e6f6fe7eda169992508157b1  qemu-7.0.0.tar.xz
+98db5e23397cfad4a7210f9f7e1c5fa5c48f065785439521c5b39325c429f2dc367c40925adff6aa8677b3192a1a98a30e93d5b9c879df523deb019c40edd9d9  0006-linux-user-signal.c-define-__SIGRTMIN-MAX-for-non-GN.patch
+4b1e26ba4d53f9f762cbd5cea8ef6f8062d827ae3ae07bc36c5b0c0be4e94fc1856ad2477e8e791b074b8a25d51ed6d0ddd75e605e54600e5dd0799143793ce4  xattr_size_max.patch
+d7de79ea74e36702cac4a59e472564a55f0a663be7e63c3755e32b4b5dfbc04b390ee79f09f43f6ae706ee2aec9e005eade3c0fd4a202db60d11f436874a17d7  MAP_SYNC-fix.patch
+39590476a4ebd7c1e79a4f0451b24c75b1817a2a83abaa1f71bb60b225d772152f0af8f3e51ff65645e378c536ffa6ff551dade52884d03a14b7c6a19c5c97d4  fix-sockios-header.patch
+d6b81846cefd46b8fd1fb04450d4898f97dc77d11e049fb1bc8e2553bbb88c8325151d0e4bec70cc6820a5863c1d1749b99100b4747d91182856c3ca1946cb28  guest-agent-shutdown.patch
+5c33e9624f11929f57d93074a6f13012d35835b9f8d857188247fa2de8d8b6fe2f06272adf19c30eb3cda270089e92f683cb93d7928b09f4188c11dfde429628  statx_stx_mnt_id.patch
+7387fb02371268072291c80c54a2785030a55aeb697c5e84a1c7a0179c42059338a70f384602a508d2189d63f35a2ca3591109dcc9ab8bc1ccfcc9dd7e89d0a5  musl-initialise-msghdr.patch
+e9389a6e3b2c3b59f66ea13eb7a3515e87341a68ca14afeb1ddd0084717bf4a13f5f58dc41dadbf0f2faf8fe1ae94ba7d1469c41539c79e45fa1624c6081e904  CVE-2021-20255.patch
+d90c034cae3f9097466854ed1a9f32ab4b02089fcdf7320e8f4da13b2b1ff65067233f48809911485e4431d7ec1a22448b934121bc9522a2dc489009e87e2b1f  qemu-guest-agent.confd
+714436d809451e81cbb5aa2d8208ec0fa3fcd0aa9fb8a7d95509f58712841675fd6d528235dced7f8e1a92fdef1a0c2053c8e19e653432cc0b5888526bb3186b  qemu-guest-agent.initd
+9b7a89b20fcf737832cb7b4d5dc7d8301dd88169cbe5339eda69fbb51c2e537d8cb9ec7cf37600899e734209e63410d50d0821bce97e401421db39c294d97be2  80-kvm.rules
+749efa2e764006555b4fd3a8e2f6d1118ad2ea4d45acf99104a41a93cfe66dc9685f72027c17d8211e5716246c2a52322c962cf4b73b27541b69393cd57f53bb  bridge.conf
+"

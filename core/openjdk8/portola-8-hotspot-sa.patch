@@ -1,0 +1,48 @@
+diff -r 54aa3fd1151f make/linux/makefiles/sa.make
+--- a/hotspot/make/linux/makefiles/sa.make	Fri Nov 06 03:45:25 2020 +0000
++++ b/hotspot/make/linux/makefiles/sa.make	Mon Dec 07 09:52:31 2020 +0000
+@@ -61,9 +61,9 @@
+ # also, we don't build SA on Itanium or zero.
+ 
+ all: 
+-	if [ -d $(AGENT_DIR) -a "$(SRCARCH)" != "ia64" \
++	if [ -d $(AGENT_DIR) -a -f /usr/include/thread_db.h -a "$(SRCARCH)" != "ia64" \
+              -a "$(SRCARCH)" != "zero" ] ; then \
+-	   $(MAKE) -f sa.make $(GENERATED)/sa-jdi.jar; \
++	  $(MAKE) -f sa.make $(GENERATED)/sa-jdi.jar; \
+ 	fi
+ 
+ $(GENERATED)/sa-jdi.jar:: $(AGENT_FILES)
+diff -r 54aa3fd1151f make/linux/makefiles/saproc.make
+--- a/hotspot/make/linux/makefiles/saproc.make	Fri Nov 06 03:45:25 2020 +0000
++++ b/hotspot/make/linux/makefiles/saproc.make	Mon Dec 07 09:52:31 2020 +0000
+@@ -69,7 +69,7 @@
+ 
+ ifneq ($(wildcard $(AGENT_DIR)),)
+ ifneq ($(filter-out ia64 zero,$(SRCARCH)),)
+-  BUILDLIBSAPROC = $(LIBSAPROC)
++  #BUILDLIBSAPROC = $(LIBSAPROC)
+ endif
+ endif
+ 
+diff -r 54aa3fd1151f make/solaris/makefiles/defs.make
+--- a/hotspot/make/solaris/makefiles/defs.make	Fri Nov 06 03:45:25 2020 +0000
++++ b/hotspot/make/solaris/makefiles/defs.make	Mon Dec 07 09:52:31 2020 +0000
+@@ -303,4 +303,4 @@
+     EXPORT_LIST += $(EXPORT_JRE_LIB_ARCH_DIR)/libsaproc.debuginfo
+   endif
+ endif
+-EXPORT_LIST += $(EXPORT_LIB_DIR)/sa-jdi.jar
++#EXPORT_LIST += $(EXPORT_LIB_DIR)/sa-jdi.jar
+diff -r 54aa3fd1151f make/solaris/makefiles/sa.make
+--- a/hotspot/make/solaris/makefiles/sa.make	Fri Nov 06 03:45:25 2020 +0000
++++ b/hotspot/make/solaris/makefiles/sa.make	Mon Dec 07 09:52:31 2020 +0000
+@@ -53,7 +53,7 @@
+ 
+ # if $(AGENT_DIR) does not exist, we don't build SA.
+ all: 
+-	$(QUIETLY) if [ -d $(AGENT_DIR) ] ; then \
++	$(QUIETLY) if [ -d $(AGENT_DIR) -a -f /usr/include/thread_db.h ] ; then \
+ 	   $(MAKE) -f sa.make $(GENERATED)/sa-jdi.jar; \
+ 	fi
+ 

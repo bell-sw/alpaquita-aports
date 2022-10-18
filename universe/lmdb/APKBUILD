@@ -1,0 +1,45 @@
+pkgname=lmdb
+pkgver=0.9.29
+pkgrel=1
+pkgdesc="Lightning Memory-Mapped Database"
+url="https://symas.com/lmdb/"
+arch="all"
+license="OLDAP-2.8"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-tools"
+source="$pkgname-$pkgver.tar.gz::https://github.com/LMDB/lmdb/archive/refs/tags/LMDB_$pkgver.tar.gz
+	lmdb-make.patch
+	cacheflush.patch
+	lmdb.pc
+	"
+builddir="$srcdir/lmdb-LMDB_$pkgver/libraries/liblmdb"
+
+prepare() {
+	default_prepare
+	sed -i "s|@@VERSION@@|$pkgver|" -i "$srcdir"/*.pc
+}
+
+build() {
+	make CFLAGS+="-fPIC"
+}
+
+check() {
+	LD_LIBRARY_PATH="$PWD" make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" prefix=/usr install
+
+	install -Dm0644 "$srcdir"/*.pc -t "$pkgdir"/usr/lib/pkgconfig
+}
+
+tools() {
+	mkdir -p "$subpkgdir"/usr
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr
+}
+
+sha512sums="
+a29e40b1a2f2ed542fb59b6dd92cf7f5f9ac603f74b1d2a66d143b65edf0324a03dc4a0a35657ba0992b00a3e9764e33af0dcc5ae8ae91c40c90c3b0581dade3  lmdb-0.9.29.tar.gz
+1ae28e850a32694f81cb7bf4abaab9cd96ef6c963de91f96810de3afee4da41102e310a6fb0ed889e9e9e04e00342f25272c04a8b483615dccfc039e34538594  lmdb-make.patch
+f30b5f60ad3788abe3caa91a787c00190d6cceef5d20339624ce3d128f59de1a65d6913ab28f938c52237c40cbaef8a2bff2be7158da32f8c4562aa240fd11a2  cacheflush.patch
+0cc194beedd8c1adc7cc1390eb131c800142c14120e47fc744d84f8225efecfa8d4854f4ed26021166b4b7cb021ffc4f068e0009958b1ce6247941fce9658233  lmdb.pc
+"

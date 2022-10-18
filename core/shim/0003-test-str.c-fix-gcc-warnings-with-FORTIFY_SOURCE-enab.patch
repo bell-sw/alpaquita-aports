@@ -1,0 +1,85 @@
+From b13658a2843934f6298ebd65381f5e5db0385115 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Thu, 21 Apr 2022 14:59:01 +0000
+Subject: [PATCH] test-str.c: fix gcc warnings with FORTIFY_SOURCE enabled
+
+* test_strncpy(). The test intentionally copies less than the total length
+  of the string, so it looks like there is nothing we can do about it in
+  the test other than explicitly ignoring the warnings.
+
+    inlined from ‘test_strncpy’ at test-str.c:943:2:
+    /usr/include/x86_64-linux-gnu/bits/string_fortified.h:106:10: error: ‘__builtin_strncpy’
+      output may be truncated copying 1 byte from a string of length 8191 [-Werror=stringop-truncation]
+      106 |   return __builtin___strncpy_chk (__dest, __src, __len, __bos (__dest));
+          |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ...
+
+* test_strcat(). The fix for the warning below is to avoid using overlapping
+  buffers in src and dst. This is actually a requirement for both strcat() and
+  strncpy(), so fix both functions.
+
+    inlined from ‘test_strcat’ at test-str.c:1052:2:
+    /usr/include/x86_64-linux-gnu/bits/string_fortified.h:128:10: error: ‘__builtin___strcat_chk’
+      accessing 4097 or more bytes at offsets 4096 and 0 may overlap 1 byte at offset 4096 [-Werror=restrict]
+      128 |   return __builtin___strcat_chk (__dest, __src, __bos (__dest));
+          |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ...
+
+Signed-off-by: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+---
+ test-str.c | 19 ++++++++++++-------
+ 1 file changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/test-str.c b/test-str.c
+index 9cb831d..30f8dd0 100644
+--- a/test-str.c
++++ b/test-str.c
+@@ -926,12 +926,15 @@ static int
+ test_strncpy(void)
+ {
+ 	char s[] = "0123456789abcdef\0000";
+-	char s0[4096+4096];
+-	char *s1 = &s0[4096];
++	char s0[4096];
++	char s1[4096];
+ 
+ 	memset(s0, 0, sizeof(s0));
+ 	memcpy(s0, s, sizeof(s));
+-
++#if __GNUC_PREREQ(8, 1)
++# pragma GCC diagnostic push
++# pragma GCC diagnostic ignored "-Wstringop-truncation"
++#endif
+ 	memset(s1, 0, 4096);
+ 	assert_equal_return(strncpy(s1, s0, 0), s1, -1, "got %p expected %p\n");
+ 	assert_equal_return(strlen(s1), 0, -1, "got %d expected %d\n");
+@@ -1030,7 +1033,9 @@ test_strncpy(void)
+ 	assert_equal_return(s1[16], '\000', -1, "got %#02hhx expected %02hhx\n");
+ 	assert_equal_return(s1[17], '0', -1, "got %#02hhx expected %02hhx\n");
+ 	assert_equal_return(s1[18], '1', -1, "got %#02hhx expected %02hhx\n");
+-
++#if __GNUC_PREREQ(8, 1)
++# pragma GCC diagnostic pop
++#endif
+ 	return 0;
+ }
+ 
+@@ -1038,12 +1043,12 @@ static int
+ test_strcat(void)
+ {
+ 	char s[] = "0123456789abcdef\0000";
+-	char s0[8192];
+-	char *s1 = &s0[4096];
++	char s0[4096];
++	char s1[4096];
+ 	char *s2;
+ 	char s3[] = "0123456789abcdef0123456789abcdef\000\000\000\000\000";
+ 
+-	memset(s0, 0, 8192);
++	memset(s0, 0, sizeof(s0));
+ 	memcpy(s0, s, sizeof(s));
+ 
+ 	memset(s1, 0, 4096);
+-- 
+2.25.1
+

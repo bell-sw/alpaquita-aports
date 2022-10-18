@@ -1,0 +1,30 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=xcb-proto
+pkgver=1.15
+pkgrel=0
+pkgdesc="XML-XCB protocol descriptions"
+options="!check" # no testsuite
+url="https://xcb.freedesktop.org"
+arch="noarch"
+license="MIT"
+makedepends="python3"
+source="https://xorg.freedesktop.org/archive/individual/proto/xcb-proto-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+	make
+}
+
+package() {
+	make DESTDIR=$pkgdir install
+}
+
+sha512sums="
+a333ac7c39f17ff2567419d09a9a77210c943a4e88d79eb152d416ae26bf6fb14e2446f9817abc806edd7aa3733bd4de5852b5ae90a25cbcc9d40e59c211aa36  xcb-proto-1.15.tar.xz
+"

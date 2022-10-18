@@ -1,0 +1,30 @@
+diff --git a/meson.build b/meson.build
+index 658eeee..349752e 100644
+--- a/meson.build
++++ b/meson.build
+@@ -307,6 +307,12 @@ else
+   libintl_dep = cc.find_library('intl')
+ endif
+ 
++if cc.has_function('libintl_dgettext')
++  libintl_dep = []
++else
++  libintl_dep = cc.find_library('intl')
++endif
++
+ # Symbols
+ 
+ if cc.has_header_symbol('signal.h', 'SIGXCPU')
+diff --git a/src/pulse/meson.build b/src/pulse/meson.build
+index aaebff5..3f68ac3 100644
+--- a/src/pulse/meson.build
++++ b/src/pulse/meson.build
+@@ -84,7 +84,7 @@ libpulse = shared_library('pulse',
+   dependencies : [libm_dep, thread_dep, libpulsecommon_dep, dbus_dep, dl_dep, iconv_dep, libintl_dep],
+   implicit_include_directories : false)
+ 
+-libpulse_dep = declare_dependency(link_with: libpulse)
++libpulse_dep = declare_dependency(link_with: libpulse, dependencies: libintl_dep)
+ 
+ install_headers(
+   libpulse_headers, 'simple.h',

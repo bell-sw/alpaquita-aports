@@ -1,0 +1,114 @@
+pkgname=gtk+3.0
+pkgver=3.24.34
+pkgrel=0
+pkgdesc="The GTK+ Toolkit (v3)"
+url="https://www.gtk.org/"
+install="$pkgname.post-install $pkgname.post-upgrade $pkgname.post-deinstall"
+arch="all"
+license="LGPL-2.1-or-later"
+options="!check" # Most glade tests fail :c
+subpackages="$pkgname-demo $pkgname-dev $pkgname-doc $pkgname-lang $pkgname-dbg"
+depends="shared-mime-info gtk-update-icon-cache"
+
+replaces="gtk+"
+
+depends_dev="
+	atk-dev
+	gdk-pixbuf-dev
+	glib-dev
+	libepoxy-dev
+	libxext-dev
+	libxi-dev
+	libxinerama-dev
+	wayland-protocols
+	wayland-libs-client
+	wayland-libs-cursor
+	libxkbcommon-dev
+	"
+makedepends="
+	$depends_dev
+	cups-dev
+	expat-dev
+	gettext-dev
+	gobject-introspection-dev
+	libice-dev
+	tiff-dev
+	zlib-dev
+	at-spi2-atk-dev
+	cairo-dev
+	fontconfig-dev
+	pango-dev
+	wayland-dev
+	libx11-dev
+	libxcomposite-dev
+	libxcursor-dev
+	libxdamage-dev
+	libxfixes-dev
+	libxrandr-dev
+	meson
+	gtk-doc
+	iso-codes-dev
+	"
+checkdepends="
+	xvfb-run
+	ibus
+	librsvg
+	gdk-pixbuf
+	"
+source="https://download.gnome.org/sources/gtk+/${pkgver%.*}/gtk+-$pkgver.tar.xz"
+
+builddir="$srcdir/gtk+-$pkgver"
+
+prepare() {
+	default_prepare
+}
+
+build() {
+	abuild-meson \
+		-Dman=true \
+		-Dgtk_doc=false \
+		-Dbroadway_backend=true \
+		-Dtests="$(want_check && echo true || echo false)" \
+		output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	xvfb-run meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+
+	# use gtk-update-icon-cache from gtk+2.0 for now
+	rm -f "$pkgdir"/usr/bin/gtk-update-icon-cache
+	rm -f "$pkgdir"/usr/share/man/man1/gtk-update-icon-cache.1
+}
+
+demo() {
+	pkgdesc="$pkgdesc (demonstration application)"
+	amove usr/bin/gtk3-demo \
+		usr/bin/gtk3-widget-factory \
+		usr/bin/gtk3-demo-application
+
+	amove usr/share/gtk-3.0/gtkbuilder.rng \
+		usr/share/glib-2.0/schemas/org.gtk.Demo.gschema.xml \
+		usr/share/applications/gtk3-widget-factory.desktop \
+		usr/share/applications/gtk3-demo.desktop
+
+	amove usr/share/icons
+}
+
+dev() {
+	replaces="gtk+-dev"
+	default_dev
+}
+
+doc() {
+	replaces="gtk+-doc"
+	default_doc
+}
+
+sha512sums="
+95af4441b53be175acf16121a90b1db7a152cbfb3e5ed2dffc59f622b2eb5a4d74720ae8e05dc1421b6b23588f28e09e0f153f0b92777c836f522881720fb0a2  gtk+-3.24.34.tar.xz
+"

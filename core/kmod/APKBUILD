@@ -1,0 +1,62 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: kmod package includes tools to work with Linux kernel modules. 
+# Compatible with module-init-tools
+pkgname=kmod
+pkgver=29
+pkgrel=2
+pkgdesc="Linux kernel module management tools"
+url="http://git.kernel.org/?p=utils/kernel/kmod/kmod.git;a=summary"
+arch="all"
+options="!check"  # https://bugs.gentoo.org/408915#c3
+license="GPL-2.0-or-later"
+# gnu sed is needed for symlink
+makedepends_build="sed libxslt"
+makedepends_host="$depends_dev zlib-dev xz-dev zstd-dev openssl1.1-compat-dev"
+makedepends="$makedepends_build $makedepends_host"
+triggers="$pkgname.trigger=/lib/modules/*"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-openrc $pkgname-libs
+	$pkgname-bash-completion"
+source="https://kernel.org/pub/linux/utils/kernel/kmod/kmod-$pkgver.tar.xz
+	strndupa.patch
+	kmod-static-nodes.initd
+	"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--with-rootlibdir=/lib \
+		--with-zlib \
+		--with-xz \
+		--with-zstd \
+		--with-openssl
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	local i
+	mkdir -p "$pkgdir"/usr/sbin
+	for i in lsmod rmmod insmod modinfo modprobe depmod; do
+		ln -sf ../bin/kmod "$pkgdir"/usr/sbin/$i
+	done
+	for i in lsmod modinfo; do
+		ln -s kmod "$pkgdir"/usr/bin/$i
+	done
+	install -Dm755 "$srcdir"/kmod-static-nodes.initd \
+		"$pkgdir"/etc/init.d/kmod-static-nodes
+}
+
+libs() {
+	license="LGPL-2.1-or-later"
+	default_libs
+}
+
+sha512sums="
+557cdcaec75e5a1ceea2d10862c944e9a65ef54f6ee9da6dc98ce4582418fdc9958aab2e14a84807db61daf36ec4fcdc23a36376c39d5dc31d1823ca7cd47998  kmod-29.tar.xz
+f2ea3527bfba182c5e15557c224a5bba8c7e2ea3d21cf604e6eb2277226dcf983c3aeb9ac44a322c7f2b4942b35135da999d63a5b946b829d3f3b09c050a0f17  strndupa.patch
+d36af5bc51856c61da206758776796f5e8012fa54f0133a6deb0a2a79ae5740daca6b6b6ce44bf94bb174cd5b972229c40e5e682886e6b71c6c104206378b6eb  kmod-static-nodes.initd
+"

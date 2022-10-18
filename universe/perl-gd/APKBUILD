@@ -1,0 +1,40 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=perl-gd
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=GD
+pkgver=2.75
+pkgrel=0
+pkgdesc="Perl interface to the gd2 graphics library"
+url="https://metacpan.org/release/GD/"
+arch="all"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+makedepends="perl-dev perl-extutils-pkgconfig gd-dev libjpeg-turbo-dev zlib-dev
+	libpng-dev freetype-dev libwebp-dev"
+checkdepends="perl-test-fork"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/R/RU/RURBAN/GD-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+d58af8973a419193e5ce9d141a7f6e4ab64d995d3752ec0fa7e5c3a580f6f037563ea97fe71ddefe1cea0d50e49de632f2d9de89c02dab9d7b40041a03e8c0c3  GD-2.75.tar.gz
+"

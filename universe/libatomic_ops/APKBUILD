@@ -1,0 +1,50 @@
+pkgname=libatomic_ops
+pkgver=7.6.12
+pkgrel=0
+pkgdesc="Semi-portable access to hardware provided atomic memory operations"
+arch="all"
+url="https://github.com/ivmai/libatomic_ops"
+license="GPL-2.0-or-later AND MIT"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
+source="https://github.com/ivmai/libatomic_ops/releases/download/v$pkgver/libatomic_ops-$pkgver.tar.gz"
+
+case "$CARCH" in
+	s390x) options="!check" ;; # FIXME https://github.com/ivmai/libatomic_ops/issues/44
+esac
+
+prepare() {
+	default_prepare
+	update_config_sub
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--enable-shared
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+static() {
+	depends=""
+	pkgdesc="$pkgdesc (static library)"
+
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/*.a "$subpkgdir"/usr/lib
+}
+
+sha512sums="
+bbf98a38a80c8fe6b7eab773967edc55b8d48be32b36ed827fb835ee3dcd96d5ec1dc97149714e015e93a0a5b9fc03595797663fdb5a0f673869ea8bfe640df5  libatomic_ops-7.6.12.tar.gz
+"

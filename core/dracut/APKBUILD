@@ -1,0 +1,75 @@
+pkgname=dracut
+pkgver=055
+pkgrel=20
+pkgdesc="Event-driven initramfs infrastructure that is used to create an initramfs image"
+url="https://github.com/dracutdevs/dracut"
+arch="all"
+options="!check"
+license="GPL-2.0-or-later"
+depends="libarchive-tools musl:musl-utils findmnt xz zstd eudev bash device-mapper blkid"
+makedepends="musl:fts-dev kmod-dev coreutils"
+subpackages="$pkgname-doc $pkgname-bash-completion"
+source="https://github.com/dracutdevs/dracut/releases/download/$pkgver/$pkgname-$pkgver.tar.xz
+	alpaquita.conf
+	0001-dracut.sh-skip-ldconfig-on-musl-systems.patch
+	0002-make-using-cp-readlink-compatible-with-busybox.patch
+	0003-make-using-realpath-compatible-with-busybox.patch
+	0004-read-busybox-ln-help-from-stderr.patch
+	0005-remove-cp-t-option-usage-no-support-in-busybox.patch
+	0006-modules.d-add-new-module-for-busybox-shell.patch
+	0007-dracut-functions.sh-replace-grep-perl-regexp-with-aw.patch
+	0008-modules.d-add-new-module-alpaquita-iso.patch
+	0009-Makefile-always-use-APKBUILD-version.patch
+	0010-don-t-search-libs-in-usr-lib64-use-usr-lib.patch
+	0011-init.sh-move-dev-sys-proc-to-new-root.patch
+	0012-alpaquita-iso-enable-auto-login-and-start-the-installer.patch
+	0013-dracut-alpaquita-iso-enable-getty-on-the-serial-port.patch
+	"
+triggers="$pkgname.trigger=/usr/share/kernel/*"
+
+build()
+{
+	./configure \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+package()
+{
+	make DESTDIR="$pkgdir" install
+
+	cp "$srcdir"/alpaquita.conf "$pkgdir"/etc/dracut.conf.d/
+
+	for m in 00bash 00dash 00mksh \
+		 06dbus-broker 06dbus-daemon 06rngd 09dbus \
+		 30convertfs 35network-* 45ifcfg 50gensplash \
+		 62bluetooth 80cms 81cio_ignore 90dmsquash-live* 90livenet \
+		 90ppcmac 91tpm2-tss 91zipl 95dasd 95dasd_mod \
+		 95dasd_rules 95dcssblk 95qeth_rules 95zfcp \
+		 95zfcp_rules 95znet 98selinux \
+		 *systemd*; do
+		rm -r "$pkgdir"/usr/lib/dracut/modules.d/$m
+	done
+	rm -f "$pkgdir"/usr/share/man/man8/*.service.8.gz
+}
+
+sha512sums="
+2d2ea2889d9013bc94245bd7d1a2154f24d02bd9c2f7dbb28e5968e17d918e6598c68d85b0f551f968218980a80b19361ca0c9e8e94997ba54f4c09afcd6d866  dracut-055.tar.xz
+cce58c638234c2f382e3613b113b28f7593f216bbe75c2fc132f44cf42682822bbf3fa59e96f8f90be7c3b6ccd8d1318ae165874b190b92c1a3157e1e1f02f3b  alpaquita.conf
+0a6d0237a6be8f75dc703150917f63f7f4ecd86d9cd0bd75171ae1982b434783e6007d66ce466cfece7704b54c413d9634a96faec337365657f2fef8e6eecf85  0001-dracut.sh-skip-ldconfig-on-musl-systems.patch
+ff66e4341907423a88a880b253257d27712044d9ff58b817912726b0680bf23b6554adc860434f4705eabd839404ac41b54c67e51cfb9c7c0ce51a396562b944  0002-make-using-cp-readlink-compatible-with-busybox.patch
+7c4bfb512e97406e309de922f12e29981f4419a0ccb3b5afa48a73b6ddf71517782c860114c616e571afb57528a54e9d3bd7509507eb921603b2fb1aa2d09fec  0003-make-using-realpath-compatible-with-busybox.patch
+c84df099d9c4e73249a6feaad84a24f3e3ab4f9c136b2e21edaff4e4f4865621c91d21d9f1d403ae887c91b88db7dde036f3c86b7861b8bf217874623b5d7e3f  0004-read-busybox-ln-help-from-stderr.patch
+d009937e09a2cc668d15c097948e1442c73a62297ee92d5203ec2ed93cca4542f1c0a2b82229a7cfa117f10d26d473bfe3ae1cc91d1138ee03e9e25adf1524d4  0005-remove-cp-t-option-usage-no-support-in-busybox.patch
+052fbd19a3df29de5046cc27b80e7a801076e7a8e3fe6d8fcb86e764401d1e85af43eca27e253e59676bcadf5a39548a6e512d4610dabc48bcd5f9b4858c3c64  0006-modules.d-add-new-module-for-busybox-shell.patch
+b13777bb79ebca0dc675d262a55ec275e6f3778d99c5783471f1ef5b06685ef776f53f1cebbf29c7f952a99433e848238d70be80c4c75848fb3919b18a9ecbd4  0007-dracut-functions.sh-replace-grep-perl-regexp-with-aw.patch
+e688d7a91245376fc9fc11fba4d4e1b89be7b1116a27c6b19a8e140e9791c619873ca45754f0492ec25d451f45394912c469a36f81c42f1af5797f730431653e  0008-modules.d-add-new-module-alpaquita-iso.patch
+0663e08ca1c3d3fad5a943eb18798c0794dddff229cfad9902bedfb032a4cb70bd931931523959425b4c784f4f7413bcb083f0f24ddb01356826db880ceb6dce  0009-Makefile-always-use-APKBUILD-version.patch
+9b1e8cd7443126b8339ef89ff55b12d6098b1315ea7cfb83f99216e0985ce4a76c2d29b4f36334b5cd5f67da1c8d5ee62b14554a89b613e8bd662f0becab711d  0010-don-t-search-libs-in-usr-lib64-use-usr-lib.patch
+c18109124259c6067d3df34ba612eaa21e25a2f5afe38d39f0960fd6b282880bc43ad162f800f4c8e2ee9fe8546381fc4111a731e8993732a2db7f04998cf267  0011-init.sh-move-dev-sys-proc-to-new-root.patch
+82a36e286acad5bb2f03673350734cc503309451f2ff16cdfd68bc6b34452bf9e312cdeb40df4eaa70b2b7e02c802a46e263e073b71639c6f5ffe91e75f3d981  0012-alpaquita-iso-enable-auto-login-and-start-the-installer.patch
+5c1d55029fc1de10009024d9b78bd5139831a820b444415ec0437529f7c1067f36d22fa1a6486e1ca37a795f0ea6bc80f276c7e07cb5b512da2e13c016e04079  0013-dracut-alpaquita-iso-enable-getty-on-the-serial-port.patch
+"

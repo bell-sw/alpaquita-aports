@@ -1,0 +1,38 @@
+pkgname=virglrenderer
+pkgver=0.9.1
+pkgrel=0
+pkgdesc="A virtual 3D GPU library, that allows the guest operating system to use the host GPU to accelerate 3D rendering"
+url="https://virgil3d.github.io/"
+options="!check"
+arch="all"
+license="MIT"
+makedepends="meson file libdrm-dev mesa-dev libepoxy-dev python3 check-dev"
+subpackages="$pkgname-dev"
+source="https://gitlab.freedesktop.org/virgl/virglrenderer/-/archive/virglrenderer-$pkgver/virglrenderer-virglrenderer-$pkgver.tar.gz"
+builddir="$srcdir/$pkgname-$pkgname-$pkgver"
+
+# secfixes:
+#   0.8.1-r0:
+#     - CVE-2019-18388
+#     - CVE-2019-18389
+#     - CVE-2019-18390
+#     - CVE-2019-18391
+
+build() {
+	abuild-meson \
+		-Dtests=true \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+check() {
+	meson test --no-rebuild -v -C output
+}
+
+sha512sums="
+4edba82c83a6183871f74f365d55af88935edf9abad97c1617c569f21a16b008481364f50491dfbc7ed89832a6b618fce98d182f84cc1cbab9d2c7443a2ae936  virglrenderer-virglrenderer-0.9.1.tar.gz
+"

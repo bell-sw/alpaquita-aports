@@ -1,0 +1,52 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: gawk helps to perform pattern scanning and data formatting in
+# text files.
+
+pkgname=gawk
+pkgver=5.1.1
+pkgrel=0
+pkgdesc="GNU awk pattern-matching language"
+url="https://www.gnu.org/software/gawk/gawk.html"
+arch="all"
+license="GPL-3.0-or-later"
+checkdepends="coreutils diffutils"
+subpackages="$pkgname-doc"
+source="https://ftp.gnu.org/gnu/gawk/gawk-$pkgver.tar.xz
+	echild-strerror.patch"
+
+case "$CLIBC" in
+glibc) options="$options !check";
+esac
+
+prepare() {
+	default_prepare
+
+	# TODO: https://lists.gnu.org/archive/html/bug-gawk/2021-02/msg00005.html
+	sed -i test/Makefile.in -e "/clos1way6/d"
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--disable-nls
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+794538fff03fdb9a8527a6898b26383d01988e8f8456f8d48131676387669a8bb3e706fa1a17f6b6316ddba0ebe653c24ad5dd769f357de509d6ec25f3ff1a43  gawk-5.1.1.tar.xz
+5bbb175da2d93c9c1d422a4e5a2c2400486c0204929ac6771bf2c2effbee37b84ef9441821a47e1fdc4a337e3cb8ad92cb67d473822876ea790dd373822d4dbd  echild-strerror.patch
+"

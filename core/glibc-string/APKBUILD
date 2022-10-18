@@ -1,0 +1,27 @@
+pkgname=glibc-string
+pkgver=2.34.4
+pkgrel=0
+pkgdesc="Collection of glibc optimized asm string implementations"
+url="https://github.com/bell-sw/glibc-string"
+arch="x86_64"
+license="LGPL-2.1-or-later"
+source="https://packages.bell-sw.com/alpaquita/distfiles/$pkgname-$pkgver.tar.xz"
+options="!check !libc_glibc"
+
+build() {
+	cd "$builddir"
+
+	export CFLAGS="${CFLAGS/-Os/-O2}"
+	make
+}
+
+package() {
+	cd "$builddir"
+
+	mkdir -p "$pkgdir"/usr/lib
+	cp lib/libglibc-string.a "$pkgdir"/usr/lib/
+}
+
+sha512sums="
+5d28f634a81576d53ef88f53b411b4892155bca482d4c739adeb8875d18f169458adec36ae20accf81fb4e9f76b673290166a234a737895af9c46dbeb0ab35b0  glibc-string-2.34.4.tar.xz
+"

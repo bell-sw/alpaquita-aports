@@ -1,0 +1,43 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: cjson is a package for automatic or manual parsing of JSON
+# files.
+
+pkgname=cjson
+pkgver=1.7.15
+pkgrel=2
+pkgdesc="C library for parsing JSON"
+url="https://github.com/DaveGamble/cJSON"
+arch="all"
+license="MIT"
+makedepends="cmake samurai"
+subpackages="$pkgname-dev"
+source="$pkgname-$pkgver.tar.gz::https://github.com/DaveGamble/cJSON/archive/v$pkgver.tar.gz"
+builddir="$srcdir/cJSON-$pkgver"
+
+build() {
+	if [ "$CBUILD" != "$CHOST" ]; then
+		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=/usr/lib \
+		-DBUILD_SHARED_LIBS=True \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_C_FLAGS="$CFLAGS" \
+		$CMAKE_CROSSOPTS
+	cmake --build build
+}
+
+check() {
+	cd build
+	CTEST_OUTPUT_ON_FAILURE=TRUE ctest
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --build build --target install
+}
+
+sha512sums="
+0b32a758c597fcc90c8ed0af493c9bccd611b9d4f9a03e87de3f7337bb9a28990b810befd44bc321a0cb42cbcd0b026d45761f9bab7bd798f920b7b6975fb124  cjson-1.7.15.tar.gz
+"

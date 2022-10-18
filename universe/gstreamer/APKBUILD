@@ -1,0 +1,80 @@
+pkgname=gstreamer
+pkgver=1.20.2
+pkgrel=0
+pkgdesc="GStreamer streaming media framework"
+url="https://gstreamer.freedesktop.org"
+arch="all"
+license="LGPL-2.0-or-later"
+replaces="gstreamer1"
+depends_dev="libxml2-dev"
+makedepends="$depends_dev
+	bison
+	flex
+	glib-dev
+	gobject-introspection-dev
+	libcap-dev
+	meson
+	perl
+	"
+subpackages="
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-tools
+	$pkgname-lang
+	"
+source="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-$pkgver.tar.xz"
+options="!check"  # FIXME: two tests fail
+
+# secfixes:
+#   1.18.4-r0:
+#     - CVE-2021-3497
+#     - CVE-2021-3498
+
+build() {
+	abuild-meson \
+		-Dintrospection=enabled \
+		-Dbash-completion=disabled \
+		-Dptp-helper-permissions=capabilities \
+		-Dpackage-name="GStreamer (Alpine Linux)" \
+		-Dpackage-origin="https://alpinelinux.org" \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+dev() {
+	default_dev
+
+	# Support for debugging.
+	amove usr/share/gdb
+	amove usr/share/gstreamer-*/gdb
+
+	# Unit test libraries.
+	amove usr/bin/gst-tester-*
+	amove usr/lib/libgstcheck-*.so.*
+	amove usr/lib/girepository-1.0/GstCheck-*.typelib
+}
+
+doc() {
+	default_doc
+	replaces="${pkgname}1-doc"
+}
+
+tools() {
+	pkgdesc="Tools for GStreamer streaming media framework"
+	# gst-feedback needs this
+	depends="pkgconfig"
+
+	amove usr/bin
+}
+
+sha512sums="
+994378b656fa593e134624d5d4d5014e78074199d80152eafce29bc09864bd6d0f32a31eafda6cb8caec60aa85b0bda7c42a8c3b388b47d59f2cf4bc729d551f  gstreamer-1.20.2.tar.xz
+"

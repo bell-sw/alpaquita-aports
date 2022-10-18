@@ -1,0 +1,33 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=py3-sphinxcontrib-htmlhelp
+_pyname=sphinxcontrib-htmlhelp
+pkgver=2.0.0
+pkgrel=1
+pkgdesc="Sphinx htmlhelp extension"
+url="https://pypi.python.org/pypi/sphinxcontrib-htmlhelp"
+arch="noarch"
+license="BSD-2-Clause"
+depends="python3"
+makedepends="py3-setuptools"
+options="!check" # cyclic dependency
+source="https://files.pythonhosted.org/packages/source/${_pyname%${_pyname#?}}/$_pyname/$_pyname-$pkgver.tar.gz"
+builddir="$srcdir"/$_pyname-$pkgver
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+6ed673966615f3e818e00de4b7e59c27f0a0d7b494294f804540777c580480870c36002c08d8ad626b7b41a676fe40edc0b0b5ffc6ad8080f38f59c24e157636  sphinxcontrib-htmlhelp-2.0.0.tar.gz
+"

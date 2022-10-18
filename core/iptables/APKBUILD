@@ -1,0 +1,97 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: iptables is targeted at setting up and maintaining tables for
+# the IPv4 Netfilter firewall. Also it includes ip6tables.
+
+pkgname=iptables
+pkgver=1.8.8
+pkgrel=1
+pkgdesc="Tools for packet filtering and NAT"
+url="https://www.netfilter.org/projects/iptables/index.html"
+arch="all"
+license="GPL-2.0-or-later"
+depends_dev="linux-headers"
+makedepends="$depends_dev libnftnl-dev bison flex autoconf automake"
+subpackages="ip6tables $pkgname-doc $pkgname-dev $pkgname-openrc ip6tables-openrc:ip6tables_openrc"
+provides="ebtables" # for backards compat
+replaces="ebtables"
+source="https://www.netfilter.org/projects/iptables/files/iptables-$pkgver.tar.bz2
+	use-sh-iptables-apply.patch
+	iptables.initd
+	iptables.confd
+	ip6tables.confd
+	ebtables.initd
+	ebtables.confd
+
+	fix-xtables.patch
+	fix-u_int16_t.patch
+	"
+
+build() {
+	export CFLAGS="$CFLAGS -D_GNU_SOURCE"
+	./configure \
+		--build="$CBUILD" \
+		--host="$CHOST" \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		--sysconfdir=/etc \
+		--without-kernel \
+		--enable-devel \
+		--enable-libipq \
+		--enable-shared
+
+	# do not use rpath
+	sed -i 's|^hardcode_libdir_flag_spec=.*|hardcode_libdir_flag_spec=""|g' libtool
+	sed -i 's|^runpath_var=LD_RUN_PATH|runpath_var=DIE_RPATH_DIE|g' libtool
+
+	make
+}
+
+package() {
+	make -j1 install DESTDIR="$pkgdir"
+
+	mkdir -p "$pkgdir"/usr/include/libiptc \
+		"$pkgdir"/usr/lib \
+		"$pkgdir"/var/lib/iptables \
+		"$pkgdir"/etc/iptables
+
+	install -m644 include/iptables.h include/ip6tables.h \
+		"$pkgdir"/usr/include/
+	install include/libiptc/*.h "$pkgdir"/usr/include/libiptc/
+
+	install -D -m755 "$srcdir"/iptables.initd "$pkgdir"/etc/init.d/iptables
+	install -D -m644 "$srcdir"/iptables.confd "$pkgdir"/etc/conf.d/iptables
+	install -D -m755 "$srcdir"/ebtables.initd "$pkgdir"/etc/init.d/ebtables
+	install -D -m644 "$srcdir"/ebtables.confd "$pkgdir"/etc/conf.d/ebtables
+}
+
+ip6tables() {
+	mkdir -p "$subpkgdir"
+	cd "$subpkgdir"
+
+	mkdir -p usr/sbin \
+		var/lib/ip6tables \
+		usr/lib/xtables
+
+	amove usr/sbin/ip6*
+	amove usr/lib/xtables/libip6*
+}
+
+ip6tables_openrc() {
+	default_openrc
+
+	install -D -m755 "$srcdir"/iptables.initd "$subpkgdir"/etc/init.d/ip6tables
+	install -D -m644 "$srcdir"/ip6tables.confd "$subpkgdir"/etc/conf.d/ip6tables
+}
+
+sha512sums="
+f21df23279a77531a23f3fcb1b8f0f8ec0c726bda236dd0e33af74b06753baff6ce3f26fb9fcceb6fada560656ba901e68fc6452eb840ac1b206bc4654950f59  iptables-1.8.8.tar.bz2
+ac78898c2acbe66ed8d32a06f41ff08cde7c22c3df6dfec6bc89a912d2cef2bde730de19d25a5407886d567cb0972a0b7bde7e6b18a34c4511495b4dad3b90ad  use-sh-iptables-apply.patch
+9957b811b567122810f17718538bd43da0674c7f8bb62884d5bfe46777ca0d2a86cbed54da5626a3458f2222a0f8c863e88cc6bc85d6c227d930c8dbbc770890  iptables.initd
+cb7fecd5cab2c78bd3f215a41f39ec11c37eb360efbe83982378a0e647e0aa9dc0b7ec915a5b5081aa2f7747464787e69404aa15ba15a063c32cb8fb7dd13d1e  iptables.confd
+0897a7a22f8b700f7f1f5c355ad6cbf39740e44d6c962af99e479978d8a2d556ca7fe4e31f238829046b4a871ce0b5fd52e2544f1361d15dd1ea3e33992646c4  ip6tables.confd
+9b40d7b95cbd147756185c5c77be8f45a91f7f4b70f8c4c95cd504ce66689bcda08b815c97043de24c07e3544eba00d3d10b760a38f1003f0559c3aff3ec19e3  ebtables.initd
+1623109d7b564b817904e35b6c6964ce84fe123a8ae1b656944648a39cfef719431cfad313b48eb36ae53a0d1a6b388a5caec1a990448d02f77e5d12b1f7ee9d  ebtables.confd
+ce8c4ff001be49b77bb82efc3cb8b9f3c8f8684abcb07d079c6a00fab5c7a22e0d7f66f8ccdf3aab63d8fdb2b01b249679a89561e2f723111c8ce4075681b134  fix-xtables.patch
+015ca550cf27802446d74521b7618095a342663d4fd73700975f3186428ecdc9eec27016f4d40862d3837cbbe0bb43509c1022b19ef8692ab28cc24e18831d57  fix-u_int16_t.patch
+"

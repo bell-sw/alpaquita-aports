@@ -1,0 +1,29 @@
+From 7d8fb00cc8af472adc418e95b603c55ed4b5637e Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Thu, 17 Feb 2022 00:47:06 +0300
+Subject: [PATCH] support getting maintainer name from env variable
+
+if APKBUILD file doesn't have maintainer defined, use
+default maintainer from a build system via the env var:
+
+    ABUILD_MAINTAINER_NAME
+---
+ abuild.in | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/abuild.in b/abuild.in
+index 5a8600b..ca51e52 100644
+--- a/abuild.in
++++ b/abuild.in
+@@ -980,6 +980,8 @@ get_maintainer() {
+ 		maintainer=$(awk -F': ' '/# *Maintainer/ {print $2}' "$APKBUILD")
+ 		# remove surrounding whitespace
+ 		maintainer=$(echo "$maintainer" | xargs)
++
++		[ -z "$maintainer" ] && maintainer="$ABUILD_MAINTAINER_NAME"
+ 	fi
+ }
+ 
+-- 
+2.25.1
+

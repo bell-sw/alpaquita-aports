@@ -1,0 +1,37 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: autoconf produces configuration scripts for source code
+# packages as M4 macro calls.
+
+pkgname=autoconf
+pkgver=2.71
+pkgrel=0
+pkgdesc="GNU source code automatic configuration utility"
+arch="noarch"
+license="GPL-2.0-or-later"
+url="https://www.gnu.org/software/autoconf"
+depends="m4 perl"
+subpackages="$pkgname-doc"
+options="!check"
+source="https://ftp.gnu.org/gnu/autoconf/autoconf-$pkgver.tar.gz"
+
+build() {
+	M4=/usr/bin/m4 ./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -f "$pkgdir"/usr/share/info/dir
+	# conflict with bintuils
+	rm -f "$pkgdir"/usr/share/info/standards.info
+}
+
+sha512sums="2bc5331f9807da8754b2ee623a30299cc0d103d6f98068a4c22263aab67ff148b7ad3a1646bd274e604bc08a8ef0ac2601e6422e641ad0cfab2222d60a58c5a8  autoconf-2.71.tar.gz"

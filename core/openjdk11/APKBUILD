@@ -1,0 +1,242 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME is a build of OpenJDK verified by the OpenJDK
+# Technology Compatibility Kit test suite to be compliant with the Java SE
+# specifications.
+
+_java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_java_ver=11.0.16.1+1
+_java_rel_date=2022-08-12
+_java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 11"
+
+pkgname=${_java_pkg_name}11
+pkgver=${_java_ver/+/_p}
+pkgrel=0
+pkgdesc="$_java_name"
+url="$VENDOR_URL"
+license="GPL-2.0 WITH Classpath-Exception-2.0"
+arch="x86_64"
+options="!strip !tracedeps ldpath-recursive"
+depends="
+	$pkgname-jmods=$pkgver-r$pkgrel
+	$pkgname-doc=$pkgver-r$pkgrel
+	$pkgname-jdk=$pkgver-r$pkgrel
+	"
+makedepends="
+	alsa-lib-dev
+	automake
+	autoconf
+	bash
+	ca-certificates
+	coreutils
+	cups-dev
+	file
+	findutils
+	fontconfig-dev
+	freetype-dev
+	gawk
+	gettext
+	grep
+	libx11-dev
+	libxext-dev
+	libxi-dev
+	libxrandr-dev
+	libxrender-dev
+	libxt-dev
+	libxtst-dev
+	linux-headers
+	sed
+	zip
+	zlib-dev
+	$pkgname-bootstrap>=11.0.15
+	"
+
+subpackages="
+	$pkgname-dbg:_dbg
+	$pkgname-jmods:_jmods:noarch
+	$pkgname-demos:_demos:noarch
+	$pkgname-src:_src:noarch
+	$pkgname-jre-doc:_jre_doc:noarch
+	$pkgname-doc:_doc:noarch
+	$pkgname-jre:_jre
+	$pkgname-jdk:_jdk
+	"
+
+provides="openjdk11"
+
+source="
+	${VENDOR_URL/\/\//\/\/download.}java/$_java_ver/bellsoft-jdk$_java_ver-src.tar.gz
+	HelloJava.java
+	dynamically-increase-size-of-cpuset-mask.patch
+	change-process-launch-to-posix-spawn.patch
+	"
+
+srcdir="$srcdir/$pkgname"
+builddir="$srcdir"
+sonameprefix="$pkgname:"
+
+_java_home=/usr/lib/jvm/"$pkgname"
+_images_dir="$builddir/build/linux-$CARCH-normal-*-release/images"
+ldpath="$_java_home/lib"
+
+_jre_tools="
+	java
+	jjs
+	keytool
+	pack200
+	rmid
+	rmiregistry
+	unpack200
+	"
+
+build() {
+
+	if [ -z "$JOBS" ]; then
+		export JOBS=$(printf '%s\n' "$MAKEFLAGS" | sed -n -e 's/.*-j\([0-9]\+\).*/\1/p')
+	fi
+
+	local _cflags="-fplugin=annobin -fstack-protector-strong -D_FORTIFY_SOURCE=2"
+
+	CFLAGS='' CXXFLAGS='' LDFLAGS=''
+	bash ./configure \
+		--with-jvm-variants='server,client,minimal' \
+		--with-jvm-features=shenandoahgc,zgc \
+		--with-version-string=${_java_ver%+*} \
+		--with-version-build=${_java_ver#*+} \
+		--with-version-date=${_java_rel_date} \
+		--with-version-opt=LTS \
+		--with-vendor-name="$VENDOR_NAME" \
+		--with-vendor-url="$VENDOR_URL" \
+		--with-vendor-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-vendor-vm-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-extra-cflags="$_cflags" \
+		--with-extra-cxxflags="$_cflags" \
+		--with-extra-ldflags=$LDFLAGS \
+		--disable-warnings-as-errors \
+		--with-boot-jdk=/usr/lib/jvm/$pkgname
+	MAKEFLAGS='' make product-bundles
+}
+
+check() {
+	_jdkdir="$builddir"/build/linux-*-release/images/jdk
+
+	$_jdkdir/bin/javac "$startdir"/HelloJava.java -d "$builddir"
+	$_jdkdir/bin/java -cp "$builddir" HelloJava
+}
+
+package() {
+	mkdir -p "$pkgdir/$_java_home"
+	tar --strip-components=1 -xf build/linux-*-release/bundles/*_bin.tar.gz -C "$pkgdir/$_java_home"
+}
+
+_jre() {
+	pkgdesc="$_java_name (JRE)"
+	depends="java-common fontconfig ttf-dejavu-core freetype"
+	provides="
+		java-jre
+		java11-jre
+		openjdk11-jre=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/lib" "$subpkgdir/$_java_home/"
+
+	mkdir -p "$subpkgdir/$_java_home/bin"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/bin/$f" "$subpkgdir/$_java_home/bin/$f"
+	done
+
+	for f in legal conf release; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/$f"
+	done
+
+	cp "$subpkgdir/$_java_home/legal/java.base/LICENSE" "$subpkgdir/$_java_home/"
+	VENDOR_NAME="$VENDOR_NAME" VENDOR_URL="$VENDOR_URL" VENDOR_JAVA_NAME="$VENDOR_JAVA_NAME" \
+		envsubst < readme.txt.template > "$subpkgdir/$_java_home/readme.txt"
+
+	ln -sf . "$subpkgdir/$_java_home/jre"
+	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-11-${pkgname%*11}
+}
+
+_jre_doc() {
+	pkgdesc="$_java_name (JRE Documentation)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="openjdk11-jre-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/man/man1"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/man/man1/$f".* "$subpkgdir/$_java_home/man/man1/"
+	done
+	mkdir -p "$subpkgdir/$_java_home/man/ja_JP.UTF-8/man1"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/man/ja_JP.UTF-8/man1/$f".* "$subpkgdir/$_java_home/man/ja_JP.UTF-8/man1/"
+		cp -a "$pkgdir/$_java_home/man/ja" "$subpkgdir/$_java_home/man/"
+	done
+}
+
+_jdk() {
+	pkgdesc="$_java_name (JDK)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="
+		java-jdk
+		java11-jdk
+		$pkgname-bootstrap=$pkgver-r$pkgrel
+		openjdk11-bootstrap=$pkgver-r$pkgrel
+		openjdk11-jdk=$pkgver-r$pkgrel
+	"
+	mkdir -p "$subpkgdir/$_java_home"
+	for f in bin include; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+}
+
+_jmods() {
+	pkgdesc="$_java_name (Java Modules)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk11-jmods=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/jmods" "$subpkgdir/$_java_home/"
+}
+
+_doc() {
+	pkgdesc="$_java_name (Documentation)"
+	depends="$pkgname-jre-doc=$pkgver-r$pkgrel"
+	provides="openjdk11-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/man" "$subpkgdir/$_java_home/"
+}
+
+_demos() {
+	pkgdesc="$_java_name (Demos)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk11-demos=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	tar --strip-components=1 -xf "$builddir"/build/linux-*-release/bundles/*_bin-tests-demos.tar.gz -C "$subpkgdir/$_java_home"
+}
+
+_src() {
+	pkgdesc="$_java_name (Sources)"
+	depends=""
+	provides="openjdk11-src=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/src.zip" "$subpkgdir/$_java_home/lib/"
+}
+
+_dbg() {
+	pkgdesc="$_java_name (Debug Info)"
+	depends=""
+	provides="openjdk11-dbg=$pkgver-r$pkgrel"
+
+	local debugdir="$subpkgdir/usr/lib/debug"
+	mkdir -p "$debugdir/$_java_home"
+	tar --strip-components=1 -xf "$builddir"/build/linux-*-release/bundles/*_bin-symbols.tar.gz -C "$debugdir/$_java_home"
+}
+
+sha512sums="
+6135bc224dfce65663c230afc20de6df3eef0d1ffef9ff96c81aab6023e4f54e290d393db0a441311a56b3d6cd33ad38fe3b284f9aa21ee7fd409500f9311abe  bellsoft-jdk11.0.16.1+1-src.tar.gz
+508cc8511fecee2288f41dc009834d444785ddd4129acfabefeae03ab75a26088bc7e8a60548dac58c6d18865d994e5ad8fa340cac20ba3cc838434dc7cbbcde  HelloJava.java
+bd0da3e1d79abcb277250426f25ba5c224dd9fc1a36935f9cd7e564118078322ae45fb286fa7451017fa48b5531ead670845a74cdfd39325808efa541ba956ae  dynamically-increase-size-of-cpuset-mask.patch
+b44e957eada4a2a48852622639a26348226f874b475cb529cb4d02de8cbf703b3ebbd897a58eb299efae7b4f3f7d10648ab2fcdbd9db2053e9777ceb0bf1f21d  change-process-launch-to-posix-spawn.patch
+"

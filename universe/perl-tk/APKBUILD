@@ -1,0 +1,34 @@
+pkgname=perl-tk
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=Tk
+pkgver=804.036
+pkgrel=1
+pkgdesc="Tk - a Graphical User Interface Toolkit"
+url="https://metacpan.org/release/Tk/"
+arch="all"
+license="unrestricted"
+depends="perl"
+makedepends="perl-dev libx11-dev libpng-dev"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/S/SR/SREZIC/Tk-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+7d8b82127a5fdbb2f0387f541af8844a09f1230f377b92d511ecb12e81bfd5ef56d4fe925cac064a798a96a003bb8465b6df37cff18a960f3631bb3a214cd812  Tk-804.036.tar.gz
+"

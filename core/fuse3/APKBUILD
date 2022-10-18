@@ -1,0 +1,91 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: fuse3 enables the communication with the FUSE (Filesystem in
+# Userspace) kernel module.
+
+pkgname=fuse3
+_pkgname=fuse
+pkgver=3.11.0
+pkgrel=0
+pkgdesc="The reference implementation of the FUSE interface"
+url="https://github.com/libfuse/libfuse"
+arch="all"
+license="GPL-2.0-only LGPL-2.1-only"
+depends="fuse-common"
+makedepends="
+	eudev-dev
+	gettext-dev
+	linux-headers
+	meson
+	py3-attrs
+	py3-pluggy
+	py3-py
+	py3-six
+	python3
+	"
+checkdepends="py3-pytest"
+subpackages="
+	$pkgname-static
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-libs
+	fuse-common:_common
+	fuse-openrc:_openrc
+	"
+source="https://github.com/libfuse/libfuse/releases/download/fuse-$pkgver/fuse-$pkgver.tar.xz
+	musl:fix-realpath.patch
+	fuse.initd
+	"
+options="suid !check" # check is currently broken: https://github.com/libfuse/libfuse/issues/293
+
+builddir="$srcdir"/$_pkgname-$pkgver
+
+# secfixes:
+#   3.2.5-r0:
+#     - CVE-2018-10906
+
+build() {
+	abuild-meson --default-library=both . output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	python3 -m pytest test/
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+	rm -r "$pkgdir"/dev "$pkgdir"/etc/init.d
+
+	install -Dm755 "$srcdir"/fuse.initd "$pkgdir"/etc/init.d/fuse
+	# create config
+	install -d "$pkgdir"/etc
+	cat >"$pkgdir"/etc/fuse.conf <<- _EOF_
+	# Set the maximum number of FUSE mounts allowed to non-root users.
+	# The default is 1000.
+	#
+	#mount_max = 1000
+
+	# Allow non-root users to specify the 'allow_other' or 'allow_root'
+	# mount options.
+	#
+	#user_allow_other
+	_EOF_
+}
+
+_common() {
+	pkgdesc="Common files for fuse2 and fuse3"
+	mkdir -p "$subpkgdir"/etc/
+	mv "$pkgdir"/etc/fuse.conf "$subpkgdir"/etc/
+}
+
+_openrc() {
+	default_openrc
+	install_if="openrc fuse-common=$pkgver-r$pkgrel"
+}
+
+sha512sums="
+033324de7ea4c7e91fb21c453211c01e53771ec5805c2126e13ef2d4334119a51f5c783b6249e888e28888c753aa04b48ed33cefb6d486d8d526546565f6ae50  fuse-3.11.0.tar.xz
+1a9e1d1e8a7b0778ffde328e4322c73b5d57ec98d52767c846d755cce861ab27989823a75b6c5f994432ddb77fa351dfa4a8f948c9467c5f7d5f471e4608358b  fix-realpath.patch
+9fbb6f0fab6faadb592b2218dc0628caf0ea123b1fa8bfe3c10431bd929f7f44f752b3c6aa76373a6f037c662fc61d9e1b664236aca0c51d719891fceaa52b54  fuse.initd
+"

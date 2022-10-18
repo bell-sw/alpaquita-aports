@@ -1,0 +1,39 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: ACLs enable the usage of a specific set of permissions to a file system,
+# i.e. you can give access rights to particular users or groups without changing the ownership.
+
+pkgname=acl
+pkgver=2.3.1
+pkgrel=0
+pkgdesc="Access control lists"
+url="https://savannah.nongnu.org/projects/acl"
+arch="all"
+license="LGPL-2.1-or-later AND GPL-2.0-or-later"
+makedepends_host="attr-dev"
+makedepends="$makedepends_host"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc libacl"
+# depends on order of nftw, and requires test machine to have ACLs enabled on FS
+options="!check"
+source="https://download.savannah.nongnu.org/releases/acl/acl-$pkgver.tar.gz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+	make
+}
+
+package() {
+	DESTDIR="$pkgdir" make install
+}
+
+libacl() {
+	pkgdesc="Dynamic library for access control list support"
+	amove usr/lib/libacl.so.*
+}
+
+sha512sums="
+f101e27058c959f4c412f475c3fc77a90d1ead8728701e4ce04ff08b34139d35e0e72278c9ac7622ba6054e81c0aeca066e09491b5f5666462e3866705a0e892  acl-2.3.1.tar.gz
+"

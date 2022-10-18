@@ -1,0 +1,32 @@
+pkgname=yarn
+pkgver=1.22.19
+pkgrel=0
+pkgdesc="Fast, reliable, and secure dependency management for Node.js"
+url="https://classic.yarnpkg.com/"
+license="BSD-2-Clause"
+arch="noarch !riscv64" # blocked by nodejs
+depends="nodejs"
+source="https://yarnpkg.com/downloads/$pkgver/yarn-v$pkgver.tar.gz
+	apk-install-method.patch
+	"
+builddir="$srcdir/$pkgname-v$pkgver"
+options="!check" # not implemented
+
+package() {
+	local destdir="usr/share/node_modules/$pkgname"
+
+	mkdir -p "$pkgdir"/$destdir
+	cp -R "$builddir"/* "$pkgdir"/$destdir/
+
+	# Remove windows specific files.
+	rm "$pkgdir"/$destdir/bin/*.cmd
+
+	mkdir -p "$pkgdir"/usr/bin
+	ln -s /$destdir/bin/yarn "$pkgdir"/usr/bin/yarn
+	ln -s /$destdir/bin/yarn "$pkgdir"/usr/bin/yarnpkg
+}
+
+sha512sums="
+ff4579ab459bb25aa7c0ff75b62acebe576f6084b36aa842971cf250a5d8c6cd3bc9420b22ce63c7f93a0857bc6ef29291db39c3e7a23aab5adfd5a4dd6c5d71  yarn-v1.22.19.tar.gz
+30431f7aa5fe7382e062b92e413ea8d118e157d89aa043353c18ff7d1721d0e3ecfbe68de1f0058b3b70cee5cf9baa08d28f1718beb5d14fcb0cf2881dff1eac  apk-install-method.patch
+"

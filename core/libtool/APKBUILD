@@ -1,0 +1,59 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: The GNU Libtool hides the complexity of generating special
+# library types (such as shared libraries) behind a consistent interface.
+
+pkgname=libtool
+pkgver=2.4.7
+pkgrel=0
+pkgdesc="Generic library support script"
+arch="all"
+license="LGPL-2.0-or-later AND GPL-2.0-or-later"
+url="https://www.gnu.org/software/libtool"
+source="https://ftp.gnu.org/gnu/libtool/libtool-$pkgver.tar.gz
+	libtool-fix-cross-compile.patch
+	"
+depends="libltdl"
+makedepends="m4 help2man"
+checkdepends="gawk autoconf automake gzip"
+subpackages="libltdl-static libltdl $pkgname-doc"
+options="libtool"
+
+prepare() {
+	default_prepare
+
+	# failing gnulib tests
+	sed -i \
+		-e "s|test-funclib-quote.sh||" \
+		-e "s|test-option-parser.sh||" \
+		gnulib-tests/Makefile.in
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+	make
+}
+
+check() {
+	# Test 69 shlibpath_overrides_runpath fails
+	# Test 169 repeats the entire test suite with shorter max_cmd_len
+	make check TESTSUITEFLAGS="1-68 70-168"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+libltdl() {
+	pkgdesc="Runtime libraries for GNU Libtool Dynamic Module Loader"
+	depends=
+	amove usr/lib/libltdl.so*
+}
+
+sha512sums="
+27acef46d9eb67203d708b57d80b853f76fa4b9c2720ff36ec161e6cdf702249e7982214ddf60bae75511aa79bc7d92aa27e3eab7ef9c0f5c040e8e42e76a385  libtool-2.4.7.tar.gz
+aa14cadd70a633520249fa3a6a4c45b309a980380e62dd5982b3ae842c478a77401ad809297fceebd167c167b0a19f380e6a6c295bc75d1029d56d3bf262b209  libtool-fix-cross-compile.patch
+"

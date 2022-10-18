@@ -1,0 +1,37 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=byacc
+pkgver=20220128
+pkgrel=0
+pkgdesc="The Berkeley Yacc general-purpose parser generator"
+url="https://invisible-island.net/byacc/byacc.html"
+arch="all"
+license="Public-Domain"
+depends="!bison"
+subpackages="$pkgname-doc"
+source="https://invisible-mirror.net/archives/byacc/byacc-$pkgver.tgz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+e8ae4c56f5be4cc0ef1d281c43f02c6296fdc40f630269f2a61af511f270ae059ad185b9718190b8133018f7b74b7ca6f84ced5d63a359960b52ea2a3ef562ea  byacc-20220128.tgz
+"

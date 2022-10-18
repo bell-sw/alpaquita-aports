@@ -1,0 +1,115 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: Supplicant is the IEEE 802.1X/WPA component that is used in the
+# client stations. It implements key negotiation with a WPA Authenticator and
+# it controls the roaming and IEEE 802.11 authentication/association of the wlan
+# driver.
+
+pkgname=wpa_supplicant
+pkgver=2.10
+pkgrel=1
+pkgdesc="WPA Supplicant"
+url="https://w1.fi/wpa_supplicant/"
+arch="all"
+options="!check" # has no tests
+license="BSD-3-Clause"
+subpackages="$pkgname-doc $pkgname-openrc"
+makedepends="linux-headers openssl1.1-compat-dev dbus-dev libnl3-dev pcsc-lite-dev"
+source="https://w1.fi/releases/wpa_supplicant-$pkgver.tar.gz
+
+	wpa_supplicant.initd
+	wpa_supplicant.confd
+	wpa_cli.confd
+	wpa_cli.initd
+
+	eloop.patch
+
+	config
+	wpa_cli.sh"
+
+# secfixes:
+#   2.9-r13:
+#     - CVE-2021-30004
+#   2.9-r12:
+#     - CVE-2021-27803
+#   2.9-r10:
+#     - CVE-2021-0326
+#   2.9-r5:
+#     - CVE-2019-16275
+#   2.7-r3:
+#     - CVE-2019-11555
+#   2.7-r2:
+#     - CVE-2019-9494
+#     - CVE-2019-9495
+#     - CVE-2019-9497
+#     - CVE-2019-9498
+#     - CVE-2019-9499
+#   2.6-r14:
+#     - CVE-2018-14526
+#   2.6-r7:
+#     - CVE-2017-13077
+#     - CVE-2017-13078
+#     - CVE-2017-13079
+#     - CVE-2017-13080
+#     - CVE-2017-13081
+#     - CVE-2017-13082
+#     - CVE-2017-13086
+#     - CVE-2017-13087
+#     - CVE-2017-13088
+
+prepare() {
+	default_prepare
+
+	# Copy our configuration file to the build directory
+	cp "$srcdir"/config "$builddir"/wpa_supplicant/.config
+}
+
+build() {
+	cd "$builddir"/wpa_supplicant
+	make LIBDIR=/usr/lib BINDIR=/usr/sbin
+	make LIBDIR=/usr/lib BINDIR=/usr/sbin eapol_test
+}
+
+package() {
+	cd "$builddir"/wpa_supplicant
+	make DESTDIR="$pkgdir" LIBDIR=/usr/lib BINDIR=/usr/sbin install
+	install -Dm644 wpa_supplicant.conf \
+		"$pkgdir"/usr/share/doc/wpa_supplicant/examples/wpa_supplicant.conf
+	install -Dm755 "$srcdir"/wpa_cli.sh \
+		"$pkgdir"/etc/wpa_supplicant/wpa_cli.sh
+
+	local man=
+	for man in doc/docbook/*.?; do
+		install -Dm644 "$man" \
+			"$pkgdir"/usr/share/man/man${man##*.}/${man##*/}
+	done
+	install -Dm755 eapol_test "$pkgdir"/usr/sbin/eapol_test
+
+	# dbus
+	cd dbus
+	install -Dm644 dbus-wpa_supplicant.conf \
+		"$pkgdir"/usr/share/dbus-1/system.d/wpa_supplicant.conf
+	install -Dm644 fi.w1.wpa_supplicant1.service \
+		-t "$pkgdir"/usr/share/dbus-1/system-services
+
+	# openrc runscripts
+	install -Dm755 "$srcdir"/wpa_supplicant.initd \
+		"$pkgdir"/etc/init.d/wpa_supplicant
+	install -Dm644 "$srcdir"/wpa_supplicant.confd \
+		"$pkgdir"/etc/conf.d/wpa_supplicant
+	install -Dm755 "$srcdir"/wpa_cli.initd \
+		"$pkgdir"/etc/init.d/wpa_cli
+	install -Dm644 "$srcdir"/wpa_cli.confd \
+		"$pkgdir"/etc/conf.d/wpa_cli
+}
+
+sha512sums="
+021c2a48f45d39c1dc6557730be5debaee071bc0ff82a271638beee6e32314e353e49d39e2f0dc8dff6e094dcc7008cfe1c32d0c7a34a1a345a12a3f1c1e11a1  wpa_supplicant-2.10.tar.gz
+ee2ab2b6f0d0bba6a8dfe94863550b7925f1e4df4eb2161775a3bad5055f1dd4aad8357612f83929de1912464d8f5d41654c4ec4084b42c957046de9fa62bdef  wpa_supplicant.initd
+24bc4d46f3a8923890f233e433928c3f1204ab5f15a1c32b21dca220af89e2474026059e1040834db88cd3d8f6b61c46abb5cf18bda906e78dcd8fccd0f2a382  wpa_supplicant.confd
+c3db077fa78dd296d90d07626cb4e684f87618a77ffd51c1ae04b47be7bc0db1e9a3e0f7442acef21c081f6bb782f150cbbd3d0bf245d6ab43f19da3899b53b9  wpa_cli.confd
+d7d71f8526b8695c38ebe18485584718744b952b8460250797d4b5af8c81a517f47e06aaaddc9b0feceb65bc11fea4eae87cb3e1620ed96af73c0a3e073cb2d3  wpa_cli.initd
+2be055dd1f7da5a3d8e79c2f2c0220ddd31df309452da18f290144d2112d6dbde0fc633bb2ad02c386a39d7785323acaf5f70e5969995a1e8303a094eb5fe232  eloop.patch
+ffb875d5bbcd876f33e7a40c78fdd024e0dd770e191fa39e4e29d25e66aaa919edf6956dcc813b17980949aac96a0d774954bb94ad3fe3716814de8bde990e05  config
+212c4265afce2e72b95a32cd785612d6c3e821b47101ead154136d184ac4add01434ada6c87edbb9a98496552e76e1a4d79c6b5840e3a5cfe5e6d602fceae576  wpa_cli.sh
+"

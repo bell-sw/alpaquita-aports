@@ -1,0 +1,47 @@
+pkgname=alpaquita-base
+pkgver=22
+pkgrel=2
+pkgdesc="Meta package for minimal BellSoft Alpaquita base"
+url="https://bell-sw.com/"
+arch="noarch"
+license="MIT"
+depends="alpaquita-baselayout apk-tools busybox busybox-suid busybox-initscripts
+	openrc libc-utils alpaquita-keys"
+makedepends=""
+install=""
+subpackages=""
+replaces="alpaquita-baselayout"
+source=""
+options="!check"
+
+build() {
+	return 0
+}
+
+package() {
+	mkdir -p "$pkgdir"/etc
+	# create /etc/alpaquita-release
+	local _rel="LTS"
+	local _ver=${pkgver%_*}
+	echo $pkgver | grep -q '\.' || _rel="Stream"
+	echo $_ver > "$pkgdir"/etc/alpaquita-release
+
+	# create /etc/issue
+	cat >"$pkgdir"/etc/issue<<EOF
+Welcome to BellSoft Alpaquita Linux $_rel $pkgver
+Kernel \\r on an \\m (\\l)
+
+EOF
+
+	# create os-release
+	cat >"$pkgdir"/etc/os-release<<EOF
+NAME="BellSoft Alpaquita Linux $_rel"
+ID=alpaquita
+ID_LIKE=alpine
+VERSION_ID=$_ver
+PRETTY_NAME="BellSoft Alpaquita Linux $_rel $pkgver ($CLIBC)"
+HOME_URL="https://bell-sw.com/"
+BUG_REPORT_URL="https://bell-sw.com/support/"
+ALPAQUITA_LIBC=$CLIBC
+EOF
+}

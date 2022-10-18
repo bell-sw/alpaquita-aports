@@ -1,0 +1,334 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: grub is a program that runs at the computer startup and calls an
+# OS into memory. It is flexible and allows you to make changes at boot time.
+
+pkgname=grub
+pkgver=2.06
+pkgrel=303
+pkgdesc="Multiboot boot loader"
+url="https://www.gnu.org/software/grub/"
+arch="all !s390x"
+license="GPL-3.0-or-later"
+depends="dracut"
+triggers="grub.trigger=/boot"
+makedepends="bison flex linux-headers xz-dev lvm2-dev fuse-dev
+	automake autoconf libtool python3 freetype-dev unifont gettext-dev"
+install="$pkgname.post-upgrade"
+# strip handled by grub Makefiles, abuild strip breaks xen pv-grub
+options="!check !strip"  # Cannot test boot loader.
+subpackages="
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-mkfont
+	$pkgname-mount
+	$pkgname-bash-completion:bashcomp:noarch
+	"
+
+# currently grub only builds on x86*, aarch64 and ppc* systems
+case "$CARCH" in
+	x86)		flavors="efi bios";;
+	x86_64)		flavors="efi bios xenhost xenhost_pvh";;
+	aarch64|arm*)	flavors="efi";;
+	mips*)		flavors="qemu_mips";;
+	riscv*)		flavors="efi";;
+	ppc*)		flavors="ieee1275"; makedepends="$makedepends powerpc-utils" ;;
+	s390x)		flavors="emu" ;;
+esac
+for f in $flavors; do
+	[ x"$f" = x"xenhost_pvh" ] && continue # xenhost_pvh shipped in the xenhost subpackage
+	subpackages="$subpackages $pkgname-$f"
+done
+
+source="https://ftp.gnu.org/gnu/grub/grub-$pkgver.tar.xz
+	fix-gcc-no-pie-specs.patch
+	grub-xen-host_grub.cfg
+	alpaquita-mkconfig.patch
+	lang-C.UTF-8.patch
+	0001-loader-drop-argv-argument-in-grub_initrd_load.patch
+	0002-efi-add-definition-of-LoadFile2-protocol.patch
+	0003-efi-implemented-LoadFile2-initrd-loading-protocol-fo.patch
+	0004-linux-ignore-FDT-unless-we-need-to-modify-it.patch
+	0005-loader-Move-arm64-linux-loader-to-common-code.patch
+	0008-fix-build-error-in-binutils-2.36.patch
+	0009-fix-kernel-version-detection.patch
+	sbat.alpaquita.csv
+	"
+
+prepare() {
+	default_prepare
+	PYTHON=python3 sh ./autogen.sh
+}
+
+_build_flavor() {
+	local flavor="$1"
+	shift
+	local _configure="$@"
+
+	msg "Building grub for platform $flavor"
+	mkdir -p "$srcdir"/build-$flavor
+	cd "$srcdir"/build-$flavor
+	$builddir/configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--target=$CTARGET \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--disable-nls \
+		--disable-werror \
+		$_configure
+	make
+}
+
+build() {
+	local f
+	for f in $flavors; do
+		case "$f" in
+		bios)		_build_flavor $f --with-platform=pc;;
+		efi)		_build_flavor $f --with-platform=efi --disable-efiemu;;
+		xenhost)	_build_flavor $f --with-platform=xen;;
+		xenhost_pvh)	_build_flavor $f --with-platform=xen_pvh --target=i386;;
+		*)		_build_flavor $f --with-platform=$f;;
+
+		esac
+	done
+}
+
+_install_xen() {
+	grub_dir=$(mktemp -d)
+	cfg=$(mktemp)
+	grub_memdisk=$(mktemp)
+
+	mkdir -p $grub_dir/boot/grub
+	echo 'normal (memdisk)/grub.cfg' > $cfg
+	sed -e "s/@@PVBOOT_ARCH@@/$CARCH/g" \
+		$srcdir/grub-xen-host_grub.cfg \
+			> $grub_dir/grub.cfg
+	tar -cf - -C $grub_dir grub.cfg > $grub_memdisk
+
+	./grub-mkimage \
+		-O $CARCH-xen \
+		-c $cfg \
+		-d ./grub-core ./grub-core/*.mod \
+		-m $grub_memdisk \
+		-o $pkgdir/grub-$CARCH-xen.bin
+
+	rm -r "$grub_dir"
+	rm "$cfg" "$grub_memdisk"
+}
+
+_install_xenpvh() {
+	grub_dir=$(mktemp -d)
+	cfg=$(mktemp)
+	grub_memdisk=$(mktemp)
+
+	mkdir -p $grub_dir/boot/grub
+	echo 'normal (memdisk)/grub.cfg' > $cfg
+	sed -e "s/@@PVBOOT_ARCH@@/$CARCH/g" \
+		$srcdir/grub-xen-host_grub.cfg \
+			> $grub_dir/grub.cfg
+	tar -cf - -C $grub_dir grub.cfg > $grub_memdisk
+
+	echo "About to run grub-mkimage in: $PWD"
+	# Note: only i386-xen_pvh supported
+	./grub-mkimage \
+		-O i386-xen_pvh \
+		-c $cfg \
+		-d ./grub-core ./grub-core/*.mod \
+		-m $grub_memdisk \
+		-o $pkgdir/grub-i386-xen_pvh.bin
+
+	rm -r "$grub_dir"
+	rm "$cfg" "$grub_memdisk"
+}
+
+_install_flavor() {
+	local flavor="$1"
+	cd "$srcdir"/build-$flavor
+	case $flavor in
+	xenhost)	_install_xen;;
+	xenhost_pvh)	_install_xenpvh;;
+	*)	 	make DESTDIR="$pkgdir" install-strip;;
+	esac
+}
+
+package() {
+	# install BIOS & EFI version into the same directory
+	# and overwrite similar files.
+	for f in $flavors; do
+		_install_flavor $f
+	done
+
+	rm -f "$pkgdir"/usr/lib/charset.alias
+	# remove grub-install warning of missing directory
+	mkdir -p "$pkgdir"/usr/share/locale
+
+	mkdir -p "$pkgdir"/etc/default/
+	cat >"$pkgdir"/etc/default/grub <<-EOF
+	GRUB_DISTRIBUTOR="Alpaquita"
+	GRUB_TIMEOUT=2
+	GRUB_DISABLE_SUBMENU=y
+	GRUB_DISABLE_RECOVERY=true
+	EOF
+
+	mkdir -p "$pkgdir"/usr/share/bash-completion
+	mv "$pkgdir"/etc/bash_completion.d "$pkgdir"/usr/share/bash-completion/completions
+}
+
+bios() {
+	pkgdesc="$pkgdesc (BIOS version)"
+	depends="$pkgname"
+	mkdir -p $subpkgdir/usr/lib/grub
+	mv $pkgdir/usr/lib/grub/*-pc $subpkgdir/usr/lib/grub/
+}
+
+_grub_gen_earlyconf() {
+	cat <<- EOF
+	search --no-floppy --set=root --label "alpaquita $CARCH"
+	set prefix=(\$root)/boot/grub
+	EOF
+}
+
+efi() {
+	pkgdesc="$pkgdesc (EFI version)"
+	depends="$pkgname"
+	mkdir -p $subpkgdir/usr/lib/grub
+	mv $pkgdir/usr/lib/grub/*-efi $subpkgdir/usr/lib/grub/
+
+	local _cd_modules="\
+		all_video cat configfile disk echo efi_gop fat gzio \
+		help iso9660 linux ls normal part_gpt part_msdos \
+		search search_label test true \
+		"
+
+	case "$CARCH" in
+	x86*) _cd_modules="$_cd_modules backtrace chain tpm multiboot2 efi_uga";;
+	esac
+
+	local _modules="$_cd_modules \
+		boot btrfs cryptodisk efifwsetup efinet ext2 f2fs font \
+		gcry_rijndael gcry_rsa gcry_serpent gcry_sha256 gcry_twofish \
+		gcry_whirlpool gfxmenu gfxterm halt hfsplus http iso9660 jpeg \
+		loadenv loopback lvm lsefi lsefimmap luks luks2 mdraid09 mdraid1x \
+		minicmd net part_apple password_pbkdf2 pgp png reboot regexp \
+		search_fs_uuid search_fs_file serial sleep syslinuxcfg tftp \
+		video xfs zstd \
+		"
+
+	local _format _efi
+
+	case "$CARCH" in
+	aarch64)_format="arm64-efi";  _efi="aa64.efi" ;;
+	arm*)	_format="arm-efi";    _efi="arm.efi"  ;;
+	x86)	_format="i386-efi";   _efi="ia32.efi" ;;
+	x86_64) _format="x86_64-efi"; _efi="x64.efi"  ;;
+	*)	return 0 ;;
+	esac
+
+	case $_format in
+	x86_64-efi|i386-efi)
+		_modules="$_modules usb \
+			usbserial_common usbserial_pl2303 usbserial_ftdi \
+			usbserial_usbdebug keylayouts at_keyboard \
+			"
+	esac
+
+	local _install_dir="$subpkgdir/usr/lib/grub/$_format/unified"
+
+	mkdir -p $_install_dir
+	_grub_gen_earlyconf > "$builddir"/grub_early.cfg
+
+	sed -e "s,@PKGVER@,$pkgver,g" -e "s,@PKGREL@,$pkgrel," \
+		< "$srcdir"/sbat.alpaquita.csv > "$builddir"/sbat.alpaquita.csv
+
+	# Create unified grub efi with .sbat section for signing
+	# For cd/iso image boot
+	"$srcdir"/build-efi/grub-mkimage \
+		--directory="$subpkgdir/usr/lib/grub/$_format" \
+		--config="$builddir/grub_early.cfg" \
+		--prefix="/boot/grub" \
+		--output="$_install_dir/gcd$_efi" \
+		--format="$_format" \
+		--compression="xz" \
+		--sbat="$builddir/sbat.alpaquita.csv" \
+		$_cd_modules
+
+	# For normal boot
+	"$srcdir"/build-efi/grub-mkimage \
+		--directory="$subpkgdir/usr/lib/grub/$_format" \
+		--prefix="/EFI/alpaquita" \
+		--output="$_install_dir/grub$_efi" \
+		--format="$_format" \
+		--sbat="$builddir/sbat.alpaquita.csv" \
+		$_modules
+}
+
+xenhost() {
+	pkgdesc="$pkgdesc (XEN host version)"
+	mkdir -p $subpkgdir/usr/lib/grub-xen
+	mv $pkgdir/*-xen.bin $subpkgdir/usr/lib/grub-xen/
+
+	# pick up result from xenhost_pvh build as well
+	mv $pkgdir/*-xen_pvh.bin $subpkgdir/usr/lib/grub-xen/
+}
+
+qemu_mips() {
+	pkgdesc="$pkgdesc (QEMU MIPS version)"
+	depends="$pkgname"
+	mkdir -p $subpkgdir/usr/lib/grub
+	mv $pkgdir/usr/lib/grub/*-qemu_mips $subpkgdir/usr/lib/grub/
+}
+
+ieee1275() {
+	pkgdesc="$pkgdesc (IEEE1275 version)"
+	depends="$pkgname powerpc-utils"
+	mkdir -p $subpkgdir/usr/lib/grub
+	mv $pkgdir/usr/lib/grub/*-ieee1275 $subpkgdir/usr/lib/grub/
+}
+
+emu() {
+	pkgdesc="$pkgdesc (EMU version)"
+	depends="$pkgname"
+	mkdir -p $subpkgdir/usr/lib/grub
+	mv $pkgdir/usr/lib/grub/*-emu $subpkgdir/usr/lib/grub/
+}
+
+mkfont() {
+	pkgdesc="$pkgdesc (mkfont utility)"
+	depends="$pkgname"
+	mkdir -p $subpkgdir/usr/bin
+	mv $pkgdir/usr/bin/grub-mkfont $subpkgdir/usr/bin/
+}
+
+mount() {
+	pkgdesc="$pkgdesc (mount utility)"
+	depends="$pkgname"
+	mkdir -p $subpkgdir/usr/bin
+	mv $pkgdir/usr/bin/grub-mount $subpkgdir/usr/bin/
+}
+
+bashcomp() {
+	depends=""
+	pkgdesc="Bash completions for $pkgname"
+	install_if="$pkgname=$pkgver-r$pkgrel bash-completion"
+
+	amove usr/share/bash-completion/completions
+}
+
+sha512sums="
+4f11c648f3078567e53fc0c74d5026fdc6da4be27d188975e79d9a4df817ade0fe5ad2ddd694238a07edc45adfa02943d83c57767dd51548102b375e529e8efe  grub-2.06.tar.xz
+f2a7d9ab6c445f4e402e790db56378cecd6631b5c367451aa6ce5c01cd95b95c83c3dd24d6d4b857f8f42601eba82c855607513eb6ce5b2af6bd6c71f046e288  fix-gcc-no-pie-specs.patch
+4e7394e0fff6772c89683039ccf81099ebbfe4f498e6df408977a1488fd59389b6e19afdbf0860ec271e2b2aea0df7216243dcc8235d1ca3af0e7f4d0a9d60a4  grub-xen-host_grub.cfg
+438d8baf52b9b69dcaaf064a3e8d770991f50ab9262a32ac5cbd9059a2aff8426ebe3c4b8e70a27884fc3fbd1fc3b4e1701cad8c0378902ba29b738e3cb4a90c  alpaquita-mkconfig.patch
+f23702741f2a37c83d0cbf16a000a6229dfd433cd583f3254d523ce35b3668c1db2d8a704a75013e74655ec4f9da5db6b630aa92e3ca5cc47df44cc9e41d1806  lang-C.UTF-8.patch
+c0ea8ef9a3d4e511fae97a4b90dc6f407c5b0a81c922924992f3eccd49fad0886f2e06ff21731cc59d42a6ac28272eb859a7ee9f14642ae1ad705f2cd1da1956  0001-loader-drop-argv-argument-in-grub_initrd_load.patch
+708c3e8ca60638b7961aac64fe1eecb21ef9db844b4a21c2d36303c7fcd71173ba13dc0df3c8ae09b4a0a6a4a5b7fb3c41736a9bf6d1ef367c73dcf5bdf17668  0002-efi-add-definition-of-LoadFile2-protocol.patch
+aa2fbabeab2e8f517128f0d81d3c76eba18b24518b616d4574ffaaec7d4765e02b5b118caf04da1e225342a66700f2774c6a04c1ebfd32747499eb3cbc9b72ea  0003-efi-implemented-LoadFile2-initrd-loading-protocol-fo.patch
+6616373b6c94f48dd8ee0636973451a7cf492ea8dfc854b9c250bcc291d5c3a9efae51ad9d37b7298dc8e6f22041109b4ad8e82cf75c9514b5dfaa78a02d9ce1  0004-linux-ignore-FDT-unless-we-need-to-modify-it.patch
+74b2bf8e9da604c5ca60ed13e389e48ceb4eeea1669b8ac720cdc452a4450676fe4bb961a63d31603bcdc9fe15ab6a8cb74b9ff97b6d7d85f1aaba24b1e9e244  0005-loader-Move-arm64-linux-loader-to-common-code.patch
+8c35663ef72683bd23c18e75134a0ddb1bb9a7c053ed87691e2ac5c9765fdf802761a6ad54f8bdc7999679d9cc5ebea9c01f1c0f615ac90505f7a398129d157b  0008-fix-build-error-in-binutils-2.36.patch
+d4432a36286f0ad7d3527d34e20daf9fbef24d6037171582ae3ccdd51668ffe422b87d984f107a9b4dcf019b89ac76dd322d64e42bbfa64bb6789d3d897fc1f2  0009-fix-kernel-version-detection.patch
+06d8ce8f4dedbfe4b849893689b8689dd0c4e243614d547faca90c9b7e366402c9eff1f6cd624a207ec28c51cbe12d4809b2298dcd3cf99f2ef180dad92c366a  sbat.alpaquita.csv
+"

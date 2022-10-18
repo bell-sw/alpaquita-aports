@@ -1,0 +1,26 @@
+pkgname=perl-test-exception
+_pkgreal=Test-Exception
+pkgver=0.43
+pkgrel=2
+pkgdesc="Perl - Test exception based code"
+url="https://metacpan.org/release/Test-Exception/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-sub-uplevel"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/E/EX/EXODIST/$_pkgreal-$pkgver.tar.gz"
+
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=`perl -MConfig -E 'say $Config{ccflags}'`
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+	make || return 1
+}
+
+package() {
+	make install DESTDIR=$pkgdir
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="f5ab65ce7b142ab7a96b0075838826a7f6b975a151a285e00d99db307bea07b359d5ca44eb678ba93d97b2ae37a112f0002ae1c06bb6e5654b80ce8c5473aa20  Test-Exception-0.43.tar.gz"

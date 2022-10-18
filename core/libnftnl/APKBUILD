@@ -1,0 +1,42 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: a userspace library for low-level interaction with nftables
+# Netlink's API over libmnl.
+
+pkgname=libnftnl
+pkgver=1.2.1
+pkgrel=0
+pkgdesc="Userspace netfilter library"
+url="https://netfilter.org/projects/libnftnl"
+arch="all"
+license="GPL-2.0-or-later"
+makedepends="bash jansson-dev libmnl-dev"
+subpackages="$pkgname-dev"
+source="https://netfilter.org/projects/libnftnl/files/libnftnl-$pkgver.tar.bz2"
+
+build() {
+	cd "$builddir"
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--enable-static
+	make
+}
+
+check() {
+	cd "$builddir"/tests
+	make check
+}
+
+package() {
+	cd "$builddir"
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+cabe6896210c451d7917d1abde5e73a65594d53f011486f75dd7be5b4804c49d10f0e508675e091e1faf0363b82670b3f3a167a85db91d52742dc69445888b6a  libnftnl-1.2.1.tar.bz2
+"

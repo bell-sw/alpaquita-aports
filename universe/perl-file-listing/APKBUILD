@@ -1,0 +1,35 @@
+pkgname=perl-file-listing
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=File-Listing
+pkgver=6.14
+pkgrel=0
+pkgdesc="Parse directory listing"
+replaces="perl-libwww"
+url="https://metacpan.org/release/File-Listing/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-http-date"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/P/PL/PLICEASE/File-Listing-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+
+sha512sums="
+858339b15a455db570d15b02e801ab0e0afd47da71685002083cbcc1a0f89783fcad4e840e0381f186046ab2f355dc0f593dc8c9c0a2da0fc6f17a35265924ab  File-Listing-6.14.tar.gz
+"

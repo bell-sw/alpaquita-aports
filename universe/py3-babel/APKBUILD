@@ -1,0 +1,35 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=py3-babel
+_pkgname=Babel
+pkgver=2.9.1
+pkgrel=1
+pkgdesc="Python3 i18n tool"
+url="http://babel.pocoo.org/"
+arch="noarch"
+license="BSD-3-Clause"
+depends="python3 py3-tz"
+makedepends="py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces="py-babel" # Backwards compatibility
+provides="py-babel=$pkgver-r$pkgrel" # Backwards compatibility
+
+# secfixes:
+#   2.9.1-r0:
+#     - CVE-2021-42771
+
+build() {
+	python3 setup.py build
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+89a2ce18301b522907bb66ec5453cbcd4c6b2d494d6928c9c62dc07bd8b6983982db571a85e251a1ea413b6f76fbd515f65c67c9bccf5441c62d351a57f2f4d0  Babel-2.9.1.tar.gz
+"

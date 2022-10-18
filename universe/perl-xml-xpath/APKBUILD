@@ -1,0 +1,31 @@
+pkgname=perl-xml-xpath
+_pkgreal=XML-XPath
+pkgver=1.47
+pkgrel=0
+pkgdesc="Parse and evaluate XPath statements."
+url="https://metacpan.org/release/XML-XPath/"
+arch="noarch"
+license="Artistic-2.0"
+depends="perl perl-xml-parser"
+makedepends="perl-path-tiny"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/M/MA/MANWAR/XML-XPath-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+823cd309c185536a37ada566d4f9f445e9fb83b4e7cc442a9c4e141f6ebb7c911abec260c015ea9d3c6cbc06139a607310746fec87347a591d87375b92c5e859  XML-XPath-1.47.tar.gz
+"

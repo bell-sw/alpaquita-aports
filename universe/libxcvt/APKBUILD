@@ -1,0 +1,45 @@
+pkgname=libxcvt
+pkgver=0.1.1
+pkgrel=2
+pkgdesc="xorg xcvt library and cvt program"
+url="https://gitlab.freedesktop.org/xorg/lib/libxcvt"
+arch="all"
+license="custom"
+# older xorg-server versions included this package but it has since been split out
+# make sure we can upgrade properly to xorg-server 21.1.1 and later
+replaces="xorg-server<21.1.1"
+makedepends="meson"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://xorg.freedesktop.org/releases/individual/lib/libxcvt-$pkgver.tar.xz"
+
+build() {
+	meson \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--buildtype=plain \
+		--libdir=/usr/lib \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+	install -D -m644 "$srcdir"/$pkgname-$pkgver/COPYING \
+		"$pkgdir"/usr/share/licenses/$pkgname/COPYING
+}
+
+doc() {
+	default_doc
+
+	replaces="xorg-server-doc<21.1.1"
+}
+
+sha512sums="
+50e9cd0283858823d4cfde75f06e23ffc42983272cb1f75408052fb5b76a4bb6f9de7d42d8ff9ec0dae6e95eefebc6273e03c919a92f237585db55eaf1a57005  libxcvt-0.1.1.tar.xz
+"

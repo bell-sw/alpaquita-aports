@@ -1,0 +1,38 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=py3-requests
+pkgver=2.27.1
+pkgrel=0
+pkgdesc="HTTP request library for Python3"
+url="http://www.python-requests.org/"
+arch="noarch"
+license="Apache-2.0"
+# Requirements for tests are not available in main
+options="!check"
+depends="
+	py3-certifi
+	py3-charset-normalizer
+	py3-idna
+	py3-urllib3
+	python3
+	"
+makedepends="py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/r/requests/requests-$pkgver.tar.gz"
+builddir="$srcdir/requests-$pkgver"
+
+replaces="py-requests" # Backwards compatibility
+provides="py-requests=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+e51916abea8125254c5ee72c97e84a73e6981cab09961486873387522d2ce041ee3fe8fa2ff0b9bbe6707eefdc05145e9adcf127bcd999dea127acdfabd5312f  requests-2.27.1.tar.gz
+"

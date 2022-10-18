@@ -1,0 +1,32 @@
+#!/bin/sh
+
+# remove links that has been relocated or removed
+# - generate a list of all symlinks in bin dirs and a list with all busybox
+#   applets
+# - sort the list and print all lines that are unique. This is the list of
+#   symlinks that does not exist in the busybox applets list.
+# - use stat to find the target of those symlinks printed as:
+#     '/path/to/symlink' -> '/path/to/target'
+#   The "2>/dev/null" is used to stop "can't stat" warnings appearing on
+#   the console for each new command added by the new version of the
+#   busybox package.
+# - use awk to print the symlinks that points to '/usr/bin/busybox'
+# - use sed to strip the leading and training ' chars
+# - finally pass the list to rm for removing the symlinks that points to
+#   busybox but does not exist in the `busybox --list-all` list
+cd /
+( find usr/bin usr/sbin -maxdepth 1 -type l; busybox --list-all) \
+	| sort | uniq -u \
+	| xargs -r stat -c "%N" 2>/dev/null \
+	| awk "\$3 ~ \"'(/|/usr/)bin/busybox'\" {print \$1}" \
+	| sed "s/^'//; s/'$//" \
+	| xargs -r rm
+
+for link in /usr/bin/ping /usr/bin/ping6; do
+	if [ -L "$link" ] && [ "$(readlink $link)" = "/usr/bin/bbsuid" ]; then
+		rm "$link"
+	fi
+done
+
+# We need the symlinks early
+exec /usr/bin/busybox --install -s

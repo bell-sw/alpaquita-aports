@@ -1,0 +1,27 @@
+--- a/src/java.base/unix/native/include/jni_md.h	Fri Sep 11 16:12:45 2020 +0000
++++ b/src/java.base/unix/native/include/jni_md.h	Fri Nov 27 19:12:26 2020 +0300
+@@ -32,22 +32,14 @@
+ 
+ #ifndef JNIEXPORT
+   #if (defined(__GNUC__) && ((__GNUC__ > 4) || (__GNUC__ == 4) && (__GNUC_MINOR__ > 2))) || __has_attribute(visibility)
+-    #ifdef ARM
+-      #define JNIEXPORT     __attribute__((externally_visible,visibility("default")))
+-    #else
+-      #define JNIEXPORT     __attribute__((visibility("default")))
+-    #endif
++    #define JNIEXPORT     __attribute__((externally_visible,visibility("default")))
+   #else
+     #define JNIEXPORT
+   #endif
+ #endif
+ 
+ #if (defined(__GNUC__) && ((__GNUC__ > 4) || (__GNUC__ == 4) && (__GNUC_MINOR__ > 2))) || __has_attribute(visibility)
+-  #ifdef ARM
+-    #define JNIIMPORT     __attribute__((externally_visible,visibility("default")))
+-  #else
+-    #define JNIIMPORT     __attribute__((visibility("default")))
+-  #endif
++  #define JNIIMPORT     __attribute__((externally_visible,visibility("default")))
+ #else
+   #define JNIIMPORT
+ #endif

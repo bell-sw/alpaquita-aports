@@ -1,0 +1,51 @@
+pkgname=jack
+pkgver=1.9.20
+pkgrel=0
+pkgdesc="The Jack Audio Connection Kit"
+url="https://www.jackaudio.org/"
+arch="all"
+license="GPL-2.0 GPL-2.0-or-later LGPL-2.0-or-later"
+makedepends="$depends_dev alsa-lib-dev dbus-dev expat-dev libsamplerate-dev
+	libsndfile-dev ncurses-dev readline-dev python3 linux-headers"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-dbus $pkgname-example-clients:_clients"
+source="https://github.com/jackaudio/jack2/archive/v$pkgver/jack2-v$pkgver.tar.gz
+	fix-execinfo.patch
+	increase-api-version.patch
+	"
+builddir="$srcdir/jack2-$pkgver"
+options="!check" # no real tests provided
+
+build() {
+	./waf configure \
+		--prefix=/usr \
+		--mandir=/usr/share/man/man1 \
+		--libdir=/usr/lib \
+		--dbus \
+		--alsa \
+		--classic
+
+	./waf build -v
+}
+
+package() {
+	./waf --destdir="$pkgdir" install
+}
+
+dbus() {
+	pkgdesc="Jack D-Bus launcher"
+	mkdir -p "$subpkgdir"/usr/bin "$subpkgdir"/usr/share
+	mv "$pkgdir"/usr/bin/jackdbus "$subpkgdir"/usr/bin/
+	mv "$pkgdir"/usr/share/dbus* "$subpkgdir"/usr/share/
+}
+
+_clients() {
+	pkgdesc="Example clients that use Jack"
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/*_* "$subpkgdir"/usr/bin/
+}
+
+sha512sums="
+e4bffea5fadcf6fc8a40bb88b6f7266bc42d8fa743d5e00be786df00b19b9e02e42ce6cb5db3a9523eb3b2bc319234ac33c00b2c1e2ac7d1c875890d55da30b4  jack2-v1.9.20.tar.gz
+b5abec7e67485d1c13f399b5961539177dd35d21c5dd95e0aa767adb0f5b1e588e9ca2f9b29cc4d66fc039311ff7eacc4cf21f6700ef0a2c8de99b63cb00f84d  fix-execinfo.patch
+d187d6a5e4e5c748d4f5eccf66a76249a4eb7135c22e32ca40eb2ea806ec6877074d8ba91c9cc106ae8e62ada6afda248fa48ebb147c720576ab092904993f51  increase-api-version.patch
+"

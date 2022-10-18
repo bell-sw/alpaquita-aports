@@ -1,0 +1,30 @@
+pkgname=py3-xmlschema
+pkgver=1.11.0
+pkgrel=0
+pkgdesc="XML schema validator and conversion library"
+url="https://github.com/sissaschool/xmlschema"
+arch="noarch"
+license="MIT"
+depends="py3-elementpath"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest"
+source="$pkgname-$pkgver.tar.gz::https://github.com/sissaschool/xmlschema/archive/refs/tags/v$pkgver.tar.gz"
+builddir="$srcdir/xmlschema-$pkgver/"
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	# disabled test requires install/fake install
+	pytest \
+		--deselect tests/test_etree_import.py::TestElementTreeImport::test_element_tree_import_script
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+6cc93e58e2d1dbed5d72cbb985c99c0ed24650234a3bab55245acabf7dbca871066fbae75ffd9b0ec436c0d36ca71e62cb743aff2f8b4e0b20dce28a688126a8  py3-xmlschema-1.11.0.tar.gz
+"

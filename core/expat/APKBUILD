@@ -1,0 +1,63 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: expat is a stream-oriented XML parser in C suitable for large
+# files.
+
+pkgname=expat
+pkgver=2.4.8
+pkgrel=0
+pkgdesc="C library for XML parsing"
+url="https://libexpat.github.io/"
+arch="all"
+license='MIT'
+checkdepends="bash"
+source="https://github.com/libexpat/libexpat/releases/download/R_${pkgver//./_}/expat-${pkgver}.tar.xz"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
+
+# secfixes:
+#   2.4.5-r0:
+#     - CVE-2022-25235
+#     - CVE-2022-25236
+#     - CVE-2022-25313
+#     - CVE-2022-25314
+#     - CVE-2022-25315
+#   2.4.4-r0:
+#     - CVE-2022-23852
+#     - CVE-2022-23990
+#   2.4.3-r0:
+#     - CVE-2021-45960
+#     - CVE-2021-46143
+#     - CVE-2022-22822
+#     - CVE-2022-22823
+#     - CVE-2022-22824
+#     - CVE-2022-22825
+#     - CVE-2022-22826
+#     - CVE-2022-22827
+#   2.2.7-r1:
+#     - CVE-2019-15903
+#   2.2.7-r0:
+#     - CVE-2018-20843
+#   2.2.0-r1:
+#     - CVE-2017-9233
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		--enable-static
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir/" install
+}
+
+sha512sums="
+46cc9d725f359b77681a2875bfefa15ceee50eb9513f6577607c0c5833dfa4241565c74f26b84b38d802c3cd8c32f00204fd74272bcecbd21229425764eef86c  expat-2.4.8.tar.bz2
+"

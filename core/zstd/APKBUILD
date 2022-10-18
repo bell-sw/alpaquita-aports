@@ -1,0 +1,74 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: reference implementation of a lossless data compression
+# algorithm developed by Yann Collet at Facebook.
+
+pkgname=zstd
+pkgver=1.5.2
+pkgrel=1
+pkgdesc="Zstandard Library"
+url="https://www.zstd.net/"
+arch="all"
+license="BSD-3-Clause GPL-2.0-or-later"
+makedepends="grep meson"
+checkdepends="file"
+subpackages="
+	$pkgname-static
+	$pkgname-libs
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-frugal
+	pzstd
+	"
+source="zstd-$pkgver.tar.gz::https://github.com/facebook/zstd/archive/v$pkgver.tar.gz
+	disable-valgrind-test.patch
+	"
+
+# secfixes:
+#   1.4.9-r0:
+#     - CVE-2021-24032
+#   1.4.1-r0:
+#     - CVE-2021-24031
+#   1.3.8-r0:
+#     - CVE-2019-11922
+
+export CFLAGS="${CFLAGS/-Os/-O2}"
+export CXXFLAGS="${CXXFLAGS/-Os/-O2}"
+
+build() {
+	abuild-meson \
+		-Dbacktrace=true \
+		-Dbin_contrib=true \
+		-Dbin_programs=true \
+		-Dbin_tests="$(want_check && echo true || echo false)" \
+		-Ddebug_level=0 \
+		-Ddefault_library=both \
+		-Dlz4=disabled \
+		-Dlzma=disabled \
+		-Dzlib=disabled \
+		build/meson output
+	meson compile -C output
+}
+
+check() {
+	meson test --no-rebuild -t 2 -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+pzstd() {
+	pkgdesc="parallel zstd"
+	amove usr/bin/pzstd
+}
+
+frugal() {
+	pkgdesc="$pkgdesc (compressor only)"
+	amove usr/bin/zstd-frugal
+}
+
+sha512sums="
+e107508a41fca50845cc2494e64adaba93efb95a2fa486fc962510a8ba4b2180d93067cae9870f119e88e5e8b28a046bc2240b0b23cdd8933d1fb1a6a9668c1e  zstd-1.5.2.tar.gz
+6e880ddc385dbc40c04970afff670e7e5a48b800b478147dea34603696d94b8720b6bf0507112c779be97eef6791ef3fa2ae1b6198d2ffa7726f881dc15ef4fb  disable-valgrind-test.patch
+"

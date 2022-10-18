@@ -1,0 +1,49 @@
+pkgname=pango
+pkgver=1.50.7
+pkgrel=0
+pkgdesc="library for layout and rendering of text"
+url="https://www.pango.org/"
+arch="all"
+license="LGPL-2.1-or-later"
+depends_dev="pango-tools=$pkgver-r$pkgrel"
+makedepends="meson cairo-dev expat-dev gobject-introspection-dev help2man
+	fontconfig-dev glib-dev harfbuzz-dev libxft-dev fribidi-dev
+	gtk-doc"
+checkdepends="ttf-dejavu ttf-cantarell ttf-droid ttf-tlwg"
+install="$pkgname.pre-deinstall"
+triggers="$pkgname.trigger=/usr/lib/pango/*/modules"
+subpackages="$pkgname-dbg $pkgname-dev $pkgname-doc $pkgname-tools"
+source="https://download.gnome.org/sources/pango/${pkgver%.*}/pango-$pkgver.tar.xz
+	disable-broken-test.patch
+	"
+
+# secfixes:
+#   1.44.1-r0:
+#     - CVE-2019-1010238
+
+build() {
+	abuild-meson \
+		-Dintrospection=enabled \
+		-Dgtk_doc=false \
+		build
+	meson compile ${JOBS:+-j ${JOBS}} -C build
+}
+
+check() {
+	meson test --no-rebuild -v -C build
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C build
+}
+
+tools() {
+	pkgdesc="$pkgdesc (tools)"
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/* "$subpkgdir"/usr/bin
+}
+
+sha512sums="
+4d754ed753fc34074c2a8751459406af7eb1eccb227c6158287f7e2921614d918cae47d078d4a2b4c098b641e40274e81bf1ec6b6a1b147efd550626665767d3  pango-1.50.7.tar.xz
+3623ef34e08427c70b4f2f89eefe13258646a935c450d9ad703c30018343aef245749e6a3708f299fd696d9f1ec0eeab116131e51918fc1765f61545202aaab0  disable-broken-test.patch
+"

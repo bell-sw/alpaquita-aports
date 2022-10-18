@@ -1,0 +1,32 @@
+pkgname=perl-json-maybexs
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=JSON-MaybeXS
+pkgver=1.004003
+pkgrel=0
+pkgdesc="Use L<Cpanel::JSON::XS> with a fallback to L<JSON::XS> and L<JSON::PP>"
+url="https://metacpan.org/release/JSON-MaybeXS/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+checkdepends="perl-test-needs"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/E/ET/ETHER/JSON-MaybeXS-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="4690be671ea59f82ab24cc5c72d0f4a98a21f40d33c0acac853a2b15eac38933f7af3e1212ee6b5479d5e639246ebb5726c25e837996722fcfef7029dd5ed6fe  JSON-MaybeXS-1.004003.tar.gz"

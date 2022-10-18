@@ -1,0 +1,28 @@
+pkgname=py3-pbr
+_pkgname=pbr
+pkgver=5.9.0
+pkgrel=0
+pkgdesc="Python3 Build Reasonableness"
+url="https://pypi.python.org/pypi/pbr"
+arch="noarch"
+license="Apache-2.0"
+depends="python3"
+makedepends="py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+options="!check" # requires testscenarios from pypi
+
+replaces="py-pbr" # Backwards compatibility
+provides="py-pbr=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+b36cc331664b91899a884bb1bc6980174ba2463db35c591d480d0b5a49dd37781132893e488c6a9238fbd2ec16589652d66b01a8c2701d02ff5c0b04e9c6121b  pbr-5.9.0.tar.gz
+"

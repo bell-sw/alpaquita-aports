@@ -1,0 +1,312 @@
+From 7ed057bf333757f57d6a9d93ecb0c16ef5ad9289 Mon Sep 17 00:00:00 2001
+From: dsamersoff <dms@samersoff.net>
+Date: Wed, 9 Jun 2021 10:53:28 +0300
+Subject: [PATCH 1/3] 8071913 Fixed
+
+---
+ src/hotspot/share/gc/g1/g1CollectedHeap.hpp   |  6 ++
+ .../share/gc/g1/g1CollectedHeap.inline.hpp    | 13 ++++
+ src/hotspot/share/gc/g1/g1RemSet.cpp          | 59 ++++++++++++-------
+ src/hotspot/share/gc/g1/heapRegionManager.hpp | 12 ++--
+ .../share/gc/g1/heapRegionManager.inline.hpp  | 10 ++++
+ src/hotspot/share/gc/g1/heapRegionRemSet.cpp  |  4 +-
+ src/hotspot/share/gc/g1/heapRegionRemSet.hpp  | 10 +++-
+ 7 files changed, 85 insertions(+), 29 deletions(-)
+
+diff --git a/src/hotspot/share/gc/g1/g1CollectedHeap.hpp b/src/hotspot/share/gc/g1/g1CollectedHeap.hpp
+index be160d04bf..befa92be58 100644
+--- a/src/hotspot/share/gc/g1/g1CollectedHeap.hpp
++++ b/src/hotspot/share/gc/g1/g1CollectedHeap.hpp
+@@ -1132,6 +1132,7 @@ public:
+ 
+   // Return the region with the given index. It assumes the index is valid.
+   inline HeapRegion* region_at(uint index) const;
++  inline HeapRegion* region_at_or_null(uint index) const;
+ 
+   // Return the next region (by index) that is part of the same
+   // humongous object that hr is part of.
+@@ -1169,6 +1170,11 @@ public:
+   template <class T>
+   inline HeapRegion* heap_region_containing(const T addr) const;
+ 
++  // Returns the HeapRegion that contains addr, or NULL if that is an uncommitted
++  // region. addr must not be NULL.
++  template <class T>
++  inline HeapRegion* heap_region_containing_or_null(const T addr) const;
++
+   // A CollectedHeap is divided into a dense sequence of "blocks"; that is,
+   // each address in the (reserved) heap is a member of exactly
+   // one block.  The defining characteristic of a block is that it is
+diff --git a/src/hotspot/share/gc/g1/g1CollectedHeap.inline.hpp b/src/hotspot/share/gc/g1/g1CollectedHeap.inline.hpp
+index 00c81c4eef..d019a2dffa 100644
+--- a/src/hotspot/share/gc/g1/g1CollectedHeap.inline.hpp
++++ b/src/hotspot/share/gc/g1/g1CollectedHeap.inline.hpp
+@@ -59,6 +59,9 @@ size_t G1CollectedHeap::desired_plab_sz(InCSetState dest) {
+ // Return the region with the given index. It assumes the index is valid.
+ inline HeapRegion* G1CollectedHeap::region_at(uint index) const { return _hrm.at(index); }
+ 
++// Return the region with the given index, or NULL if unmapped. It assumes the index is valid.
++inline HeapRegion* G1CollectedHeap::region_at_or_null(uint index) const { return _hrm.at_or_null(index); }
++
+ inline HeapRegion* G1CollectedHeap::next_region_in_humongous(HeapRegion* hr) const {
+   return _hrm.next_region_in_humongous(hr);
+ }
+@@ -83,6 +86,16 @@ inline HeapRegion* G1CollectedHeap::heap_region_containing(const T addr) const {
+   return _hrm.addr_to_region((HeapWord*) addr);
+ }
+ 
++template <class T>
++inline HeapRegion* G1CollectedHeap::heap_region_containing_or_null(const T addr) const {
++  assert(addr != NULL, "invariant");
++  assert(is_in_g1_reserved((const void*) addr),
++         "Address " PTR_FORMAT " is outside of the heap ranging from [" PTR_FORMAT " to " PTR_FORMAT ")",
++         p2i((void*)addr), p2i(g1_reserved().start()), p2i(g1_reserved().end()));
++  uint const region_idx = addr_to_region(addr);
++  return region_at_or_null(region_idx);
++}
++
+ inline void G1CollectedHeap::old_set_add(HeapRegion* hr) {
+   _old_set.add(hr);
+ }
+diff --git a/src/hotspot/share/gc/g1/g1RemSet.cpp b/src/hotspot/share/gc/g1/g1RemSet.cpp
+index de759878bb..fb210d67ea 100644
+--- a/src/hotspot/share/gc/g1/g1RemSet.cpp
++++ b/src/hotspot/share/gc/g1/g1RemSet.cpp
+@@ -132,10 +132,10 @@ private:
+ 
+     virtual bool do_heap_region(HeapRegion* r) {
+       uint hrm_index = r->hrm_index();
+-      if (!r->in_collection_set() && r->is_old_or_humongous()) {
++      if (!r->in_collection_set() && r->is_old_or_humongous() && !r->is_empty()) {
+         _scan_top[hrm_index] = r->top();
+       } else {
+-        _scan_top[hrm_index] = r->bottom();
++        _scan_top[hrm_index] = NULL;
+       }
+       return false;
+     }
+@@ -190,6 +190,7 @@ public:
+   void reset() {
+     for (uint i = 0; i < _max_regions; i++) {
+       _iter_states[i] = Unclaimed;
++      _scan_top[i] = NULL;
+     }
+ 
+     G1ResetScanTopClosure cl(_scan_top);
+@@ -348,6 +349,10 @@ void G1ScanRSForRegionClosure::scan_rem_set_roots(HeapRegion* r) {
+     _scan_state->add_dirty_region(region_idx);
+   }
+ 
++  if (r->rem_set()->cardset_is_empty()) {
++    return;
++  }
++
+   // We claim cards in blocks so as to reduce the contention.
+   size_t const block_size = G1RSetScanBlockSize;
+ 
+@@ -365,21 +370,24 @@ void G1ScanRSForRegionClosure::scan_rem_set_roots(HeapRegion* r) {
+     }
+     _cards_claimed++;
+ 
+-    // If the card is dirty, then G1 will scan it during Update RS.
+-    if (_ct->is_card_claimed(card_index) || _ct->is_card_dirty(card_index)) {
+-      continue;
+-    }
+-
+-    HeapWord* const card_start = _g1h->bot()->address_for_index(card_index);
++    HeapWord* const card_start = _g1h->bot()->address_for_index_raw(card_index);
+     uint const region_idx_for_card = _g1h->addr_to_region(card_start);
+ 
+-    assert(_g1h->region_at(region_idx_for_card)->is_in_reserved(card_start),
++#ifdef ASSERT
++    HeapRegion* hr = _g1h->region_at_or_null(region_idx_for_card);
++    assert(hr == NULL || hr->is_in_reserved(card_start),
+            "Card start " PTR_FORMAT " to scan outside of region %u", p2i(card_start), _g1h->region_at(region_idx_for_card)->hrm_index());
++#endif
+     HeapWord* const top = _scan_state->scan_top(region_idx_for_card);
+     if (card_start >= top) {
+       continue;
+     }
+ 
++    // If the card is dirty, then G1 will scan it during Update RS.
++    if (_ct->is_card_claimed(card_index) || _ct->is_card_dirty(card_index)) {
++      continue;
++    }
++
+     // We claim lazily (so races are possible but they're benign), which reduces the
+     // number of duplicate scans (the rsets of the regions in the cset can intersect).
+     // Claim the card after checking bounds above: the remembered set may contain
+@@ -540,6 +548,16 @@ void G1RemSet::refine_card_concurrently(jbyte* card_ptr,
+                                         uint worker_i) {
+   assert(!_g1h->is_gc_active(), "Only call concurrently");
+ 
++  // Construct the region representing the card.
++  HeapWord* start = _ct->addr_for(card_ptr);
++  // And find the region containing it.
++  HeapRegion* r = _g1h->heap_region_containing_or_null(start);
++
++  // If this is a (stale) card into an uncommitted region, exit.
++  if (r == NULL) {
++    return;
++  }
++
+   check_card_ptr(card_ptr, _ct);
+ 
+   // If the card is no longer dirty, nothing to do.
+@@ -547,11 +565,6 @@ void G1RemSet::refine_card_concurrently(jbyte* card_ptr,
+     return;
+   }
+ 
+-  // Construct the region representing the card.
+-  HeapWord* start = _ct->addr_for(card_ptr);
+-  // And find the region containing it.
+-  HeapRegion* r = _g1h->heap_region_containing(start);
+-
+   // This check is needed for some uncommon cases where we should
+   // ignore the card.
+   //
+@@ -674,6 +687,18 @@ bool G1RemSet::refine_card_during_gc(jbyte* card_ptr,
+                                      G1ScanObjsDuringUpdateRSClosure* update_rs_cl) {
+   assert(_g1h->is_gc_active(), "Only call during GC");
+ 
++  // Construct the region representing the card.
++  HeapWord* card_start = _ct->addr_for(card_ptr);
++  // And find the region containing it.
++  uint const card_region_idx = _g1h->addr_to_region(card_start);
++
++  HeapWord* scan_limit = _scan_state->scan_top(card_region_idx);
++  if (scan_limit == NULL) {
++    // This is a card into an uncommitted region. We need to bail out early as we
++    // should not access the corresponding card table entry.
++    return false;
++  }
++
+   check_card_ptr(card_ptr, _ct);
+ 
+   // If the card is no longer dirty, nothing to do. This covers cards that were already
+@@ -686,13 +711,7 @@ bool G1RemSet::refine_card_during_gc(jbyte* card_ptr,
+   // number of potential duplicate scans (multiple threads may enqueue the same card twice).
+   *card_ptr = G1CardTable::clean_card_val() | G1CardTable::claimed_card_val();
+ 
+-  // Construct the region representing the card.
+-  HeapWord* card_start = _ct->addr_for(card_ptr);
+-  // And find the region containing it.
+-  uint const card_region_idx = _g1h->addr_to_region(card_start);
+-
+   _scan_state->add_dirty_region(card_region_idx);
+-  HeapWord* scan_limit = _scan_state->scan_top(card_region_idx);
+   if (scan_limit <= card_start) {
+     // If the card starts above the area in the region containing objects to scan, skip it.
+     return false;
+diff --git a/src/hotspot/share/gc/g1/heapRegionManager.hpp b/src/hotspot/share/gc/g1/heapRegionManager.hpp
+index 1dc719dc9f..385d837942 100644
+--- a/src/hotspot/share/gc/g1/heapRegionManager.hpp
++++ b/src/hotspot/share/gc/g1/heapRegionManager.hpp
+@@ -123,10 +123,7 @@ class HeapRegionManager: public CHeapObj<mtGC> {
+ public:
+   bool is_free(HeapRegion* hr) const;
+ #endif
+-  // Returns whether the given region is available for allocation.
+-  bool is_available(uint region) const;
+-
+- public:
++public:
+   // Empty constructor, we'll initialize it with the initialize() method.
+   HeapRegionManager() : _regions(), _heap_mapper(NULL), _num_committed(0),
+                     _next_bitmap_mapper(NULL), _prev_bitmap_mapper(NULL), _bot_mapper(NULL),
+@@ -151,6 +148,13 @@ public:
+   // is valid.
+   inline HeapRegion* at(uint index) const;
+ 
++  // Return the HeapRegion at the given index, NULL if the index
++  // is for an unavailable region.
++  inline HeapRegion* at_or_null(uint index) const;
++
++  // Returns whether the given region is available for allocation.
++  bool is_available(uint region) const;
++
+   // Return the next region (by index) that is part of the same
+   // humongous object that hr is part of.
+   inline HeapRegion* next_region_in_humongous(HeapRegion* hr) const;
+diff --git a/src/hotspot/share/gc/g1/heapRegionManager.inline.hpp b/src/hotspot/share/gc/g1/heapRegionManager.inline.hpp
+index 67b31149b1..de6e85a422 100644
+--- a/src/hotspot/share/gc/g1/heapRegionManager.inline.hpp
++++ b/src/hotspot/share/gc/g1/heapRegionManager.inline.hpp
+@@ -47,6 +47,16 @@ inline HeapRegion* HeapRegionManager::at(uint index) const {
+   return hr;
+ }
+ 
++inline HeapRegion* HeapRegionManager::at_or_null(uint index) const {
++  if (!is_available(index)) {
++    return NULL;
++  }
++  HeapRegion* hr = _regions.get_by_index(index);
++  assert(hr != NULL, "All available regions must have a HeapRegion but index %u has not.", index);
++  assert(hr->hrm_index() == index, "sanity");
++  return hr;
++}
++
+ inline HeapRegion* HeapRegionManager::next_region_in_humongous(HeapRegion* hr) const {
+   uint index = hr->hrm_index();
+   assert(is_available(index), "pre-condition");
+diff --git a/src/hotspot/share/gc/g1/heapRegionRemSet.cpp b/src/hotspot/share/gc/g1/heapRegionRemSet.cpp
+index 7f01d583e5..5a541b732b 100644
+--- a/src/hotspot/share/gc/g1/heapRegionRemSet.cpp
++++ b/src/hotspot/share/gc/g1/heapRegionRemSet.cpp
+@@ -745,7 +745,7 @@ bool HeapRegionRemSetIterator::coarse_has_next(size_t& card_index) {
+       _coarse_cur_region_cur_card = 0;
+       HeapWord* r_bot =
+         _g1h->region_at((uint) _coarse_cur_region_index)->bottom();
+-      _cur_region_card_offset = _bot->index_for(r_bot);
++      _cur_region_card_offset = _bot->index_for_raw(r_bot);
+     } else {
+       return false;
+     }
+@@ -786,7 +786,7 @@ void HeapRegionRemSetIterator::switch_to_prt(PerRegionTable* prt) {
+   _fine_cur_prt = prt;
+ 
+   HeapWord* r_bot = _fine_cur_prt->hr()->bottom();
+-  _cur_region_card_offset = _bot->index_for(r_bot);
++  _cur_region_card_offset = _bot->index_for_raw(r_bot);
+ 
+   // The bitmap scan for the PRT always scans from _cur_region_cur_card + 1.
+   // To avoid special-casing this start case, and not miss the first bitmap
+diff --git a/src/hotspot/share/gc/g1/heapRegionRemSet.hpp b/src/hotspot/share/gc/g1/heapRegionRemSet.hpp
+index 4659fc7aa4..a50d154019 100644
+--- a/src/hotspot/share/gc/g1/heapRegionRemSet.hpp
++++ b/src/hotspot/share/gc/g1/heapRegionRemSet.hpp
+@@ -187,8 +187,12 @@ public:
+ 
+   static void setup_remset_size();
+ 
++  bool cardset_is_empty() const {
++    return _other_regions.is_empty();
++  }
++
+   bool is_empty() const {
+-    return (strong_code_roots_list_length() == 0) && _other_regions.is_empty();
++    return (strong_code_roots_list_length() == 0) && cardset_is_empty();
+   }
+ 
+   bool occupancy_less_or_equal_than(size_t occ) const {
+@@ -353,7 +357,7 @@ public:
+ };
+ 
+ class HeapRegionRemSetIterator : public StackObj {
+- private:
++private:
+   // The region RSet over which we are iterating.
+   HeapRegionRemSet* _hrrs;
+ 
+@@ -401,7 +405,7 @@ class HeapRegionRemSetIterator : public StackObj {
+   // The Sparse remembered set iterator.
+   SparsePRTIter _sparse_iter;
+ 
+- public:
++public:
+   HeapRegionRemSetIterator(HeapRegionRemSet* hrrs);
+ 
+   // If there remains one or more cards to be yielded, returns true and
+-- 
+2.17.1
+

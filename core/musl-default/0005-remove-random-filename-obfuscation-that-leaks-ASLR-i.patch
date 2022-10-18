@@ -1,0 +1,53 @@
+From 4100279825c17807bdabf1c128ba4e49a1dea406 Mon Sep 17 00:00:00 2001
+From: Rich Felker <dalias@aerifal.cx>
+Date: Fri, 3 Jun 2022 18:54:41 -0400
+Subject: [PATCH] remove random filename obfuscation that leaks ASLR information
+
+the __randname function is used by various temp file creation
+interfaces as a backend to produce a name to attempt using. it does
+not have to produce results that are safe against guessing, and only
+aims to avoid unintentional collisions.
+
+mixing the address of an object on the stack in a reversible manner
+leaked ASLR information, potentially allowing an attacker who can
+observe the temp files created and their creation timestamps to narrow
+down the possible ASLR state of the process that created them. there
+is no actual value in mixing these addresses in; it was just
+obfuscation. so don't do it.
+
+instead, mix the tid, just to avoid collisions if multiple
+processes/threads stampede to create temp files at the same moment.
+even without this measure, they should not collide unless the clock
+source is very low resolution, but it's a cheap improvement.
+
+if/when we have a guaranteed-available userspace csprng, it could be
+used here instead. even though there is no need for cryptographic
+entropy here, it would avoid having to reason about clock resolution
+and such to determine whether the behavior is nice.
+---
+ src/temp/__randname.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/temp/__randname.c b/src/temp/__randname.c
+index 2bce37a0..1425badc 100644
+--- a/src/temp/__randname.c
++++ b/src/temp/__randname.c
+@@ -1,5 +1,6 @@
+ #include <time.h>
+ #include <stdint.h>
++#include "pthread_impl.h"
+ 
+ /* This assumes that a check for the
+    template size has already been made */
+@@ -10,7 +11,7 @@ char *__randname(char *template)
+ 	unsigned long r;
+ 
+ 	__clock_gettime(CLOCK_REALTIME, &ts);
+-	r = ts.tv_nsec*65537 ^ (uintptr_t)&ts / 16 + (uintptr_t)template;
++	r = ts.tv_nsec + __pthread_self()->tid * 65537UL;
+ 	for (i=0; i<6; i++, r>>=5)
+ 		template[i] = 'A'+(r&15)+(r&16)*2;
+ 
+-- 
+2.25.1
+

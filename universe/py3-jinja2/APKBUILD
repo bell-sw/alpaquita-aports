@@ -1,0 +1,49 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=py3-jinja2
+_pkgname=Jinja2
+# 3.1.0 removes `Markup` (replaced by MarkupSafe only),
+# fix it later..
+pkgver=3.0.3
+pkgrel=1
+pkgdesc="A small but fast and easy to use stand-alone python template engine"
+url="https://palletsprojects.com/p/jinja/"
+arch="noarch"
+license="BSD-3-Clause"
+depends="py3-markupsafe"
+checkdepends="py3-pytest"
+makedepends="python3-dev py3-setuptools"
+subpackages="$pkgname-doc"
+source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+# secfixes:
+#   1.11.3-r0:
+#     - CVE-2020-28493
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	PYTHONPATH=build/lib pytest
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+
+	local docdir="$pkgdir/usr/share/doc/$pkgname"
+	# Note: The documentation in the docs directory needs to be generated
+	# by py-sphinx, however, this package (py-jinja2) is a dependency of
+	# Sphinx itself!
+	mkdir -p "$docdir"
+	cp -R docs examples "$docdir"/
+
+	install -m 644 -D LICENSE.rst "$pkgdir"/usr/share/licenses/$pkgname/LICENSE.rst
+}
+
+sha512sums="
+51703d396ffe35155ed216922294441e20d44cd1ab69674140146375d4964654cdb32b38945f22916e0de917bbc0cf406cb680c2e569f9225dbe1fe4063be0b0  Jinja2-3.0.3.tar.gz
+"

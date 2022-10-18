@@ -1,0 +1,35 @@
+pkgname=os-prober
+pkgver=1.79
+pkgrel=0
+pkgdesc="Utility to detect other OSes on a set of drives"
+url="https://joeyh.name/code/os-prober/"
+arch="all"
+license="GPL-3.0-only"
+source="https://deb.debian.org/debian/pool/main/o/os-prober/os-prober_$pkgver.tar.xz"
+options="!check" # No tests
+builddir="$srcdir/$pkgname"
+
+build() {
+	make newns
+}
+
+package() {
+	install -Dm755 os-prober linux-boot-prober -t "$pkgdir"/usr/bin
+	install -Dm755 newns "$pkgdir"/usr/lib/os-prober/newns
+	install -Dm755 common.sh "$pkgdir"/usr/share/os-prober/common.sh
+
+	for dir in os-probes os-probes/mounted os-probes/init linux-boot-probes linux-boot-probes/mounted; do
+		install -dm755 "$pkgdir"/usr/lib/"$dir"
+		install -m755 -t "$pkgdir"/usr/lib/"$dir" "$dir"/common/*
+		if [ -d "$dir"/x86 ]; then
+			cp -r "$dir"/x86/* "$pkgdir"/usr/lib/"$dir"
+		fi
+	done
+
+	install -Dm655 os-probes/mounted/powerpc/20macosx "$pkgdir"/usr/lib/os-probes/mounted/20macosx
+	install -dm755 "$pkgdir"/var/lib/os-prober
+}
+
+sha512sums="
+89b827b9b90a1d3bc11e0090ec04d808502cc1883ab10997b6d9edbe6005dcf8a0acdd7d200102c9dccde56297bda6087d68fb6dec419f0920090c2655c9c7d8  os-prober_1.79.tar.xz
+"

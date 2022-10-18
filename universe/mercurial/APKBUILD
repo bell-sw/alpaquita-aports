@@ -1,0 +1,87 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=mercurial
+pkgver=6.1.1
+pkgrel=0
+pkgdesc="Scalable distributed SCM tool"
+url="https://www.mercurial-scm.org/"
+arch="all"
+license="GPL-2.0-or-later"
+depends="python3"
+makedepends="python3-dev"
+checkdepends="bash unzip diffutils xz sqlite gettext py3-docutils"
+subpackages="
+	$pkgname-doc
+	$pkgname-vim:vim:noarch
+	$pkgname-zsh-completion:zshcomp:noarch
+	$pkgname-bash-completion:bashcomp:noarch
+	"
+source="https://www.mercurial-scm.org/release/mercurial-$pkgver.tar.gz
+	blacklist.txt
+	"
+case "$CARCH" in
+	aarch64|armhf) options="$options !check" ;;  # around 400 of 919 tests time out
+esac
+case "$CARCH" in
+	# Oxidation, limited by Rust
+	x86_64|armv7|armhf|aarch64|x86|ppc64le) makedepends="$makedepends cargo" ;;
+esac
+
+# secfixes:
+#   4.9-r0:
+#     - CVE-2019-3902
+
+build() {
+	HGPYTHON3=1 python3 setup.py build
+}
+
+check() {
+	make PYTHON=python3 TESTFLAGS=--blacklist="$srcdir/blacklist.txt" tests
+}
+
+package() {
+	HGPYTHON3=1 python3 setup.py install --root="$pkgdir"
+	install -m755 contrib/hgk contrib/hg-ssh hgeditor "$pkgdir"/usr/bin
+
+	local man
+	for man in doc/*.?; do
+		install -Dm644 "$man" \
+			"$pkgdir"/usr/share/man/man${man##*.}/${man##*/}
+	done
+}
+
+vim() {
+	depends=""
+	pkgdesc="Vim syntax for $pkgname"
+	install_if="vim $pkgname=$pkgver-r$pkgrel"
+
+	cd "$builddir"/contrib/vim/
+	mkdir -p "$subpkgdir"/usr/share/vim/vimfiles/syntax/
+	install -Dm644 HGAnnotate.vim hgtest.vim \
+		"$subpkgdir"/usr/share/vim/vimfiles/syntax/
+}
+
+zshcomp() {
+	depends=""
+	pkgdesc="Zsh completion for $pkgname"
+	install_if="$pkgname=$pkgver-r$pkgrel zsh"
+
+	install -Dm644 "$builddir"/contrib/zsh_completion \
+		"$subpkgdir"/usr/share/zsh/site-functions/_$pkgname
+}
+
+bashcomp() {
+	depends=""
+	pkgdesc="Bash completion for $pkgname"
+	install_if="$pkgname=$pkgver-r$pkgrel bash-completion"
+
+	install -Dm644 "$builddir"/contrib/bash_completion \
+		"$subpkgdir"/usr/share/bash-completion/completions/$pkgname
+}
+
+sha512sums="
+644c65b2eadf3d4ea4b7c52188f548d86a584d0aa85615d872b05bf0eeee6f65d014934dda0e04c6820d0cf347f491386385e67c98839ada7b2b4038a1190d16  mercurial-6.1.1.tar.gz
+51f1af80cf734f5282ba6d3ed3048a5b117e1579785229ad16946921f8e2fa0b41fcf74f1be128e60ef24ec8cb266f2c49d7f7ab8ca335bcbb60ccd09250b508  blacklist.txt
+"

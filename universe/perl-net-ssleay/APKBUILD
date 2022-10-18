@@ -1,0 +1,34 @@
+pkgname=perl-net-ssleay
+_realname=Net-SSLeay
+pkgver=1.92
+pkgrel=0
+pkgdesc="Perl extension for using OpenSSL"
+url="https://metacpan.org/release/Net-SSLeay"
+arch="all"
+license="Artistic-2.0"
+depends="perl"
+makedepends="perl-dev openssl1.1-compat-dev zlib-dev"
+checkdepends="perl-test-exception perl-test-warn perl-test-nowarnings"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/C/CH/CHRISN/Net-SSLeay-$pkgver.tar.gz"
+builddir="$srcdir/$_realname-$pkgver"
+
+build() {
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	# creates file collision among perl modules
+	find "$pkgdir" -name perllocal.pod -delete
+}
+
+sha512sums="
+e9d9161ebeb7be90f4c7a0ea98f1034892ce6d33aa72872683177b19daa1f4c5819f85ea9a052a076ec8d7c21705f6c344aef64680bc881bf3218d38e8b7b173  Net-SSLeay-1.92.tar.gz
+"

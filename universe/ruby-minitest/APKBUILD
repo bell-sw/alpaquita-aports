@@ -1,0 +1,69 @@
+pkgname=ruby-minitest
+_gemname=minitest
+# Keep version in sync with "Bundled gems" (https://stdgems.org) for the
+# packaged Ruby version.
+pkgver=5.15.0
+pkgrel=0
+pkgdesc="Suite of testing facilities supporting TDD, BDD, mocking, and benchmarking for Ruby"
+url="https://github.com/seattlerb/minitest"
+arch="noarch"
+license="MIT"
+depends="ruby"
+makedepends="ruby-rdoc"
+subpackages="$pkgname-doc"
+source="https://github.com/seattlerb/minitest/archive/v$pkgver/$_gemname-$pkgver.tar.gz
+	https://rubygems.org/downloads/$_gemname-$pkgver.gem
+	"
+builddir="$srcdir/$_gemname-$pkgver"
+
+# some tests failed due to locale issues
+case "$CLIBC" in
+glibc) options="$options !check" ;;
+esac
+
+prepare() {
+	default_prepare
+
+	# Generate gemspec (there's no gemspec in the source).
+	gem specification -l --ruby "$srcdir"/$_gemname-$pkgver.gem \
+		> "$builddir"/$_gemname.gemspec
+}
+
+build() {
+	gem build $_gemname.gemspec
+}
+
+check() {
+	ruby -Ilib -Itest -e "Dir.glob('./test/**/test_*.rb', &method(:require))"
+}
+
+package() {
+	local gemdir="$pkgdir/$(ruby -e 'puts Gem.default_dir')"
+	local geminstdir="$gemdir/gems/$_gemname-$pkgver"
+
+	gem install \
+		--local \
+		--install-dir "$gemdir" \
+		--ignore-dependencies \
+		--document ri \
+		--verbose \
+		$_gemname
+
+	# Remove unnessecary files
+	cd "$gemdir"
+	rm -rf build_info cache extensions plugins
+
+	cd "$geminstdir"
+	rm -rf History.* Manifest.* README.* Rakefile test/
+}
+
+doc() {
+	pkgdesc="$pkgdesc (ri docs)"
+
+	amove "$(ruby -e 'puts Gem.default_dir')"/doc
+}
+
+sha512sums="
+194d074fa83a87b21f551f86d2bb682bcbac53d5a23d4e0f81fbf570427c5cdfcb27e10618bea69037f9e55bea637ed96e52a10808c586ab4020d788556bda71  minitest-5.15.0.tar.gz
+5e97a7aa616966ffc60e10cdc0ba123a7e793f10283ec3b6bf36066177036788cb950ad566fbac49e613b93f08b9846534f463017cde966b4890c3a34a2286be  minitest-5.15.0.gem
+"

@@ -1,0 +1,50 @@
+pkgname=ruby-bundler
+_gemname=bundler
+pkgver=2.3.14
+pkgrel=0
+pkgdesc="Manage an application's gem dependencies"
+url="https://bundler.io/"
+arch="noarch"
+license="MIT"
+depends="ruby"
+makedepends="ruby-rake"
+subpackages="$pkgname-doc"
+source="https://github.com/rubygems/rubygems/archive/bundler-v$pkgver.tar.gz
+	manpages.patch
+	"
+builddir="$srcdir/rubygems-bundler-v$pkgver/bundler"
+options="!check"  # testsuite requires not available dependencies
+
+build() {
+	rake build_metadata
+	gem build $_gemname.gemspec
+}
+
+package() {
+	local gemdir="$pkgdir/$(ruby -e 'puts Gem.default_dir')"
+
+	gem install \
+		--local \
+		--install-dir "$gemdir" \
+		--bindir "$pkgdir/usr/bin" \
+		--ignore-dependencies \
+		--no-document \
+		--verbose \
+		$_gemname
+
+	local n; for n in 1 5; do
+		mkdir -p "$pkgdir"/usr/share/man/man$n
+		mv "$gemdir"/gems/$_gemname-$pkgver/lib/bundler/man/*.$n "$pkgdir"/usr/share/man/man$n/
+	done
+
+	rm -rf "$gemdir"/cache \
+		"$gemdir"/build_info \
+		"$gemdir"/doc \
+		"$gemdir"/gems/$_gemname-$pkgver/man \
+		"$gemdir"/gems/$_gemname-$pkgver/*.md
+}
+
+sha512sums="
+f78818a8d36df758451c1fd7d421852992b0a7ff66227fa9489069b84edee1efa24ffab29291240fb5b8fb0a3f5f5f136ce04193b8fe068152402a5316b8c0c0  bundler-v2.3.14.tar.gz
+5c9cc8046120360f9daa3d94da092c8db452672b8fb46b1a8188fae690e4362a090c0fcce35487399aedfec2f7f6b212c0d873a065475871b76d09313964596a  manpages.patch
+"

@@ -1,0 +1,87 @@
+# Contributor: Fabian Affolter <fabian@affolter-engineering.ch>
+# Maintainer: Jakub Jirutka <jakub@jirutka.cz>
+#
+# TODO: Unbundle gombo-parser.
+pkgname=ruby-nokogiri
+_gemname=${pkgname#ruby-}
+pkgver=1.13.6
+pkgrel=0
+pkgdesc="An HTML, XML, SAX, and Reader parser"
+url="https://nokogiri.org/"
+arch="all"
+license="MIT"
+depends="ruby"
+makedepends="
+	libxml2-dev
+	libxslt-dev
+	ruby-dev
+	ruby-mini_portile2
+	"
+checkdepends="ruby-minitest ruby-test-unit"
+source="https://github.com/sparklemotion/$_gemname/archive/v$pkgver/$_gemname-$pkgver.tar.gz
+	gemspec-fix-deps.patch
+	test-helper-remove-unnecessary-deps.patch
+	shutdown-libxml2-warning.patch
+	"
+builddir="$srcdir/$_gemname-$pkgver"
+
+# secfixes:
+#   1.13.6-r0:
+#     - CVE-2022-29181
+#   1.13.4-r0:
+#     - CVE-2022-24836
+#   1.11.6-r0:
+#     - CVE-2020-26247
+#   1.10.4-r0:
+#     - CVE-2019-5477
+
+build() {
+	gem build $_gemname.gemspec
+	gem install \
+		--local \
+		--install-dir dist \
+		--ignore-dependencies \
+		--no-document \
+		--verbose \
+		$_gemname-$pkgver.gem -- \
+			--use-system-libraries
+
+	# Remove unnecessary files and rubbish...
+	find dist/extensions/ -name mkmf.log -delete
+	cd dist/gems/$_gemname-$pkgver/
+	rm -rf ext/ patches/
+	rm ./*.md ./*.yml
+	rm lib/*.jar
+	rm lib/nokogiri/*.so
+	rm lib/nokogiri/css/*.rex lib/nokogiri/css/*.y
+}
+
+check() {
+	local extpath=$(dirname dist/extensions/*/*/$_gemname-$pkgver/gem_make.out)
+
+	case "$CARCH" in
+		# Fix NotImplementedError: Compaction isn't available on this platform.
+		ppc64le) export NOKOGIRI_TEST_GC_LEVEL=major;;
+	esac
+
+	# Note: This is based on Fedora package.
+	LANG="C.UTF-8" RUBYLIB=".:dist/gems/$_gemname-$pkgver/lib:test:$extpath" ruby \
+		-e 'require "test/helper"' \
+		-e 'Dir.glob("test/**/test_*.rb") {|f| require f }'
+}
+
+package() {
+	local gemdir="$pkgdir/$(ruby -e 'puts Gem.default_dir')"
+
+	cd "$builddir"/dist
+
+	mkdir -p "$gemdir"
+	cp -r bin extensions gems specifications "$gemdir"/
+}
+
+sha512sums="
+96f4e52332052bfae0d88d8c93cf334f8484b51290cafe8c1d43c820ba6ac5aa74b187c37e7177e62435d6101d859c16555b715fa88fcb06da742c84fd0e7486  nokogiri-1.13.6.tar.gz
+ea39462bdf01f576472a8b4e27d8b470ed966c8e72c6f62f7f0554a02a08fa1da7c5e3e5183098584f8733ac814fd5e53da9a0cd507748f5fae3c154594ddcba  gemspec-fix-deps.patch
+23a53b73328fdbf74b80d163cd14ae231edccc71a48a68fcb37ef0e1a57f097503fc4255ef6035fd3e5881d5e38632a80393e8dde709fbf428abc6658e1b2306  test-helper-remove-unnecessary-deps.patch
+63519d5b314c6fee49c219c8ab6999b340e1e6b1acecfaf3aee3dcc37302be8ff82dbd00484b3570f457d5de3c54529b843e1d382f5b65b9e128548b37c97198  shutdown-libxml2-warning.patch
+"

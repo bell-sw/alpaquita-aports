@@ -1,0 +1,35 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=po4a
+pkgver=0.66
+pkgrel=0
+pkgdesc="Tools for helping translation of documentation"
+url="https://po4a.org"
+arch="noarch"
+license="GPL-2.0-or-later"
+options="!check" # test_requires missing: SGMLS and Unicode::GCString
+depends="gettext perl perl-pod-parser"
+makedepends="diffutils docbook-xsl perl-module-build"
+subpackages="$pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/mquinson/po4a/archive/v$pkgver.tar.gz"
+
+build() {
+	perl Build.PL installdirs=vendor create_packlist=0
+	perl Build
+}
+
+check() {
+	perl Build test
+}
+
+package() {
+	perl Build destdir=$pkgdir install
+	# remove perllocal.pod and .packlist
+	find $pkgdir \( -name .packlist -o -name perllocal.pod \) -delete
+}
+
+sha512sums="
+d8caad948613168e341c44abb1c7a3ff09f8bbcf7a9fb575485f7b39fbcbe6866179c3f77dd8f53a31f3a78774fff0160549720e051f4a272f4504849a8dd38f  po4a-0.66.tar.gz
+"

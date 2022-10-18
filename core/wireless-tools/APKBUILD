@@ -1,0 +1,35 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: The Wireless Tools (WT) is a set of tools allowing to manipulate
+# the Wireless Extensions. They use a textual interface and are rather crude,
+# but aim to support the full Wireless Extension.
+
+pkgname=wireless-tools
+pkgver=30_pre9
+pkgrel=1
+pkgdesc="Linux Wireless Tools"
+url="http://www.hpl.hp.com/personal/Jean_Tourrilhes/Linux/Tools.html"
+arch="all"
+license="GPL-2.0-only"
+makedepends="linux-headers"
+options="!check"
+subpackages="$pkgname-dev $pkgname-doc"
+source="http://www.hpl.hp.com/personal/Jean_Tourrilhes/Linux/wireless_tools.${pkgver/_/.}.tar.gz
+	"
+
+builddir="$srcdir"/wireless_tools.30
+
+build() {
+	make
+}
+
+package() {
+	make INSTALL_DIR="$pkgdir"/usr/sbin \
+		INSTALL_LIB="$pkgdir"/usr/lib \
+		INSTALL_INC="$pkgdir"/usr/include \
+		INSTALL_MAN="$pkgdir"/usr/share/man install
+}
+
+sha512sums="
+0561923bca075af4754d21e1be303cbd1ce3558cb6481c9c12bc7d330a353acf8ad81a822488570e859480287999c3bb2a698c993556a92f0699743e0a527ff1  wireless_tools.30.pre9.tar.gz
+"

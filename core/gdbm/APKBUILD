@@ -1,0 +1,52 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: GNU utilities for database manipulations
+
+pkgname=gdbm
+pkgver=1.23
+pkgrel=0
+pkgdesc="GNU dbm is a set of database routines that use extensible hashing"
+url="https://www.gnu.org/software/gdbm/"
+arch="all"
+license="GPL-3.0-or-later"
+depends_dev="$pkgname-tools=$pkgver-r$pkgrel"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-tools"
+source="https://ftp.gnu.org/gnu/gdbm/gdbm-$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+	update_config_sub
+}
+
+build() {
+	# we disable large-file due to it makes the db file non-compat
+	# with gdbm-1.8.3
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--enable-libgdbm-compat \
+		--disable-largefile \
+		--disable-dependency-tracking \
+		--enable-fast-install
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+tools() {
+	pkgdesc="$pkgdesc (CLI tools)"
+	depends="$pkgname=$pkgver-r$pkgrel"
+
+	amove usr/bin/*
+}
+
+sha512sums="
+918080cb0225b221c11eb7339634a95e00c526072395f7a3d46ccf42ef020dea7c4c5bec34aff2c4f16033e1fff6583252b7e978f68b8d7f8736b0e025838e10  gdbm-1.23.tar.gz
+"

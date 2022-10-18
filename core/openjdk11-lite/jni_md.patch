@@ -1,0 +1,19 @@
+diff -r 1356affa5e44 src/java.base/unix/native/include/jni_md.h
+--- a/src/java.base/unix/native/include/jni_md.h	Wed Nov 25 08:27:15 2020 +0100
++++ b/src/java.base/unix/native/include/jni_md.h	Mon Nov 30 23:26:03 2020 +0300
+@@ -30,13 +30,8 @@
+   #define __has_attribute(x) 0
+ #endif
+ #if (defined(__GNUC__) && ((__GNUC__ > 4) || (__GNUC__ == 4) && (__GNUC_MINOR__ > 2))) || __has_attribute(visibility)
+-  #ifdef ARM
+-    #define JNIEXPORT     __attribute__((externally_visible,visibility("default")))
+-    #define JNIIMPORT     __attribute__((externally_visible,visibility("default")))
+-  #else
+-    #define JNIEXPORT     __attribute__((visibility("default")))
+-    #define JNIIMPORT     __attribute__((visibility("default")))
+-  #endif
++  #define JNIEXPORT     __attribute__((externally_visible,visibility("default")))
++  #define JNIIMPORT     __attribute__((externally_visible,visibility("default")))
+ #else
+   #define JNIEXPORT
+   #define JNIIMPORT

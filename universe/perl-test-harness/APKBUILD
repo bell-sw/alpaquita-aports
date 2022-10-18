@@ -1,0 +1,49 @@
+pkgname=perl-test-harness
+_pkgreal=Test-Harness
+pkgver=3.44
+pkgrel=0
+pkgdesc="Run Perl standard test scripts with statistics"
+url="https://metacpan.org/release/Test-Harness/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+subpackages="$pkgname-doc $pkgname-utils"
+source="https://cpan.metacpan.org/authors/id/L/LE/LEONT/$_pkgreal-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+prepare() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+}
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make && make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install || return 1
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+utils() {
+	pkgdesc="$pkgdesc (utilities)"
+	depends="$pkgname perl"
+	replaces="perl-utils"
+	mkdir -p "$subpkgdir"/usr || return 1
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+}
+
+doc() {
+	default_doc
+	replaces="perl-doc"
+	local file; for file in $(find "$pkgdir" -name "*.pod"); do
+	file=${file#$pkgdir/}
+		mkdir -p "$subpkgdir"/${file%/*} || return 1
+		mv "$pkgdir"/$file "$subpkgdir"/$file || return 1
+	done
+}
+
+sha512sums="
+908f0105bfa6c6e4578a4e08180d799d0ca7299c2206280fe64b9229fe3c05abdb000364d853a078f39f7d3129a8f91b7030976e1dfab726c6c6fd16e0970ef1  Test-Harness-3.44.tar.gz
+"

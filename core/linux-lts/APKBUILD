@@ -1,0 +1,310 @@
+_flavor=lts
+pkgname=linux-${_flavor}
+pkgver=5.10.133
+pkgrel=0
+_kernver=${pkgver%.*}
+pkgdesc="Alpaquita Linux lts kernel"
+url="https://www.kernel.org"
+depends="dracut"
+_depends_dev="perl gmp-dev elfutils-dev bash flex bison"
+makedepends="$_depends_dev sed installkernel bc linux-headers openssl-dev
+	diffutils findutils xz sbsigntool"
+options="!strip"
+_config=${config:-config-lts.${CARCH}}
+source="https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$_kernver.tar.xz
+	config-lts.x86_64
+	config-lts-debug.x86_64
+	extramods
+	x509.genkey
+
+	0001-efi-add-an-efi_secure_boot-flag-to-indicate-secure-b.patch
+	0002-efi-lock-down-the-kernel-if-booted-in-secure-boot-mo.patch
+	0003-mtd-disable-slram-and-phram-when-locked-down.patch
+	0004-arm64-add-kernel-config-option-to-lock-down-when.patch
+	0005-KEYS-Make-use-of-platform-keyring-for-module-signatu.patch
+	"
+subpackages="$pkgname-dev:_dev:$CBUILD_ARCH"
+subpackages="$subpackages $pkgname-extra-modules:_extramods:$CBUILD_ARCH"
+
+_flavors=
+for _i in $source; do
+	case $_i in
+	config-*.$CARCH)
+		_f=${_i%.$CARCH}
+		_f=${_f#config-}
+		_flavors="$_flavors ${_f}"
+
+		[ "linux-$_f" = "$pkgname" ] && continue
+
+		_fn="$(echo $_f | tr - _)"
+		subpackages="$subpackages linux-${_f}:_${_fn}:$CBUILD_ARCH \
+			linux-${_f}-dev:_dev:$CBUILD_ARCH \
+			linux-${_f}-extra-modules:_extramods:$CBUILD_ARCH"
+		;;
+	esac
+done
+
+if [ "${pkgver%.0}" = "$pkgver" ]; then
+	source="$source
+	https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/patch-$pkgver.xz"
+fi
+arch="all"
+license="GPL-2.0"
+
+_carch=${CARCH}
+case "$_carch" in
+aarch64*) _carch="arm64" ;;
+arm*) _carch="arm" ;;
+mips*) _carch="mips" ;;
+ppc*) _carch="powerpc" ;;
+s390*) _carch="s390" ;;
+esac
+
+prepare_patches() {
+	local _ret=0
+
+	cd "$srcdir"/linux-$_kernver
+	if [ "$_kernver" != "$pkgver" ]; then
+		msg "Applying patch-$pkgver.xz"
+		unxz -c < "$srcdir"/patch-$pkgver.xz | patch -p1 -N
+	fi
+
+	for i in $source; do
+		case $i in
+		*.patch)
+			msg "Applying $i..."
+			if ! patch -s -p1 -N -i "$srcdir"/$i; then
+				error "Patch failed to apply"
+				_ret=1
+			fi
+			;;
+		esac
+	done
+	return $_ret
+}
+
+prepare_config()
+{
+	local _flavor=$i
+	local _config=config-$_flavor.${CARCH}
+	local _builddir="$srcdir"/build-$_flavor.$CARCH
+	local _cfg_file="$_builddir"/.config
+
+	mkdir -p "$_builddir"
+	echo "-$pkgrel-$_flavor" > "$_builddir"/localversion-alpaquita
+
+	cp "$srcdir"/$_config "$_cfg_file"
+
+	make -C "$srcdir"/linux-$_kernver \
+		O="$_builddir" \
+		ARCH="$_carch" \
+		listnewconfig oldconfig
+
+	mkdir -p "$_builddir"/certs
+	cp "$srcdir"/x509.genkey "$_builddir"/certs/
+
+	if [ "$KERNEL_SIGNKEY_X509" ]; then
+		cp $KERNEL_SIGNKEY_X509 "$_builddir"/certs/bellsoft_signkey.pem
+		scripts/config --file "$_cfg_file" --set-str system_trusted_keys "certs/bellsoft_signkey.pem"
+		msg "Using trusted keys: '$KERNEL_SIGNKEY_X509'"
+	fi
+
+	if [ "$KERNEL_DEV_BUILD" ]; then
+		# increase build speed for development kernels
+		scripts/config --file "$_cfg_file" --disable x86_decoder_selftest
+	fi
+}
+
+prepare() {
+	prepare_patches
+
+	for i in $_flavors; do
+		prepare_config $i
+	done
+}
+
+build() {
+	unset LDFLAGS
+	export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
+	for i in $_flavors; do
+		cd "$srcdir"/build-$i.$CARCH
+		make ARCH="$_carch" CC="${CC:-gcc}" \
+			KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-Alpaquita"
+	done
+}
+
+_move_extra_modules() {
+	local _outdir="$1"
+	local _abi_release="$2"
+	local _buildflavor="$3"
+	local _extra_path="${srcdir}/extra_modules_${_buildflavor}"
+	local _mods_path="$_outdir/lib/modules/${_abi_release}/kernel"
+	local _extramods="$(cat "$srcdir"/extramods)"
+	local _dir_name _mod_path _m _c _src _dst
+
+	for _m in $_extramods; do
+		_c="${_m:0:1}"
+
+		case "$_c" in
+			#) continue;;
+			-) _m="${_m:1}";;
+		esac
+
+		_dir_name="$(dirname $_m)"
+		[ "${_m: -3}" = ".ko" ] && _m="$_m.xz"
+
+		if [ "$_c" = "-" ]; then
+			_src="$_extra_path/$_m"
+			_dst="$_mods_path/$_dir_name"
+		else
+			_src="$_mods_path/$_m"
+			_dst="$_extra_path/$_dir_name"
+		fi
+
+		mkdir -p "$_dst"
+		mv -f "$_src" "$_dst"
+	done
+}
+
+_package() {
+	local _buildflavor="$1" _outdir="$2"
+	local _abi_release=${pkgver}-${pkgrel}-${_buildflavor}
+	export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
+
+	cd "$srcdir"/build-$_buildflavor.$CARCH
+	mkdir -p "$_outdir"/boot "$_outdir"/lib/modules
+
+	local _install
+	case "$CARCH" in
+		arm*|aarch64) _install="zinstall dtbs_install";;
+		*) _install=install;;
+	esac
+
+	make -j1 modules_install $_install \
+		ARCH="$_carch" \
+		INSTALL_MOD_PATH="$_outdir" \
+		INSTALL_PATH="$_outdir"/boot \
+		INSTALL_DTBS_PATH="$_outdir/boot/dtbs-$_buildflavor"
+
+	_move_extra_modules $_outdir $_abi_release $_buildflavor
+
+	rm -f "$_outdir"/lib/modules/${_abi_release}/build \
+		"$_outdir"/lib/modules/${_abi_release}/source
+	rm -rf "$_outdir"/lib/firmware
+
+	install -D -m644 include/config/kernel.release \
+		"$_outdir"/usr/share/kernel/$_buildflavor/kernel.release
+
+	if [ "$SHIM_SIGNKEY_PRIVATE" -a "$SHIM_SIGNKEY_X509" ]; then
+		msg "Signing kernel, using provided keys '$SHIM_SIGNKEY_X509'"
+		local img="$_outdir/boot/vmlinuz-${_abi_release}"
+		sbsign --key "$SHIM_SIGNKEY_PRIVATE" --cert "$SHIM_SIGNKEY_X509" \
+			--detached --output $img.sig $img
+		sbattach --attach $img.sig $img
+		rm -f $img.sig
+	fi
+}
+
+package() {
+	install="$pkgname.pre-upgrade $pkgname.post-deinstall $pkgname.post-install $pkgname.post-upgrade"
+	_package lts "$pkgdir"
+
+	msg "Checking modules dependencies"
+	local _abi_release=${pkgver}-${pkgrel}-lts
+
+	cd "$pkgdir"/lib/modules/${_abi_release}
+
+	local _mods="$(find kernel -name *.ko.xz)"
+	local _d _m _deps _failed=0
+
+	for _m in $_mods; do
+		_deps="$(grep "^$_m:" modules.dep | cut -f2 -d: | xargs)"
+		for _d in $_deps; do
+			if ! echo "$_mods" | grep -q "$_d"; then
+				msg "moddep error: $_m -> $_d"
+				_failed=1
+			fi
+		done
+	done
+
+	return $_failed
+}
+
+_lts_debug() {
+	install="$subpkgname.post-deinstall $subpkgname.post-install $subpkgname.post-upgrade"
+	_package lts-debug "$subpkgdir"
+}
+
+_extramods() {
+	local _flavor=$(echo $subpkgname | sed -E 's/(^linux-|-extra-modules$)//g')
+	local _abi_release=${pkgver}-${pkgrel}-${_flavor}
+	local _dir="$subpkgdir"/lib/modules/${_abi_release}/kernel
+
+	depends="$depends linux-${_flavor} linux-firmware-extra-modules-any"
+	pkgdesc="Additional modules for Alpaquita Linux $_flavor kernel"
+
+	mkdir -p "$_dir"
+	cp -r "$srcdir"/extra_modules_${_flavor}/* "$_dir"/
+}
+
+_dev() {
+	pkgdesc="Headers and scripts for third-party modules for Alpaquita Linux $_flavor kernel"
+	depends="$_depends_dev"
+
+	local _flavor=$(echo $subpkgname | sed -E 's/(^linux-|-dev$)//g')
+	local _abi_release=${pkgver}-${pkgrel}-$_flavor
+	local _dir="$subpkgdir"/usr/src/linux-headers-${_abi_release}
+
+	export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
+
+	mkdir -p "$_dir"
+
+	cp "$srcdir"/config-$_flavor.${CARCH} "$_dir"/.config
+	echo "-$pkgrel-$_flavor" > "$_dir"/localversion-alpaquita
+
+	make -j1 -C "$srcdir"/linux-$_kernver \
+		O="$_dir" \
+		ARCH="$_carch" \
+		syncconfig prepare modules_prepare scripts
+
+	# remove the stuff that points to real sources. we want 3rd party
+	# modules to believe this is the sources
+	rm "$_dir"/Makefile "$_dir"/source
+
+	# copy the needed stuff from real sources
+	#
+	# this is taken from ubuntu kernel build script
+	# http://kernel.ubuntu.com/git/ubuntu/ubuntu-zesty.git/tree/debian/rules.d/3-binary-indep.mk
+	cd "$srcdir"/linux-$_kernver
+	find .  -path './include/*' -prune \
+		-o -path './scripts/*' -prune -o -type f \
+		\( -name 'Makefile*' -o -name 'Kconfig*' -o -name 'Kbuild*' -o \
+		   -name '*.sh' -o -name '*.pl' -o -name '*.lds' -o -name 'Platform' \) \
+		-print | cpio -pdm "$_dir"
+
+	cp -a scripts include "$_dir"
+
+	find $(find arch -name include -type d -print) -type f \
+		| cpio -pdm "$_dir"
+
+	install -Dm644 "$srcdir"/build-$_flavor.$CARCH/Module.symvers \
+		"$_dir"/Module.symvers
+
+	mkdir -p "$subpkgdir"/lib/modules/${_abi_release}
+	ln -sf /usr/src/linux-headers-${_abi_release} \
+		"$subpkgdir"/lib/modules/${_abi_release}/build
+}
+
+sha512sums="
+95bc137d0cf9148da6a9d1f1a878698dc27b40f68e22c597544010a6c591ce1b256f083489d3ff45ff77753289b535135590194d88ef9f007d0ddab3d74de70e  linux-5.10.tar.xz
+f193eb85ba720d6ec055a7535430b8bab0ca226e699a8c773bff460cbebe1e05001ef45e413b1b1f9f94314f9dcbf2033ace8b579fecc60055af70fb7781c25c  patch-5.10.133.xz
+701b131b6ad893542793d3e40c8926b4d0b098295c89fb1f6b247bdeabee9fa68e2f854ab569f962203e3cd91da1e0a767f97abe4fe2fe9cbdf006ffc101db53  config-lts.x86_64
+d0054b43ea0adce06dc0a5ea368b48e07491c4ef1deb101324d2882396cc24a6ccfc7d0f86df11a6beb9a87bccf4b62c1679b945cad2bea0e2d48cf1b6def571  config-lts-debug.x86_64
+c981febc0ede922c83f72d2b0df43fc379ce416432b0307eb9a137e07fd1601b56c555182969d1a9eb2aedb0bdf33c1f68d2a83f481cdd4edea7b2722d47b281  extramods
+934513020e555a3584f545e8a0e39cdce4f26db228a3c7fb407f3d8bab05aa9021197e761e8538dbf0f6650cbc1289a0f56c784bd71306b9ab24d3a153912a5f  x509.genkey
+a013c63b95d23d0de3be9ea15442b2c932fd91b58671a16fa5324965cdc45d0df79113c5f66a1e87dff2502a9b1feb304d192e02fcbbb308278ab634a41daa00  0001-efi-add-an-efi_secure_boot-flag-to-indicate-secure-b.patch
+528d440ce67ee4ab17f8ba831ac31d86f58097004adfd30494640cff88db87a257413181e34dfdf6b35a4af9abdbdef1bb55384097c76499f3b3da8cfb462d94  0002-efi-lock-down-the-kernel-if-booted-in-secure-boot-mo.patch
+b719b82c12aefded1922b20c5cc76b284ad34ba90206c80991e69d52a930d5e687cfff45ef9038d5b6de9ec46a69d0e3b62fcba93591b2d75fb19cc84c41db29  0003-mtd-disable-slram-and-phram-when-locked-down.patch
+8a7cbed6f445e2e00486440668d573c8737bde502d4c7e2bd8c57a978c7ea1bc6ee1f1dcbabaac0123a9e2705aa6a802d11f227e9a0ee744c91ae2075b4fe99f  0004-arm64-add-kernel-config-option-to-lock-down-when.patch
+b1c73dcb13aa100bac25bc73e9bf740c902fcf1157eb8a3dabd7169921f96bb18121c82e2f569d1623366ef9f296628c53ad80e3f89c03df8fa9b934c4ba6c85  0005-KEYS-Make-use-of-platform-keyring-for-module-signatu.patch
+"

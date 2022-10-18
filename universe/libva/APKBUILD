@@ -1,0 +1,39 @@
+pkgname=libva
+pkgver=2.14.0
+pkgrel=0
+pkgdesc="Video Acceleration (VA) API for Linux"
+url="https://01.org/linuxmedia"
+arch="all"
+options="!check"  # No test suite.
+license="MIT"
+depends_dev="libx11-dev libxext-dev libxfixes-dev libdrm-dev"
+makedepends="$depends_dev meson wayland-dev"
+subpackages="$pkgname-dev"
+source="$pkgname-$pkgver.tar.gz::https://github.com/intel/libva/archive/$pkgver.tar.gz"
+
+prepare() {
+	( if [ -f "$startdir"/../libva-glx/APKBUILD ]; then
+		_v=$pkgver
+		. "$startdir"/../libva-glx/APKBUILD
+		if [ "$_v" != "$pkgver" ]; then
+			die "libva and libva-glx needs to be same version"
+		fi
+	fi )
+	default_prepare
+}
+
+build() {
+	abuild-meson \
+		-Dwith_glx=no \
+		-Dwith_wayland=yes \
+		builddir
+	meson compile ${JOBS:+-j ${JOBS}} -C builddir
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C builddir
+}
+
+sha512sums="
+8d87b49c7242174d05dca709bd79e6e45cea6e6060d12f5cf7636433be587c2b3a6c3183f632fb0ff49b19f31f915a2a62818c26f57c3a8f40741aa1ab8270b4  libva-2.14.0.tar.gz
+"

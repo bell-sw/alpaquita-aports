@@ -1,0 +1,34 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=bubblewrap
+pkgver=0.6.2
+pkgrel=0
+pkgdesc="Unprivileged sandboxing tool"
+url="https://github.com/containers/bubblewrap"
+arch="all"
+license="LGPL-2.0-or-later"
+options="!check" # Testsuite fails
+makedepends="bash meson libcap-dev docbook-xsl"
+subpackages="$pkgname-doc $pkgname-bash-completion $pkgname-zsh-completion"
+source="bubblewrap-$pkgver.tar.gz::https://github.com/containers/bubblewrap/archive/v$pkgver.tar.gz"
+
+# secfixes:
+#   0.4.1-r0:
+#     - CVE-2020-5291
+
+build() {
+	abuild-meson \
+		-Drequire_userns=true \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+09b89836242941bd5d1975a64a9543caae77c344ace7baf06670fddbfce28be22728cf0a7e4c2df142b2d89a903df92cfd4671b442058953ea4ebb099eb05577  bubblewrap-0.6.2.tar.gz
+"

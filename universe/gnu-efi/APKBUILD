@@ -1,0 +1,29 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=gnu-efi
+pkgver=3.0.14
+pkgrel=0
+pkgdesc="Development Libraries and headers for EFI"
+url="ftp://ftp.hpl.hp.com/pub/linux-ia64"
+arch="all !armhf !s390x !ppc64le !mips !mips64"
+license="BSD-3-Clause"
+subpackages="$pkgname-dev"
+depends_dev="$pkgname"
+source="https://downloads.sourceforge.net/project/gnu-efi/gnu-efi-$pkgver.tar.bz2
+	no-werror.patch
+	"
+
+build() {
+	make -j1
+}
+
+package() {
+	make PREFIX=/usr INSTALLROOT="$pkgdir" install
+}
+
+sha512sums="
+37420ba3804e8547451a7b143a689ceb6af0557234fa7801efdeba3c2fc581a5354fe34cbaacb338d7b394d913e7274098ebf07026b7c1d50b2236d7f86c470c  gnu-efi-3.0.14.tar.bz2
+f384597dc967cc9b1cf738d4002dc75847606c8ab10efbaf9e23844c767f5b9a33518374321b2ae5c5d7e4c9c3abaed996d0690ea81a7906355cabec1426d248  no-werror.patch
+"

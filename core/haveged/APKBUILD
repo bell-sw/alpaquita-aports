@@ -1,0 +1,56 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: haveged package provides a random number generator by means of 
+# HAVEGE (HArdware Volatile Entropy Gathering and Expansion).
+
+pkgname=haveged
+pkgver=1.9.18
+pkgrel=0
+pkgdesc="Userspace entropy daemon"
+url="https://www.issihosts.com/haveged/"
+arch="all"
+license="GPL-3.0-or-later"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-openrc"
+makedepends="autoconf automake libtool linux-headers"
+source="$pkgname-$pkgver.tar.gz::https://github.com/jirka-h/haveged/archive/v$pkgver.tar.gz
+	haveged.initd
+	haveged.confd"
+
+prepare() {
+	default_prepare
+
+	sed -i 's|/bin/bash|/bin/sh|' ent/test.sh
+
+	autoreconf -vif
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--disable-static
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	rm "$pkgdir"/usr/lib/libhavege.la
+
+	install -Dm755 "$srcdir"/haveged.initd \
+		"$pkgdir"/etc/init.d/haveged
+	install -Dm644 "$srcdir"/haveged.confd \
+		"$pkgdir"/etc/conf.d/haveged
+}
+
+sha512sums="
+ef2e0ae3be68a8fba16371c3347d52ecf9748269ae30eef2e5c26aad6cfb516f87295e1e56be902df1064e7d4ace04863dd094d62b69e584608f779d63b42d8e  haveged-1.9.18.tar.gz
+834810b5077573bcc7adce08c6188d0b86cd2769d2a895cb7892e8715ba0cc8bf0f45bcc3d0c94e0a74ad028eb88e7998c09b43586bd4759b5be733ccaaeb05d  haveged.initd
+c2dcaf151d314500c9147b97ce08bb65c902431ac1c60e76072f5237164fa4ff4aa9115eba9329fffb14add7759e4d9acc894bcf49dcc4ea37339a01c2aa1ed7  haveged.confd
+"

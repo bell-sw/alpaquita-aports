@@ -1,0 +1,55 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: allows applications to perform correctly-rounded
+# multiple-precision floating-point calculations.
+
+pkgname=mpfr4
+pkgver=4.1.0
+pkgrel=0
+pkgdesc="MPFR C Library"
+url="https://www.mpfr.org/"
+arch="all"
+license="LGPL-3.0-or-later"
+makedepends_build="texinfo"
+makedepends_host="gmp-dev"
+makedepends="$makedepends_build $makedepends_host"
+
+# mpfr is special because we cannot break ABI without first rebuild gcc.
+# so we need be able to have multiple version of mpfr installed in parallel
+# we also need be able to calculate bulid order from global scope, otherwise
+# it is not possible to calculate build order til after package is built.
+# Therfore we call -dev package mpfr-dev instead of mpfr4-dev with a
+# provides=mpfr-dev
+subpackages="$pkgname-doc mpfr-dev:dev"
+
+source="https://www.mpfr.org/mpfr-$pkgver/mpfr-$pkgver.tar.xz"
+builddir="$srcdir/mpfr-$pkgver"
+
+provides="mpfr=$pkgver-r$pkgrel"
+replaces="mpfr"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--with-sysroot="$CBUILDROOT" \
+		--prefix=/usr \
+		--enable-shared
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+dev() {
+	default_dev
+}
+
+sha512sums="
+1bd1c349741a6529dfa53af4f0da8d49254b164ece8a46928cdb13a99460285622d57fe6f68cef19c6727b3f9daa25ddb3d7d65c201c8f387e421c7f7bee6273  mpfr-4.1.0.tar.xz
+"

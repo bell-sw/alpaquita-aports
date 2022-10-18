@@ -1,0 +1,195 @@
+From 60c63e46bba9cff1c8aced93275b1e03d89dfd31 Mon Sep 17 00:00:00 2001
+From: Denis Kononenko <denis.kononenko@bell-sw.com>
+Date: Thu, 20 Jan 2022 09:25:14 +0000
+Subject: [PATCH 1/2] Added support for glibc toolchains
+
+---
+ Makefile        |  3 +++
+ abuild.in       | 37 +++++++++++++++++++++++++++++--------
+ functions.sh.in | 38 ++------------------------------------
+ 3 files changed, 34 insertions(+), 44 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index ef9bbd5..30293bc 100644
+--- a/Makefile
++++ b/Makefile
+@@ -7,6 +7,8 @@ sysconfdir	?= /etc
+ sharedir		?= $(prefix)/share/$(PACKAGE)
+ mandir		?= $(prefix)/share/man
+ 
++libc		?= $(if $(findstring gnu, $(shell $(CC) -dumpmachine)),gnu,musl)
++
+ SCRIPTS		:= abuild abuild-keygen abuild-sign newapkbuild \
+ 		   abump apkgrel buildlab apkbuild-cpan apkbuild-pypi checkapk \
+ 		   apkbuild-gem-resolver
+@@ -40,6 +42,7 @@ SED_REPLACE	:= -e 's:@VERSION@:$(FULL_VERSION):g' \
+ 			-e 's:@prefix@:$(prefix):g' \
+ 			-e 's:@sysconfdir@:$(sysconfdir):g' \
+ 			-e 's:@sharedir@:$(sharedir):g' \
++			-e 's:@libc@:$(libc):g'
+ 
+ SSL_CFLAGS	?= $(shell pkg-config --cflags openssl)
+ SSL_LDFLAGS	?= $(shell pkg-config --cflags openssl)
+diff --git a/abuild.in b/abuild.in
+index 76cd77b..5d12bf0 100644
+--- a/abuild.in
++++ b/abuild.in
+@@ -67,6 +67,25 @@ error() {
+ 	logcmd "ERROR: $pkgname: $1"
+ }
+ 
++init_sources() {
++	source_all=
++	local SUPPORTED_LIBC="glibc musl"
++	local excludes="${SUPPORTED_LIBC/$CLIBC}"
++	local filter ; for name in $excludes ; do
++		[ -z "$filter" ] || filter="$filter;"
++		filter="$filter/^$name:/d"
++	done
++	local prefix_filter ; for name in $SUPPORTED_LIBC ; do
++		[ -z "$prefix_filter" ] || prefix_filter="$prefix_filter;"
++		prefix_filter="${prefix_filter}s/^$name://"
++	done
++	local newsource ; for s in $source ; do
++		newsource="$newsource $(echo $s | sed "s/^$CLIBC://" | sed "$filter")"
++		source_all="$source_all $(echo $s | sed "$prefix_filter")"
++	done
++	source=$newsource
++}
++
+ amove() {
+ 	[ -n "$subpkgdir" ] || return 1
+ 
+@@ -245,8 +264,8 @@ default_sanitycheck() {
+ 
+ 		[ -e "$startdir"/$f ] || die "trigger script $f is missing"
+ 	done
+-	if [ -n "$source" ]; then
+-		for i in $source; do
++	if [ -n "$source_all" ]; then
++		for i in $source_all; do
+ 			if install_has "$i"; then
+ 				warning "You should not have \$install in source"
+ 				continue
+@@ -321,7 +340,7 @@ sumcheck() {
+ 	set -- $sums
+ 	local numsums=$(( $# / 2 ))
+ 
+-	set -- $source
++	set -- $source_all
+ 	if [ $# -ne $numsums ]; then
+ 		die "Number of ${algo}sums($numsums) does not correspond to number of sources($#)"
+ 	fi
+@@ -443,7 +462,7 @@ symlinksrc() {
+ default_fetch() {
+ 	local s
+ 	mkdir -p "$srcdir"
+-	for s in $source; do
++	for s in $source_all; do
+ 		if is_remote "$s"; then
+ 			uri_fetch_mirror "$s" || return 1
+ 			ln -sf "$SRCDEST/$(filename_from_uri $s)" "$srcdir"/
+@@ -540,7 +559,7 @@ clean() {
+ # cleanup fetched sources
+ cleancache() {
+ 	local s
+-	for s in $source; do
++	for s in $source_all; do
+ 		if is_remote "$s"; then
+ 			s=$(filename_from_uri $s)
+ 			msg "Cleaning downloaded $s ..."
+@@ -2308,7 +2327,7 @@ builddeps() {
+ # replace the md5sums in the APKBUILD
+ checksum() {
+ 	local s files
+-	[ -z "$source" ] && [ -n "${md5sums}${sha256sums}${sha512sums}" ] \
++	[ -z "$source_all" ] && [ -n "${md5sums}${sha256sums}${sha512sums}" ] \
+ 		&& msg "Removing checksums from APKBUILD"
+ 	sed -E -i \
+ 		-e '/^(md5|sha[0-9]+)sums=".*"$/d' \
+@@ -2320,7 +2339,7 @@ checksum() {
+ 
+ 	[ -z "$source" ] && return 0
+ 	fetch
+-	for s in $source; do
++	for s in $source_all; do
+ 		local name="$(filename_from_uri $s)"
+ 		case " $files " in
+ 		*" $name "*) die "duplicate found in \$source: $name";;
+@@ -2496,7 +2515,7 @@ listpkg() {
+ 
+ source_has() {
+ 	local i
+-	for i in $source; do
++	for i in $source_all; do
+ 		[ "$1" = "${i##*/}" ] && return 0
+ 		[ "$1" = "${i%%::*}" ] && return 0
+ 	done
+@@ -2783,6 +2802,8 @@ cd "$startdir" || die
+ 
+ builddir=${builddir:-"$srcdir/$pkgname-$pkgver"}
+ 
++init_sources
++
+ # If REPODEST is set then it will override the PKGDEST
+ if [ -z "$REPODEST" ]; then
+ 	warning "REPODEST is not set and is now required. Defaulting to $HOME/packages"
+diff --git a/functions.sh.in b/functions.sh.in
+index 14ec5d6..8c79556 100644
+--- a/functions.sh.in
++++ b/functions.sh.in
+@@ -5,25 +5,8 @@ program=${0##*/}
+ 
+ arch_to_hostspec() {
+ 	case "$1" in
+-	aarch64)	echo "aarch64-alpine-linux-musl" ;;
+-	armel)		echo "armv5-alpine-linux-musleabi" ;;
+-	armhf)		echo "armv6-alpine-linux-musleabihf" ;;
+-	armv7)		echo "armv7-alpine-linux-musleabihf" ;;
+-	loongarch32)	echo "loongarch32-alpine-linux-musl" ;;
+-	loongarchx32)	echo "loongarchx32-alpine-linux-musl" ;;
+-	loongarch64)	echo "loongarch64-alpine-linux-musl" ;;
+-	mips)           echo "mips-alpine-linux-musl" ;;
+-	mips64)         echo "mips64-alpine-linux-musl" ;;
+-	mipsel)         echo "mipsel-alpine-linux-musl" ;;
+-	mips64el)       echo "mips64el-alpine-linux-musl" ;;
+-	ppc)		echo "powerpc-alpine-linux-musl" ;;
+-	ppc64)		echo "powerpc64-alpine-linux-musl" ;;
+-	ppc64le)	echo "powerpc64le-alpine-linux-musl" ;;
+-	riscv32)	echo "riscv32-alpine-linux-musl" ;;
+-	riscv64)	echo "riscv64-alpine-linux-musl" ;;
+-	s390x)		echo "s390x-alpine-linux-musl" ;;
+-	x86)		echo "i586-alpine-linux-musl" ;;
+-	x86_64)		echo "x86_64-alpine-linux-musl" ;;
++	aarch64)	echo "aarch64-alpaquita-linux-@libc@" ;;
++	x86_64)		echo "x86_64-alpaquita-linux-@libc@" ;;
+ 	*)		echo "unknown" ;;
+ 	esac
+ }
+@@ -31,23 +14,6 @@ arch_to_hostspec() {
+ hostspec_to_arch() {
+ 	case "$1" in
+ 	aarch64*-*-*-*)		echo "aarch64" ;;
+-	arm*-*-*-*eabi)		echo "armel" ;;
+-	armv6*-*-*-*eabihf)	echo "armhf" ;;
+-	armv7*-*-*-*eabihf)	echo "armv7" ;;
+-	i[0-9]86-*-*-*)		echo "x86" ;;
+-	loongarch32-*-*-*)	echo "loongarch32" ;;
+-	loongarchx32-*-*-*)	echo "loongarchx32" ;;
+-	loongarch64-*-*-*)	echo "loongarch64" ;;
+-	mips-*-*-*)             echo "mips" ;;
+-	mips64-*-*-*)           echo "mips64" ;;
+-	mipsel-*-*-*)           echo "mipsel" ;;
+-	mips64el-*-*-*)         echo "mips64el" ;;
+-	powerpc-*-*-*)		echo "ppc" ;;
+-	powerpc64-*-*-*)	echo "ppc64" ;;
+-	powerpc64le-*-*-*)	echo "ppc64le" ;;
+-	riscv32-*-*-*)		echo "riscv32" ;;
+-	riscv64-*-*-*)		echo "riscv64" ;;
+-	s390x-*-*-*)		echo "s390x" ;;
+ 	x86_64-*-*-*)		echo "x86_64" ;;
+ 	*)			echo "unknown" ;;
+ 	esac
+-- 
+2.34.1
+

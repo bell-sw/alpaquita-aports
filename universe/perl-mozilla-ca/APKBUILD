@@ -1,0 +1,35 @@
+pkgname=perl-mozilla-ca
+_pkgreal=Mozilla-CA
+pkgver=20211001
+pkgrel=0
+pkgdesc="Mozilla's CA cert bundle in PEM format"
+url="https://metacpan.org/release/Mozilla-CA"
+arch="noarch"
+license="MPL-2.0"
+depends="perl"
+subpackages="$pkgname-doc"
+source="https://search.cpan.org/CPAN/authors/id/A/AB/ABH/$_pkgreal-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+prepare() {
+	default_prepare
+
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+}
+
+build() {
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+dc3d96de93b4b193861142afe5f8120a09faa0c105ba0cc2832e4d0c9f2611bbefa8046620a67267e6c374e5abde0ad829279f62acf8a7e411fd75c182745969  Mozilla-CA-20211001.tar.gz
+"

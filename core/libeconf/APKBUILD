@@ -1,0 +1,35 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: it is a performant library for parsing configuration files.
+
+pkgname=libeconf
+pkgver=0.4.4
+pkgrel=0
+pkgdesc="Enhanced configuration files parser"
+url="https://github.com/openSUSE/libeconf"
+arch="all"
+license="MIT"
+makedepends="meson"
+checkdepends="bash"
+subpackages="$pkgname-dev $pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/openSUSE/libeconf/archive/refs/tags/v$pkgver.tar.gz
+	musl:musl-tests.patch
+	"
+
+build() {
+	abuild-meson . output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+ccceb3b3f3a9aa84ebc4bb3f6e7b8edddecad4a190d13973805e6d61f354204f0b1a7609e434f9d38c356ec771d007f14cd5b045e5fc56aa63bd771f0cd22390  libeconf-0.4.4.tar.gz
+28431c1f80ee7815991584ef6307dabe593b4da58b9406e6f1a9cb30bfba3e925a48c83b0d3824427631bede5b1249b0c87e0d9fb55971d4ecf90805076b25dd  musl-tests.patch
+"

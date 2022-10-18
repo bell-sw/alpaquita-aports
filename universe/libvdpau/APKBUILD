@@ -1,0 +1,29 @@
+pkgname=libvdpau
+pkgver=1.5
+pkgrel=0
+pkgdesc="Hardware-accelerated video playback library"
+url="https://gitlab.freedesktop.org/vdpau/libvdpau"
+arch="all"
+license="MIT"
+makedepends="xorgproto libx11-dev libxext-dev meson"
+subpackages="$pkgname-dev"
+source="https://gitlab.freedesktop.org/vdpau/libvdpau/-/archive/$pkgver/libvdpau-$pkgver.tar.gz"
+
+build() {
+	abuild-meson \
+		-Ddri2=true \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+cebe0e0d9411b87238fa2adec40516881c61a67f33f80c22372f514e672e2dff839687291ab0b01d47af811c254fa65da579f360fcded3f65e382720548d3ea5  libvdpau-1.5.tar.gz
+"

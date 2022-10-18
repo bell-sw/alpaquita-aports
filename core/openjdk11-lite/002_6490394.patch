@@ -1,0 +1,179 @@
+From d857a5e33233940af3c763a04f24af4f923216a3 Mon Sep 17 00:00:00 2001
+From: dsamersoff <dms@samersoff.net>
+Date: Wed, 9 Jun 2021 10:54:24 +0300
+Subject: [PATCH 2/3] 6490394 Fixed
+
+---
+ src/hotspot/share/gc/g1/g1CollectedHeap.cpp   | 23 +++++++++----------
+ src/hotspot/share/gc/g1/g1CollectedHeap.hpp   |  5 ++--
+ src/hotspot/share/gc/g1/g1ConcurrentMark.cpp  |  2 ++
+ .../TestObjectGraphAfterGC.java               | 14 +++++------
+ 4 files changed, 22 insertions(+), 22 deletions(-)
+
+diff --git a/src/hotspot/share/gc/g1/g1CollectedHeap.cpp b/src/hotspot/share/gc/g1/g1CollectedHeap.cpp
+index 83b7d6b507..4c51c5a474 100644
+--- a/src/hotspot/share/gc/g1/g1CollectedHeap.cpp
++++ b/src/hotspot/share/gc/g1/g1CollectedHeap.cpp
+@@ -1047,7 +1047,7 @@ void G1CollectedHeap::prepare_heap_for_mutators() {
+   assert(num_free_regions() == 0, "we should not have added any free regions");
+   rebuild_region_sets(false /* free_list_only */);
+   abort_refinement();
+-  resize_if_necessary_after_full_collection();
++  resize_heap_if_necessary();
+ 
+   // Rebuild the strong code root lists for each region
+   rebuild_strong_code_roots();
+@@ -1152,7 +1152,7 @@ void G1CollectedHeap::do_full_collection(bool clear_all_soft_refs) {
+                                   clear_all_soft_refs);
+ }
+ 
+-void G1CollectedHeap::resize_if_necessary_after_full_collection() {
++void G1CollectedHeap::resize_heap_if_necessary() {
+   // Capacity, free and used after the GC counted as full regions to
+   // include the waste in the following calculations.
+   const size_t capacity_after_gc = capacity();
+@@ -1209,7 +1209,7 @@ void G1CollectedHeap::resize_if_necessary_after_full_collection() {
+     // Don't expand unless it's significant
+     size_t expand_bytes = minimum_desired_capacity - capacity_after_gc;
+ 
+-    log_debug(gc, ergo, heap)("Attempt heap expansion (capacity lower than min desired capacity after Full GC). "
++    log_debug(gc, ergo, heap)("Attempt heap expansion (capacity lower than min desired capacity). "
+                               "Capacity: " SIZE_FORMAT "B occupancy: " SIZE_FORMAT "B live: " SIZE_FORMAT "B "
+                               "min_desired_capacity: " SIZE_FORMAT "B (" UINTX_FORMAT " %%)",
+                               capacity_after_gc, used_after_gc, used(), minimum_desired_capacity, MinHeapFreeRatio);
+@@ -1221,7 +1221,7 @@ void G1CollectedHeap::resize_if_necessary_after_full_collection() {
+     // Capacity too large, compute shrinking size
+     size_t shrink_bytes = capacity_after_gc - maximum_desired_capacity;
+ 
+-    log_debug(gc, ergo, heap)("Attempt heap shrinking (capacity higher than max desired capacity after Full GC). "
++    log_debug(gc, ergo, heap)("Attempt heap shrinking (capacity higher than max desired capacity). "
+                               "Capacity: " SIZE_FORMAT "B occupancy: " SIZE_FORMAT "B live: " SIZE_FORMAT "B "
+                               "maximum_desired_capacity: " SIZE_FORMAT "B (" UINTX_FORMAT " %%)",
+                               capacity_after_gc, used_after_gc, used(), maximum_desired_capacity, MaxHeapFreeRatio);
+@@ -1397,8 +1397,8 @@ void G1CollectedHeap::shrink_helper(size_t shrink_bytes) {
+ void G1CollectedHeap::shrink(size_t shrink_bytes) {
+   _verifier->verify_region_sets_optional();
+ 
+-  // We should only reach here at the end of a Full GC which means we
+-  // should not not be holding to any GC alloc regions. The method
++  // We should only reach here at the end of a Full GC or during Remark which
++  // means we should not not be holding to any GC alloc regions. The method
+   // below will make sure of that and do any remaining clean up.
+   _allocator->abandon_gc_alloc_regions();
+ 
+@@ -4738,13 +4738,13 @@ public:
+   }
+ 
+   bool do_heap_region(HeapRegion* r) {
+-    // After full GC, no region should have a remembered set.
+-    r->rem_set()->clear(true);
+     if (r->is_empty()) {
++      assert(r->rem_set()->is_empty(), "Empty regions should have empty remembered sets.");
+       // Add free regions to the free list
+       r->set_free();
+       _hrm->insert_into_free_list(r);
+     } else if (!_free_list_only) {
++      assert(r->rem_set()->is_empty(), "At this point remembered sets must have been cleared.");
+ 
+       if (r->is_humongous()) {
+         // We ignore humongous regions. We left the humongous set unchanged.
+@@ -4782,10 +4782,9 @@ void G1CollectedHeap::rebuild_region_sets(bool free_list_only) {
+       _archive_allocator->clear_used();
+     }
+   }
+-  assert(used_unlocked() == recalculate_used(),
+-         "inconsistent used_unlocked(), "
+-         "value: " SIZE_FORMAT " recalculated: " SIZE_FORMAT,
+-         used_unlocked(), recalculate_used());
++  assert(used() == recalculate_used(),
++         "inconsistent used(), value: " SIZE_FORMAT " recalculated: " SIZE_FORMAT,
++         used(), recalculate_used());
+ }
+ 
+ bool G1CollectedHeap::is_in_closed_subset(const void* p) const {
+diff --git a/src/hotspot/share/gc/g1/g1CollectedHeap.hpp b/src/hotspot/share/gc/g1/g1CollectedHeap.hpp
+index befa92be58..04e1b2dc09 100644
+--- a/src/hotspot/share/gc/g1/g1CollectedHeap.hpp
++++ b/src/hotspot/share/gc/g1/g1CollectedHeap.hpp
+@@ -481,9 +481,6 @@ private:
+   // Callback from VM_G1CollectFull operation, or collect_as_vm_thread.
+   virtual void do_full_collection(bool clear_all_soft_refs);
+ 
+-  // Resize the heap if necessary after a full collection.
+-  void resize_if_necessary_after_full_collection();
+-
+   // Callback from VM_G1CollectForAllocation operation.
+   // This function does everything necessary/possible to satisfy a
+   // failed allocation request (including collection, expansion, etc.)
+@@ -541,6 +538,8 @@ public:
+     return _g1mm;
+   }
+ 
++  void resize_heap_if_necessary();
++
+   // Expand the garbage-first heap by at least the given size (in bytes!).
+   // Returns true if the heap was expanded by the requested amount;
+   // false otherwise.
+diff --git a/src/hotspot/share/gc/g1/g1ConcurrentMark.cpp b/src/hotspot/share/gc/g1/g1ConcurrentMark.cpp
+index 94194d1be6..021e5aa20d 100644
+--- a/src/hotspot/share/gc/g1/g1ConcurrentMark.cpp
++++ b/src/hotspot/share/gc/g1/g1ConcurrentMark.cpp
+@@ -1202,6 +1202,8 @@ void G1ConcurrentMark::remark() {
+       ClassLoaderDataGraph::purge();
+     }
+ 
++    _g1h->resize_heap_if_necessary();
++
+     compute_new_sizes();
+ 
+     verify_during_pause(G1HeapVerifier::G1VerifyRemark, VerifyOption_G1UsePrevMarking, "Remark after");
+diff --git a/test/hotspot/jtreg/gc/g1/humongousObjects/objectGraphTest/TestObjectGraphAfterGC.java b/test/hotspot/jtreg/gc/g1/humongousObjects/objectGraphTest/TestObjectGraphAfterGC.java
+index 8737788a03..aef89a5e2f 100644
+--- a/test/hotspot/jtreg/gc/g1/humongousObjects/objectGraphTest/TestObjectGraphAfterGC.java
++++ b/test/hotspot/jtreg/gc/g1/humongousObjects/objectGraphTest/TestObjectGraphAfterGC.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2016, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2016, 2018, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -56,29 +56,29 @@ import java.util.stream.Collectors;
+  * @run driver ClassFileInstaller sun.hotspot.WhiteBox
+  *                                sun.hotspot.WhiteBox$WhiteBoxPermission
+  *
+- * @run main/othervm -Xms200M -XX:+UseG1GC -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:.
++ * @run main/othervm -Xms200M -Xmx200M -XX:+UseG1GC -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:.
+  * -XX:+UnlockExperimentalVMOptions -XX:MaxGCPauseMillis=30000 -XX:G1MixedGCLiveThresholdPercent=100 -XX:G1HeapWastePercent=0
+  * -XX:G1HeapRegionSize=1M -Xlog:gc=info:file=TestObjectGraphAfterGC_MIXED_GC.gc.log -XX:MaxTenuringThreshold=1
+  * -XX:G1MixedGCCountTarget=1  -XX:G1OldCSetRegionThresholdPercent=100 -XX:SurvivorRatio=1 -XX:InitiatingHeapOccupancyPercent=0
+  * gc.g1.humongousObjects.objectGraphTest.TestObjectGraphAfterGC MIXED_GC
+  *
+- * @run main/othervm -Xms200M -XX:+UseG1GC -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:.
++ * @run main/othervm -Xms200M -Xmx200M -XX:+UseG1GC -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:.
+  * -XX:G1HeapRegionSize=1M -Xlog:gc*=debug:file=TestObjectGraphAfterGC_YOUNG_GC.gc.log
+  * gc.g1.humongousObjects.objectGraphTest.TestObjectGraphAfterGC YOUNG_GC
+  *
+- * @run main/othervm -Xms200M -XX:+UseG1GC -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:.
++ * @run main/othervm -Xms200M -Xmx200M -XX:+UseG1GC -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:.
+  * -XX:G1HeapRegionSize=1M -Xlog:gc=info:file=TestObjectGraphAfterGC_FULL_GC.gc.log
+  * gc.g1.humongousObjects.objectGraphTest.TestObjectGraphAfterGC FULL_GC
+  *
+- * @run main/othervm -Xms200M -XX:+UseG1GC -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:.
++ * @run main/othervm -Xms200M -Xmx200M -XX:+UseG1GC -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:.
+  * -XX:G1HeapRegionSize=1M -Xlog:gc=info:file=TestObjectGraphAfterGC_FULL_GC_MEMORY_PRESSURE.gc.log
+  * gc.g1.humongousObjects.objectGraphTest.TestObjectGraphAfterGC FULL_GC_MEMORY_PRESSURE
+  *
+- * @run main/othervm -Xms200M -XX:+UseG1GC -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:.
++ * @run main/othervm -Xms200M -Xmx200M -XX:+UseG1GC -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:.
+  * -XX:G1HeapRegionSize=1M -Xlog:gc=info:file=TestObjectGraphAfterGC_CMC.gc.log -XX:MaxTenuringThreshold=16
+  * gc.g1.humongousObjects.objectGraphTest.TestObjectGraphAfterGC CMC
+  *
+- * @run main/othervm -Xms200M -XX:+UseG1GC -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:.
++ * @run main/othervm -Xms200M -Xmx200M -XX:+UseG1GC -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:.
+  * -XX:G1HeapRegionSize=1M -Xlog:gc=info:file=TestObjectGraphAfterGC_CMC_NO_SURV_ROOTS.gc.log -XX:MaxTenuringThreshold=1
+  * gc.g1.humongousObjects.objectGraphTest.TestObjectGraphAfterGC CMC_NO_SURV_ROOTS
+  *
+-- 
+2.17.1
+

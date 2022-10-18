@@ -1,0 +1,151 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: openssl carries out general-purpose cryptographic activities and
+# ensures communication security.
+
+pkgname=openssl
+pkgver=1.1.1o
+_abiver=${pkgver%.*}
+pkgrel=0
+pkgdesc="Toolkit for general-purpose cryptography and secure communication (v.1.1)"
+url="https://www.openssl.org/"
+arch="all"
+license="OpenSSL"
+replaces="libressl"
+makedepends_build="perl"
+makedepends_host="linux-headers"
+makedepends="$makedepends_host $makedepends_build"
+subpackages="$pkgname-dbg $pkgname-libs-static:_static $pkgname-dev
+	$pkgname-doc libcrypto$_abiver:_libcrypto libssl$_abiver:_libssl"
+source="https://www.openssl.org/source/openssl-$pkgver.tar.gz
+	man-section.patch
+	"
+builddir="$srcdir/openssl-$pkgver"
+
+# secfixes:
+#   1.1.1n-r0:
+#     - CVE-2022-0778
+#   1.1.1l-r0:
+#     - CVE-2021-3711
+#     - CVE-2021-3712
+#   1.1.1k-r0:
+#     - CVE-2021-3449
+#     - CVE-2021-3450
+#   1.1.1j-r0:
+#     - CVE-2021-23841
+#     - CVE-2021-23840
+#     - CVE-2021-23839
+#   1.1.1i-r0:
+#     - CVE-2020-1971
+#   1.1.1g-r0:
+#     - CVE-2020-1967
+#   1.1.1d-r3:
+#     - CVE-2019-1551
+#   1.1.1d-r1:
+#     - CVE-2019-1547
+#     - CVE-2019-1549
+#     - CVE-2019-1563
+#   1.1.1b-r1:
+#     - CVE-2019-1543
+#   1.1.1a-r0:
+#     - CVE-2018-0734
+#     - CVE-2018-0735
+#   0:
+#     - CVE-2022-1292
+
+build() {
+	local _target _optflags
+
+	# openssl will prepend crosscompile always core CC et al
+	CC=${CC#${CROSS_COMPILE}}
+	CXX=${CXX#${CROSS_COMPILE}}
+	CPP=${CPP#${CROSS_COMPILE}}
+
+	# determine target OS for openssl
+	case "$CARCH" in
+		aarch64*)	_target="linux-aarch64" ;;
+		x86_64)		_target="linux-x86_64"; _optflags="enable-ec_nistp_64_gcc_128" ;;
+		*)		msg "Unable to determine architecture from (CARCH=$CARCH)" ; return 1 ;;
+	esac
+
+	# Configure assumes --options are for it, so can't use
+	# gcc's --sysroot fake this by overriding CC
+	[ -n "$CBUILDROOT" ] && CC="$CC --sysroot=$CBUILDROOT"
+
+	perl ./Configure \
+		$_target \
+		--prefix=/usr \
+		--libdir=/usr/lib \
+		--openssldir=/etc/ssl \
+		shared \
+		no-zlib \
+		no-async \
+		no-comp \
+		no-idea \
+		no-mdc2 \
+		no-rc5 \
+		no-ec2m \
+		no-sm2 \
+		no-sm4 \
+		no-ssl2 \
+		no-ssl3 \
+		no-seed \
+		no-weak-ssl-ciphers \
+		$_optflags \
+		$CPPFLAGS \
+		$CFLAGS \
+		$LDFLAGS -Wa,--noexecstack
+	make
+}
+
+check() {
+	# AFALG tests have a sporadic test failure, just delete the broken
+	# test for now.
+	rm -f test/recipes/30-test_afalg.t
+
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install_sw install_ssldirs install_man_docs
+	# remove the script c_rehash
+	rm "$pkgdir"/usr/bin/c_rehash
+	#mv -f "$pkgdir"/usr/bin/openssl "$pkgdir"/usr/bin/openssl$_abiver
+}
+
+dev() {
+	default_dev
+	replaces="libressl-dev"
+	provides="openssl1.1-compat-dev=${pkgver}-r${pkgrel}"
+}
+
+_libcrypto() {
+	pkgdesc="Crypto library from openssl"
+	replaces="libressl2.7-libcrypto"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/etc "$subpkgdir"/
+	mv "$pkgdir"/usr/lib/libcrypto* "$subpkgdir"/usr/lib/
+	mv "$pkgdir"/usr/lib/engines-$_abiver "$subpkgdir"/usr/lib/
+}
+
+_libssl() {
+	pkgdesc="SSL shared libraries"
+
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libssl* "$subpkgdir"/usr/lib/
+}
+
+_static() {
+	default_static
+	provides="openssl1.1-compat-libs-static=${pkgver}-r${pkgrel}"
+}
+
+_static() {
+	default_static
+	provides="openssl1.1-compat-libs-static=${pkgver}-r${pkgrel}"
+}
+
+sha512sums="
+75b2f1499cb4640229eb6cd35d85cbff2e19db17b959ac4d04b60f1b395b73567f9003521452a0fcfeea9b31b26de0a7bccf476ecf9caae02298f3647cfb7e23  openssl-1.1.1o.tar.gz
+43c3255118db6f5f340dc865c0f25ccbcafe5bf7507585244ca59b4d27daf533d6c3171aa32a8685cbb6200104bec535894b633de13feaadff87ab86739a445a  man-section.patch
+"

@@ -1,0 +1,37 @@
+pkgname=efivar
+pkgver=38
+pkgrel=0
+pkgdesc="Tools and library to manipulate EFI variables"
+url="https://github.com/rhboot/efivar"
+arch="x86_64"
+license="LGPL-2.1"
+makedepends="popt-dev linux-headers bsd-compat-headers mandoc"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-libs"
+source="https://github.com/rhboot/efivar/releases/download/$pkgver/efivar-$pkgver.tar.bz2
+	0001-efisecdb-replace-on_exit-with-portable-atexit.patch
+"
+builddir="$srcdir/efivar-$pkgver"
+
+prepare() {
+	default_prepare
+	sed -i 's/#include <sys\/cdefs.h>//g' "$builddir/src/compiler.h"
+}
+
+build() {
+	cd "$builddir"
+	libdir="/usr/lib" make
+}
+
+package() {
+	cd "$builddir"
+	libdir="/usr/lib" make DESTDIR="$pkgdir" install
+}
+
+check() {
+	LD_LIBRARY_PATH="$builddir"/src \
+		"$builddir"/src/efivar --help > /dev/null
+}
+sha512sums="
+c2f17297c863ece134a9dd758d237fd2df8c8d072f87af1d0bf2bcf9acfc7a53c25597f03fd4fb8cc664b205743d4ffa0ef1b068d0f73c58fa573d40993f3155  efivar-38.tar.bz2
+7ec5513d4243bd092f37ec589ed0919894a1e8f7567103cb47113deccc7b707c7d6c38d9d0cdeca711fc0b5d51e964ba7e9ce7f027a37fb25e4a493857ff6ab5  0001-efisecdb-replace-on_exit-with-portable-atexit.patch
+"

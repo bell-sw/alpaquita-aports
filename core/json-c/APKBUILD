@@ -1,0 +1,48 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: json-c allows the creation, output, and parsing of JSON objects
+# in C
+
+pkgname=json-c
+pkgver=0.16
+pkgrel=0
+pkgdesc="A JSON parsing C library"
+url="https://github.com/json-c/json-c/wiki"
+arch="all"
+license="MIT"
+makedepends="cmake doxygen samurai"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://s3.amazonaws.com/json-c_releases/releases/json-c-$pkgver.tar.gz"
+
+# secfixes:
+#   0.14-r1:
+#     - CVE-2020-12762
+
+build() {
+	if [ "$CBUILD" != "$CHOST" ]; then
+		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=/usr/lib \
+		-DBUILD_SHARED_LIBS=True \
+		-DBUILD_STATIC_LIBS=False \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		$CMAKE_CROSSOPTS
+	cmake --build build
+	cmake --build build --target doc
+}
+
+check() {
+	cmake --build build --target test
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --build build --target install
+	mkdir -p "$pkgdir"/usr/share/doc/$pkgname
+	mv doc/html "$pkgdir"/usr/share/doc/$pkgname
+}
+
+sha512sums="
+255cff99033340b2c2678255d41dae7808f83ed0c102e693d2d9e186bd1f21dd1385fcaa360c0fc087a00965a9567fbda733370e6b518a9be2f1bb0a80439151  json-c-0.16.tar.gz
+"

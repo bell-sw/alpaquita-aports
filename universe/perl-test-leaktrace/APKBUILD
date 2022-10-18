@@ -1,0 +1,34 @@
+pkgname=perl-test-leaktrace
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=Test-LeakTrace
+pkgver=0.17
+pkgrel=1
+pkgdesc="Perl module for Test-LeakTrace"
+url="https://metacpan.org/release/Test-LeakTrace/"
+arch="all"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+makedepends="perl-dev"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/L/LE/LEEJO/Test-LeakTrace-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+57ffd8c64ef871427c04419bda239d73e169f3b6ee268e0d4d7a27942c277d4b1f502e82e2e0df415b1050c0aa11944c2c3acb2e9b353855f77c91d1dfcaf00d  Test-LeakTrace-0.17.tar.gz
+"

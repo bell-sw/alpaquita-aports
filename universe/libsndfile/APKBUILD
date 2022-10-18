@@ -1,0 +1,56 @@
+pkgname=libsndfile
+pkgver=1.1.0
+pkgrel=0
+pkgdesc="C library for reading and writing files containing sampled sound"
+url="https://libsndfile.github.io/libsndfile/"
+arch="all"
+license="LGPL-2.0-or-later"
+subpackages="$pkgname-dev $pkgname-doc"
+depends_dev="libogg-dev opus-dev"
+makedepends="alsa-lib-dev cmake flac-dev libvorbis-dev linux-headers python3 samurai
+	$depends_dev"
+source="https://github.com/libsndfile/libsndfile/releases/download/$pkgver/libsndfile-$pkgver.tar.xz"
+
+# secfixes:
+#   1.0.28-r8:
+#     - CVE-2019-3832
+#     - CVE-2018-19758
+#   1.0.28-r6:
+#     - CVE-2017-17456
+#     - CVE-2017-17457
+#     - CVE-2018-19661
+#     - CVE-2018-19662
+#   1.0.28-r4:
+#     - CVE-2018-13139
+#   1.0.28-r2:
+#     - CVE-2017-12562
+#   1.0.28-r0:
+#     - CVE-2017-7585
+#     - CVE-2017-7741
+#     - CVE-2017-7742
+#   1.0.28-r1:
+#     - CVE-2017-8361
+#     - CVE-2017-8362
+#     - CVE-2017-8363
+#     - CVE-2017-8365
+
+build() {
+	cmake -B build -G Ninja \
+		-DBUILD_SHARED_LIBS=ON \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_INSTALL_PREFIX=/usr
+	cmake --build build
+}
+
+check() {
+	cd build
+	CTEST_OUTPUT_ON_FAILURE=TRUE ctest -E write_read_test_sd2
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+d01696a8a88a4444e5eb91a137cf7b26b55b12c1fe3b648653f7e78674bbdf61870066216c9ff2f6a1e63bdf7b558af9a759480cf6523b607d29347b12762006  libsndfile-1.1.0.tar.xz
+"

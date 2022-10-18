@@ -1,0 +1,149 @@
+pkgname=net-snmp
+pkgver=5.9.1
+pkgrel=6
+pkgdesc="Simple Network Management Protocol"
+url="http://www.net-snmp.org/"
+arch="all"
+license="Net-SNMP"
+depends_dev="openssl1.1-compat-dev"
+# we need perl-net-snmp and perl-tk in make depends for bootstrapping issues
+# net-snmp-gui subpackage has perl-net-snmp and perl-tk as depends
+makedepends="file perl-dev openssl1.1-compat-dev perl-net-snmp perl-tk linux-headers"
+subpackages="$pkgname-dbg $pkgname-doc $pkgname-dev $pkgname-libs $pkgname-agent-libs:alibs
+	$pkgname-perl:pl $pkgname-gui::noarch $pkgname-tools $pkgname-openrc"
+source="https://downloads.sourceforge.net/net-snmp/net-snmp-$pkgver.tar.gz
+	netsnmp-swinst-crash.patch
+	fix-includes.patch
+	0001-snmpd-always-exit-after-displaying-usage.patch
+
+	snmpd.initd
+	snmpd.confd
+	snmptrapd.confd
+	"
+
+
+prepare() {
+	update_config_sub
+	default_prepare
+	# Allow tmpfs volume size monitoring
+	# Ref #932
+	sed -e 's#"tmpfs",#/*  "tmpfs",  */#g' -i agent/mibgroup/host/hr_filesys.c
+}
+
+build() {
+	export lt_cv_sys_max_cmd_len=8192
+
+	#build fails on: libnetsnmpmibs.so: undefined reference to 'pthread_create'
+	if [ "$CLIBC" = "musl" ] ; then
+		LDFLAGS="$LDFLAGS -lpthread"
+	fi
+
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--with-default-snmp-version="3" \
+		--with-sys-contact="root@unknown" \
+		--with-sys-location="unknown" \
+		--with-logfile="/var/log/net-snmpd.log" \
+		--enable-ucd-snmp-compatibility \
+		--with-persistent-directory="/var/lib/net-snmp" \
+		--with-openssl \
+		--enable-pic \
+		--enable-ipv6 \
+		--enable-shared \
+		--enable-as-needed \
+		--enable-blumenthal-aes \
+		--with-perl-modules="INSTALLDIRS=vendor" \
+		--disable-embedded-perl
+	# embedded-perl seems to create TEXTREL's
+
+	make -j1
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install
+	# remove things we dont want distribute
+	rm "$pkgdir"/usr/lib/libsnmp* \
+		"$pkgdir"/usr/bin/snmpcheck \
+		"$pkgdir"/usr/bin/fixproc \
+		"$pkgdir"/usr/share/man/man1/fixproc* \
+		"$pkgdir"/usr/bin/ipf-mod.pl \
+		"$pkgdir"/usr/bin/snmpinform
+	ln -s snmptrap "$pkgdir"/usr/bin/snmpinform
+
+	install -m755 -D "$srcdir"/snmpd.initd "$pkgdir"/etc/init.d/snmpd
+	ln -s snmpd "$pkgdir"/etc/init.d/snmptrapd
+	install -m644 -D "$srcdir"/snmpd.confd "$pkgdir"/etc/conf.d/snmpd
+	install -m644 -D "$srcdir"/snmptrapd.confd \
+		"$pkgdir"/etc/conf.d/snmptrapd
+	install -m644 -D EXAMPLE.conf "$pkgdir"/etc/snmp/snmpd.conf
+	echo "authCommunity log,execute,net public" > "$pkgdir"/etc/snmp/snmptrapd.conf
+	mkdir -p "$pkgdir"/var/lib/net-snmp
+	find "$pkgdir" -name perllocal.pod -delete
+}
+
+libs() {
+	pkgdesc="The NET-SNMP runtime client libraries"
+	replaces="net-snmp"
+	mkdir -p "$subpkgdir"/usr/lib "$subpkgdir"/usr/share/snmp
+	mv "$pkgdir"/usr/lib/libnetsnmp.so.* "$subpkgdir"/usr/lib/
+	mv "$pkgdir"/usr/share/snmp/mibs "$subpkgdir"/usr/share/snmp/
+}
+
+alibs() {
+	pkgdesc="The NET-SNMP runtime agent libraries"
+	replaces="net-snmp"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libnetsnmpagent*.so.* \
+		"$pkgdir"/usr/lib/libnetsnmphelpers*.so.* \
+		"$pkgdir"/usr/lib/libnetsnmpmibs*.so.* \
+		"$pkgdir"/usr/lib/libnetsnmptrapd*.so.* \
+		"$subpkgdir"/usr/lib/
+}
+
+pl() {
+	pkgdesc="The perl NET-SNMP module and the mib2c tool"
+	replaces="net-snmp"
+	mkdir -p "$subpkgdir"/usr/lib \
+		"$subpkgdir"/usr/bin \
+		"$subpkgdir"/usr/share/snmp
+
+	mv "$pkgdir"/usr/bin/mib2c-update \
+		"$pkgdir"/usr/bin/mib2c \
+		"$pkgdir"/usr/bin/snmp-bridge-mib \
+		"$pkgdir"/usr/bin/net-snmp-cert \
+		"$pkgdir"/usr/bin/traptoemail \
+		"$subpkgdir"/usr/bin/
+	mv "$pkgdir"/usr/lib/perl* "$subpkgdir"/usr/lib/
+	mv "$pkgdir"/usr/share/snmp/mib2c* \
+		"$pkgdir"/usr/share/snmp/*.pl \
+		"$subpkgdir"/usr/share/snmp/
+}
+
+gui() {
+	pkgdesc="An interactive graphical MIB browser for SNMP"
+	depends="net-snmp-perl perl-tk"
+	replaces="net-snmp-tools"
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/tkmib "$subpkgdir"/usr/bin/
+}
+
+tools() {
+	pkgdesc="Network management utilities using SNMP"
+	mkdir -p "$subpkgdir"/usr
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr
+}
+
+sha512sums="
+30989e43034e17433b885854490f2f37470a532cb7cab0d2a3beb37f5f3c2b10e803af125a5177d87fc0a36cecc266fefc016b609427b558f36567c2f1a84b20  net-snmp-5.9.1.tar.gz
+4ad92f50b14d5e27ba86256cc532a2dd055502f4d5fbb1700434f9f01f881fd09bb1eadb94e727554e1470f036707558314c64a66d0376b54e71ab31d5e4baa3  netsnmp-swinst-crash.patch
+87a552bd2e41684bba6e87fbcf6454a85ee912d7a339411fda24cebddf7661f0856729e076a917920a542cf84b687ffd90a091daa15f2c48f0ff64f3a53c0ddb  fix-includes.patch
+a085785c935a2791090eaa265c139674387c2f121c843125956fe14377e737844e0f929e2a652f3471b860b406926c43f5e796fedf5041ce6dde0790f25b15a2  0001-snmpd-always-exit-after-displaying-usage.patch
+86c10535da19c89b2a7874a745792f8038acb74b557fe234580b7a24d626f0809c4857c9224733f3e7e15f56857436e3eba6e45f189341f24815b99d0b1769b5  snmpd.initd
+ca4921190e8b81e3244465fa66bf6f0a075add159c8ec13a1198ded155df89eb984a48e34972b20f549fbfa9bbff4a24d66bf7cd0b51f5f86a26ad4c2f5cf5cc  snmpd.confd
+073fd2b83eedd6eda1f7345350268ce7946ef6d67a8f26f7c232e46feb75babf68272ae12071a2f9ea76ede71393b3ae4672d3cd47cfd14ab77e3a6482f2e124  snmptrapd.confd
+"

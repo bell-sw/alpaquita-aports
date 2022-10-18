@@ -1,0 +1,45 @@
+pkgname=abseil-cpp
+pkgver=20211102.0
+pkgrel=1
+pkgdesc="Abseil Common Libraries (C++) "
+url="https://abseil.io/"
+arch="all"
+license="Apache-2.0"
+makedepends="
+	cmake
+	gtest-dev
+	linux-headers
+	"
+subpackages="$pkgname-dev"
+source="https://github.com/abseil/abseil-cpp/archive/$pkgver/abseil-cpp-$pkgver.tar.gz
+	0002-abseil.patch
+	"
+
+build() {
+	cmake -B build \
+		-DCMAKE_CXX_STANDARD=17 \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_SHARED_LIBS=ON \
+		-DBUILD_TESTING=ON \
+		-DABSL_USE_EXTERNAL_GOOGLETEST=ON \
+		-DABSL_PROPAGATE_CXX_STD=ON \
+		-DABSL_FIND_GOOGLETEST=ON
+	cmake --build build
+}
+
+# disable broken tests
+check() {
+	CTEST_OUTPUT_ON_FAILURE=TRUE ctest --test-dir build -E "absl_str_format_convert_test|absl_mutex_test\
+|absl_notification_test|absl_per_thread_sem_test|absl_sysinfo_test|absl_random_beta_distribution_test"
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+fed68aa434c02ec6faa9d1c81f1ad35b60ec024b44957e2e0ac31e6075e385c06a3e1b616afeb4bb7c2413191fd7827d82e1f9f0796b52ed21fb2c41dd9031cf  abseil-cpp-20211102.0.tar.gz
+78bca9372af30624a303b53cbc07b4bfe0ca5a11ef2126c6b3fb34714e3b119fa4bf9a088968b491a7823107df5083c0d4b4aed0e47b8e872ba572543e9a52ea  0002-abseil.patch
+"

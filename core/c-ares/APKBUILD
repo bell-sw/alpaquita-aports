@@ -1,0 +1,47 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: c-ares enables asynchronous DNS queries and name resolutions.
+
+pkgname=c-ares
+pkgver=1.18.1
+pkgrel=0
+pkgdesc="C library for asynchronous DNS requests"
+url="https://c-ares.haxx.se/"
+arch="all"
+options="!check"
+license="MIT"
+subpackages="$pkgname-doc $pkgname-static $pkgname-dev"
+source="https://c-ares.haxx.se/download/c-ares-$pkgver.tar.gz"
+
+# secfixes:
+#   1.17.2-r0:
+#     - CVE-2021-3672
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--enable-shared
+	make
+}
+
+check() {
+	# This is only needed for < 1.14.0, where the .sh file was not
+	# distributed properly - see https://da.gd/carestest
+	echo "#!/bin/true" > test/fuzzcheck.sh
+	chmod a+x test/fuzzcheck.sh
+
+	make -C test check
+}
+
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+1276ec0799916019f8c0af6b55a139701bd15e0ca4a00811d07963893978bc96c107b980f0fd49f81aa70bc8b3b8cd671195ba357c390772d4c2c5643c50c5a5  c-ares-1.18.1.tar.gz
+"

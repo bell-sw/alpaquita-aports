@@ -1,0 +1,51 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=libwebp
+pkgver=1.2.2
+pkgrel=0
+pkgdesc="Libraries for working with WebP images"
+url="https://developers.google.com/speed/webp"
+arch="all"
+license="BSD-3-Clause"
+makedepends="autoconf automake giflib-dev libjpeg-turbo-dev libpng-dev libtool"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-tools"
+source="https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+	./autogen.sh
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--enable-libwebpmux \
+		--enable-libwebpdemux \
+		--enable-libwebpdecoder \
+		--disable-tiff # dependency-loop
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	mkdir -p "$pkgdir"/usr/share/doc/$pkgname
+	install -Dm644 PATENTS README "$pkgdir"/usr/share/doc/$pkgname
+}
+
+tools() {
+	pkgdesc="The WebP command line tools"
+	mkdir -p "$subpkgdir"/usr/
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+}
+
+sha512sums="
+0dd0a721352b513a218d55383bcd0cc45b786df8089f70f87257b5dcc0c4e2f1798e20f1ca98b8fe51710abb667f9c4c14f20f980a11c484c8832f0dc66e3bff  libwebp-1.2.2.tar.gz
+"

@@ -1,0 +1,41 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: automake enables the automatic creation of Makefiles that
+# complies with the GNU Makefile Standards. This way, you can produce a
+# GNU Build System without manual adjustment of Makefiles.
+
+pkgname=automake
+pkgver=1.16.5
+pkgrel=0
+pkgdesc="GNU automatic Makefiles generation tool"
+url="https://www.gnu.org/software/automake"
+arch="noarch"
+license="GPL-2.0-or-later MIT Public-Domain"
+depends="perl autoconf"
+makedepends="autoconf xz"
+subpackages="$pkgname-doc"
+source="https://ftp.gnu.org/gnu/automake/automake-$pkgver.tar.xz
+	"
+
+# many tests have bashisms
+options="!check"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR=$pkgdir install
+}
+
+sha512sums="
+3084ae543aa3fb5a05104ffb2e66cfa9a53080f2343c44809707fd648516869511500dba50dae67ff10f92a1bf3b5a92b2a0fa01cda30adb69b9da03994d9d88  automake-1.16.5.tar.xz
+"

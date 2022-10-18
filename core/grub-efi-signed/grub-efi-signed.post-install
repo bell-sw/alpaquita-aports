@@ -1,0 +1,17 @@
+#!/bin/sh
+
+efi_path="/boot/efi/EFI/alpaquita"
+
+if [ -e "$efi_path" ]; then
+	boot_uuid="$(grub-probe --target=fs_uuid /boot/grub)"
+	[ $? -ne 0 ] && exit $?
+
+	cat << EOF > $efi_path/grub.cfg.new
+search --no-floppy --fs-uuid --set=dev $boot_uuid
+set prefix=(\$dev)/boot/grub
+export \$prefix
+configfile \$prefix/grub.cfg
+EOF
+
+	mv $efi_path/grub.cfg.new $efi_path/grub.cfg
+fi

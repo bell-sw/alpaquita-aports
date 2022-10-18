@@ -1,0 +1,35 @@
+pkgname=py3-execnet
+_pkgname=execnet
+pkgver=1.9.0
+pkgrel=0
+pkgdesc="execnet: rapid multi-Python deployment"
+url="https://github.com/pytest-dev/execnet"
+arch="noarch"
+license="MIT"
+depends="py3-apipkg"
+# tests for py-gevent are broken, jython is missing in repo, eventlet is part
+# of testing
+checkdepends="py3-pytest py3-py"
+makedepends="py3-setuptools py3-setuptools_scm"
+source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz"
+builddir="$srcdir"/$_pkgname-$pkgver
+
+replaces="py-execnet" # Backwards compatibility
+provides="py-execnet=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	mv $builddir/doc/example/conftest.py $builddir
+	python3 -m pytest
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+d425e7b6f3708efecb5dfa2c36a837cb55f2c32cf2ec0c1dc11cd1ca6ea614d119d04908b84dd5a3593c87db35e71fee202f843665c853ac3538479f60c83d60  execnet-1.9.0.tar.gz
+"

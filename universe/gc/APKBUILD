@@ -1,0 +1,45 @@
+pkgname=gc
+pkgver=8.2.0
+pkgrel=0
+pkgdesc="garbage collector for C and C++"
+url="https://hboehm.info/gc/"
+arch="all"
+license="custom:GPL-like"
+makedepends="linux-headers"
+subpackages="$pkgname-dbg $pkgname-dev $pkgname-doc libgc++:libgccpp"
+source="https://github.com/ivmai/bdwgc/releases/download/v$pkgver/gc-$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+	update_config_guess
+	update_config_sub
+}
+
+build() {
+	export CFLAGS="$CFLAGS -D_GNU_SOURCE -DNO_GETCONTEXT -DUSE_MMAP -DHAVE_DL_ITERATE_PHDR"
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--datadir=/usr/share/doc/gc \
+		--enable-static \
+		--enable-cplusplus
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+libgccpp() {
+	install -d "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libgccpp.* "$subpkgdir"/usr/lib/
+}
+
+sha512sums="
+ff781360bca667f1f95fbfed073e9035f63134cac1bda4f7e4217664a3713c2846f750a3ce92732972c0435c69355b051f6e8eb6f2698b0d48d9107ff960bacf  gc-8.2.0.tar.gz
+"

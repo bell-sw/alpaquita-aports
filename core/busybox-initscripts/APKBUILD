@@ -1,0 +1,66 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: busybox-initscripts is a package providing scripts to
+# initiate busybox daemons.
+
+pkgname=busybox-initscripts
+pkgver=4.0
+pkgrel=305
+pkgdesc="Init scripts for busybox daemons"
+url="https://git.alpinelinux.org/aports/tree/main/busybox-initscripts"
+arch="noarch"
+license="GPL-2.0-only"
+depends="busybox openrc>=0.24.1-r6"
+makedepends=""
+install="$pkgname.post-install $pkgname.post-upgrade"
+subpackages=""
+options="!check"
+replaces="alpaquita-baselayout openntpd"
+source="acpid.initd crond.initd dnsd.initd httpd.initd inetd.initd klogd.initd
+	ntpd.initd rdate.initd syslog.initd udhcpd.initd loadkmap.initd
+	watchdog.initd crond.confd klogd.confd ntpd.confd rdate.confd syslog.confd
+	watchdog.confd loadkmap.confd
+	"
+
+package() {
+	local i
+	cd "$srcdir"
+
+	mkdir -p "$pkgdir"/etc/conf.d "$pkgdir"/etc/init.d \
+		"$pkgdir"/etc/acpi/PWRF
+	for i in *.initd; do
+		install -m755 "$srcdir"/$i "$pkgdir"/etc/init.d/${i%.*} || return 1
+	done
+	for i in *.confd; do
+		install -m644 "$srcdir"/$i "$pkgdir"/etc/conf.d/${i%.*} || return 1
+	done
+
+	# poweroff script for acpid
+	cat >"$pkgdir"/etc/acpi/PWRF/00000080 <<EOF
+#!/bin/sh
+poweroff
+EOF
+	chmod +x "$pkgdir"/etc/acpi/PWRF/00000080
+}
+
+sha512sums="
+6e0ad6dde9da4a8050cebe022166b608756fc108db6e7d169ecb938f161ffcb05deb57aaa4c9a4b99bf2b20569db96ae2e9337b9d84160371e21b9d9e7007e21  acpid.initd
+d1b495066eaf1c052577e386ca512365f3b2d6305e45a920795d434c472815fdaf439d54ef811bcdfd8ef2efea1638344edc0bb5414da59b74a5f420957ee184  crond.initd
+c571c5acf8cec351a41cbce00a7e21d08e8db5da129830d4bcc09cba5dc7ce5acfe8670bb4475436917d53cd7e5e0502042025124e2a905d929ff811bc2036d0  dnsd.initd
+f8dcfb5c722a3bd87d4e08f0af0e047270e9158d262bf5909caed2f641a44f38a742437c315909a3f70a588282054af0f9356ebb9aab8d51d35c702bbb5559f4  httpd.initd
+81bba7fc625a86e04069b82cdf9dcfb5b6a9b3ceaf138e08cc8fd5e7680d8c9aa670e74783b00778e1cb1f7b1fb65946b003d0927771e412d15e2d92b4d5c5e2  inetd.initd
+c3f4aa21d457ffc73f72365434ebab48da3c16720b7e79d59921accc20a1718f32230e7760e4abddaf90939e903065cfaab12a55fe99f36bf1a286facc8d6231  klogd.initd
+4c023cb255e486071731874db55cccd1b789217d287e6936e5bc39c5331e5c936664e8db6c9ca7cc9a6565dca418ffe4b7908cb3b1701345c0cc7f23233e357c  ntpd.initd
+804fdcfd7fd8001fb72836b92746fc3824df6c53423ac1635176c8b5b180547d0ef8049f33ceea65b8999f6654f7a542fedc6c420a04764f22bf14a41733678b  rdate.initd
+224929cc5295546c6299956db8f8f4110467f8eb3a084060065101bd56cc0be961393b7f26bb722f96f9a680c7dea3444a01746922cdba1f2c583c5918db9b52  syslog.initd
+1171b4144fa2bca2fd48ea6143a297a271d76cf9b109efe4fb09a07d07427a5cee028ebdce1efa9b18fdea84002a82674c2dc08fbf25647fd22443abefbb02ae  udhcpd.initd
+504394ef69d316fd7cef63a31c6d0e32b70f4cc060acf70fbe42c0e1eb5d04120c221ef1cace20cb3191be61e600000f7f3174807e5249d6a8ba4e639c40e3db  loadkmap.initd
+8c8eabb4f9bca466e42fd0676638f472c6f86c7f6dfbf0ef5c1bc63cd5e864d808d287b1e4c048ae2caae2c5070b644a017d0c334d472d324cfc9633987c2f0c  watchdog.initd
+34c6f3197064bb91619b899b28a201bd4d920b18bded3845440b2cb36dc6f16cabf447c96878349b16e46c30184cbe48bac00a01c5f7cf1be038c0b7136064c5  crond.confd
+f9bf43b72142bbb4c0665c1268a3d91586ef8a057dfe64c53b6923815d2db1f669b8080a38311ad89cda0b783a8628700fc5414d834a21d8e48515760bb910f7  klogd.confd
+b0ba67585f39d83320ed6de183d7463a0e163807b9f3dc6f0baa212236056f22aeb2c5399dfdcd54929eb5ae06a15714c2fed133b5888869ed9d9cf589cef843  ntpd.confd
+3d6c4d358e226e0c0462f2003bcf0b6787f91a53f4d6b6db5bfe7748bb0dd392d7cc454058ea8a9b649e8dd2629963a5ad1257c36af04367caeb1923f954daf7  rdate.confd
+bf8173ee33a5d2b61cbdbc1b070e599a17a21e5433a0d8aa9beef71e4ac831304076af8e7e58dc594cdee61562329793afdc57af91e5496bf5fffb9b734a3d9c  syslog.confd
+359af0a4a1841dd6557eaf3e71d39f0d7a2687bad6a8fc6ef436eccf72a40f85c6400a3b7880c7f64d8e460b6af8a0ff3dd5ffc3a4b1aa8eb0d8f7eaf99ee3e4  watchdog.confd
+acbba3385fb2c416362eb9176f24146b617a2e394ee0e00b9eff89350f82468a5ab8396f4f52b0aaf03d341ac6150c73182e808fa3f29a2dc71c69271cdfb811  loadkmap.confd
+"

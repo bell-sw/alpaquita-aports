@@ -1,0 +1,44 @@
+#!/bin/sh
+
+new_pkgver="$1"
+old_pkgver="$2"
+
+if [ "$new_pkgver" = "$old_pkgver" ]; then
+	exit 0
+fi
+
+flavor="lts"
+backup="bak"
+
+if [ -h /boot/vmlinuz.lts.$backup ]; then
+	kernel="$(readlink -f /boot/vmlinuz.$flavor.$backup)"
+	version="${kernel##*/vmlinuz-}"
+	modpath=/lib/modules/$version
+
+	echo "Removing previous backup Linux $version ..."
+
+	if [ -d "$modpath" ]; then
+		rm -rf "$modpath"
+	fi
+
+	for i in initramfs vmlinuz System.map config; do
+		rm -f /boot/$i-$version
+	done
+fi
+
+version="${old_pkgver/-r/-}-$flavor"
+echo "Creating new backup Linux $version ..."
+
+cd /boot
+
+[ -f "vmlinuz-$version" ] && ln -sf vmlinuz-$version vmlinuz.$flavor.$backup
+
+for i in initramfs vmlinuz System.map config; do
+	[ -f "$i-$version" ] && mv $i-$version $i-$version.$backup
+done
+
+[ -d "/lib/modules/$version" ] && mv /lib/modules/$version /lib/modules/$version.$backup
+
+echo "Backup completed"
+
+exit 0

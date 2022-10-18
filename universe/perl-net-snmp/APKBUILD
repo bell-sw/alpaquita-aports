@@ -1,0 +1,35 @@
+pkgname=perl-net-snmp
+_pkgreal=Net-SNMP
+pkgver=6.0.1
+pkgrel=5
+pkgdesc="Object oriented interface to SNMP"
+url="https://metacpan.org/release/Net-SNMP/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-crypt-des perl-crypt-rijndael perl-digest-sha1"
+makedepends="perl-module-build"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/D/DT/DTOWN/$_pkgreal-v$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-v$pkgver"
+
+prepare() {
+	default_prepare
+	perl Build.PL installdirs=vendor
+}
+
+build() {
+	./Build
+}
+
+check() {
+	./Build test
+}
+
+package() {
+	./Build install destdir="$pkgdir"
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+5e38d4a934661201d42fd4a2d08aeca8c4522e0e430303eec7af38d16ea0aee131a4ec563bf87874376fe4995a674a24451f2a12b71a9c51ed3632e6f65314df  Net-SNMP-v6.0.1.tar.gz
+"

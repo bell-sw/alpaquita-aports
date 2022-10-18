@@ -1,0 +1,45 @@
+pkgname=py3-gobject3
+pkgver=3.42.1
+pkgrel=0
+pkgdesc="Python bindings for the GObject library"
+url="https://wiki.gnome.org/Projects/PyGObject/"
+arch="all"
+license="LGPL-2.1-or-later"
+makedepends="python3-dev py3-cairo-dev gobject-introspection-dev
+	libffi-dev glib-dev meson"
+checkdepends="py3-pytest gtk+3.0-dev xvfb-run ibus ttf-dejavu"
+depends="python3"
+subpackages="$pkgname-dev:_dev"
+options="!check" # Need ibus which is in community/
+source="https://download.gnome.org/sources/pygobject/${pkgver%.*}/pygobject-$pkgver.tar.xz"
+builddir="$srcdir"/pygobject-$pkgver
+
+replaces="py-gobject3" # Backwards compatibility
+provides="py-gobject3=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	abuild-meson \
+		-Dpython=python3 \
+		. output
+
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	PYGI_TEST_VERBOSE="1" xvfb-run meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" ninja -C "$builddir"/output install
+}
+
+_dev() {
+	replaces="py-gobject3-dev" # Backwards compatibility
+	provides="py-gobject3-dev=$pkgver-r$pkgrel" # Backwards compatibility
+
+	default_dev
+}
+
+sha512sums="
+b044d395f8334057be632fd56f670ae8405d9fc375bcbd7a0a3b2dcfb8efb06bad45e62e92d2ee5432e503642dba11d6f9bf91f26bf135fa5f9a871657105a18  pygobject-3.42.1.tar.xz
+"

@@ -1,0 +1,40 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=cython
+pkgver=0.29.24
+pkgrel=1
+pkgdesc="Cython is an optimising static compiler for both the Python & the extended Cython programming languages."
+url="https://cython.org/"
+arch="all"
+license="Apache-2.0"
+makedepends="py3-setuptools python3-dev"
+depends="python3"
+subpackages="cython-doc"
+source="cython-$pkgver.tar.gz::https://github.com/cython/cython/archive/$pkgver.tar.gz
+cython-test-fix.patch"
+
+# compatible fix for removing dev subpkg from apkbuild
+# cython is not a library but a compiler and does not need a dev subpackage
+provides=cython-dev
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 runtests.py -j${JOBS:-$(nproc)}
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+
+	install -Dm 644 LICENSE.txt "$pkgdir/usr/share/licenses/cython/license"
+	install -Dm 644 README.rst "$pkgdir/usr/share/doc/cython/readme.rst"
+}
+
+sha512sums="
+387a827f3cb7428248019744e3ed606a133d98ac882b83624d24ae0fdf8a8f2334978555d7d84e5cc4adaf715c541fef64e45bcbdda85ca33473c21f99360be8  cython-0.29.24.tar.gz
+6a924351d54636edf5c65309c285a7298a6b25d28a81812c636fd16901471b4d9522f271ec28c2e03c0a48fa926aa52bfbe60bf4cb80073d7837b81828a7220c  cython-test-fix.patch
+"

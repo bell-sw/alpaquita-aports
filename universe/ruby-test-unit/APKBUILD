@@ -1,0 +1,52 @@
+pkgname=ruby-test-unit
+_gemname=test-unit
+# This package should be in sync with "Bundled gems" (https://stdgems.org) 
+# for the packaged Ruby version.
+pkgver=3.5.3
+pkgrel=0
+pkgdesc="An xUnit family unit testing framework for Ruby"
+url="https://test-unit.github.io"
+arch="noarch"
+license="BSD-2-Clause AND Python-2.0 AND Ruby"
+depends="ruby ruby-power_assert"
+makedepends="ruby-rdoc"
+subpackages="$pkgname-doc"
+source="https://github.com/test-unit/test-unit/archive/$pkgver/$_gemname-$pkgver.tar.gz
+	gemspec.patch
+	"
+builddir="$srcdir/$_gemname-$pkgver"
+
+build() {
+	gem build $_gemname.gemspec
+}
+
+check() {
+	ruby test/run-test.rb
+}
+
+package() {
+	local gemdir="$pkgdir/$(ruby -e 'puts Gem.default_dir')"
+
+	gem install \
+		--local \
+		--install-dir "$gemdir" \
+		--ignore-dependencies \
+		--document ri \
+		--verbose \
+		$_gemname
+
+	# Remove unnessecary files
+	cd "$gemdir"
+	rm -rf build_info cache extensions plugins
+}
+
+doc() {
+	pkgdesc="$pkgdesc (ri docs)"
+
+	amove "$(ruby -e 'puts Gem.default_dir')"/doc
+}
+
+sha512sums="
+e6960bdcc67c8667cc13f0a4cf8b412be767124b0e555294be71afff71e0ce9a34e7cfa7413e33ee3c8477928a479e9439ada9e50866c0e8890b4be8dd0b38a2  test-unit-3.5.3.tar.gz
+22f54fcf272856a9455d5a7276896ec329377b106ab47e3d376158eee72cf570f4487dd87606d730d061e7b06e5d7a0ff561cd8d279a64d8af0ac04e0f2dba92  gemspec.patch
+"

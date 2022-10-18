@@ -1,0 +1,57 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=sharutils
+pkgver=4.15.2
+pkgrel=1
+pkgdesc="Utilities for manipulating shell archives"
+url="https://www.gnu.org/software/sharutils/"
+arch="all"
+license="GPL-3.0+"
+depends="bzip2 xz"
+makedepends="gettext-dev texinfo"
+checkdepends="diffutils"
+subpackages="$pkgname-lang $pkgname-doc"
+source="https://ftp.gnu.org/gnu/sharutils/sharutils-$pkgver.tar.xz
+	gcc-10.patch
+	"
+
+prepare() {
+	default_prepare
+	update_config_sub
+}
+
+build() {
+
+	if [ "$CLIBC" = "glibc" ] ; then
+		sed -i 's/IO_ftrylockfile/IO_EOF_SEEN/' lib/*.c
+		echo "#define _IO_IN_BACKUP 0x100" >> lib/stdio-impl.h
+	fi
+
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	if [ "$CLIBC" = "musl" ] ; then 
+		rm $pkgdir/usr/lib/charset.alias
+	fi
+}
+
+sha512sums="
+80d0b804a0617e11e5c23dc0d59b218bbf93e40aaf5e9a5401a18ef9cb700390aab711e2b2e2f26c8fd5b8ef99a91d3405e01d02cadabcba7639979314e59f8d  sharutils-4.15.2.tar.xz
+4b5addb5dd738a3f8ef07fdbfd3dc2b5c31c86062419388249fe324dc64450b5dcb19269b7f47236df1ba926254211c41b8ecfa39f0efe7b537ffd1b2de5bdba  gcc-10.patch
+"

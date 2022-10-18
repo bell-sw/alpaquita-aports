@@ -1,0 +1,32 @@
+pkgname=py3-sortedcontainers
+_pkgname=python-sortedcontainers
+pkgver=2.4.0
+pkgrel=1
+pkgdesc="Python library for sorting collections and containers"
+url="http://www.grantjenks.com/docs/sortedcontainers"
+license="Apache-2.0"
+arch="noarch"
+depends="python3"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest"
+source="$_pkgname-$pkgver.tar.gz::https://github.com/grantjenks/python-sortedcontainers/archive/v$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces="py-sortedcontainers" # Backwards compatibility
+provides="py-sortedcontainers=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	PYTHONPATH="$PWD"/build/lib python3 -m pytest
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir" --skip-build
+}
+
+sha512sums="
+f80185c6f95a85cc78f88f6f6cf389eb48be22cf94d5fcd84f3592873f17de37ec7f44c1627b7f02956ac4b4f74ca4febefc47d3c6232f70ee05dbb2449ad770  python-sortedcontainers-2.4.0.tar.gz
+"

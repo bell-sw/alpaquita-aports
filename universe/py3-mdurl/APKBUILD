@@ -1,0 +1,28 @@
+pkgname=py3-mdurl
+pkgver=0.1.1
+pkgrel=0
+pkgdesc="URL utilities for markdown-it (a Python port)"
+url="https://github.com/executablebooks/mdurl"
+arch="noarch"
+license="MIT"
+depends="python3"
+makedepends="py3-build py3-flit py3-installer"
+checkdepends="py3-pytest"
+source="https://github.com/executablebooks/mdurl/archive/$pkgver/py3-mdurl-$pkgver.tar.gz"
+builddir="$srcdir/mdurl-$pkgver"
+
+build() {
+	python3 -m build --no-isolation --wheel
+}
+
+check() {
+	PYTHONPATH=src pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" dist/mdurl-$pkgver-py3-none-any.whl
+}
+
+sha512sums="
+ae7ee5672f59595d96fa3fd8b45154d3175881432dea60c72ef6dbd0b22124a20183539c83552bb9a8dfa1fc1c4ac3132201ce389a6678853c55c0224aa04622  py3-mdurl-0.1.1.tar.gz
+"

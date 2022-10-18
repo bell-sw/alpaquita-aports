@@ -1,0 +1,40 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=perl-test-pod
+_pkgreal=Test-Pod
+pkgver=1.52
+pkgrel=2
+pkgdesc="check for POD errors in files"
+url="https://metacpan.org/release/Test-Pod/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/E/ET/ETHER/$_pkgreal-$pkgver.tar.gz"
+
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+prepare() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+}
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+9b078488e1da8b907f5f3a46452aa9bfd49db61f1539d076dccebf9a8b476eaf0f539f00badc9c500b1e732a8827331b2286375924986efb990367767eeb8365  Test-Pod-1.52.tar.gz
+"

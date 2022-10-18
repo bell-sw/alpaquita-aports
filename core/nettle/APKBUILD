@@ -1,0 +1,60 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: nettle provides a low-level roitines for a wide range of
+# cryptographic algorithms.
+
+pkgname=nettle
+pkgver=3.7.3
+pkgrel=0
+pkgdesc="Low level cryptographic library"
+url="https://www.lysator.liu.se/~nisse/nettle/"
+arch="all"
+license="LGPL-2.0-or-later"
+depends_dev="gmp-dev"
+makedepends="$depends_dev m4"
+subpackages="$pkgname-static $pkgname-dev $pkgname-utils"
+source="https://ftp.gnu.org/gnu/nettle/nettle-$pkgver.tar.gz"
+
+# secfixes:
+#   3.7.3-r0:
+#     - CVE-2021-3580
+#   3.7.2-r0:
+#     - CVE-2021-20305
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--libdir=/usr/lib \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--enable-fat \
+		--enable-shared \
+		--disable-openssl \
+		--enable-static
+	make
+	# strip comments in fields from .pc as it confuses pkgconf
+	sed -i -e 's/ \#.*//' ./*.pc
+}
+
+check() {
+	make -C examples  # required for rsa-encrypt
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+utils() {
+	pkgdesc="Utils for nettle"
+	mkdir -p "$subpkgdir"/usr
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+}
+
+sha512sums="
+9901eba305421adff6d551ac7f478dff3f68a339d444c776724ab0b977fe6be792b1d2950c8705acbe76bd924fd6d898a65eded546777884be3b436d0e052437  nettle-3.7.3.tar.gz
+"

@@ -1,0 +1,26 @@
+pkgname=py3-hatchling
+_pkgreal=hatchling
+pkgver=1.3.0
+pkgrel=0
+pkgdesc="Modern, extensible Python build backend"
+url="https://ofek.dev/projects/hatch/"
+license="MIT"
+arch="noarch"
+depends="python3 py3-editables py3-packaging py3-pathspec py3-pluggy py3-tomli"
+makedepends="py3-build py3-installer py3-poetry-core"
+source="https://github.com/ofek/hatch/archive/refs/tags/hatchling-v$pkgver.tar.gz"
+builddir="$srcdir/hatch-$_pkgreal-v$pkgver"
+options="!check"
+
+build() {
+	GIT_DIR=. python3 -m build --no-isolation --wheel backend
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		backend/dist/hatchling-$pkgver-py3-none-any.whl
+}
+
+sha512sums="
+03caa35a05332f55ac235a87d9549c201a564896cb409625efdfd25fee8a0c110a753bafcc93da1c602752bb965b599e81e8106d24a26503abb01a8f90457aed  hatchling-v1.3.0.tar.gz
+"

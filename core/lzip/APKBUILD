@@ -1,0 +1,37 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: Lzip is a lossless data compressor based on the LZMA algorithm,
+# with very safe integrity checking and a user interface similar to the one of
+# gzip or bzip2.
+
+pkgname=lzip
+pkgver=1.23
+pkgrel=0
+pkgdesc="LZMA lossless data compressor"
+url="https://nongnu.org/lzip/"
+arch="all"
+license="GPL-2.0-or-later"
+subpackages="$pkgname-doc"
+source="https://download.savannah.gnu.org/releases/lzip/lzip-$pkgver.tar.gz"
+
+build() {
+	./configure \
+		--prefix=/usr \
+		CXX="$CXX" \
+		CPPFLAGS="$CPPFLAGS" \
+		CXXFLAGS="$CXXFLAGS" \
+		LDFLAGS="$LDFLAGS"
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR=$pkgdir install
+}
+
+sha512sums="
+482804205b6e92fdf9cb17fb9482df7987227c7b1bef9e42d78787acfabe73995f5b1a66f847d2176423f22dce56f1122c5b1c9670f0b778c0bdad2852369c85  lzip-1.23.tar.gz
+"

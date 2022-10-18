@@ -1,0 +1,121 @@
+diff -r c7425afe356d src/hotspot/share/gc/g1/collectionSetChooser.cpp
+--- a/src/hotspot/share/gc/g1/collectionSetChooser.cpp	Sun Jul 11 00:46:11 2021 +0200
++++ b/src/hotspot/share/gc/g1/collectionSetChooser.cpp	Wed Oct 06 22:47:58 2021 +0300
+@@ -299,4 +299,74 @@
+   workers->run_task(&par_known_garbage_task);
+ 
+   sort_regions();
++
++  prune();
+ }
++
++// Closure implementing early pruning (removal) of regions meeting the
++// G1HeapWastePercent criteria. That is, either until _max_pruned regions were
++// removed (for forward progress in evacuation) or the waste accumulated by the
++// removed regions is above max_wasted.
++class G1PruneRegionClosure : public HeapRegionClosure {
++  uint _num_pruned;
++  size_t _cur_wasted;
++
++  uint const _max_pruned;
++  size_t const _max_wasted;
++
++public:
++  G1PruneRegionClosure(uint max_pruned, size_t max_wasted) :
++    _num_pruned(0), _cur_wasted(0), _max_pruned(max_pruned), _max_wasted(max_wasted) { }
++
++  virtual bool do_heap_region(HeapRegion* r) {
++    size_t const reclaimable = r->reclaimable_bytes();
++    if (_num_pruned > _max_pruned ||
++        _cur_wasted + reclaimable > _max_wasted) {
++      return true;
++    }
++    r->rem_set()->clear(true /* cardset_only */);
++    _cur_wasted += reclaimable;
++    _num_pruned++;
++    return false;
++  }
++
++  uint num_pruned() const { return _num_pruned; }
++  size_t wasted() const { return _cur_wasted; }
++};
++
++void CollectionSetChooser::prune() {
++  G1Policy* p = G1CollectedHeap::heap()->g1_policy();
++  uint min_old_cset_length = p->calc_min_old_cset_length();
++  uint num_candidates = length();
++  if (min_old_cset_length < num_candidates) {
++    size_t allowed_waste = G1HeapWastePercent * G1CollectedHeap::heap()->capacity() / 100;
++    G1PruneRegionClosure prune_cl(num_candidates - min_old_cset_length,
++                                  allowed_waste);
++    for (uint i = num_candidates; i > _front; i--) {
++      HeapRegion* r = regions_at(i - 1);
++      if (prune_cl.do_heap_region(r)) {
++        break;
++      }
++    }
++    log_debug(gc, ergo, cset)("Pruned %u regions out of %u, leaving " SIZE_FORMAT " bytes waste (allowed " SIZE_FORMAT ")",
++                              prune_cl.num_pruned(),
++                              num_candidates,
++                              prune_cl.wasted(),
++                              allowed_waste);
++    assert(prune_cl.num_pruned() <= num_remaining(), "trying to remove more regions than remaining");
++#ifdef ASSERT
++    size_t reclaimable = 0;
++
++    for (uint i = 0; i < prune_cl.num_pruned(); i++) {
++      uint cur_idx = _num_regions - i - 1;
++      reclaimable += regions_at(cur_idx)->reclaimable_bytes();
++      // Make sure we crash if we access it.
++      _regions[cur_idx] = NULL;
++    }
++
++    assert(reclaimable == prune_cl.wasted(), "Recalculated reclaimable inconsistent");
++#endif
++    _end -= prune_cl.num_pruned();
++    _remaining_reclaimable_bytes -= prune_cl.wasted();
++  }
++}
+diff -r c7425afe356d src/hotspot/share/gc/g1/collectionSetChooser.hpp
+--- a/src/hotspot/share/gc/g1/collectionSetChooser.hpp	Sun Jul 11 00:46:11 2021 +0200
++++ b/src/hotspot/share/gc/g1/collectionSetChooser.hpp	Wed Oct 06 22:47:58 2021 +0300
+@@ -25,6 +25,7 @@
+ #ifndef SHARE_VM_GC_G1_COLLECTIONSETCHOOSER_HPP
+ #define SHARE_VM_GC_G1_COLLECTIONSETCHOOSER_HPP
+ 
++#include "gc/g1/g1Policy.hpp"
+ #include "gc/g1/heapRegion.hpp"
+ #include "utilities/growableArray.hpp"
+ 
+@@ -68,6 +69,8 @@
+   // Calculate and return chunk size (in number of regions) for parallel
+   // addition of regions
+   uint calculate_parallel_work_chunk_size(uint n_workers, uint n_regions) const;
++
++  void prune();
+ public:
+ 
+   // Return the current candidate region to be considered for
+diff -r c7425afe356d src/hotspot/share/gc/g1/g1Policy.cpp
+--- a/src/hotspot/share/gc/g1/g1Policy.cpp	Sun Jul 11 00:46:11 2021 +0200
++++ b/src/hotspot/share/gc/g1/g1Policy.cpp	Wed Oct 06 22:47:58 2021 +0300
+@@ -1088,17 +1088,8 @@
+     return false;
+   }
+ 
+-  // Is the amount of uncollected reclaimable space above G1HeapWastePercent?
+-  size_t reclaimable_bytes = cset_chooser()->remaining_reclaimable_bytes();
+-  double reclaimable_percent = reclaimable_bytes_percent(reclaimable_bytes);
+-  double threshold = (double) G1HeapWastePercent;
+-  if (reclaimable_percent <= threshold) {
+-    log_debug(gc, ergo)("%s (reclaimable percentage not over threshold). candidate old regions: %u reclaimable: " SIZE_FORMAT " (%1.2f) threshold: " UINTX_FORMAT,
+-                        false_action_str, cset_chooser()->remaining_regions(), reclaimable_bytes, reclaimable_percent, G1HeapWastePercent);
+-    return false;
+-  }
+-  log_debug(gc, ergo)("%s (candidate old regions available). candidate old regions: %u reclaimable: " SIZE_FORMAT " (%1.2f) threshold: " UINTX_FORMAT,
+-                      true_action_str, cset_chooser()->remaining_regions(), reclaimable_bytes, reclaimable_percent, G1HeapWastePercent);
++  // Go through all regions - we already pruned regions not worth collecting
++  // during candidate selection.
+   return true;
+ }
+ 

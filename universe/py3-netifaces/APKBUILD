@@ -1,0 +1,30 @@
+pkgname=py3-netifaces
+_pkgname=netifaces
+pkgver=0.11.0
+pkgrel=1
+pkgdesc="Portable module to access network interface information in Python3"
+url="http://alastairs-place.net/netifaces/"
+arch="all"
+license="MIT"
+makedepends="python3-dev py3-setuptools linux-headers"
+source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces="py-netifaces" # Backwards compatibility
+provides="py-netifaces=$pkgver-r$pkgrel" # Backwards compatibility
+
+check() {
+	python3 setup.py check
+}
+
+build() {
+	python3 setup.py build
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+a53110efb78c89c4d72d002104866253a4c085dd27ff9f41d4cfe3811cc5619e7585ceda4e91e83cdd0645c40c745c61d205708ee9a34427b35f437a48f148e5  netifaces-0.11.0.tar.gz
+"

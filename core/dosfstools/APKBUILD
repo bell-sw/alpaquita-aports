@@ -1,0 +1,39 @@
+
+# Description: dosfstools consists of the programs mkfs.fat, fsck.fat 
+# and fatlabel to create, check and label file systems of the FAT family.
+
+pkgname=dosfstools
+pkgver=4.2
+pkgrel=1
+pkgdesc="DOS filesystem utilities"
+url="https://github.com/dosfstools/dosfstools"
+arch="all"
+license="GPL-3.0-or-later"
+makedepends="linux-headers autoconf automake libtool"
+subpackages="$pkgname-doc"
+source="https://github.com/dosfstools/dosfstools/releases/download/v$pkgver/dosfstools-$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+	./autogen.sh
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sbindir=/sbin \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--disable-nls \
+		--enable-compat-symlinks
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="3cc0808edb4432428df8a67da4bb314fd1f27adc4a05754c1a492091741a7b6875ebd9f6a509cc4c5ad85643fc40395b6e0cadee548b25cc439cc9b725980156  dosfstools-4.2.tar.gz"

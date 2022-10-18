@@ -1,0 +1,90 @@
+diff --git a/make/autoconf/flags-ldflags.m4 b/make/autoconf/flags-ldflags.m4
+index a4c7fde34e..5c0b57ca60 100644
+--- a/make/autoconf/flags-ldflags.m4
++++ b/make/autoconf/flags-ldflags.m4
+@@ -179,7 +179,12 @@ AC_DEFUN([FLAGS_SETUP_LDFLAGS_CPU_DEP],
+         $1_CPU_LDFLAGS_JVM_ONLY="${$1_CPU_LDFLAGS_JVM_ONLY} -fsigned-char"
+       fi
+     fi
+-
++    # also add -fno-omit-frame-pointer to ldflags symmetrically flags-cflags logic
++    if test "x${OPENJDK_$1_CPU}" != xarm && test "x${OPENJDK_$1_CPU}" != xppc; then
++      # for all archs except arm and ppc, prevent gcc to omit frame pointer
++      # especially required for lto
++      $1_CPU_LDFLAGS="${$1_CPU_LDFLAGS} -fno-omit-frame-pointer"
++    fi
+   elif test "x$TOOLCHAIN_TYPE" = xsolstudio; then
+     if test "x${OPENJDK_$1_CPU}" = "xsparcv9"; then
+       $1_CPU_LDFLAGS_JVM_ONLY="-xarch=sparc"
+diff --git a/make/hotspot/lib/JvmOverrideFiles.gmk b/make/hotspot/lib/JvmOverrideFiles.gmk
+index 17e73b2568..153faf2299 100644
+--- a/make/hotspot/lib/JvmOverrideFiles.gmk
++++ b/make/hotspot/lib/JvmOverrideFiles.gmk
+@@ -40,6 +40,20 @@ ifeq ($(TOOLCHAIN_TYPE), gcc)
+     # Need extra inlining to collapse all marking code into the hot marking loop
+     BUILD_LIBJVM_shenandoahConcurrentMark.cpp_CXXFLAGS := --param inline-unit-growth=1000
+   endif
++  
++  # Enabling LTO for two files below cause a random crashes in G1
++  BUILD_LIBJVM_g1CodeBlobClosure.cpp_CXXFLAGS := -fno-lto
++  BUILD_LIBJVM_g1CollectionSet.cpp_CXXFLAGS := -fno-lto
++
++  BUILD_LIBJVM_os_linux.cpp_CXXFLAGS := -fno-lto
++
++  # async profiler
++  BUILD_LIBJVM_allocTracer.cpp_CXXFLAGS := -fno-lto
++  BUILD_LIBJVM_jvmtiEnv.cpp_CXXFLAGS := -fno-lto
++  BUILD_LIBJVM_codeCache.cpp_CXXFLAGS := -fno-lto
++  BUILD_LIBJVM_mutex.cpp_CXXFLAGS := -fno-lto
++  BUILD_LIBJVM_sweeper.cpp_CXXFLAGS := -fno-lto
++
+ endif
+ 
+ LIBJVM_FDLIBM_COPY_OPT_FLAG := $(CXX_O_FLAG_NONE)
+diff --git a/src/jdk.hotspot.agent/share/classes/sun/jvm/hotspot/types/basic/BasicTypeDataBase.java b/src/jdk.hotspot.agent/share/classes/sun/jvm/hotspot/types/basic/BasicTypeDataBase.java
+index 719075dfa1..5a7227a9b2 100644
+--- a/src/jdk.hotspot.agent/share/classes/sun/jvm/hotspot/types/basic/BasicTypeDataBase.java
++++ b/src/jdk.hotspot.agent/share/classes/sun/jvm/hotspot/types/basic/BasicTypeDataBase.java
+@@ -275,8 +275,11 @@ public class BasicTypeDataBase implements TypeDataBase {
+     // search nearby memory for the vtbl value of the given type.
+ 
+     if (vtblForType(baseType) == null) {
+-      // Type was not polymorphic which is an error of some sort
+-      throw new InternalError(baseType + " does not appear to be polymorphic");
++      // Compiler optimization coulid optimize out vtable symbols, 
++      // will try to find vtbl of one of child classes below
++      if (DEBUG) {
++        System.err.println("BasicTypeDataBase.findDynamicTypeForAddress: vtblAddr == null for " + baseType);
++      }
+     }
+ 
+     // This is a more restricted version of guessTypeForAddress since
+diff --git a/test/hotspot/gtest/gtestMain.cpp b/test/hotspot/gtest/gtestMain.cpp
+index 9bf115c123..c90f517b78 100644
+--- a/test/hotspot/gtest/gtestMain.cpp
++++ b/test/hotspot/gtest/gtestMain.cpp
+@@ -66,7 +66,7 @@ static int init_jvm(int argc, char **argv, bool disable_error_handling) {
+   argv++;
+ 
+   int extra_jvm_args = disable_error_handling ? 4 : 2;
+-  int num_jvm_options = argc + extra_jvm_args;
++  unsigned short num_jvm_options = (unsigned short) argc + extra_jvm_args;
+ 
+   JavaVMOption* options = new JavaVMOption[num_jvm_options];
+   options[0].optionString = (char*) "-Dsun.java.launcher.is_altjvm=true";
+diff --git a/test/hotspot/jtreg/runtime/NMT/CheckForProperDetailStackTrace.java b/test/hotspot/jtreg/runtime/NMT/CheckForProperDetailStackTrace.java
+index 57256aa5a3..cf467f2b4b 100644
+--- a/test/hotspot/jtreg/runtime/NMT/CheckForProperDetailStackTrace.java
++++ b/test/hotspot/jtreg/runtime/NMT/CheckForProperDetailStackTrace.java
+@@ -54,9 +54,8 @@ public class CheckForProperDetailStackTrace {
+        to make sure it matches even if the symbol is not unmangled.
+     */
+     private static String stackTraceDefault =
+-        ".*Hashtable.*allocate_new_entry.*\n" +
+-        ".*ModuleEntryTable.*new_entry.*\n" +
+-        ".*ModuleEntryTable.*locked_create_entry_or_null.*\n" +
++        ".*PackageEntryTable.*new_entry.*\n" +
++        ".*PackageEntryTable.*locked_create_entry_or_null.*\n" +
+         ".*Modules.*define_module.*\n";
+ 
+     /* Alternate stacktrace that we check if the default fails, because

@@ -1,0 +1,47 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: A daemon that provides a cache for the most common name service
+# requests.
+
+pkgname=musl-nscd
+pkgver=1.1.1
+pkgrel=0
+pkgdesc="Implementation of nscd for nsswitch modules for musl"
+url="https://github.com/pikhq/musl-nscd"
+arch="all"
+options="!libc_glibc !check" # no test suite
+license="MIT"
+depends_dev="bison flex"
+makedepends="$depends_dev"
+install="$pkgname.pre-install"
+subpackages="$pkgname-dev $pkgname-doc"
+source="
+	$pkgname-$pkgver.tar.gz::https://github.com/pikhq/musl-nscd/archive/v$pkgver.tar.gz
+	musl-nscd.initd
+	"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	install -m644 -D COPYRIGHT \
+		"$pkgdir"/usr/share/licenses/$pkgname/COPYRIGHT
+
+	install -m755 -D "$srcdir"/$pkgname.initd \
+		"$pkgdir"/etc/init.d/nscd
+}
+
+sha512sums="
+f067b1491c6c46c3070aa2f61328b874eb6ad390c2efc928e2fee591ef5997b40400e29495546a861e803460efa46024c7a01c53ddae5b763ef63c2f274fceea  musl-nscd-1.1.1.tar.gz
+8b5cd8f156a71e1b4c6d3203410c9715d161f2bce0583915fe2158a6ecc5241329e1c1e085217afb035669a3eac088e3ac21751e11cb0e97e9b735d569b81a41  musl-nscd.initd
+"

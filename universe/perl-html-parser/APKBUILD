@@ -1,0 +1,34 @@
+pkgname=perl-html-parser
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=HTML-Parser
+pkgver=3.78
+pkgrel=0
+pkgdesc="HTML parser class"
+url="https://metacpan.org/release/HTML-Parser/"
+arch="all"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-html-tagset perl-http-message perl-uri"
+makedepends="perl-dev"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/O/OA/OALDERS/HTML-Parser-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+5bbed1324d79f7d677c31eb6e95c51c46742d596c30ec1efbee90c387eebf90b357b0b0cbb3da35326a3a2429bad837f957393bc0316ea1b0170c094467b06d3  HTML-Parser-3.78.tar.gz
+"

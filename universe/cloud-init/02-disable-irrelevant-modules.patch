@@ -1,0 +1,35 @@
+From: Dermot Bradley <dermot_bradley@yahoo.com>
+Date: Wed, 12 May 2021 00:14 +0100
+Subject: [PATCH] cloud-init: Disable some modules not relevant to Alpine
+
+Disable some cloud-init modules that are not (currently) relevant
+to Alpine and which have been removed from the Alpine package.
+
+---
+
+diff -aur a/config/cloud.cfg.tmpl b/config/cloud.cfg.tmpl
+--- a/config/cloud.cfg.tmpl
++++ b/config/cloud.cfg.tmpl
+@@ -105,8 +105,10 @@
+  - emit_upstart
+  - snap
+ {% endif %}
+-{% if variant not in ["photon"] %}
++{% if variant not in ["alpine","photon"] %}
+  - ssh-import-id
++{% endif %}
++{% if variant not in ["photon"] %}
+  - locale
+ {% endif %}
+  - set-passwords
+@@ -156,8 +158,10 @@
+  - chef
+  - mcollective
+  - salt-minion
++{% if variant not in ["alpine"] %}
+  - reset_rmc
+  - refresh_rmc_and_interface
++{% endif %}
+  - rightscale_userdata
+  - scripts-vendor
+  - scripts-per-once

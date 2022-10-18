@@ -1,0 +1,43 @@
+From 4f58e9f83b408f3a002c216938367a2f742ee20c Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Mon, 14 Feb 2022 11:42:58 +0300
+Subject: [PATCH] openrc: add rc_quiet_openrc for openrc binary
+
+---
+ etc/rc.conf | 4 ++++
+ src/rc/rc.c | 4 ++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/etc/rc.conf b/etc/rc.conf
+index e93eed59..f6eb16ef 100644
+--- a/etc/rc.conf
++++ b/etc/rc.conf
+@@ -58,6 +58,10 @@
+ # verbose output for service foo only, set it to yes in /etc/conf.d/foo.
+ #rc_verbose=no
+ 
++# Set this option to "NO" if you want to see the messages from openrc/rc
++# during boot or shutdown.
++#rc_quiet_openrc="YES"
++
+ # By default we filter the environment for our running scripts. To allow other
+ # variables through, add them here. Use a * to allow all variables through.
+ #rc_env_allow="VAR1 VAR2"
+diff --git a/src/rc/rc.c b/src/rc/rc.c
+index 53c75bb6..646f3d1c 100644
+--- a/src/rc/rc.c
++++ b/src/rc/rc.c
+@@ -768,6 +768,10 @@ int main(int argc, char **argv)
+ 	env_filter();
+ 	env_config();
+ 
++	errno = 0;
++	if (rc_conf_yesno("rc_quiet_openrc") || errno == ENOENT)
++		setenv("EINFO_QUIET", "YES", 1);
++
+ 	/* complain about old configuration settings if they exist */
+ 	if (exists(RC_CONF_OLD)) {
+ 		ewarn("%s still exists on your system and should be removed.",
+-- 
+2.25.1
+

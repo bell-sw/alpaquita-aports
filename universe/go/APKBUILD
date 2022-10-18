@@ -1,0 +1,197 @@
+pkgname=go
+# go binaries are statically linked, security updates require rebuilds
+pkgver=1.18.2
+pkgrel=1
+pkgdesc="Go programming language compiler"
+url="https://go.dev/"
+arch="all"
+license="BSD-3-Clause"
+depends="binutils gcc musl:musl-dev"
+makedepends="bash"
+checkdepends="binutils-gold"
+subpackages="$pkgname-doc"
+source="https://go.dev/dl/go$pkgver.src.tar.gz
+	allow-unshare-to-return-enosys.patch
+	"
+case "$CARCH" in
+	arm*|aarch64) depends="binutils-gold";;
+esac
+
+# secfixes:
+#   1.18.1-r0:
+#     - CVE-2022-28327
+#     - CVE-2022-27536
+#     - CVE-2022-24675
+#   1.17.8-r0:
+#     - CVE-2022-24921
+#   1.17.7-r0:
+#     - CVE-2022-23772
+#     - CVE-2022-23773
+#     - CVE-2022-23806
+#   1.17.6-r0:
+#     - CVE-2021-44716
+#     - CVE-2021-44717
+#   1.17.3-r0:
+#     - CVE-2021-41772
+#     - CVE-2021-41771
+#   1.17.2-r0:
+#     - CVE-2021-38297
+#   1.17.1-r0:
+#     - CVE-2021-39293
+#   1.17-r0:
+#     - CVE-2021-29923
+#   1.16.7-r0:
+#     - CVE-2021-36221
+#   1.16.6-r0:
+#     - CVE-2021-34558
+#   1.16.5-r0:
+#     - CVE-2021-33195
+#     - CVE-2021-33196
+#     - CVE-2021-33197
+#     - CVE-2021-33198
+#   1.16.4-r0:
+#     - CVE-2021-31525
+#   1.16.2-r0:
+#     - CVE-2021-27918
+#     - CVE-2021-27919
+#   1.15.7-r0:
+#     - CVE-2021-3114
+#     - CVE-2021-3115
+#   1.15.5-r0:
+#     - CVE-2020-28362
+#     - CVE-2020-28366
+#     - CVE-2020-28367
+#   1.15.2-r0:
+#     - CVE-2020-24553
+#   1.15-r0:
+#     - CVE-2020-16845
+#   1.14.5-r0:
+#     - CVE-2020-15586
+#   1.13.7-r0:
+#     - CVE-2020-7919
+#   1.13.2-r0:
+#     - CVE-2019-17596
+#   1.13.1-r0:
+#     - CVE-2019-16276
+#   1.12.8-r0:
+#     - CVE-2019-9512
+#     - CVE-2019-9514
+#     - CVE-2019-14809
+#   1.11.5-r0:
+#     - CVE-2019-6486
+#   1.9.4-r0:
+#     - CVE-2018-6574
+
+if [ "$CBUILD" = "$CTARGET" ]; then
+	makedepends="go-bootstrap $makedepends"
+	provides="go-bootstrap=$pkgver-r$pkgrel"
+	subpackages="$subpackages"
+else
+	pkgname="go-bootstrap"
+	makedepends="go $makedepends"
+	# Go expect host linker instead of the cross-compiler
+	export CC_FOR_TARGET="$CC"
+	export CC="${HOSTLD:-gcc}"
+	export CXX="${HOSTLD:-g++}"
+	export LD="${HOSTLD:-ld}"
+fi
+
+case "$CTARGET_ARCH" in
+aarch64)export GOARCH="arm64" ;;
+x86_64) export GOARCH="amd64" ;;
+*)      export GOARCH="unsupported";;
+esac
+
+# compile go itself as a PIE on supported arches.
+case "$CARCH" in
+x86_64|aarch64) export GO_LDFLAGS=-buildmode=pie ;;
+esac
+
+# Disable tests on ppc64 for now since they fail due to the
+# force-external-link-on-ppc64le.patch we employ currently.
+# See the patch description for details.
+case "$CARCH" in
+ppc64le) options="!check" ;;
+esac
+
+prepare() {
+	default_prepare
+
+	# See https://github.com/golang/go/issues/49066
+	if [ "$CTARGET_ARCH" = "ppc64le" ]; then
+		rm test/fixedbugs/bug513.go
+	fi
+}
+
+builddir="$srcdir"/go
+build() {
+	cd "$builddir/src"
+
+	export GOOS="linux"
+	export GOPATH="$srcdir"
+	export GOROOT="$builddir"
+	export GOBIN="$GOROOT"/bin
+	export GOROOT_FINAL=/usr/lib/go
+	local p; for p in /usr/lib/go-bootstrap /usr/lib/go-linux-$GOARCH-bootstrap /usr/lib/go; do
+		if [ -d "$p" ]; then
+			export GOROOT_BOOTSTRAP="$p"
+			break
+		fi
+	done
+
+	./make.bash -v
+
+	# copied from bootstrap.bash to fixup cross-built bootstrap go
+	if [ "$CBUILD" != "$CTARGET" ]; then
+		local gohostos="$(../bin/go env GOHOSTOS)"
+		local gohostarch="$(../bin/go env GOHOSTARCH)"
+		mv ../bin/*_*/* ../bin
+		rmdir ../bin/*_*
+		rm -rf "../pkg/${gohostos}_$gohostarch"* "../pkg/tool/${gohostos}_$gohostarch"*
+		rm -rf ../pkg/bootstrap ../pkg/obj
+	fi
+}
+
+check() {
+	cd "$builddir/src"
+	[ "$CTARGET_ARCH" = "armhf" ] && GO_TEST_TIMEOUT_SCALE=2
+	# TODO: cgo_test fails due to https://github.com/golang/go/issues/39857
+	PATH="$builddir/bin:$PATH" ./run.bash -no-rebuild -run='!(^cgo_test$)'
+}
+
+package() {
+	mkdir -p "$pkgdir"/usr/bin "$pkgdir"/usr/lib/go/bin "$pkgdir"/usr/share/doc/go
+
+	for binary in go gofmt; do
+		install -Dm755 bin/"$binary" "$pkgdir"/usr/lib/go/bin/"$binary"
+		ln -s /usr/lib/go/bin/"$binary" "$pkgdir"/usr/bin/
+	done
+
+	cp -a pkg lib "$pkgdir"/usr/lib/go
+	cp -r doc misc "$pkgdir"/usr/share/doc/go
+	rm -rf "$pkgdir"/usr/lib/go/pkg/obj
+	rm -rf "$pkgdir"/usr/lib/go/pkg/bootstrap
+	rm -f  "$pkgdir"/usr/lib/go/pkg/tool/*/api
+
+	mkdir -p "$pkgdir"/usr/lib/go/
+	cp -a "$builddir"/src "$pkgdir"/usr/lib/go
+
+	# Remove tests from /usr/lib/go/src to reduce package size,
+	# these should not be needed at run-time by any program.
+	find "$pkgdir"/usr/lib/go/src \( -type f -a -name "*_test.go" \) \
+		-exec rm -rf \{\} \+
+	find "$pkgdir"/usr/lib/go/src \( -type d -a -name "testdata" \) \
+		-exec rm -rf \{\} \+
+
+	# Remove rc (plan 9) and bat scripts (windows) to reduce package
+	# size further. The bash scripts are actually needed at run-time.
+	#
+	# See: https://gitlab.alpinelinux.org/alpine/aports/issues/11091
+	find "$pkgdir"/usr/lib/go/src -type f -a \( -name "*.rc" -o -name "*.bat" \) \
+		-exec rm -rf \{\} \+
+}
+
+sha512sums="
+9214cbc051cf26b49ab1bd4d8d30b060865944b831578a9ea7fcfe33f84009f77932a39f2948efbfc412b151e4734a3bc1f8332f3bea11b35a912b0e23a4118f  go1.18.2.src.tar.gz
+6017caacf77c2911e9e882878fdaa2ed066b76b7e97b2ad776bc33d96b21cabc802966473946642c86a8f985c69adcc5e7ea61684f6d0dbacd468a6aad687229  allow-unshare-to-return-enosys.patch
+"

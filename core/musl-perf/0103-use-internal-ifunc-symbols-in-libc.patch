@@ -1,0 +1,153 @@
+From 6e02b4483311e11781de7899e4ae4fb4ecc566cb Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 14 Sep 2021 16:44:15 +0300
+Subject: [PATCH] use internal ifunc symbols in libc
+
+memcpy() can be used before ifunc resolver, use internal
+sse2 variant in that case.
+
+It also necessary to init CPU features before calling the
+function.
+---
+ ldso/dynlink.c              |  6 ++++++
+ src/env/__init_tls.c        |  2 ++
+ src/env/__libc_start_main.c |  3 +++
+ src/env/__stack_chk_fail.c  |  2 ++
+ src/include/string.h        | 25 +++++++++++++++++++++++++
+ src/include/wchar.h         |  3 +++
+ 6 files changed, 41 insertions(+)
+
+diff --git a/ldso/dynlink.c b/ldso/dynlink.c
+index 31a02463..a369c5ee 100644
+--- a/ldso/dynlink.c
++++ b/ldso/dynlink.c
+@@ -4,6 +4,8 @@
+ #include <stdarg.h>
+ #include <stddef.h>
+ #include <string.h>
++#undef memcpy
++#define memcpy __memcopy
+ #include <unistd.h>
+ #include <stdint.h>
+ #include <elf.h>
+@@ -37,6 +39,8 @@ static void error(const char *, ...);
+ #define container_of(p,t,m) ((t*)((char *)(p)-offsetof(t,m)))
+ #define countof(a) ((sizeof (a))/(sizeof (a)[0]))
+ 
++extern void *__get_cpu_features(void);
++
+ struct debug {
+ 	int ver;
+ 	void *head;
+@@ -1713,6 +1717,8 @@ hidden void __dls2(unsigned char *base, size_t *sp)
+ 	size_t addends[symbolic_rel_cnt+1];
+ 	saved_addends = addends;
+ 
++	__get_cpu_features();
++
+ 	head = &ldso;
+ 	reloc_all(&ldso);
+ 
+diff --git a/src/env/__init_tls.c b/src/env/__init_tls.c
+index a93141ed..892f9f6c 100644
+--- a/src/env/__init_tls.c
++++ b/src/env/__init_tls.c
+@@ -3,6 +3,8 @@
+ #include <limits.h>
+ #include <sys/mman.h>
+ #include <string.h>
++#undef memcpy
++#define memcpy __memcopy
+ #include <stddef.h>
+ #include "pthread_impl.h"
+ #include "libc.h"
+diff --git a/src/env/__libc_start_main.c b/src/env/__libc_start_main.c
+index fdcb1ed5..6f42153c 100644
+--- a/src/env/__libc_start_main.c
++++ b/src/env/__libc_start_main.c
+@@ -18,6 +18,8 @@ extern weak hidden void (*const __init_array_start)(void), (*const __init_array_
+ static void dummy1(void *p) {}
+ weak_alias(dummy1, __init_ssp);
+ 
++extern void *__get_cpu_features(void);
++
+ #define AUX_CNT 38
+ 
+ #if UINTPTR_MAX == 0xffffffff
+@@ -72,6 +74,7 @@ void __init_libc(char **envp, char *pn)
+ 	__progname = __progname_full = pn;
+ 	for (i=0; pn[i]; i++) if (pn[i]=='/') __progname = pn+i+1;
+ 
++	__get_cpu_features();
+ 	__init_tls(aux);
+ 	__init_ssp((void *)aux[AT_RANDOM]);
+ 
+diff --git a/src/env/__stack_chk_fail.c b/src/env/__stack_chk_fail.c
+index e5352602..0fb469be 100644
+--- a/src/env/__stack_chk_fail.c
++++ b/src/env/__stack_chk_fail.c
+@@ -1,4 +1,6 @@
+ #include <string.h>
++#undef memcpy
++#define memcpy __memcopy
+ #include <stdint.h>
+ #include "pthread_impl.h"
+ 
+diff --git a/src/include/string.h b/src/include/string.h
+index 2133b5c1..86b8d570 100644
+--- a/src/include/string.h
++++ b/src/include/string.h
+@@ -1,6 +1,26 @@
+ #ifndef STRING_H
+ #define STRING_H
+ 
++#define memcpy __memcpy
++#define memmove __memmove
++#define memset __memset
++#define strcmp __strcmp
++#define strrchr __strrchr
++#define strcpy __strcpy
++#define strchrnul __strchrnul
++#define strncmp __strncmp
++#define strncpy __strncpy
++#define memchr __memchr
++#define strcat __strcat
++#define stpcpy __stpcpy
++#define strlen __strlen
++#define stpncpy __stpncpy
++#define memcmp __memcmp
++#define strnlen __strnlen
++#define memrchr __memrchr
++#define strncat __strncat
++#define strchr __strchr
++
+ #include "../../include/string.h"
+ 
+ hidden void *__memrchr(const void *, int, size_t);
+@@ -8,4 +28,9 @@ hidden char *__stpcpy(char *, const char *);
+ hidden char *__stpncpy(char *, const char *, size_t);
+ hidden char *__strchrnul(const char *, int);
+ 
++#ifdef __x86_64__
++hidden void *__memcpy_sse2_unaligned(void *dest, const void *src, size_t n);
++#define __memcopy __memcpy_sse2_unaligned
++#endif
++
+ #endif
+diff --git a/src/include/wchar.h b/src/include/wchar.h
+index 79f5d0e7..c6598a8e 100644
+--- a/src/include/wchar.h
++++ b/src/include/wchar.h
+@@ -3,6 +3,9 @@
+ 
+ #define __DEFINED_struct__IO_FILE
+ 
++#define wmemset __wmemset
++#define wcslen __wcslen
++
+ #include "../../include/wchar.h"
+ 
+ #endif
+-- 
+2.25.1
+

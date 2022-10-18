@@ -1,0 +1,46 @@
+pkgname=z3
+pkgver=4.8.17
+pkgrel=0
+pkgdesc="Theorem prover from Microsoft Research"
+url="https://github.com/Z3Prover/z3"
+arch="all"
+license="MIT"
+makedepends="cmake python3 samurai"
+subpackages="$pkgname-dev py3-$pkgname:py3:noarch"
+source="https://github.com/Z3Prover/z3/archive/z3-$pkgver.tar.gz
+	"
+builddir="$srcdir/z3-z3-$pkgver"
+
+build() {
+	cmake -B build -G Ninja \
+		-DZ3_BUILD_PYTHON_BINDINGS=True \
+		-DZ3_INSTALL_PYTHON_BINDINGS=True \
+		-DPYTHON_EXECUTABLE=/usr/bin/python3 \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_SHARED_LIBS=True \
+		-DCMAKE_BUILD_TYPE=MinSizeRel
+	cmake --build build
+
+	# Binary for running the unit tests
+	cmake --build build --target test-z3
+}
+
+check() {
+	./build/test-z3 -a
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+py3() {
+	pkgdesc="Python bindings for $pkgname"
+	depends="python3"
+
+	amove usr/lib/python3*
+}
+
+sha512sums="
+95517014ec1798c2552253dd5cde6f955896ab297a4f56294f4bc6f2c5428069015f513c6eb9a090a809cfcf4cb1cc38cc83818f19b5b1051e4e6c06f973747d  z3-4.8.17.tar.gz
+"

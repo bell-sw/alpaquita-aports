@@ -1,0 +1,34 @@
+pkgname=perl-net-http
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=Net-HTTP
+pkgver=6.22
+pkgrel=0
+pkgdesc="Low-level HTTP connection (client)"
+replaces="perl-libwww"
+url="https://metacpan.org/release/Net-HTTP/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-uri"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/O/OA/OALDERS/Net-HTTP-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+8d0af85baee8a3b257995c6dd277c2eb578d1feeec89f3e4be0548959d2cf07934764d9d16a542a50f72a4611e3f4b6335ff7e969a28cd74fbb0ec3961588131  Net-HTTP-6.22.tar.gz
+"

@@ -1,0 +1,34 @@
+pkgname=perl-fcgi
+_realname=FCGI
+pkgver=0.82
+pkgrel=0
+pkgdesc="Perl Fast CGI module"
+url="https://metacpan.org/pod/FCGI"
+arch="all"
+license="OML"
+depends="perl"
+makedepends="perl-dev"
+subpackages="$pkgname-doc"
+options="!check" # makedepends missing
+source="https://cpan.metacpan.org/authors/id/E/ET/ETHER/FCGI-$pkgver.tar.gz"
+
+builddir="$srcdir/$_realname-$pkgver"
+
+build() {
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	# creates collision among perl modules
+	find "$pkgdir" -name perllocal.pod -delete
+}
+
+sha512sums="
+dd962678b4c2012298c9b34cd85ffbacbdfc269b3a25cad7a77aadf1545c2ccab63ea14b44ffff727d51520f62a9ddd943deaff80a442888efd1a2caadb53334  FCGI-0.82.tar.gz
+"

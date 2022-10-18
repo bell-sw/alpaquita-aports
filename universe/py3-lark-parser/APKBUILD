@@ -1,0 +1,28 @@
+pkgname=py3-lark-parser
+pkgver=0.11.3
+pkgrel=1
+pkgdesc="modern parsing library for Python, implementing Earley & LALR(1) and an easy interface"
+url="https://github.com/lark-parser/lark"
+arch="noarch"
+license="MIT"
+options="!check" # requires python dependency js2py
+depends="python3"
+makedepends="py3-setuptools"
+source="$pkgname-$pkgver.tar.gz::https://github.com/lark-parser/lark/archive/$pkgver.tar.gz"
+builddir="$srcdir/lark-$pkgver"
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+16d318493c59d305cee16501568ecd38e1a8c38ab3905ad02a74171382f57bc56d226dd697ea86b3b8a47d2262195291523eb9443ff73d9117ffccc1f44708d0  py3-lark-parser-0.11.3.tar.gz
+"

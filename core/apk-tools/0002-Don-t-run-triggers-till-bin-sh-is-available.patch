@@ -1,0 +1,29 @@
+From 0574b9944066689547fdc81b33ec925d88090762 Mon Sep 17 00:00:00 2001
+From: Denis Kononenko <denis.kononenko@bell-sw.com>
+Date: Mon, 27 Dec 2021 02:17:50 +0000
+Subject: [PATCH 2/3] Don't run triggers till /bin/sh is available
+
+---
+ src/database.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/src/database.c b/src/database.c
+index 278be7c..ecd4490 100644
+--- a/src/database.c
++++ b/src/database.c
+@@ -1954,6 +1954,12 @@ int apk_db_run_script(struct apk_database *db, char *fn, char **argv)
+ 		NULL
+ 	};
+ 
++	if (faccessat(db->root_fd, "bin/sh", X_OK, AT_EACCESS) == -1) {
++		apk_warning("%s: won't be executed, there's no /bin/sh yet", basename(fn));
++		apk_message("%s: NOTE: consider use of --no-scripts or --no-commit-hooks options", basename(fn));
++		return 0;
++	}
++
+ 	pid = fork();
+ 	if (pid == -1) {
+ 		apk_error("%s: fork: %s", basename(fn), strerror(errno));
+-- 
+2.34.1
+

@@ -1,0 +1,71 @@
+From a7004dfeae0b73d707910fa318f4bd5e98dbf4f4 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Wed, 2 Feb 2022 17:41:55 +0300
+Subject: [PATCH] handle libc tags in depends/makedepends
+
+---
+ abuild.in | 27 ++++++++++++++++++++++++++-
+ 1 file changed, 26 insertions(+), 1 deletion(-)
+
+diff --git a/abuild.in b/abuild.in
+index 76cd77b..5a8600b 100644
+--- a/abuild.in
++++ b/abuild.in
+@@ -170,6 +170,28 @@ spell_error() {
+ 	die "APKBUILD contains '$1'. It should be '$2'"
+ }
+ 
++remove_tag() {
++	local var="$1"
++	local rm_tag="$2"
++
++	echo "$var" | sed -E "s/$rm_tag:[^ ]+//g"
++}
++
++remove_libc_tags() {
++	local rm_tag=musl
++	local t
++
++	[ "$CLIBC" = "musl" ] && rm_tag="glibc"
++
++	depends="$(remove_tag "$depends" $rm_tag)"
++	makedepends="$(remove_tag "$makedepends" $rm_tag)"
++
++	for t in musl glibc; do
++		depends="${depends/$t:/}"
++		makedepends="${makedepends/$t:/}"
++	done
++}
++
+ # check if apkbuild is basically sane
+ default_sanitycheck() {
+ 	local i= j= suggestion=
+@@ -1048,6 +1070,8 @@ prepare_metafiles() {
+ 	mkdir -p "$controldir"
+ 	local builddate="$SOURCE_DATE_EPOCH"
+ 
++	remove_libc_tags
++
+ 	# Fix package size on several filesystems
+ 	case "$(stat -f -c "%T" .)" in
+ 	btrfs|ecryptfs|zfs)
+@@ -1765,7 +1789,7 @@ build_abuildrepo() {
+ 		# make sure SOURCE_DATE_EPOCH is set
+ 		set_source_date
+ 
+-		for part in sanitycheck builddeps clean fetch unpack prepare mkusers build \
++		for part in remove_libc_tags sanitycheck builddeps clean fetch unpack prepare mkusers build \
+ 				$_check rootpkg; do
+ 			runpart $part
+ 		done
+@@ -2370,6 +2394,7 @@ rootbld() {
+ 	set_source_date
+ 
+ 	# networking business
++	remove_libc_tags
+ 	sanitycheck
+ 	clean
+ 	fetch
+-- 
+2.25.1
+

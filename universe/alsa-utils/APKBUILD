@@ -1,0 +1,46 @@
+pkgname=alsa-utils
+pkgver=1.2.6
+pkgrel=0
+pkgdesc="Advanced Linux Sound Architecture (ALSA) utilities"
+url="https://alsa-project.org/"
+arch="all"
+options="!check"  # No test suite, applets use ncurses / don't have --version
+license="GPL-2.0-or-later"
+makedepends="alsa-lib-dev fftw-dev ncurses-dev pciutils-dev xmlto"
+depends="dialog"
+subpackages="$pkgname-dbg alsaconf::noarch $pkgname-doc $pkgname-openrc"
+source="https://alsa-project.org/files/pub/utils/alsa-utils-$pkgver.tar.bz2
+	0001-Added-Alpaquita-distribution.patch
+	alsa.initd
+	alsa.confd
+	"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--disable-nls
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -D -m755 ../alsa.initd "$pkgdir"/etc/init.d/alsa
+	install -D -m644 ../alsa.confd "$pkgdir"/etc/conf.d/alsa
+}
+
+alsaconf() {
+	depends="alsa-utils bash"
+	cd "$builddir"
+	mkdir -p "$subpkgdir"/usr/sbin
+	mv "$pkgdir"/usr/sbin/alsaconf \
+		"$subpkgdir"/usr/sbin
+}
+
+sha512sums="
+6842f0f4c2f7cc5ac3ba94736ee259d9988b5d3e0d2b522f858d712e16938d2845fa9ef64f4aa60222b8ef6738e053f9113a5ea24a197f2c0d6c4dbd70030f5e  alsa-utils-1.2.6.tar.bz2
+5f535280751ebc2f8e93763e6df29a09051b08615c1509ccc1762991bff3720d2eaa2beb7cc3afa7c2afb0d9383292e3563cb5ffd8f9fadecdbaa8e94ddf56ff  0001-Added-Alpaquita-distribution.patch
+c66959a4a1a24a727c9c91a455caa5fa093c523d17a563b56ec2449a02ff30c83683db555006954b1fe571446cf4a117cc41de8c8b869a6e875d386595b3cc1f  alsa.initd
+d7e212e9f624b09168117b46c66289204a23915adf0d1b0c9ae258049430397b8f2d86d3b5f7e3087151948a031c4eab863e8195a6c7b1276704e9cba9c2d2a7  alsa.confd
+"

@@ -1,0 +1,78 @@
+--- /dev/null
++++ rustc-1.56.1-src/compiler/rustc_target/src/spec/aarch64_alpaquita_linux_gnu.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::aarch64_unknown_linux_gnu::target();
++
++    base.llvm_target = "aarch64-alpaquita-linux-gnu".to_string();
++    base.options.vendor = "alpaquita".to_string();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+--- /dev/null
++++ rustc-1.56.1-src/compiler/rustc_target/src/spec/aarch64_alpaquita_linux_musl.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::aarch64_unknown_linux_musl::target();
++
++    base.llvm_target = "aarch64-alpaquita-linux-musl".to_string();
++    base.options.vendor = "alpaquita".to_string();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+--- /dev/null
++++ rustc-1.56.1-src/compiler/rustc_target/src/spec/x86_64_alpaquita_linux_gnu.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::x86_64_unknown_linux_gnu::target();
++
++    base.llvm_target = "x86_64-alpaquita-linux-gnu".to_string();
++    base.options.vendor = "alpaquita".to_string();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+--- /dev/null
++++ rustc-1.56.1-src/compiler/rustc_target/src/spec/x86_64_alpaquita_linux_musl.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::x86_64_unknown_linux_musl::target();
++
++    base.llvm_target = "x86_64-alpaquita-linux-musl".to_string();
++    base.options.vendor = "alpaquita".to_string();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+--- rustc-1.56.1-src/compiler/rustc_target/src/spec/mod.rs.orig
++++ rustc-1.56.1-src/compiler/rustc_target/src/spec/mod.rs
+@@ -941,6 +941,11 @@
+ 
+     ("bpfeb-unknown-none", bpfeb_unknown_none),
+     ("bpfel-unknown-none", bpfel_unknown_none),
++
++    ("aarch64-alpaquita-linux-gnu", aarch64_alpaquita_linux_gnu),
++    ("aarch64-alpaquita-linux-musl", aarch64_alpaquita_linux_musl),
++    ("x86_64-alpaquita-linux-gnu", x86_64_alpaquita_linux_gnu),
++    ("x86_64-alpaquita-linux-musl", x86_64_alpaquita_linux_musl),
+ }
+ 
+ /// Warnings encountered when parsing the target `json`.

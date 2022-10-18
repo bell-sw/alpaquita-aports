@@ -1,0 +1,53 @@
+pkgname=openipmi
+pkgver=2.0.32
+pkgrel=0
+pkgdesc="IPMI (Intelligent Platform Management Interface) library and tools"
+url="https://sourceforge.net/projects/openipmi/"
+arch="all"
+license="LGPL-2.0-or-later and GPL-2.0-or-later or BSD-3-Clause"
+makedepends="libedit-dev readline-dev popt-dev glib-dev net-snmp-dev ncurses-dev
+	openssl1.1-compat-dev linux-headers"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-lanserv $pkgname-libs"
+source="https://downloads.sourceforge.net/openipmi/OpenIPMI-$pkgver.tar.gz"
+builddir="$srcdir"/OpenIPMI-$pkgver
+
+prepare() {
+	default_prepare
+	update_config_sub
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--disable-static \
+		--with-ucdsnmp \
+		--without-python
+	make
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install
+}
+
+lanserv() {
+	pkgdesc="Emulates an IPMI network listener"
+	mkdir -p "$subpkgdir"/usr/bin "$subpkgdir"/usr/lib
+	mv "$pkgdir"/etc "$subpkgdir"/
+	mv "$pkgdir"/usr/lib/libIPMIlanserv.so.* "$subpkgdir"/usr/lib/
+	mv "$pkgdir"/usr/bin/ipmilan \
+		"$pkgdir"/usr/bin/ipmi_sim \
+		"$pkgdir"/usr/bin/sdrcomp \
+		"$subpkgdir"/usr/bin/
+}
+
+
+
+sha512sums="
+e409f32e6bbf26756338ada386fa394d48d734b4d6ba4beca700ce60bc3af3d0f41e972a328c4e076ae014f4fbd8598d05d3f879f9c6d76198e6ae1a2ba03e95  OpenIPMI-2.0.32.tar.gz
+"

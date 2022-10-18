@@ -1,0 +1,32 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: udev startup scripts for OpenRC.
+
+pkgname=udev-init-scripts
+pkgver=35
+pkgrel=0
+pkgdesc="udev startup scripts"
+url="https://gitweb.gentoo.org/repo/gentoo.git/tree/sys-fs/udev-init-scripts"
+arch="noarch"
+options="!check" # They are only scripts
+license="GPL-2.0-only"
+replaces="udev"
+subpackages="$pkgname-openrc"
+install="$pkgname.post-install $pkgname.post-upgrade"
+source="https://gitweb.gentoo.org/proj/udev-gentoo-scripts.git/snapshot/udev-gentoo-scripts-$pkgver.tar.gz
+	modloop.patch
+	"
+builddir="$srcdir/udev-gentoo-scripts-$pkgver"
+
+build() {
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+da9d2093149967e2e1b9bc7190ddfd55a87c9ae2177e3216f7cb2694fc9b64037eb6f2599ad8a4b7594ef32ced88fbb319c92904bc72a81ea5404945f8a8378a  udev-gentoo-scripts-35.tar.gz
+d68def2429e68dadae1c8f2c4f76207a5b21ef98f755792f2033695af9d28ae555588d02033179340edd4ce0de0436dbaf30f0e7ccd59ea0444ddb7c2a5495d0  modloop.patch
+"

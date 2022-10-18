@@ -1,0 +1,52 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: These tools allow you to compress/uncompress .gz files. Also
+# gunzip can uncompress .Z files created by compress utility.
+
+pkgname=gzip
+pkgver=1.12
+pkgrel=0
+pkgdesc="Data compression program"
+subpackages="$pkgname-doc"
+url="https://www.gnu.org/software/gzip/"
+arch="all"
+license="GPL-3.0-or-later"
+depends="less"
+source="https://ftp.gnu.org/gnu/gzip/gzip-$pkgver.tar.xz"
+
+# secfixes:
+#   1.12-r0:
+#     - CVE-2022-1271
+
+build() {
+	# avoid text relocation
+	export DEFS="NO_ASM"
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR=$pkgdir install
+
+	rm -rf "$pkgdir"/usr/lib/charset.alias
+	rmdir -p "$pkgdir"/usr/lib 2>/dev/null || true
+
+	mkdir -p "$pkgdir"/bin
+	mv "$pkgdir"/usr/bin/gzip "$pkgdir"/usr/bin/gunzip "$pkgdir"/bin/
+
+	# http://bugs.alpinelinux.org/issues/4011
+	ln -sf gunzip "$pkgdir"/usr/bin/uncompress
+}
+
+sha512sums="
+116326fe991828227de150336a0c016f4fe932dfbb728a16b4a84965256d9929574a4f5cfaf3cf6bb4154972ef0d110f26ab472c93e62ec9a5fd7a5d65abea24  gzip-1.12.tar.xz
+"

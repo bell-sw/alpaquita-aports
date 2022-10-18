@@ -1,0 +1,55 @@
+pkgname=linux-headers
+pkgver=5.16.7
+_kernver=${pkgver%.*}
+pkgrel=1
+pkgdesc="Linux system headers"
+url="https://kernel.org/"
+arch="noarch"
+license="GPL-2.0-only"
+makedepends="perl rsync"
+options="!check !dbg !strip !tracedeps"
+source="https://kernel.org/pub/linux/kernel/v5.x/linux-$_kernver.tar.xz
+	https://kernel.org/pub/linux/kernel/v5.x/patch-$pkgver.xz
+	revert-broken-uapi.patch
+	0003-remove-inclusion-of-sysinfo.h-in-kernel.h.patch
+	include-uapi-linux-swab-Fix-potentially-missing-__always_inline.patch
+	"
+builddir="$srcdir/linux-$_kernver"
+
+prepare() {
+	if [ "$_kernver" != "$pkgver" ]; then
+		unxz -c < "$srcdir"/patch-$pkgver.xz | patch -p1
+	fi
+	default_prepare
+}
+
+package() {
+	local _carch=$CARCH
+
+	case "$_carch" in
+	aarch64*) _carch="arm64" ;;
+	arm*) _carch="arm" ;;
+	mips*) _carch="mips" ;;
+	s390*) _carch="s390" ;;
+	ppc*) _carch="powerpc" ;;
+	riscv*) _carch="riscv" ;;
+# not sure about this --	ppc64*) _carch="powerpc64" ;;
+	esac
+
+	mkdir -p "$pkgdir/usr"
+	make headers_install ARCH="$_carch" INSTALL_HDR_PATH="$pkgdir/usr"
+
+	find "$pkgdir/usr" \( -name .install -o -name ..install.cmd \) -exec \
+		rm -f {} \;
+
+	# provided by libdrm
+	rm -rf "$pkgdir"/usr/include/drm
+}
+
+sha512sums="
+7a257dd576bc8493595ec7d6f3c9cb6e22c772a8b2dbe735d2485c4f5c56e26a08695546e7e0f1f1cd04a533f25e829361958d4da0b98bf0ba8094dd57a85aaf  linux-5.16.tar.xz
+784fd87796b818f921deed92e1646058fa21e89b436c4d31dde2aeb5e445eb2bec76e9f6587f3179a9a531aeee770b027ecd2322d828f27e7a30c85fb95bb671  patch-5.16.7.xz
+32597f2672d1ec365a936d15041a7cf219ef9353241d4a5c378244cf2fc155610443a19bbcd391c86099a0b08486c45e042ec7c90b0d04fe675c3ad0ffc36b53  revert-broken-uapi.patch
+607c074d72aca88fea9ecdbd62198d8f7857daca75e5d027966e0a9997338d6ac8ce0a1e9114b19232b390751d05acca09e28b0cfad2a12d5942f5575a9f4684  0003-remove-inclusion-of-sysinfo.h-in-kernel.h.patch
+7cfa786144009c52d682e307bb512156e4812d7abe03b3fed99651a02d80567d47ee6f347f88d083c1b9805e0c09625fc3df08a8d0ae96b169d24eb5b83917b7  include-uapi-linux-swab-Fix-potentially-missing-__always_inline.patch
+"

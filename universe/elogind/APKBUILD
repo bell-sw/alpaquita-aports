@@ -1,0 +1,100 @@
+pkgname=elogind
+pkgver=246.10
+pkgrel=4
+pkgdesc="Standalone fork of systemd's elogind"
+url="https://github.com/elogind/elogind"
+arch="all"
+license="GPL-2.0-or-later LGPL-2.1-or-later"
+depends="dbus shadow"
+options="!check" # Tests fail on builders
+makedepends="
+	meson
+	coreutils
+	docbook-xsl
+	gettext-dev
+	git
+	gperf
+	intltool
+	libxslt-dev
+	glib-dev
+	acl-dev
+	eudev-dev
+	libcap-dev
+	libseccomp-dev
+	linux-pam-dev
+	m4
+	dbus-dev
+	pcre2-dev
+	"
+subpackages="
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-lang
+	$pkgname-openrc
+	lib$pkgname:libs
+	$pkgname-zsh-completion:zshcomp:noarch
+	$pkgname-bash-completion:bashcomp:noarch
+	"
+source="https://github.com/elogind/elogind/archive/v$pkgver/elogind-v$pkgver.tar.gz
+	elogind.initd
+	fix-version.patch
+	remove-polkit-gobject-1-check.patch
+	"
+
+build() {
+	export LDFLAGS="$LDFLAGS -lintl"
+	abuild-meson \
+		-Dcgroup-controller=elogind \
+		-Dhalt-path=/sbin/halt \
+		-Drootlibexecdir=/usr/libexec/elogind \
+		-Dreboot-path=/sbin/reboot \
+		-Ddefault-hierarchy=hybrid \
+		-Ddefault-kill-user-processes=false \
+		-Dpolkit=true \
+		-Dman=true \
+		build
+	meson compile ${JOBS:+-j ${JOBS}} -C build
+}
+
+check() {
+	meson test --no-rebuild -v -C build
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C build
+
+	# Claim compatiblity with systemd and systemd-logind
+	ln -s libelogind.pc "$pkgdir"/usr/lib/pkgconfig/libsystemd.pc
+	ln -s libelogind.pc "$pkgdir"/usr/lib/pkgconfig/libsystemd-logind.pc
+	ln -s /usr/include/elogind "$pkgdir"/usr/include/systemd
+
+	# Install headers from elogind
+	install -Dm644 src/systemd/sd-id128.h usr/include/sd-id128.h
+	install -Dm644 src/systemd/_sd-common.h usr/include/_sd-common.h
+
+	# Install openrc service
+	install -Dm755 "$srcdir"/elogind.initd "$pkgdir"/etc/init.d/elogind
+}
+
+zshcomp() {
+	pkgdesc="Zsh completion for $pkgname"
+	install_if="$pkgname=$pkgver-r$pkgrel zsh"
+
+	mkdir -p "$subpkgdir"/usr/share
+	mv "$pkgdir"/usr/share/zsh "$subpkgdir"/usr/share/
+}
+
+bashcomp() {
+	pkgdesc="Bash completion for $pkgname"
+	install_if="$pkgname=$pkgver-r$pkgrel bash-completion"
+
+	mkdir -p "$subpkgdir"/usr/share
+	mv "$pkgdir"/usr/share/bash-completion "$subpkgdir"/usr/share
+}
+
+sha512sums="
+9db0f068ed94ec07bab4d764ccb38840af3d05a4b7c9c539721906f5381b509cb9a3cbfb0453a978210d306136368de6162578c600d522416ef2a7ac1b9f348b  elogind-v246.10.tar.gz
+f70039c64a7793aec86f0e907066277e9671074a1ecd9c0126d336bcea786dc0eeecde55ac9b43329afedc2202d3665a4b44984e9e4901419b178544e1300a73  elogind.initd
+178c33608f0d69fde8558c521aea9981e0a0bd4a6666d2e1b4f0714dbb7038955ceb86cf323ea741ee67f89218a2e7d332aa05507c2a06eb01fd0785dd81716b  fix-version.patch
+5cf63f50e8623a4a6e403924860ba76b5dcd19220514c382175afb6f07dbbccc97a27f858ae0c7bc6869f7558255fffc3174e3ac468e5d47333d9cf1db9a5ac1  remove-polkit-gobject-1-check.patch
+"

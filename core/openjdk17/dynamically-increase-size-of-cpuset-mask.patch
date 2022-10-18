@@ -1,0 +1,107 @@
+--- a/src/hotspot/os/linux/os_linux.cpp
++++ b/src/hotspot/os/linux/os_linux.cpp
+@@ -4698,19 +4698,20 @@
+ 
+   // To enable easy testing of the dynamic path on different platforms we
+   // introduce a diagnostic flag: UseCpuAllocPath
+-  if (configured_cpus >= CPU_SETSIZE || UseCpuAllocPath) {
++  if (configured_cpus > CPU_SETSIZE || UseCpuAllocPath) {
+     // kernel may use a mask bigger than cpu_set_t
+     log_trace(os)("active_processor_count: using dynamic path %s"
+                   "- configured processors: %d",
+                   UseCpuAllocPath ? "(forced) " : "",
+                   configured_cpus);
+-    cpus_p = CPU_ALLOC(configured_cpus);
+-    if (cpus_p != NULL) {
+-      cpus_size = CPU_ALLOC_SIZE(configured_cpus);
+-      // zero it just to be safe
+-      CPU_ZERO_S(cpus_size, cpus_p);
+-    }
+-    else {
++
++    // start with a multiple of CPU_SETSIZE + CPU_SETSIZE if the number of
++    // configured cpus is greater than CPU_SETSIZE (at least 2 * CPU_SETSIZE)
++    // or with CPU_SETSIZE if UseCpuAllocPath enabled
++    int total_cpus = (configured_cpus / CPU_SETSIZE) * CPU_SETSIZE + CPU_SETSIZE;
++    do {
++      cpus_p = CPU_ALLOC(total_cpus);
++      if (cpus_p == NULL) {
+        // failed to allocate so fallback to online cpus
+        int online_cpus = ::sysconf(_SC_NPROCESSORS_ONLN);
+        log_trace(os)("active_processor_count: "
+@@ -4718,40 +4719,54 @@
+                      "online processor count: %d",
+                      os::strerror(errno), online_cpus);
+        return online_cpus;
+-    }
++      }
++      cpus_size = CPU_ALLOC_SIZE(total_cpus);
++      // zero it just to be safe
++      CPU_ZERO_S(cpus_size, cpus_p);
++
++      // pid 0 means the current thread - which we have to assume represents the process
++      int result = sched_getaffinity(0, cpus_size, cpus_p);
++      if (result == 0) {
++        cpu_count = CPU_COUNT_S(cpus_size, cpus_p);
++        log_trace(os)("active_processor_count: sched_getaffinity processor count: %d", cpu_count);
++        break;
++      } else if (result == -1 && errno == EINVAL) {
++        log_trace(os)("sched_getaffinity failed, cpuset (%d) is too small", total_cpus);
++        total_cpus += CPU_SETSIZE;
++        CPU_FREE(cpus_p);
++      } else {
++        cpu_count = ::sysconf(_SC_NPROCESSORS_ONLN);
++        warning("sched_getaffinity failed (%s)- using online processor count (%d) "
++                "which may exceed available processors", os::strerror(errno), cpu_count);
++        break;
++      }
++    } while (true);
+   }
+   else {
+     log_trace(os)("active_processor_count: using static path - configured processors: %d",
+                   configured_cpus);
+-  }
+-#else // CPU_ALLOC
+-// these stubs won't be executed
+-#define CPU_COUNT_S(size, cpus) -1
+-#define CPU_FREE(cpus)
+-
+-  log_trace(os)("active_processor_count: only static path available - configured processors: %d",
+-                configured_cpus);
++#else
++    log_trace(os)("active_processor_count: only static path available - configured processors: %d",
++                  configured_cpus);
+ #endif // CPU_ALLOC
+-
+-  // pid 0 means the current thread - which we have to assume represents the process
+-  if (sched_getaffinity(0, cpus_size, cpus_p) == 0) {
+-    if (cpus_p != &cpus) { // can only be true when CPU_ALLOC used
+-      cpu_count = CPU_COUNT_S(cpus_size, cpus_p);
++    // pid 0 means the current thread - which we have to assume represents the process
++    if (sched_getaffinity(0, cpus_size, cpus_p) == 0) {
++      cpu_count = CPU_COUNT(cpus_p);
++      log_trace(os)("active_processor_count: sched_getaffinity processor count: %d", cpu_count);
+     }
+     else {
+-      cpu_count = CPU_COUNT(cpus_p);
++      cpu_count = ::sysconf(_SC_NPROCESSORS_ONLN);
++      warning("sched_getaffinity failed (%s)- using online processor count (%d) "
++              "which may exceed available processors", os::strerror(errno), cpu_count);
+     }
+-    log_trace(os)("active_processor_count: sched_getaffinity processor count: %d", cpu_count);
++#ifdef CPU_ALLOC    
+   }
+-  else {
+-    cpu_count = ::sysconf(_SC_NPROCESSORS_ONLN);
+-    warning("sched_getaffinity failed (%s)- using online processor count (%d) "
+-            "which may exceed available processors", os::strerror(errno), cpu_count);
+-  }
+ 
+   if (cpus_p != &cpus) { // can only be true when CPU_ALLOC used
+     CPU_FREE(cpus_p);
+   }
++#endif // CPU_ALLOC
++
+ 
+   assert(cpu_count > 0 && cpu_count <= os::processor_count(), "sanity check");
+   return cpu_count;

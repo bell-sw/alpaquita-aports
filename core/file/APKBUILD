@@ -1,0 +1,54 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: file package identifies the file type by means of looking into 
+# the file content.
+
+pkgname=file
+pkgver=5.41
+pkgrel=0
+pkgdesc="File type recognition tool"
+url="https://www.darwinsys.com/file/"
+arch="all"
+license="BSD-2-Clause"
+makedepends="autoconf libtool automake"
+subpackages="$pkgname-dev $pkgname-doc libmagic"
+source="$pkgname-$pkgver.tar.gz::https://github.com/file/file/archive/FILE${pkgver/./_}.tar.gz"
+builddir="$srcdir/$pkgname-FILE${pkgver/./_}"
+
+# secfixes:
+#   5.37-r1:
+#     - CVE-2019-18218
+#   5.36-r0:
+#     - CVE-2019-1543
+#     - CVE-2019-8904
+#     - CVE-2019-8905
+#     - CVE-2019-8906
+#     - CVE-2019-8907
+
+build() {
+	SH_LIBTOOL='/usr/share/build-1/libtool' autoreconf -f -i
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--datadir=/usr/share
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+libmagic() {
+	pkgdesc="File type identification library"
+	mkdir -p "$subpkgdir"/usr
+	mv "$pkgdir"/usr/lib "$pkgdir"/usr/share "$subpkgdir"/usr
+}
+
+sha512sums="
+efa94eec7f33b6d63e6a835987e83300accc2d81b6ea04e7bc031e4224594f96905bb5ffa8b0b3a5143084a8f5659349dffca9c78d9f444c1fd9b723ecb0c973  file-5.41.tar.gz
+"

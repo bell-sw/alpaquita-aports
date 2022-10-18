@@ -1,0 +1,41 @@
+pkgname=ruby-rouge
+_gemname=rouge
+pkgver=3.28.0
+pkgrel=1
+pkgdesc="A pure Ruby code highlighter that is compatible with Pygments"
+url="https://github.com/rouge-ruby/rouge"
+arch="noarch"
+license="MIT AND BSD-2-Clause"
+depends="ruby"
+checkdepends="ruby-minitest ruby-rake"
+source="https://github.com/rouge-ruby/rouge/archive/v$pkgver/$pkgname-$pkgver.tar.gz"
+builddir="$srcdir/$_gemname-$pkgver"
+options="!check"  # FIXME: run tests
+
+build() {
+	gem build $_gemname.gemspec
+}
+
+package() {
+	local gemdir="$pkgdir/$(ruby -e 'puts Gem.default_dir')"
+	local geminstdir="$gemdir/gems/$_gemname-$pkgver"
+
+	gem install \
+		--local \
+		--install-dir "$gemdir" \
+		--bindir "$pkgdir/usr/bin" \
+		--ignore-dependencies \
+		--no-document \
+		--verbose \
+		$_gemname
+
+	# Remove unnecessary files and rubbish...
+	cd "$gemdir"
+	rm -r cache build_info doc extensions
+
+	rm "$geminstdir"/Gemfile
+}
+
+sha512sums="
+a6cb87ef7ec1eae94f127ef615b77830581d1e3a2f690e852effafd146e4456e6c931f843e9df068a750b69af8a6d8d958277d94e16550e016a58412caeba7d7  ruby-rouge-3.28.0.tar.gz
+"

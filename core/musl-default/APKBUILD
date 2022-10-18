@@ -1,0 +1,221 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: standartd C Library designed for Linux. Designed to allow
+# efficient static linking and to have realtime-quality robustness by avoiding
+# race conditions, internal failures on resource exhaustion and various other
+# bad worst-case behaviors present in existing implementations.
+
+pkgname=musl-default
+pkgver=1.2.3
+pkgrel=2
+pkgdesc="the musl c library (libc) implementation"
+url="https://musl.libc.org/"
+arch="all"
+license="MIT"
+options="!libc_glibc lib64"
+subpackages="
+	$pkgname-dbg
+	$pkgname-libintl:libintl:noarch
+	$pkgname-dev
+	libc6-compat:compat:noarch
+	"
+
+provides="musl"
+provider_priority=10
+replaces="musl-perf"
+replaces_priority=1
+alternative=1
+
+case "$BOOTSTRAP" in
+nocc)	pkgname="$pkgname-dev"; subpackages="";;
+nolibc) ;;
+*)	subpackages="$subpackages musl-utils";;
+esac
+commit="v$pkgver"
+source="musl-$commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$commit.tar.gz
+	0001-fix-incorrect-parameter-name-in-internal-netlink.h-R.patch
+	0002-mntent-fix-parsing-lines-with-optional-fields.patch
+	0003-mntent-fix-potential-mishandling-of-extremely-long-l.patch
+	0004-ensure-distinct-query-id-for-parallel-A-and-AAAA-que.patch
+	0005-remove-random-filename-obfuscation-that-leaks-ASLR-i.patch
+
+	ldconfig
+	__stack_chk_fail_local.c
+	getconf.c
+	getent.c
+	iconv.c
+	"
+
+# secfixes:
+#   1.2.2_pre2-r0:
+#     - CVE-2020-28928
+#   1.1.23-r2:
+#     - CVE-2019-14697
+#   1.1.15-r4:
+#     - CVE-2016-8859
+
+builddir="$srcdir"/$commit
+
+build() {
+	cd "$builddir"
+
+	[ "$BOOTSTRAP" = "nocc" ] && return 0
+
+	# provide minimal libssp_nonshared.a so we don't need libssp from gcc
+	${CROSS_COMPILE}gcc $CPPFLAGS $CFLAGS -c "$srcdir"/__stack_chk_fail_local.c -o __stack_chk_fail_local.o
+	${CROSS_COMPILE}ar r libssp_nonshared.a __stack_chk_fail_local.o
+
+	if [ "$BOOTSTRAP" != "nolibc" ]; then
+		# getconf/getent/iconv
+		local i
+		for i in getconf getent iconv ; do
+			${CROSS_COMPILE}gcc $CPPFLAGS $CFLAGS "$srcdir"/$i.c -o $i
+		done
+	fi
+
+	# note: not autotools
+	LDFLAGS="$LDFLAGS -Wl,-soname,libc.musl-${CARCH}.so.1" \
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--syslibdir=/usr/lib \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--enable-debug \
+		--disable-eh-frame
+	make
+}
+
+package() {
+	cd "$builddir"
+
+	case "$CARCH" in
+	aarch64*)	ARCH="aarch64" ;;
+	x86_64)		ARCH="x86_64" ;;
+	esac
+
+	if [ "$BOOTSTRAP" = "nocc" ]; then
+		make ARCH="$ARCH" prefix=/usr DESTDIR="$pkgdir" install-headers
+	else
+		make DESTDIR="$pkgdir" install
+
+		cp libssp_nonshared.a "$pkgdir"/usr/lib
+
+		# make LDSO the be the real file, and libc the symlink
+		local LDSO=$(make -f Makefile --eval "$(echo -e 'print-ldso:\n\t@echo $$(basename $(LDSO_PATHNAME))')" print-ldso)
+		mv -f "$pkgdir"/usr/lib/libc.so "$pkgdir"/usr/lib/"$LDSO"
+		ln -sf "$LDSO" "$pkgdir"/usr/lib/libc.musl-${CARCH}.so.1
+		ln -sf ../../usr/lib/"$LDSO" "$pkgdir"/usr/lib/libc.so
+		mkdir -p "$pkgdir"/usr/bin
+
+		cat >>"$pkgdir"/usr/bin/ldd <<-EOF
+		#!/bin/sh
+		exec /usr/lib/$LDSO --list "\$@"
+		EOF
+		chmod 755 "$pkgdir"/usr/bin/ldd
+	fi
+
+	ln -sf usr/lib "$pkgdir"/lib
+	ln -sf usr/bin $pkgdir/bin
+	ln -sf usr/sbin $pkgdir/sbin
+}
+
+dev() {
+	provides="musl-dev=1"
+	replaces="musl-perf-dev"
+
+	default_dev
+}
+
+dbg() {
+	provides="musl-dbg=1"
+	replaces="musl-perf-dbg"
+	depends="$pkgname=$pkgver-r$pkgrel"
+
+	default_dbg
+}
+
+utils() {
+	provides=""
+	replaces=""
+	provider_priority=""
+	replaces_priority=""
+	alternative=""
+
+	depends="scanelf"
+	replaces="libiconv"
+	license="MIT BSD GPL2+"
+
+	mkdir -p "$subpkgdir"/usr/sbin
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+
+	install -D \
+		"$builddir"/getent \
+		"$builddir"/getconf \
+		"$builddir"/iconv \
+		"$subpkgdir"/usr/bin
+
+	install -D -m755 "$srcdir"/ldconfig "$subpkgdir"/usr/sbin
+}
+
+# currently we don't want by default any NLS
+# and use GNU gettext where needed. the plan is to migrate to
+# musl gettext() later on as fully as possible.
+libintl() {
+	provides="musl-libintl=1"
+	replaces="musl-perf-libintl"
+	depends="$pkgname=$pkgver-r$pkgrel"
+
+	pkgdesc="musl libintl.h header"
+	mkdir -p "$subpkgdir"/usr/include
+	mv "$pkgdir"/usr/include/libintl.h \
+		"$subpkgdir"/usr/include/
+}
+
+compat() {
+	provides=""
+	replaces=""
+	provider_priority=""
+	replaces_priority=""
+	alternative=""
+
+	pkgdesc="compatibility libraries for glibc"
+
+	install -dm755 "$subpkgdir"/usr/lib
+	install -dm755 "$subpkgdir"/usr/lib64
+	ln -sf usr/lib64 "$subpkgdir"/lib64
+
+	# definitive source is https://sourceware.org/glibc/wiki/ABIList
+	case "$CARCH" in
+	aarch64)
+		ln -sf "libc.musl-${CARCH}.so.1" "$subpkgdir/usr/lib/ld-linux-aarch64.so.1"
+		ln -sf ../lib/ld-linux-aarch64.so.1 "$subpkgdir"/usr/lib64/
+		;;
+	x86_64)
+		ln -sf "libc.musl-${CARCH}.so.1" "$subpkgdir/usr/lib/ld-linux-x86-64.so.2"
+		ln -sf ../lib/ld-linux-x86-64.so.2 "$subpkgdir"/usr/lib64/
+		;;
+	esac
+
+	for i in libc.so.6 libcrypt.so.1 libm.so.6 libpthread.so.0 librt.so.1 libutil.so.1; do
+		ln -sf "libc.musl-${CARCH}.so.1" "$subpkgdir/usr/lib/$i"
+	done
+
+}
+
+sha512sums="
+9a1b8f9208d99582ac00e3c46c829aa1fad3b7f09aa7d6822f02f25542453d3d977c69519ad01430b8dd624ac9dc70f47d611e36aefd7fef31ea47a7679e3111  musl-v1.2.3.tar.gz
+58b92d981e1cdcfe85c611b8f287b436c870e98d241249154ca83752a3aa2da71c354bc057926bd8d56e19ee3203731844d3bddb11669d06ce315cd1382b8139  0001-fix-incorrect-parameter-name-in-internal-netlink.h-R.patch
+be02a130202932758ab29ebb6fc868b89e2e60ad630c8cdab423738b2fb88606043207014536397ec785811e5b9f746dead2145a91fa7c01a00a6c516202a269  0002-mntent-fix-parsing-lines-with-optional-fields.patch
+cf0388c5bb51fecd8d9a6bd10d5f245e98309aaf42c2c7c8cdb899213e7239adf76cecdcf5487f0d13964d026b72695395866b63ad39d033e29ba2869f716eb5  0003-mntent-fix-potential-mishandling-of-extremely-long-l.patch
+3e3a1d65b3c5913716f1df1dbce00c56c69d32b39566ebb99cac21f49700427866424455479c470ddfcfd2409c30ad127dd55d16b94b563cfbfc09240e0de7c1  0004-ensure-distinct-query-id-for-parallel-A-and-AAAA-que.patch
+e492f2d7a03df2e5a14af6bf2d0259b21c5f7644c8d92d73614a8bb156d724acfba7610a70260659ebcdbc22e3601ed17c4f828fda212ccfb6c43626bbe6bc27  0005-remove-random-filename-obfuscation-that-leaks-ASLR-i.patch
+8d3a2d5315fc56fee7da9abb8b89bb38c6046c33d154c10d168fb35bfde6b0cf9f13042a3bceee34daf091bc409d699223735dcf19f382eeee1f6be34154f26f  ldconfig
+062bb49fa54839010acd4af113e20f7263dde1c8a2ca359b5fb2661ef9ed9d84a0f7c3bc10c25dcfa10bb3c5a4874588dff636ac43d5dbb3d748d75400756d0b  __stack_chk_fail_local.c
+0d80f37b34a35e3d14b012257c50862dfeb9d2c81139ea2dfa101d981d093b009b9fa450ba27a708ac59377a48626971dfc58e20a3799084a65777a0c32cbc7d  getconf.c
+7f5b9d934d82deb5f8b23e16169a5d9b99ccab3a4708df06a95d685e1b24a3a3e69b3dcf4942f2f66c12a3d4bf0c5827e2ee2e8c4d7b1997359fccc2ac212dee  getent.c
+9d42d66fb1facce2b85dad919be5be819ee290bd26ca2db00982b2f8e055a0196290a008711cbe2b18ec9eee8d2270e3b3a4692c5a1b807013baa5c2b70a2bbf  iconv.c
+"

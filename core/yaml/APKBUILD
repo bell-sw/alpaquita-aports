@@ -1,0 +1,37 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=yaml
+pkgver=0.2.5
+pkgrel=0
+pkgdesc="YAML 1.1 parser and emitter written in C"
+url="https://pyyaml.org/wiki/LibYAML"
+arch="all"
+license="MIT"
+subpackages="$pkgname-static $pkgname-dev"
+source="http://pyyaml.org/download/libyaml/yaml-$pkgver.tar.gz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+dadd7d8e0d88b5ebab005e5d521d56d541580198aa497370966b98c904586e642a1cd4f3881094eb57624f218d50db77417bbfd0ffdce50340f011e35e8c4c02  yaml-0.2.5.tar.gz
+"

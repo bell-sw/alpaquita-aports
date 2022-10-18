@@ -1,0 +1,52 @@
+pkgname=userspace-rcu
+pkgver=0.13.1
+pkgrel=0
+pkgdesc="Userspace RCU (read-copy-update) library"
+url="https://liburcu.org/"
+arch="all"
+license="LGPL-2.1-or-later"
+makedepends="bash perl perl-utils"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
+source="https://lttng.org/files/urcu/userspace-rcu-$pkgver.tar.bz2"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make V=1
+}
+
+check() {
+	make check
+	#make regtest # Somewhat long regression tests
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+}
+
+dev() {
+	default_dev
+	# Move back examples files that are wrongly included
+	# by the default dev splitfunc
+	cp -pr "$subpkgdir"/usr/share/doc/$pkgname \
+		"$pkgdir"/usr/share/doc/
+	rm -rf "$subpkgdir"/usr/share/doc/
+}
+
+static() {
+	depends=""
+	pkgdesc="$pkgdesc (static libraries)"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/*.a "$subpkgdir"/usr/lib
+}
+
+sha512sums="
+c86f2eb260cccb3cb6bd54ddbc0b46e60083fc99423e9403242ebed7f39a2a49c68af933ea6f373e2a9d4f9dc56f5befe030740891e28cf2fabe927a48ff8182  userspace-rcu-0.13.1.tar.bz2
+"

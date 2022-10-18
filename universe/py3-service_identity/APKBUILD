@@ -1,0 +1,31 @@
+pkgname=py3-service_identity
+_pkgname=service-identity
+pkgver=21.1.0
+pkgrel=2
+pkgdesc="Service identity verification for pyOpenSSL & cryptography."
+options="!check" # No testsuite
+url="https://pypi.org/project/service-identity/"
+arch="noarch"
+license="MIT"
+depends="py3-asn1 py3-six py3-asn1-modules py3-attrs py3-characteristic py3-cryptography"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest-runner"
+source="https://files.pythonhosted.org/packages/source/s/$_pkgname/$_pkgname-$pkgver.tar.gz"
+source="https://github.com/pyca/service-identity/archive/$pkgver/$pkgname-$pkgver.tar.gz"
+builddir="$srcdir"/$_pkgname-$pkgver
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+6375bc5e8329118b2beb163ffffecc1479839e4e98173576e4737deebcc4c057ac357315976d3f53a280defd4e2c1f6b74e9604ec1aa94144240c2fb4bf07461  py3-service_identity-21.1.0.tar.gz
+"

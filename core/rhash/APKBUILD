@@ -1,0 +1,44 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: console utility for calculation and verification of magnet links
+# and various message digests, including CRC32, CRC32C, MD4, MD5, SHA1, SHA256,
+# SHA512, SHA3, AICH, ED2K, DC++ TTH, BitTorrent BTIH, Tiger, GOST R 34.11-94,
+# GOST R 34.11-2012, RIPEMD-160, HAS-160, EDON-R, and Whirlpool.
+
+pkgname=rhash
+pkgver=1.4.2
+pkgrel=2
+pkgdesc="(RHash) Recursive Hasher"
+url="http://rhash.anz.ru"
+arch="all"
+license="0BSD"
+makedepends="openssl1.1-compat-dev"
+subpackages="$pkgname-doc $pkgname-dev $pkgname-libs"
+source="https://downloads.sourceforge.net/rhash/rhash-$pkgver-src.tar.gz
+	musl:byteorder.patch"
+builddir="$srcdir/RHash-$pkgver"
+
+build() {
+	# --build and --host are not recognized
+	./configure \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--enable-openssl \
+		--disable-openssl-runtime
+	make
+}
+
+check() {
+	make -C "$builddir" test-shared
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	make DESTDIR="$pkgdir" \
+		install-lib-headers install-lib-shared install-lib-so-link
+}
+
+sha512sums="
+41df57e8b3f32c93d8e6f2ac668b32aaa23eb2eaf90a83f109e61e511404a5036ea88bcf2854e19c1ade0f61960e0d9edf01f3d82e1c645fed36579e9d7a6a25  rhash-1.4.2-src.tar.gz
+a216a7cf5e1ea5fcb7b574a57bb8137e3dc0251bdefb2c30aacba08c54079d61a595c8c5636687c70e14724efa3a4b9ca7d9f98d9170eaa66ccb278834cf56d5  byteorder.patch
+"

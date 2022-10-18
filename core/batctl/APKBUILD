@@ -1,0 +1,30 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: batcl is a tool based on B.A.T.M.A.N. (better approach to
+# mobile ad-hoc networking) algorithm. It allows building multi-hop ad-hoc
+# mesh networks.
+
+pkgname=batctl
+pkgver=2022.0
+pkgrel=1
+pkgdesc="B.A.T.M.A.N. network anagement tool"
+url="https://www.open-mesh.org/"
+arch="all"
+license="GPL-2.0-only AND MIT"
+depends_dev="libnl3-dev linux-headers"
+makedepends="$depends_dev"
+subpackages="$pkgname-doc"
+source="https://downloads.open-mesh.org/batman/releases/batman-adv-$pkgver/batctl-$pkgver.tar.gz"
+options="!check" # No test suite.
+
+build() {
+	make PREFIX=/usr
+}
+
+package() {
+	make PREFIX=/usr DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+4e839119914c471818dcdc6ee0850802f0141dade8303be92fd0fc6f4cf492e37e482401f4e519d815f3928c84b247a5d5e0000128eb958702b8a99ff6f4975e  batctl-2022.0.tar.gz
+"

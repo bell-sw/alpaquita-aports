@@ -1,0 +1,49 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=py3-fonttools
+_pkgname=fonttools
+pkgver=4.33.0
+pkgrel=0
+pkgdesc="Converts OpenType and TrueType fonts to and from XML"
+url="https://github.com/fonttools/fonttools"
+arch="all"
+license="MIT AND OFL-1.1"
+depends="py3-lxml py3-fs cython python3-dev"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest py3-brotli"
+subpackages="$pkgname-doc"
+source="$_pkgname-$pkgver.tar.gz::https://github.com/fonttools/fonttools/archive/$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces="py-fonttools" # Backwards compatibility
+provides="py-fonttools=$pkgver-r$pkgrel" # Backwards compatibility
+
+prepare() {
+	default_prepare
+	# remove interpreter line
+	sed -i '1d' Lib/fontTools/mtiLib/__init__.py
+}
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	PATH="$PATH:$PWD" PYTHONPATH=$(echo "$PWD"/build/lib*) py.test-3
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+doc() {
+	replaces="py-$_pkgname-doc" # Backwards compatibility
+	provides="py-$_pkgname-doc=$pkgver-r$pkgrel" # Backwards compatibility
+	default_doc
+}
+
+sha512sums="
+147f6d41d1a6b27ebe6973cb91a90384291ad8c7b75b71c3b814908012530066b79f4c39bdd6da9e98614ef61b1cc19803756aba73e4da7ce2e82147390f0023  fonttools-4.33.0.tar.gz
+"

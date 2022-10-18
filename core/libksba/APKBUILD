@@ -1,0 +1,31 @@
+pkgname=libksba
+pkgver=1.6.0
+pkgrel=0
+pkgdesc="Libksba is a CMS and X.509 access library"
+url="https://www.gnupg.org/software/libksba/index.html"
+arch="all"
+license="GPL-2.0-or-later or GPL-3.0-or-later"
+makedepends="libgpg-error-dev"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://www.gnupg.org/ftp/gcrypt/libksba/libksba-$pkgver.tar.bz2"
+
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+a7c76d41dfd8ec6383ac2de3c53848cd9f066b538f6f3cd43175e3c8095df51b96d0a24a573481c0c4856b09b7c224e2b562d88f5c0801e7acfb582ea2739c2b  libksba-1.6.0.tar.bz2
+"

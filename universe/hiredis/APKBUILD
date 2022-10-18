@@ -1,0 +1,44 @@
+pkgname=hiredis
+pkgver=1.0.2
+pkgrel=0
+pkgdesc="Minimalistic C client library for Redis"
+url="https://github.com/redis/hiredis"
+arch="all"
+license="BSD-3-Clause"
+makedepends="openssl1.1-compat-dev"
+checkdepends="redis"
+subpackages="$pkgname-ssl $pkgname-dev"
+source="$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz"
+
+
+build() {
+	make USE_SSL=1 PREFIX=/usr DEBUG="$CFLAGS" LDFLAGS="$LDFLAGS"
+}
+
+check() {
+	redis-server --dir "$builddir" --unixsocket "$builddir"/redis.sock&
+	local _redispid=$!
+
+	# make sure socket is available before we start running tests
+	local _n=100 # wait up to 10 sec
+	while ! [ -e "$builddir"/redis.sock ] && [ $_n -gt 0 ]; do
+		sleep 0.1s
+		let _n="$_n - 1"
+	done
+
+	make hiredis-test
+	./hiredis-test -s "$builddir"/redis.sock || (kill $_redispid && false)
+	kill $_redispid
+}
+
+package() {
+	make USE_SSL=1 PREFIX="$pkgdir"/usr install
+}
+
+ssl() {
+	amove usr/lib/libhiredis_ssl.so*
+}
+
+sha512sums="
+86497a1c21869bbe535378885eee6dbd594ef96325966511a3513f81e501af0f5ac7fed864f3230372f3ac7a23c05bad477fa5aa90b9747c9fb1408028174f9b  hiredis-1.0.2.tar.gz
+"

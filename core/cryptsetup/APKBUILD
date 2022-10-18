@@ -1,0 +1,75 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: cryptsetup enables hard disc encryption using the DMCrypt
+# kernel module. It can also be used to setup DMIntegrity block integrity
+# kernel module and DMIntegrity block integrity checking kernel module.
+
+pkgname=cryptsetup
+pkgver=2.4.3 # XXX: remove automake/autoconf when upgrading to 2.5.0
+pkgrel=1
+pkgdesc="Block devices encryption utility"
+url="https://gitlab.com/cryptsetup/cryptsetup"
+arch="all"
+license="GPL-2.0-or-later WITH OpenSSL-Exception"
+depends="glibc:libgcc"
+makedepends_build="bash coreutils"
+makedepends_host="lvm2-dev openssl1.1-compat-dev popt-dev util-linux-dev
+	json-c-dev argon2-dev"
+makedepends="$makedepends_build $makedepends_host"
+checkdepends="device-mapper which sharutils"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-libs $pkgname-openrc"
+source="https://www.kernel.org/pub/linux/utils/cryptsetup/v${pkgver%.*}/cryptsetup-$pkgver.tar.gz
+	dmcrypt.initd
+	dmcrypt.confd
+
+	flush-stdout.patch
+	"
+
+# secfixes:
+#   2.4.3-r0:
+#     - CVE-2021-4122
+#   2.3.4-r0:
+#     - CVE-2020-14382
+
+build() {
+	# Disable support for external tokens since it requires
+	# dlvsym(3) which is a GNU extension and not available in musl.
+	./configure \
+		--build="$CBUILD" \
+		--host="$CHOST" \
+		--prefix=/usr \
+		--disable-static \
+		--enable-libargon2 \
+		--with-crypto_backend=openssl \
+		--disable-external-tokens \
+		--disable-ssh-token
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR=$pkgdir install
+
+	install -Dm644 "$srcdir"/dmcrypt.confd "$pkgdir"/etc/conf.d/dmcrypt
+	install -Dm755 "$srcdir"/dmcrypt.initd "$pkgdir"/etc/init.d/dmcrypt
+
+	mkdir -p "$pkgdir"/usr/share/doc/$pkgname/
+	install -m644 README.md FAQ docs/v$pkgver-ReleaseNotes \
+		"$pkgdir"/usr/share/doc/$pkgname/
+}
+
+libs() {
+	pkgdesc="Cryptsetup shared library"
+	mkdir -p "$subpkgdir"
+	amove usr/lib
+}
+
+sha512sums="
+a6c8a33e62853fd5757239b5ec3529bd7d994c6d70db65188b7bd121ee59347a89b57f72d5ebdf521027f5a00951db2fb8acfcbbf1902e8697b006c4fe13c9f2  cryptsetup-2.4.3.tar.gz
+3d79ce62d25c9bc1cc51916470d9b9b0c0336836296e5c5c9d79b4298aa34065454083cd80e4d963c583a50ae42ff4978de0a51fb72d45a7cd9cef14cac95108  dmcrypt.initd
+74422d5e1614b43af894ea01da1ea80d805ec7f77981cbb80a6b1a4becad737a8825d7269812499095a7f50d39fa7da5bf4e4edae63529b1fe87b9176943a733  dmcrypt.confd
+529187851def5fbc08e995eba90d3f013f1cf8469dcb9344f83d1e3c73c71467ca4ed62c8282ec27ebfa30ccc33653fdd1aea8d1d80e1ac4293d51865c9a6200  flush-stdout.patch
+"

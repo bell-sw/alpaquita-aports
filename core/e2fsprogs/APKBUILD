@@ -1,0 +1,102 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: e2fsprogs contains utilities to create, configure, and debug 
+# ext2/3/4 filesystems.
+
+pkgname=e2fsprogs
+pkgver=1.46.5
+pkgrel=0
+pkgdesc="Ext2/3/4 filesystem management tools"
+url="http://e2fsprogs.sourceforge.net"
+arch="all"
+license="GPL-2.0-or-later AND LGPL-2.0-or-later AND BSD-3-Clause AND MIT"
+depends="$pkgname-core $pkgname-extra"
+depends_dev="util-linux-dev gawk"
+makedepends="$depends_dev linux-headers"
+checkdepends="diffutils perl coreutils"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc libcom_err $pkgname-libs $pkgname-core $pkgname-extra"
+source="$pkgname-$pkgver.tar.gz::https://github.com/tytso/e2fsprogs/archive/v$pkgver.tar.gz
+	"
+
+# secfixes:
+#   1.45.5-r0:
+#     - CVE-2019-5188
+#   1.45.4-r0:
+#     - CVE-2019-5094
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		--enable-elf-shlibs \
+		--enable-symlink-install \
+		--disable-fsck \
+		--disable-uuidd \
+		--disable-libuuid \
+		--disable-libblkid \
+		--disable-nls
+	make
+}
+
+check() {
+	# Disable failing test
+	rm -rf tests/m_offset*
+
+	# Failing on CI
+	rm -rf tests/f_bigalloc_orphan_list*
+
+	# Fails on armhf on CI
+	rm -rf tests/f_extent_htree*
+
+	# Fails on builders with less than 4TB free space
+	rm -rf tests/m_hugefile
+
+	make check
+}
+
+package() {
+	make -j1 MKDIR_P="install -d"  DESTDIR="$pkgdir" install install-libs
+}
+
+core() {
+	mkdir -p "$subpkgdir"/usr/sbin
+	local i; for i in e2fsck mke2fs mkfs.* fsck.*; do
+		mv "$pkgdir"/usr/sbin/$i "$subpkgdir"/usr/sbin/
+	done
+}
+
+dev() {
+	default_dev
+	mkdir -p "$subpkgdir"/usr/bin
+	mkdir -p "$subpkgdir"/usr/share
+	mv "$pkgdir"/usr/bin/compile_et "$pkgdir"/usr/bin/mk_cmds \
+		"$subpkgdir"/usr/bin/
+	mv "$pkgdir"/usr/share/et "$pkgdir"/usr/share/ss \
+		"$subpkgdir"/usr/share
+}
+
+libcom_err() {
+	pkgdesc="Common error description library"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libcom_err* "$subpkgdir"/usr/lib/
+}
+
+extra() {
+	depends="$pkgname-core"
+	pkgdesc="Ext2/3/4 filesystem extra utilities"
+	mkdir -p "$subpkgdir"
+	mv "$pkgdir"/usr "$subpkgdir"/
+}
+
+static() {
+	depends=""
+	pkgdesc="$pkgdesc (static libraries)"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/*.a "$subpkgdir"/usr/lib
+}
+
+sha512sums="
+9e21e27b8be86b891cfc5f8c963c398e27f476d5663d6313ae48dc5d3c95f4f4ac95a9f37e971ac1dd0b8beb05b1f83b510027731e3aa906135ea21e99bea9b8  e2fsprogs-1.46.5.tar.gz
+"

@@ -1,0 +1,32 @@
+pkgname=perl-file-remove
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=File-Remove
+pkgver=1.60
+pkgrel=0
+pkgdesc="Remove files and directories"
+url="https://metacpan.org/release/File-Remove/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+makedepends="perl-module-build"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/S/SH/SHLOMIF/File-Remove-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	perl Build.PL --installdirs=vendor
+	./Build
+}
+
+check() {
+	./Build test
+}
+
+package() {
+	./Build install --destdir="$pkgdir"
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+
+sha512sums="7781629896f16f0b34574a879803473002249c32cf03001f4c1c290edd379571d96d5b1049874f9f71bdb8d7881c3f30a86dcdd0d4f42b4e78998cd6a96de750  File-Remove-1.60.tar.gz"

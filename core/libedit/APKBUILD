@@ -1,0 +1,46 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: it is a Berkeley-style licensed library for command line editing.
+
+pkgname=libedit
+pkgver=20210910.3.1
+_ver=${pkgver/./-}
+pkgrel=0
+pkgdesc="BSD line editing library"
+url="https://www.thrysoee.dk/editline"
+arch="all"
+license="BSD-3-Clause"
+depends_dev="ncurses-dev"
+makedepends_host="$depends_dev"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
+source="https://www.thrysoee.dk/editline/libedit-$_ver.tar.gz"
+builddir="$srcdir"/libedit-$_ver
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	# Prevent conflict with editline-doc and readline-doc
+	mv "$pkgdir"/usr/share/man/man3/editline.3 \
+		"$pkgdir"/usr/share/man/man3/libedit.3
+	rm "$pkgdir"/usr/share/man/man3/history.3*
+}
+
+sha512sums="
+b7361c277f971ebe87e0e539e5e1fb01a4ca1bbab61e199eb97774d8b60dddeb9e35796faf9cc68eb86d1890e8aac11db13b44b57ccc8302d559741fbe9d979e  libedit-20210910-3.1.tar.gz
+"

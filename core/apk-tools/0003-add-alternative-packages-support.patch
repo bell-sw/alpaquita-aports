@@ -1,0 +1,361 @@
+From 5e2b3c3dcbe6c7beb736888b8ce42d248b382eda Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 22 Feb 2022 18:18:06 +0300
+Subject: [PATCH] add alternative packages support
+
+---
+ src/apk_package.h     |   1 +
+ src/apk_solver.h      |   1 +
+ src/apk_solver_data.h |   6 +-
+ src/app_add.c         |   2 +-
+ src/package.c         |   8 +++
+ src/solver.c          | 129 ++++++++++++++++++++++++++++++++++++++----
+ 6 files changed, 134 insertions(+), 13 deletions(-)
+
+diff --git a/src/apk_package.h b/src/apk_package.h
+index 6e428e4..adf7686 100644
+--- a/src/apk_package.h
++++ b/src/apk_package.h
+@@ -116,6 +116,7 @@ struct apk_package {
+ 	unsigned marked : 1;
+ 	unsigned uninstallable : 1;
+ 	unsigned cached_non_repository : 1;
++	unsigned alternative : 1;
+ 	struct apk_checksum csum;
+ };
+ APK_ARRAY(apk_package_array, struct apk_package *);
+diff --git a/src/apk_solver.h b/src/apk_solver.h
+index c386b13..636fb4f 100644
+--- a/src/apk_solver.h
++++ b/src/apk_solver.h
+@@ -34,6 +34,7 @@ struct apk_changeset {
+ #define APK_SOLVERF_LATEST		0x0008
+ #define APK_SOLVERF_IGNORE_CONFLICT	0x0010
+ #define APK_SOLVERF_INSTALLED	 	0x0020
++#define APK_SOLVERF_NEW_ADD	 	0x0040
+ 
+ void apk_solver_set_name_flags(struct apk_name *name,
+ 			       unsigned short solver_flags,
+diff --git a/src/apk_solver_data.h b/src/apk_solver_data.h
+index 8aee485..783d002 100644
+--- a/src/apk_solver_data.h
++++ b/src/apk_solver_data.h
+@@ -40,6 +40,7 @@ struct apk_solver_name_state {
+ 	unsigned has_options : 1;
+ 	unsigned reverse_deps_done : 1;
+ 	unsigned has_virtual_provides : 1;
++	unsigned new_alternative : 1;
+ };
+ 
+ struct apk_solver_package_state {
+@@ -47,8 +48,8 @@ struct apk_solver_package_state {
+ 	unsigned short max_dep_chain;
+ 	unsigned short pinning_allowed;
+ 	unsigned short pinning_preferred;
+-	unsigned solver_flags : 6;
+-	unsigned solver_flags_inheritable : 6;
++	unsigned solver_flags : 7;
++	unsigned solver_flags_inheritable : 7;
+ 	unsigned seen : 1;
+ 	unsigned pkg_available : 1;
+ 	unsigned pkg_selectable : 1;
+@@ -60,6 +61,7 @@ struct apk_solver_package_state {
+ 	unsigned iif_triggered : 1;
+ 	unsigned iif_failed : 1;
+ 	unsigned error : 1;
++	unsigned old_alternative : 1;
+ };
+ 
+ #endif
+diff --git a/src/app_add.c b/src/app_add.c
+index 4bc9894..761d702 100644
+--- a/src/app_add.c
++++ b/src/app_add.c
+@@ -179,7 +179,7 @@ static int add_main(void *ctx, struct apk_database *db, struct apk_string_array
+ 		if (virtpkg == NULL) {
+ 			apk_deps_add(&world, &dep);
+ 			apk_solver_set_name_flags(dep.name,
+-						  actx->solver_flags,
++						  actx->solver_flags | APK_SOLVERF_NEW_ADD,
+ 						  actx->solver_flags);
+ 		} else {
+ 			apk_deps_add(&virtpkg->depends, &dep);
+diff --git a/src/package.c b/src/package.c
+index c068b8d..7d5ab7c 100644
+--- a/src/package.c
++++ b/src/package.c
+@@ -826,6 +826,9 @@ int apk_pkg_add_info(struct apk_database *db, struct apk_package *pkg,
+ 	case 'k':
+ 		pkg->provider_priority = apk_blob_pull_uint(&value, 10);
+ 		break;
++	case 'B':
++		pkg->alternative = apk_blob_pull_uint(&value, 10);
++		break;
+ 	case 'F': case 'M': case 'R': case 'Z': case 'r': case 'q':
+ 	case 'a': case 's': case 'f':
+ 		/* installed db entries which are handled in database.c */
+@@ -865,6 +868,7 @@ static int read_info_line(void *ctx, apk_blob_t line)
+ 		{ "builddate",	't' },
+ 		{ "commit",	'c' },
+ 		{ "provider_priority", 'k' },
++		{ "alternative", 'B' },
+ 	};
+ 	struct read_info_ctx *ri = (struct read_info_ctx *) ctx;
+ 	apk_blob_t l, r;
+@@ -1140,6 +1144,10 @@ int apk_pkg_write_index_entry(struct apk_package *info,
+ 		apk_blob_push_blob(&bbuf, APK_BLOB_STR("\nk:"));
+ 		apk_blob_push_uint(&bbuf, info->provider_priority, 10);
+ 	}
++	if (info->alternative) {
++		apk_blob_push_blob(&bbuf, APK_BLOB_STR("\nB:"));
++		apk_blob_push_uint(&bbuf, info->alternative, 10);
++	}
+ 	apk_blob_push_blob(&bbuf, APK_BLOB_STR("\n"));
+ 
+ 	if (APK_BLOB_IS_NULL(bbuf)) {
+diff --git a/src/solver.c b/src/solver.c
+index 810c9ce..d2b6e0d 100644
+--- a/src/solver.c
++++ b/src/solver.c
+@@ -51,6 +51,13 @@ void apk_solver_set_name_flags(struct apk_name *name,
+ {
+ 	struct apk_provider *p;
+ 
++	if (name->priority && name->providers->num > 1 &&
++	    (solver_flags & APK_SOLVERF_NEW_ADD)) {
++		dbg_printf("reset NEW_ADD flag for virtual packages: %s priority %d\n",
++			name->name, name->priority);
++		solver_flags &= ~APK_SOLVERF_NEW_ADD;
++	}
++
+ 	foreach_array_item(p, name->providers) {
+ 		struct apk_package *pkg = p->pkg;
+ 		dbg_printf("marking '" PKG_VER_FMT "' = 0x%04x / 0x%04x\n",
+@@ -226,19 +233,27 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
+ 							    dep->name->ss.max_dep_chain+1);
+ 			}
+ 
+-			dbg_printf("discover " PKG_VER_FMT ": tag_ok=%d, tag_pref=%d max_dep_chain=%d selectable=%d\n",
++			pkg->name->ss.new_alternative =
++				pkg->alternative &&
++				!pkg->ipkg &&
++				(pkg->ss.solver_flags & APK_SOLVERF_NEW_ADD);
++
++			dbg_printf("discover " PKG_VER_FMT ": tag_ok=%d, tag_pref=%d max_dep_chain=%d selectable=%d solver_flags=%x alternative=%d(%d)\n",
+ 				PKG_VER_PRINTF(pkg),
+ 				pkg->ss.tag_ok,
+ 				pkg->ss.tag_preferred,
+ 				pkg->ss.max_dep_chain,
+-				pkg->ss.pkg_selectable);
++				pkg->ss.pkg_selectable,
++				pkg->ss.solver_flags,
++				pkg->alternative,
++				pkg->name->ss.new_alternative);
+ 		}
+ 
+ 		name->ss.no_iif &= pkg->ss.iif_failed;
+ 		name->ss.max_dep_chain = max(name->ss.max_dep_chain, pkg->ss.max_dep_chain);
+ 
+-		dbg_printf("discover %s: max_dep_chain=%d no_iif=%d\n",
+-			name->name, name->ss.max_dep_chain, name->ss.no_iif);
++		dbg_printf("discover %s: max_dep_chain=%d no_iif=%d new_alternative=%d\n",
++			name->name, name->ss.max_dep_chain, name->ss.no_iif, name->ss.new_alternative);
+ 	}
+ 	foreach_array_item(pname0, name->rinstall_if)
+ 		discover_name(ss, *pname0);
+@@ -282,9 +297,9 @@ static void apply_constraint(struct apk_solver_state *ss, struct apk_package *pp
+ 	struct apk_provider *p0;
+ 	int is_provided;
+ 
+-	dbg_printf("    apply_constraint: %s%s%s" BLOB_FMT "\n",
++	dbg_printf("    apply_constraint: %s%s(req %d dep %d)%s" BLOB_FMT "\n",
+ 		dep->conflict ? "!" : "",
+-		name->name,
++		name->name, name->ss.requirers, dep->conflict,
+ 		apk_version_op_string(dep->result_mask),
+ 		BLOB_PRINTF(*dep->version));
+ 
+@@ -315,19 +330,59 @@ static void exclude_non_providers(struct apk_solver_state *ss, struct apk_name *
+ {
+ 	struct apk_provider *p;
+ 	struct apk_dependency *d;
++	int mp_installed = 0;
++	int mp_priority = 0;
++	int mp_alternative = 0;
+ 
+ 	if (name == must_provide || ss->ignore_conflict)
+ 		return;
+ 
+-	dbg_printf("%s must provide %s (skip_virtuals=%d)\n", name->name, must_provide->name, skip_virtuals);
++	dbg_printf("%s must provide %s (skip_virtuals=%d new_alternative=%d)\n",
++		name->name, must_provide->name, skip_virtuals, must_provide->ss.new_alternative);
++
++	foreach_array_item(p, must_provide->providers) {
++		if (!p->pkg->alternative)
++			continue;
++		mp_alternative = 1;
++		mp_priority = p->pkg->provider_priority;
++		if (p->pkg->ipkg) {
++			mp_installed = 1;
++			break;
++		}
++	}
+ 
+ 	foreach_array_item(p, name->providers) {
+ 		if (p->pkg->name == must_provide || !p->pkg->ss.pkg_selectable ||
+ 		    (skip_virtuals && p->version == &apk_atom_null))
+ 			goto next;
+-		foreach_array_item(d, p->pkg->provides)
++		if (p->pkg->name->ss.new_alternative) {
++			dbg_printf("  skip transitivity check for new_alternative apk\n");
++			goto next;
++		}
++
++		foreach_array_item(d, p->pkg->provides) {
++			dbg_printf("    provides: %s\n", d->name->name);
+ 			if (d->name == must_provide || (skip_virtuals && d->version == &apk_atom_null))
+ 				goto next;
++		}
++
++		if (mp_alternative && p->pkg->alternative) {
++			if (must_provide->ss.new_alternative) {
++				p->pkg->ss.old_alternative = 1;
++				dbg_printf("  old_alternative=1 for "PKG_VER_FMT"\n", PKG_VER_PRINTF(p->pkg));
++				goto next;
++			}
++
++			if (mp_installed && mp_priority == p->pkg->provider_priority) {
++				dbg_printf("  skip disqualify for possible upgrade "PKG_VER_FMT"\n",
++					PKG_VER_PRINTF(p->pkg));
++				goto next;
++			} else if (!mp_installed && mp_priority != p->pkg->provider_priority) {
++				dbg_printf("  skip disqualify when different priority "PKG_VER_FMT"\n",
++					PKG_VER_PRINTF(p->pkg));
++				goto next;
++			}
++		}
+ 		disqualify_package(ss, p->pkg, "provides transitivity");
+ 	next: ;
+ 	}
+@@ -493,6 +548,20 @@ static void reconsider_name(struct apk_solver_state *ss, struct apk_name *name)
+ 		name->name, name->ss.has_options, name->ss.reverse_deps_done);
+ }
+ 
++static int check_installed_deps(struct apk_package *pkg)
++{
++	struct apk_dependency *dep;
++	struct apk_provider *p;
++
++	foreach_array_item(dep, pkg->depends) {
++		foreach_array_item(p, dep->name->providers) {
++			if (p->pkg->ipkg)
++				return 1;
++		}
++	}
++	return 0;
++}
++
+ static int compare_providers(struct apk_solver_state *ss,
+ 			     struct apk_provider *pA, struct apk_provider *pB)
+ {
+@@ -558,7 +627,7 @@ static int compare_providers(struct apk_solver_state *ss,
+ 		    (solver_flags & APK_SOLVERF_INSTALLED)) {
+ 			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
+ 			if (r) {
+-				dbg_printf("    prefer installed\n");
++				dbg_printf("    prefer installed on self-upgrade\n");
+ 				return r;
+ 			}
+ 		}
+@@ -586,6 +655,15 @@ static int compare_providers(struct apk_solver_state *ss,
+ 			return r;
+ 		}
+ 
++		/* Prefer new alternative */
++		if (solver_flags & APK_SOLVERF_NEW_ADD) {
++			r = (int)pkgA->name->ss.new_alternative - (int)pkgB->name->ss.new_alternative;
++			if (r) {
++				dbg_printf("    prefer new alternative\n");
++				return r;
++			}
++		}
++
+ 		/* Prefer installed */
+ 		if (!(solver_flags & APK_SOLVERF_UPGRADE)) {
+ 			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
+@@ -625,6 +703,14 @@ static int compare_providers(struct apk_solver_state *ss,
+ 		return r;
+ 	}
+ 
++	if (pkgA->name->ss.new_alternative && pkgA->name->ss.new_alternative) {
++		r = check_installed_deps(pkgA) - check_installed_deps(pkgB);
++		if (r) {
++			dbg_printf("    prefer new alternative pkg with installed dependencies\n");
++			return r;
++		}
++	}
++
+ 	/* Prefer highest declared provider priority. */
+ 	r = pkgA->provider_priority - pkgB->provider_priority;
+ 	if (r) {
+@@ -649,10 +735,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
+ 	struct apk_provider *p0;
+ 
+ 	if (name->ss.locked) {
++		dbg_printf("assign_name: %s pkg %s provider_priority=%d, new_alternative=%d\n",
++			   name->name, (p.pkg) ? p.pkg->name->name : "null", (p.pkg) ? p.pkg->provider_priority : 0,
++			   name->ss.new_alternative);
++
+ 		/* If both are providing this name without version, it's ok */
+ 		if (p.version == &apk_atom_null &&
+ 		    name->ss.chosen.version == &apk_atom_null)
+ 			return;
++
+ 		if (ss->ignore_conflict)
+ 			return;
+ 		/* Conflict: providing same name */
+@@ -677,8 +768,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
+ 			if (p0->pkg == p.pkg)
+ 				continue;
+ 			if (p.version == &apk_atom_null &&
+-			    p0->version == &apk_atom_null)
++			    p0->version == &apk_atom_null) {
++				dbg_printf("  no-versions, skip conflicting provides\n");
+ 				continue;
++			}
++			if (p.pkg && p.pkg->alternative && p0->pkg->alternative &&
++			    !p0->pkg->name->ss.new_alternative && p.pkg->name->ss.new_alternative) {
++				dbg_printf("  reset requirers for %s\n", p0->pkg->name->name);
++				p0->pkg->name->ss.requirers = 0;
++			}
+ 			disqualify_package(ss, p0->pkg, "conflicting provides");
+ 		}
+ 	}
+@@ -727,6 +825,13 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
+ 
+ 	pkg = chosen.pkg;
+ 	if (pkg) {
++		if (pkg->alternative && (pkg->ss.old_alternative || !pkg->ss.pkg_selectable)) {
++			dbg_printf("reset " PKG_VER_FMT " alternative pkg, selectable=%d\n",
++				PKG_VER_PRINTF(pkg), pkg->ss.pkg_selectable);
++			assign_name(ss, name, provider_none);
++			return;
++		}
++
+ 		if (!pkg->ss.pkg_selectable || !pkg->ss.tag_ok) {
+ 			/* Selecting broken or unallowed package */
+ 			mark_error(ss, pkg, "broken package / tag not ok");
+@@ -782,6 +887,10 @@ static void cset_track_deps_added(struct apk_package *pkg)
+ 		if (d->conflict || !d->name->ss.installed_name)
+ 			continue;
+ 		d->name->ss.installed_name->ss.requirers++;
++		dbg_printf("cset_track_deps_added: %s, installed name %s req %d\n",
++			d->name->name,
++			d->name->ss.installed_name->name,
++			d->name->ss.installed_name->ss.requirers);
+ 	}
+ }
+ 
+-- 
+2.25.1
+

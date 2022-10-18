@@ -1,0 +1,79 @@
+pkgname=lldb
+# Note: Update together with llvm.
+pkgver=13.0.1
+pkgrel=0
+_llvmver=${pkgver%%.*}
+pkgdesc="Next generation, high-performance debugger"
+arch="all !x86 !riscv64"
+url="https://llvm.org/"
+license="Apache-2.0"
+makedepends="
+	clang-dev>=$_llvmver
+	clang-static>=$_llvmver
+	cmake
+	doxygen
+	gtest-dev
+	libedit-dev
+	libffi-dev
+	libxml2-dev
+	linux-headers
+	llvm-dev>=$_llvmver
+	llvm-static>=$_llvmver
+	ncurses-dev
+	samurai
+	python3-dev
+	swig
+	xz
+	"
+subpackages="$pkgname-dev py3-$pkgname:py3"
+source="https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/lldb-$pkgver.src.tar.xz
+	fix-embedded_interpreter.patch
+	musl:musl-compat.patch
+	"
+builddir="$srcdir/$pkgname-$pkgver.src"
+options="!check" 
+
+build() {
+	CC=clang CXX=clang++ cmake -B build -G Ninja -Wno-dev \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_C_FLAGS_RELEASE_INIT="${CFLAGS/-Os/}" \
+		-DCMAKE_CXX_FLAGS_RELEASE_INIT="${CXXFLAGS/-Os/}" \
+		-DCMAKE_EXE_LINKER_FLAGS_RELEASE_INIT="$LDFLAGS" \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DLLVM_LINK_LLVM_DYLIB=ON \
+		-DLLDB_DISABLE_LIBEDIT=ON \
+		-DLLDB_TEST_C_COMPILER=clang \
+		-DLLDB_TEST_CXX_COMPILER=clang++ \
+		-DLLDB_INCLUDE_TESTS=ON \
+		-DPYTHON_EXECUTABLE=/usr/bin/python3
+	cmake --build build
+}
+
+check() {
+	ninja -C build check-lldb
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+py3() {
+	pkgdesc="Python3 module for LLDB"
+	depends="$pkgname python3 py3-six"
+	replaces="py-lldb"
+
+	local sitedir=$(python3 -c "import site; print(site.getsitepackages()[0])")
+
+	amove "$sitedir"
+
+	# Remove bundled module.
+	rm "$subpkgdir"/"$sitedir"/six.py
+
+	python3 -m compileall -fq "$subpkgdir"/"$sitedir"
+}
+
+sha512sums="
+4d6f134305d3f869e951c9cef6d792945b47bc6b3226acb1df2e85bb54cac980efa8b12bd399bdc7bb8d108154400205221c387d4d75024c20f61d8e4ed2dee9  lldb-13.0.1.src.tar.xz
+3c611fa5d45b6cb3f2925a31deeb8a34c295277aedcd55c22851d373897acd376fa92f4ef953c96a25c8dae4c93b6a88de0918550672141d324a3813d8283d48  fix-embedded_interpreter.patch
+14c556d495696abb303744f414fa4145fb00e7c3a8b42f09e4e4a5c84e02ff82efca31fd4cfda4a62b3a6e33efdb98042757eb5c46688acfcdfa81c0f321883d  musl-compat.patch
+"

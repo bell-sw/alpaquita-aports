@@ -1,0 +1,94 @@
+# Description: PAM provides a way to develop programs that are independent of
+# authentication scheme. These programs need "authentication modules" to be
+# attatched to them at run-time in order to work. Which authentication module
+# is to be attatched is dependent upon the local system setup and is at the
+# discretion of the local system administrator.
+
+pkgname=linux-pam
+pkgver=1.5.2
+pkgrel=0
+pkgdesc="Linux PAM (Pluggable Authentication Modules for Linux)"
+url="https://www.kernel.org/pub/linux/libs/pam"
+arch="all"
+license="BSD-3-Clause"
+depends_dev="gettext-dev"
+makedepends="$depends_dev bison flex-dev autoconf automake libtool linux-headers"
+options="suid !check"
+subpackages="$pkgname-dev $pkgname-doc"
+source="
+	https://github.com/linux-pam/linux-pam/releases/download/v$pkgver/Linux-PAM-$pkgver.tar.xz
+
+	base-auth.pamd
+	base-account.pamd
+	base-password.pamd
+	base-session.pamd
+	base-session-noninteractive.pamd
+	other.pamd
+	system-local-login.pamd
+	system-login.pamd
+	su.pamd
+	"
+builddir="$srcdir"/Linux-PAM-$pkgver
+
+# secfixes:
+#   1.5.1-r0:
+#     - CVE-2020-27780
+
+prepare() {
+	default_prepare
+	# disable insecure modules
+	sed -e 's/pam_rhosts//g' -i modules/Makefile.am
+
+	# prevent systemd files installation
+	sed -e /service_DATA/d -i modules/pam_namespace/Makefile.am
+
+	autoreconf -vif
+}
+
+build() {
+	[ "$CLIBC" = "musl" ] && export ac_cv_search_crypt=no
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--libdir=/usr/lib \
+		--sbindir=/usr/sbin \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--disable-nls \
+		--disable-db
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	# install our pam.d files
+	mkdir "$pkgdir"/etc/pam.d
+	for i in $source; do
+		case $i in
+		*.pamd)
+			basename=$(echo $i | cut -d. -f1)
+			cp "$srcdir"/$i "$pkgdir"/etc/pam.d/"$basename"
+			;;
+		esac
+	done
+
+	chmod -v 4755 $pkgdir/usr/sbin/unix_chkpwd
+	chgrp shadow $pkgdir/usr/sbin/unix_chkpwd
+}
+
+sha512sums="
+fa16350c132d3e5fb82b60d991768fb596582639841b8ece645c684705467305ccf1302a0147ec222ab78c01b2c9114c5496dc1ca565d2b56bf315f29a815144  Linux-PAM-1.5.2.tar.xz
+7df6b46d3515428540adcf4bffba8009a153ad35dc7ee8614be7a0a7ddc0a5ff30de7f69ca90ff903c0de8fcfcd0a615d6da911bdb3d130b90df8882fda0832d  base-auth.pamd
+a73488fd5c2ce566900600d98cb5a3b451c517aeed23a0dee7ad42667594407e6bd470f33cc0377c68aabe77a85ee802a9030f5800890f31f3f6be85bbdce61f  base-account.pamd
+2576a960ce2be815af060547afe8d35882157ada8a983b8a3468fb73ceafdf55ca4adcf3545aec5bf44782ca012c74014160991aa2c9765978715ce94529f506  base-password.pamd
+fbc342a8eddc4c91cb94b65e0246a2ceff3ba10380de36a753dfd5175a5f9f7895ae6fc1cc9b024c69c94b441d1938749c646be5b348def88459d373220aa439  base-session.pamd
+fe4b3a23a09b6b4c739a44d7674e10293efa00380abdacdb14dca2a53d86ee7b40d302f89653931fd2b1fd8face8ca80ca9e0fb71f95c2cb08045db308e8428a  base-session-noninteractive.pamd
+a76f4f59f98bc8789735674845ddcc4fd075e6f6602fbb44269e2d8e5ff3260ee36a17a6c56116c5f1903c423f19739845bb36ffdfb57a870a4cedfee05bbabf  other.pamd
+83cc3d84ef5afded9afd4d347132901b9adcbd8b21be45b80d010370a2082e8388a713eb78d052944bc47b07fd7383edf18e2674d9d0545215cc45e14a2e14b1  system-local-login.pamd
+3a05cdb4b1d9d2dc30bd091e69941e24f653df7f62acf577cff7ceb4f925cfde3412c8b48bf7aeeca9fd68fb50cbfe5b567f45a61338c9f496f68b6d079ad567  system-login.pamd
+09a6f00d7e47b86eb3cf8570b50be9653f76ba113536b9036c187ee2776bbaabadb2aaea3e81fb43f5da236195004f30c84f90afaa80145bd090feb6cce92d9a  su.pamd
+"

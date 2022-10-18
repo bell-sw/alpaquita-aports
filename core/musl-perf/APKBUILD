@@ -1,0 +1,167 @@
+
+# Description: standartd C Library designed for Linux. Designed to allow
+# efficient static linking and to have realtime-quality robustness by avoiding
+# race conditions, internal failures on resource exhaustion and various other
+# bad worst-case behaviors present in existing implementations.
+
+pkgname=musl-perf
+pkgver=1.2.3
+pkgrel=3
+pkgdesc="the musl c library (libc) implementation (optimized for performance)"
+url="https://musl.libc.org/"
+arch="x86_64"
+license="MIT"
+options="!libc_glibc lib64"
+makedepends="glibc-string=2.34.4-r0"
+subpackages="
+	$pkgname-dbg
+	$pkgname-libintl:libintl:noarch
+	$pkgname-dev
+	"
+
+provides="musl"
+provider_priority=1
+replaces="musl-default"
+replaces_priority=1
+alternative=1
+
+case "$BOOTSTRAP" in
+nocc)	pkgname="$pkgname-dev"; subpackages="";;
+nolibc) ;;
+esac
+commit="v$pkgver"
+source="musl-$commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$commit.tar.gz
+	../musl-default/0001-fix-incorrect-parameter-name-in-internal-netlink.h-R.patch
+	../musl-default/0002-mntent-fix-parsing-lines-with-optional-fields.patch
+	../musl-default/0003-mntent-fix-potential-mishandling-of-extremely-long-l.patch
+	../musl-default/0004-ensure-distinct-query-id-for-parallel-A-and-AAAA-que.patch
+	../musl-default/0005-remove-random-filename-obfuscation-that-leaks-ASLR-i.patch
+	0100-ldso-dynlink-add-ifunc-support.patch
+	0101-support-ifunc-in-static-linking.patch
+	0102-Makefile-link-glibc-string-lib.patch
+	0103-use-internal-ifunc-symbols-in-libc.patch
+
+	__stack_chk_fail_local.c
+	"
+
+# secfixes:
+#   1.2.2_pre2-r0:
+#     - CVE-2020-28928
+#   1.1.23-r2:
+#     - CVE-2019-14697
+#   1.1.15-r4:
+#     - CVE-2016-8859
+
+builddir="$srcdir"/$commit
+
+build() {
+	cd "$builddir"
+
+	[ "$BOOTSTRAP" = "nocc" ] && return 0
+
+	export CPPFLAGS="${CPPFLAGS/-Os/-O2}"
+	export CFLAGS="${CFLAGS/-Os/-O2}"
+	export LDFLAGS="${LDFLAGS/-O1/-O2}"
+
+	# provide minimal libssp_nonshared.a so we don't need libssp from gcc
+	${CROSS_COMPILE}gcc $CPPFLAGS $CFLAGS -c "$srcdir"/__stack_chk_fail_local.c -o __stack_chk_fail_local.o
+	${CROSS_COMPILE}ar r libssp_nonshared.a __stack_chk_fail_local.o
+
+	cp /usr/lib/libglibc-string.a "$builddir"/
+
+	local lib_ifunc="$(readelf -Ws libglibc-string.a | grep 'IFUNC.*WEAK' | rev | cut -f1 -d' ' | rev)"
+	local n
+
+	for n in $lib_ifunc; do
+		echo "Removing default implementation for $n"
+		rm -f ./src/string/$n.c ./src/string/$CARCH/$n*
+	done
+
+	# note: not autotools
+	LDFLAGS="$LDFLAGS -Wl,-soname,libc.musl-${CARCH}.so.1" \
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--syslibdir=/usr/lib \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--enable-optimize \
+		--enable-debug \
+		--disable-eh-frame
+	make
+}
+
+package() {
+	cd "$builddir"
+
+	case "$CARCH" in
+	aarch64*)	ARCH="aarch64" ;;
+	x86_64)		ARCH="x86_64" ;;
+	esac
+
+	if [ "$BOOTSTRAP" = "nocc" ]; then
+		make ARCH="$ARCH" prefix=/usr DESTDIR="$pkgdir" install-headers
+	else
+		make DESTDIR="$pkgdir" install
+
+		cp libssp_nonshared.a "$pkgdir"/usr/lib
+
+		# make LDSO the be the real file, and libc the symlink
+		local LDSO=$(make -f Makefile --eval "$(echo -e 'print-ldso:\n\t@echo $$(basename $(LDSO_PATHNAME))')" print-ldso)
+		mv -f "$pkgdir"/usr/lib/libc.so "$pkgdir"/usr/lib/"$LDSO"
+		ln -sf "$LDSO" "$pkgdir"/usr/lib/libc.musl-${CARCH}.so.1
+		ln -sf ../../usr/lib/"$LDSO" "$pkgdir"/usr/lib/libc.so
+		mkdir -p "$pkgdir"/usr/bin
+	fi
+
+	ln -sf usr/lib "$pkgdir"/lib
+	ln -sf usr/bin $pkgdir/bin
+	ln -sf usr/sbin $pkgdir/sbin
+}
+
+dev() {
+	provides="musl-dev=1"
+	replaces="musl-default-dev"
+
+	default_dev
+}
+
+dbg() {
+	provides="musl-dbg=1"
+	replaces="musl-default-dbg"
+	depends="$pkgname=$pkgver-r$pkgrel"
+
+	default_dbg
+}
+
+# currently we don't want by default any NLS
+# and use GNU gettext where needed. the plan is to migrate to
+# musl gettext() later on as fully as possible.
+libintl() {
+	provides="musl-libintl=1"
+	replaces="musl-default-libintl"
+	depends="$pkgname=$pkgver-r$pkgrel"
+
+	pkgdesc="musl libintl.h header"
+	mkdir -p "$subpkgdir"/usr/include
+	mv "$pkgdir"/usr/include/libintl.h \
+		"$subpkgdir"/usr/include/
+}
+
+sha512sums="
+9a1b8f9208d99582ac00e3c46c829aa1fad3b7f09aa7d6822f02f25542453d3d977c69519ad01430b8dd624ac9dc70f47d611e36aefd7fef31ea47a7679e3111  musl-v1.2.3.tar.gz
+58b92d981e1cdcfe85c611b8f287b436c870e98d241249154ca83752a3aa2da71c354bc057926bd8d56e19ee3203731844d3bddb11669d06ce315cd1382b8139  0001-fix-incorrect-parameter-name-in-internal-netlink.h-R.patch
+be02a130202932758ab29ebb6fc868b89e2e60ad630c8cdab423738b2fb88606043207014536397ec785811e5b9f746dead2145a91fa7c01a00a6c516202a269  0002-mntent-fix-parsing-lines-with-optional-fields.patch
+cf0388c5bb51fecd8d9a6bd10d5f245e98309aaf42c2c7c8cdb899213e7239adf76cecdcf5487f0d13964d026b72695395866b63ad39d033e29ba2869f716eb5  0003-mntent-fix-potential-mishandling-of-extremely-long-l.patch
+3e3a1d65b3c5913716f1df1dbce00c56c69d32b39566ebb99cac21f49700427866424455479c470ddfcfd2409c30ad127dd55d16b94b563cfbfc09240e0de7c1  0004-ensure-distinct-query-id-for-parallel-A-and-AAAA-que.patch
+e492f2d7a03df2e5a14af6bf2d0259b21c5f7644c8d92d73614a8bb156d724acfba7610a70260659ebcdbc22e3601ed17c4f828fda212ccfb6c43626bbe6bc27  0005-remove-random-filename-obfuscation-that-leaks-ASLR-i.patch
+26fa733450c3b9f0e84668c6ae48b218a34de233f9d8cd2cf239648b825c9e9fcad1e91b02802605628be2c971cc64e5c90e7fca5ccbea9f370672cf9c71b3b4  0100-ldso-dynlink-add-ifunc-support.patch
+476fd0214911edbc4e36114c6c2a32ccb3e85d776e2de0427bbfd7ac1aaf46e6b1c3e00bd83cd998380c7db83b2a67ac3e6d840867472131eae69a1ce99d5a86  0101-support-ifunc-in-static-linking.patch
+5ed91362c40f18bf1af4c744a234c828e3c4979ecbc21f8dbf0d8b96c9d7662615163a9ce13372249f5be7472366c6e8f68e6f984c0172d6a22b21e8161cd07c  0102-Makefile-link-glibc-string-lib.patch
+52f89fc89789b06eaaeaf2d6e47f296de8cb0742ccd1c0b41e280e0691ab5f056af23daebf497dfc3b183d05dacc670980f0eaac330e3d6033d05ee07f55b8e2  0103-use-internal-ifunc-symbols-in-libc.patch
+
+062bb49fa54839010acd4af113e20f7263dde1c8a2ca359b5fb2661ef9ed9d84a0f7c3bc10c25dcfa10bb3c5a4874588dff636ac43d5dbb3d748d75400756d0b  __stack_chk_fail_local.c
+"

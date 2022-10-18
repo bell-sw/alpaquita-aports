@@ -1,0 +1,147 @@
+From a7e7b8d0e53ce38a13e6a21064c5fa96b1e1a57e Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Fri, 21 Jan 2022 14:21:05 +0300
+Subject: [PATCH] modules.d: add new module alpaquita-iso
+
+---
+ modules.d/98alpaquita-iso/module-setup.sh  | 25 ++++++++
+ modules.d/98alpaquita-iso/mount-tmpfs.sh   | 78 +++++++++++++++++++++++++
+ modules.d/98alpaquita-iso/parse-cmdline.sh |  9 +++
+ 3 files changed, 112 insertions(+)
+ create mode 100755 modules.d/98alpaquita-iso/module-setup.sh
+ create mode 100755 modules.d/98alpaquita-iso/mount-tmpfs.sh
+ create mode 100755 modules.d/98alpaquita-iso/parse-cmdline.sh
+
+diff --git a/modules.d/98alpaquita-iso/module-setup.sh b/modules.d/98alpaquita-iso/module-setup.sh
+new file mode 100755
+index 00000000..ec8c742d
+--- /dev/null
++++ b/modules.d/98alpaquita-iso/module-setup.sh
+@@ -0,0 +1,25 @@
++#!/bin/bash
++
++check() {
++    [[ $hostonly ]] && return 1
++    return 255
++}
++
++depends() {
++    return 0
++}
++
++install() {
++    instmods squashfs loop iso9660 ata_piix sr-mod sd-mod usb-storage
++
++    inst_multiple apk
++
++    mkdir -p "$initdir"/etc/apk/keys
++    cp /etc/apk/keys/* "$initdir"/etc/apk/keys/
++
++    inst_rules 60-persistent-storage.rules 60-cdrom_id.rules
++    inst_hook cmdline 30 "$moddir/parse-cmdline.sh"
++    inst_hook mount 99 "$moddir/mount-tmpfs.sh"
++
++    dracut_need_initqueue
++}
+diff --git a/modules.d/98alpaquita-iso/mount-tmpfs.sh b/modules.d/98alpaquita-iso/mount-tmpfs.sh
+new file mode 100755
+index 00000000..c743ba5e
+--- /dev/null
++++ b/modules.d/98alpaquita-iso/mount-tmpfs.sh
+@@ -0,0 +1,78 @@
++#!/bin/sh
++
++NEWROOT=${NEWROOT:-/sysroot}
++
++_rc_add() {
++	local name=$1
++	local runlevel=$2
++
++	mkdir -p $NEWROOT/etc/runlevels/$runlevel
++	ln -sf /etc/init.d/$name $NEWROOT/etc/runlevels/$runlevel/$name
++}
++
++_rtc_exists() {
++	local rtc=
++
++	for rtc in /dev/rtc /dev/rtc[0-9]*; do
++		[ -e "$rtc" ] && break
++	done
++	[ -e "$rtc" ]
++}
++
++media_dev="$root"
++media_disk="/media/disk"
++
++if [ ! -e "$media_dev" ]; then
++	warn "Cannot find Alpaquita ISO disk"
++	exit 1
++fi
++
++# mount tmpfs sysroot
++rootflags="mode=0755"
++mount -t tmpfs -o $rootflags tmpfs $NEWROOT
++mkdir -p $NEWROOT/sys $NEWROOT/proc $NEWROOT/dev
++mount -o bind /sys $NEWROOT/sys
++mount -o bind /proc $NEWROOT/proc
++mount -o bind /dev $NEWROOT/dev
++
++mkdir -p $media_disk $NEWROOT/$media_disk
++mount -t iso9660 -o ro,noauto $media_dev $media_disk
++
++apk add --root $NEWROOT --initdb --quiet
++echo "$media_disk/apks" > $NEWROOT/etc/apk/repositories
++cp -a /etc/apk/keys $NEWROOT/etc/apk
++cat > $NEWROOT/etc/fstab <<EOF
++$media_dev      $media_disk    iso9660 noauto,ro 0 0
++EOF
++
++apk update --root $NEWROOT
++
++apkflags="--initramfs-diskless-boot --quiet --no-network --clean-protected"
++
++apk add $apkflags --root $NEWROOT alpaquita-base alpaquita-keys alpaquita-installer \
++	busybox alpaquita-baselayout eudev e2fsprogs
++
++umount $NEWROOT/sys $NEWROOT/proc $NEWROOT/dev
++
++mount --move $media_disk $NEWROOT/$media_disk
++
++_rc_add dmesg sysinit
++_rc_add modloop sysinit
++_rc_add udev sysinit
++_rc_add udev-trigger sysinit
++_rc_add udev-settle sysinit
++_rc_add modules boot
++_rc_add sysctl boot
++_rc_add hostname boot
++_rc_add agetty.tty1 boot
++_rc_add bootmisc boot
++_rc_add syslog boot
++_rc_add mount-ro shutdown
++_rc_add killprocs shutdown
++_rc_add firstboot default
++
++if _rtc_exists; then
++	_rc_add hwclock boot
++else
++	_rc_add swclock boot
++fi
+diff --git a/modules.d/98alpaquita-iso/parse-cmdline.sh b/modules.d/98alpaquita-iso/parse-cmdline.sh
+new file mode 100755
+index 00000000..299cf8db
+--- /dev/null
++++ b/modules.d/98alpaquita-iso/parse-cmdline.sh
+@@ -0,0 +1,9 @@
++#!/bin/sh
++
++_iso_label=$(getargs root)
++
++if [ "$_iso_label" ]; then
++	root="/dev/disk/by-label/${_iso_label#LABEL=}"
++	echo '[ -e $root ]' > "$hookdir"/initqueue/finished/mediadisk.sh
++	rootok=1
++fi
+-- 
+2.25.1
+

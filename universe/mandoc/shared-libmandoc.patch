@@ -1,0 +1,92 @@
+This patch links libmandoc dynamically instead of statically, this
+causes the package size to be reduced by roughly 50%.
+
+See also: https://inbox.vuxu.org/mandoc-tech/2L1YC2WD8JUE5.3QGU3CQ10EGCD@8pit.net/T/#u
+
+diff --git a/Makefile b/Makefile
+index 48c4741..252e11e 100644
+--- a/Makefile
++++ b/Makefile
+@@ -367,9 +367,13 @@ WWW_INCS	 = eqn.h.html \
+ 		   tbl_int.h.html \
+ 		   tbl_parse.h.html
+ 
++LIBMANDOC	= libmandoc.so
++MANDOCLIB	= -L. -lmandoc
++
+ # === USER CONFIGURATION ===============================================
+ 
+ include Makefile.local
++CFLAGS		+= -fPIC
+ 
+ # === DEPENDENCY HANDLING ==============================================
+ 
+@@ -392,7 +396,7 @@ distclean: clean
+ 	rm -f Makefile.local config.h config.h.old config.log config.log.old
+ 
+ clean:
+-	rm -f libmandoc.a $(LIBMANDOC_OBJS) $(ALL_COBJS)
++	rm -f $(LIBMANDOC) $(LIBMANDOC_OBJS) $(ALL_COBJS)
+ 	rm -f mandoc man $(MAIN_OBJS)
+ 	rm -f man.cgi $(CGI_OBJS)
+ 	rm -f mandocd catman catman.o $(MANDOCD_OBJS)
+@@ -432,11 +436,11 @@ base-install: mandoc demandoc soelim
+ 	$(INSTALL_MAN) makewhatis.8 \
+ 		$(DESTDIR)$(MANDIR)/man8/$(BINM_MAKEWHATIS).8
+ 
+-lib-install: libmandoc.a
++lib-install: $(LIBMANDOC)
+ 	mkdir -p $(DESTDIR)$(LIBDIR)
+ 	mkdir -p $(DESTDIR)$(INCLUDEDIR)
+ 	mkdir -p $(DESTDIR)$(MANDIR)/man3
+-	$(INSTALL_LIB) libmandoc.a $(DESTDIR)$(LIBDIR)
++	$(INSTALL_LIB) $(LIBMANDOC) $(DESTDIR)$(LIBDIR)
+ 	$(INSTALL_LIB) eqn.h man.h mandoc.h mandoc_aux.h mandoc_parse.h \
+ 		mdoc.h roff.h tbl.h $(DESTDIR)$(INCLUDEDIR)
+ 	$(INSTALL_MAN) mandoc.3 mandoc_escape.3 mandoc_malloc.3 \
+@@ -485,7 +489,7 @@ uninstall:
+ 	rm -f $(DESTDIR)$(SBINDIR)/$(BINM_CATMAN)
+ 	rm -f $(DESTDIR)$(MANDIR)/man8/mandocd.8
+ 	rm -f $(DESTDIR)$(MANDIR)/man8/$(BINM_CATMAN).8
+-	rm -f $(DESTDIR)$(LIBDIR)/libmandoc.a
++	rm -f $(DESTDIR)$(LIBDIR)/$(LIBMANDOC)
+ 	rm -f $(DESTDIR)$(MANDIR)/man3/mandoc.3
+ 	rm -f $(DESTDIR)$(MANDIR)/man3/mandoc_escape.3
+ 	rm -f $(DESTDIR)$(MANDIR)/man3/mandoc_malloc.3
+@@ -515,23 +519,26 @@ Makefile.local config.h: configure $(TESTSRCS)
+ libmandoc.a: $(MANDOC_COBJS) $(LIBMANDOC_OBJS)
+ 	$(AR) rs $@ $(MANDOC_COBJS) $(LIBMANDOC_OBJS)
+ 
+-mandoc: $(MAIN_OBJS) libmandoc.a
+-	$(CC) -o $@ $(LDFLAGS) $(MAIN_OBJS) libmandoc.a $(LDADD)
++libmandoc.so: $(MANDOC_COBJS) $(LIBMANDOC_OBJS)
++	$(CC) $(LDFLAGS) -shared -o $@ $(MANDOC_COBJS) $(LIBMANDOC_OBJS) $(LDADD)
++
++mandoc: $(MAIN_OBJS) $(LIBMANDOC)
++	$(CC) -o $@ $(LDFLAGS) $(MAIN_OBJS) $(MANDOCLIB) $(LDADD)
+ 
+ man: mandoc
+ 	$(LN) mandoc man
+ 
+-man.cgi: $(CGI_OBJS) libmandoc.a
+-	$(CC) $(STATIC) -o $@ $(LDFLAGS) $(CGI_OBJS) libmandoc.a $(LDADD)
++man.cgi: $(CGI_OBJS) $(LIBMANDOC)
++	$(CC) $(STATIC) -o $@ $(LDFLAGS) $(CGI_OBJS) $(MANDOCLIB) $(LDADD)
+ 
+-mandocd: $(MANDOCD_OBJS) libmandoc.a
+-	$(CC) -o $@ $(LDFLAGS) $(MANDOCD_OBJS) libmandoc.a $(LDADD)
++mandocd: $(MANDOCD_OBJS) $(LIBMANDOC)
++	$(CC) -o $@ $(LDFLAGS) $(MANDOCD_OBJS) $(MANDOCLIB) $(LDADD)
+ 
+-catman: catman.o libmandoc.a
+-	$(CC) -o $@ $(LDFLAGS) catman.o libmandoc.a $(LDADD)
++catman: catman.o $(LIBMANDOC)
++	$(CC) -o $@ $(LDFLAGS) catman.o $(MANDOCLIB) $(LDADD)
+ 
+-demandoc: $(DEMANDOC_OBJS) libmandoc.a
+-	$(CC) -o $@ $(LDFLAGS) $(DEMANDOC_OBJS) libmandoc.a $(LDADD)
++demandoc: $(DEMANDOC_OBJS) $(LIBMANDOC)
++	$(CC) -o $@ $(LDFLAGS) $(DEMANDOC_OBJS) $(MANDOCLIB) $(LDADD)
+ 
+ soelim: $(SOELIM_COBJS) soelim.o
+ 	$(CC) -o $@ $(LDFLAGS) $(SOELIM_COBJS) soelim.o

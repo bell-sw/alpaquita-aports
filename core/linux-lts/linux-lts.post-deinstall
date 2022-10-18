@@ -1,0 +1,14 @@
+#!/bin/sh
+
+for i in /boot/initramfs-*; do
+	version="${i##*/initramfs-}"
+	modpath=/lib/modules/$version
+
+	if [ ! -d "$modpath" ]; then
+		rm -rf $i
+		if grub-editenv /boot/grub/grubenv list | grep -q "^saved_entry=.*-$i-advanced"; then
+			grub-set-default 0
+		fi
+	fi
+done
+exit 0

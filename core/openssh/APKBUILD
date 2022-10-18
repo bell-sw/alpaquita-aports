@@ -1,0 +1,284 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: this package contains client and server programs allows you to
+# work over secure connection using the SSH protocol.
+
+pkgname=openssh
+pkgver=9.0_p1
+_myver=${pkgver%_*}${pkgver#*_}
+pkgrel=1
+pkgdesc="OpenBSD SSH implementation"
+url="https://www.openssh.com/portable.html"
+arch="all"
+license="BSD"
+options="suid"
+depends="openssh-client openssh-sftp-server openssh-server"
+makedepends_host="
+	autoconf
+	automake
+	linux-headers
+	openssl1.1-compat-dev
+	zlib-dev
+	"
+[ -z "$BOOTSTRAP" ] && makedepends_host="$makedepends_host utmps-dev utmps-static"
+#
+# NOTE: if you edit this file, please make sure that it builds with `BOOTSTRAP=1 abuild -r`
+#
+# build bootstrap sshd without libedit, linux-pam and krb5
+if [ -z "$BOOTSTRAP" ]; then
+	makedepends_host="$makedepends_host libedit-dev linux-pam-dev krb5-dev libfido2-dev"
+	subpackages="$pkgname-client-krb5:_client_krb5
+		$pkgname-server-pam:_server_with_flavor
+		$pkgname-server-krb5:_server_with_flavor
+		$pkgname-sk-helper:_ssh_sk_helper"
+fi
+
+makedepends="$makedepends_build $makedepends_host"
+
+subpackages="$pkgname-dbg
+	$subpackages
+	$pkgname-doc
+	$pkgname-keygen
+	$pkgname-client-default:_client_default
+	$pkgname-client-common:_client_common
+	$pkgname-keysign
+	$pkgname-sftp-server:_sftp_server
+	$pkgname-server-common:_server_common:noarch
+	$pkgname-server
+	"
+
+source="https://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-$_myver.tar.gz
+	fix-utmp.patch
+	sftp-interactive.patch
+	disable-forwarding-by-default.patch
+	fix-verify-dns-segfault.patch
+	avoid-redefined-warnings-when-building-with-utmps.patch
+	gss-serv.c.patch
+
+	sshd.initd
+	sshd.confd
+	"
+
+# secfixes:
+#   8.8_p1-r0:
+#     - CVE-2021-41617
+#   8.5_p1-r0:
+#     - CVE-2021-28041
+#   8.4_p1-r0:
+#     - CVE-2020-14145
+#   7.9_p1-r3:
+#     - CVE-2018-20685
+#     - CVE-2019-6109
+#     - CVE-2019-6111
+#   7.7_p1-r4:
+#     - CVE-2018-15473
+#   7.5_p1-r8:
+#     - CVE-2017-15906
+#   7.4_p1-r0:
+#     - CVE-2016-10009
+#     - CVE-2016-10010
+#     - CVE-2016-10011
+#     - CVE-2016-10012
+
+builddir="$srcdir"/$pkgname-$_myver
+
+_do_configure() {
+	autoreconf
+	local _with_libedit="--with-libedit"
+	if [ -n "$BOOTSTRAP" ]; then
+		_with_libedit="--without-libedit"
+	fi
+
+	local _extra_cflags="" _extra_libs=""
+	if [ -z "$BOOTSTRAP" ]; then
+		_extra_cflags="$(pkg-config --cflags --static utmps)"
+		_extra_libs="$(pkg-config --libs --static utmps)"
+	fi
+
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc/ssh \
+		--libexecdir=/usr/lib/ssh \
+		--mandir=/usr/share/man \
+		--with-pid-dir=/run \
+		--with-mantype=doc \
+		--with-cflags="$CFLAGS $_extra_cflags" \
+		--with-libs="$_extra_libs" \
+		--with-ldflags="$LDFLAGS" \
+		--disable-lastlog \
+		--disable-strip \
+		--with-privsep-path=/var/empty \
+		--with-xauth=/usr/bin/xauth \
+		--with-default-path='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
+		--with-privsep-user=sshd \
+		--with-ssl-engine \
+		$_with_libedit \
+		"$@"
+}
+
+build() {
+	export LD="$CC"
+	export TEST_SSH_UTF8=no # utf8 test fails
+	local _with_security_key_builtin=
+
+	if [ -z "$BOOTSTRAP" ]; then
+		msg "Building openssh with pam support..."
+		_do_configure --without-kerberos5 --with-pam
+		make
+		mv sshd sshd.pam
+
+		msg "Building openssh with kerberos5"
+		_do_configure --with-kerberos5 --with-pam
+		make
+		mv sshd sshd.krb5
+		mv ssh ssh.krb5
+
+		_with_security_key_builtin="--with-security-key-builtin"
+	fi
+
+	msg "Building openssh without pam and kerberos5"
+	_do_configure --without-kerberos5 --without-pam $_with_security_key_builtin
+	make
+}
+
+check() {
+	# Run all tests except the t-exec tests which fail on the
+	# builders for some reason but pass locally (needs further
+	# investigation).
+#	TEST_SSH_UNSAFE_PERMISSIONS=1 make -j1 file-tests interop-tests unit
+
+	if [ -z "$BOOTSTRAP" ]; then
+		msg "verify pam build"
+		scanelf -n sshd.pam | grep libpam
+
+		msg "verify krb5 build"
+		scanelf -n sshd.krb5 | grep krb5
+		scanelf -n ssh.krb5 | grep krb5
+	fi
+
+	msg "verify minimal build"
+	for i in sshd ssh; do
+		if scanelf -n $i | grep -E '(libpam|krb5)'; then
+			error "$i should not be linked to libpam or libkrb5"
+			return 1
+		fi
+	done
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	if [ -z "$BOOTSTRAP" ]; then
+		install -m755 -t "$pkgdir"/usr/sbin/ sshd.pam sshd.krb5
+		install -m755 -t "$pkgdir"/usr/bin/ ssh.krb5
+	fi
+
+	mkdir -p "$pkgdir"/var/empty
+	install -D -m755 "$srcdir"/sshd.initd \
+		"$pkgdir"/etc/init.d/sshd
+	install -D -m644 "$srcdir"/sshd.confd \
+		"$pkgdir"/etc/conf.d/sshd
+	install -Dm644 "$builddir"/contrib/ssh-copy-id.1 \
+		"$pkgdir"/usr/share/man/man1/ssh-copy-id.1
+	install -Dm755 "$builddir"/contrib/findssl.sh \
+		"$pkgdir"/usr/bin/findssl.sh
+	install -Dm755 "$builddir"/contrib/ssh-copy-id \
+		"$pkgdir"/usr/bin/ssh-copy-id
+	install -Dm755	"$builddir"/ssh-pkcs11-helper \
+		"$pkgdir"/usr/bin/ssh-pkcs11-helper
+}
+
+keygen() {
+	pkgdesc="ssh helper program for generating keys"
+	depends=
+
+	amove usr/bin/ssh-keygen
+}
+
+_client_krb5() {
+	pkgdesc="OpenBSD's SSH client with kerberos support"
+	depends="openssh-keygen=$pkgver-r$pkgrel openssh-client-common=$pkgver-r$pkgrel !openssh-client-default"
+	provides="openssh-client=$pkgver-r$pkgrel"
+	provider_priority=0
+
+	amove usr/bin/ssh.krb5
+	mv "$subpkgdir"/usr/bin/ssh.krb5 "$subpkgdir"/usr/bin/ssh
+}
+
+_ssh_sk_helper() {
+       pkgdesc="OpenSSH libfido2 security key helper"
+       depends="openssh-keygen=$pkgver-r$pkgrel openssh-server-common=$pkgver-r$pkgrel"
+       amove usr/lib/ssh/ssh-sk-helper
+}
+
+_client_default() {
+	pkgdesc="OpenBSD's SSH client"
+	depends="openssh-keygen=$pkgver-r$pkgrel openssh-client-common=$pkgver-r$pkgrel !openssh-client-krb5"
+	provides="openssh-client=$pkgver-r$pkgrel"
+	provider_priority=1
+
+	amove usr/bin/ssh
+}
+
+_client_common() {
+	pkgdesc="OpenBSD's SSH client common files"
+	depends=""
+
+	install -d "$subpkgdir"/usr/lib/ssh \
+		"$subpkgdir"/var/empty
+
+	amove usr/bin
+	amove etc/ssh/ssh_config
+	amove etc/ssh/moduli
+}
+
+keysign() {
+	pkgdesc="ssh helper program for host-based authentication"
+	depends="openssh-client=$pkgver-r$pkgrel"
+
+	amove usr/lib/ssh/ssh-keysign
+}
+
+_sftp_server() {
+	pkgdesc="ssh sftp server module"
+	depends=""
+
+	amove usr/lib/ssh/sftp-server
+}
+
+_server_common() {
+	pkgdesc="OpenSSH server configuration files"
+	depends=""
+
+	amove etc/ssh/sshd_config
+	amove etc/init.d/sshd
+	amove etc/conf.d/sshd
+}
+
+server() {
+	pkgdesc="OpenSSH server"
+	depends="openssh-keygen=$pkgver-r$pkgrel openssh-server-common=$pkgver-r$pkgrel"
+
+	amove usr/sbin/sshd
+}
+
+_server_with_flavor() {
+	local _flavor="${subpkgname#openssh-server-}"
+	pkgdesc="OpenSSH server with $_flavor support"
+	depends="openssh-keygen=$pkgver-r$pkgrel openssh-server-common=$pkgver-r$pkgrel"
+
+	amove usr/sbin/sshd.$_flavor
+}
+
+sha512sums="
+613ae95317e734868c6a60d9cc5af47a889baa3124bbdd2b31bb51dd6b57b136f4cfcb5604cca78a03bd500baab9b9b45eaf77e038b1ed776c86dce0437449a9  openssh-9.0p1.tar.gz
+f35fffcd26635249ce5d820e7b3e406e586f2d2d7f6a045f221e2f9fb53aebc1ab1dd1e603b3389462296ed77921a1d08456e7aaa3825cbed08f405b381a58e1  fix-utmp.patch
+c1d09c65dbc347f0904edc30f91aa9a24b0baee50309536182455b544f1e3f85a8cecfa959e32be8b101d8282ef06dde3febbbc3f315489339dcf04155c859a9  sftp-interactive.patch
+8df35d72224cd255eb0685d2c707b24e5eb24f0fdd67ca6cc0f615bdbd3eeeea2d18674a6af0c6dab74c2d8247e2370d0b755a84c99f766a431bc50c40b557de  disable-forwarding-by-default.patch
+b0d1fc89bd46ebfc8c7c00fd897732e67a6cda996811c14d99392685bb0b508b52c9dc3188b1a84c0ffa3f72f57189cc615a76b81796dd1b5f552542bd53f84d  fix-verify-dns-segfault.patch
+e85754b2b6c4c37b432d166e63d6293e58c9c8bb6ebd8d3527c83afa2337f14c06d6a4e008ffcc0afd7dc3409e960b89c1dde41d2543c4be7d4813d477ff3a5e  avoid-redefined-warnings-when-building-with-utmps.patch
+f659641b841981f78b03281b7a01add9fbf35b91c0f21c11335a56d7e389ddf965d83d18d73b724385311cdb597b6d6c46446cbc702cdd4d15e8f43591306cb3  gss-serv.c.patch
+e561f834bb8cc708e04b415a5fa7d1d2d2203c6e276bca9985eef23460785e9cf9a34d616eaf82979678275ef6de9c023c0831b5f49ba578284e3a6a9d128112  sshd.initd
+be7dd5f6d319b2e03528525a66a58310d43444606713786b913a17a0fd9311869181d0fb7927a185d71d392674857dea3c97b6b8284886227d47b36193471a09  sshd.confd
+"

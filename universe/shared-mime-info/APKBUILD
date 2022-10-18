@@ -1,0 +1,30 @@
+pkgname=shared-mime-info
+pkgver=2.2
+pkgrel=0
+pkgdesc="Freedesktop.org Shared MIME Info"
+url="http://freedesktop.org/Software/shared-mime-info"
+arch="all"
+license="GPL-2.0-or-later"
+makedepends="meson itstool libxml2-utils xmlto libxml2-dev glib-dev"
+install="$pkgname.post-deinstall"
+triggers="$pkgname.trigger=/usr/share/mime"
+subpackages="$pkgname-doc $pkgname-lang"
+source="https://gitlab.freedesktop.org/xdg/shared-mime-info/-/archive/$pkgver/shared-mime-info-$pkgver.tar.gz"
+
+build() {
+	abuild-meson \
+		-Dupdate-mimedb=false \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+sha512sums="
+490d96daf4214ab6ac537761b67f3ff4716b95d7ea3fedd2e2ab7b0b02d946acad49790a25efcb5e949551dc4c39ba08911e59f06b198b61dcb1bc44799a2b2e  shared-mime-info-2.2.tar.gz
+"

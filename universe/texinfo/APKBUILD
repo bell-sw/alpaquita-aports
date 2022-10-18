@@ -1,0 +1,42 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+pkgname=texinfo
+pkgver=6.8
+pkgrel=0
+pkgdesc="Utilities to work with and produce manuals, ASCII text, and on-line documentation from a single source file"
+url="https://www.gnu.org/software/texinfo/"
+arch="all"
+options="!check" # Test dependencies are not packaged
+license="GPL-3.0-or-later"
+depends="perl"
+makedepends="ncurses-dev perl-dev"
+subpackages="$pkgname-doc"
+source="https://ftp.gnu.org/gnu/texinfo/texinfo-$pkgver.tar.xz
+	fix-build-without-NLS.patch"
+
+build() {
+
+	if [ "$CLIBC" = "glibc" ] ; then
+		sed -e 's/__attribute_nonnull__/__nonnull/' \
+			-i gnulib/lib/malloc/dynarray-skeleton.c
+	fi
+	
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--disable-nls
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir"/ install
+
+	rm -f "$pkgdir"/usr/share/info/dir
+	gzip "$pkgdir"/usr/share/info/*
+}
+
+sha512sums="
+0ff9290b14e4d83e32b889cfa24e6d065f98b2a764daf6b92c6c895fddbb35258398da6257c113220d5a4d886f7b54b09c4b117ca5eacfee6797f9bffde0f909  texinfo-6.8.tar.xz
+4e81263afa0d3c58316e8104f9c155f0c11946fae7a9fa98ff3d86637e56be377fe584ca82df0786f4c74a180813cbcf87f25e0ee7bbbea9073eac20660f08d9  fix-build-without-NLS.patch
+"

@@ -1,0 +1,59 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: is a program which helps to configure compiler and linker flags
+# for development libraries. 
+
+pkgname=pkgconf
+pkgver=1.8.0
+pkgrel=0
+pkgdesc="Compiler and linker flag configuration utilities"
+url="https://git.sr.ht/~kaniini/pkgconf"
+arch="all"
+license="ISC"
+replaces="pkgconfig"
+provides="pkgconfig=1"
+subpackages="$pkgname-doc $pkgname-dev"
+source="https://distfiles.dereferenced.org/pkgconf/pkgconf-$pkgver.tar.xz"
+checkdepends="kyua atf"
+
+prepare() {
+	default_prepare
+	update_config_sub
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--with-pkg-config-dir=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	ln -s pkgconf "$pkgdir"/usr/bin/pkg-config
+}
+
+dev() {
+	default_dev
+
+	# Move pkg-config back to main package (default_dev implicitly moves
+	# files /usr/bin/*-config to -dev).
+	mv "$subpkgdir"/usr/bin/pkg-config "$pkgdir"/usr/bin/
+
+	mkdir -p "$pkgdir"/usr/share/aclocal/
+	mv "$subpkgdir"/usr/share/aclocal/pkg.m4 "$pkgdir"/usr/share/aclocal/
+}
+
+sha512sums="
+58204006408ad5ce91222ed3c93c2e0b61c04fa83c0a8ad337b747b583744578dbebd4ad5ccbc577689637caa1c5dc246b7795ac46e39c6666b1aa78199b7c28  pkgconf-1.8.0.tar.xz
+"

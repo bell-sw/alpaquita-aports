@@ -1,0 +1,33 @@
+pkgname=perl-io-html
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=IO-HTML
+pkgver=1.004
+pkgrel=0
+pkgdesc="Open an HTML file with automatic charset detection"
+url="https://metacpan.org/release/IO-HTML/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/C/CJ/CJM/IO-HTML-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+564fba7cfb50ef1cc78fa9e2b2200a20e305d098b8ceeb6f8478f0275cc48e4fb069386f5c318bc9deb43a5d590a78a995c04100bd440340f5c990eadc76a70f  IO-HTML-1.004.tar.gz
+"

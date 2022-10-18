@@ -1,0 +1,32 @@
+#!/bin/sh
+
+new_pkgver="$1"
+old_pkgver="$2"
+
+if [ "$new_pkgver" = "$old_pkgver" ]; then
+	exit 0
+fi
+
+backup="bak"
+flavor="lts"
+
+cd /boot
+
+if [ -h vmlinuz.$flavor.$backup ]; then
+	kernel="$(readlink vmlinuz.$flavor.$backup)"
+	version="${kernel##vmlinuz-}"
+
+	if [ -d "/lib/modules/$version.$backup" ]; then
+		echo "Setup backup Linux $version"
+		mv /lib/modules/$version.$backup /lib/modules/$version
+	fi
+	for i in vmlinuz System.map initramfs config; do
+		[ -f "$i-$version.$backup" ] && mv $i-$version.$backup $i-$version
+	done
+fi
+
+version="${new_pkgver/-r/-}-$flavor"
+menuentry_id=$(grub-mkconfig 2>/dev/null | awk -F\' '$/^menuentry / {print $4}' | grep "$version-adv")
+[ -n "$menuentry_id" ] && grub-set-default "$menuentry_id"
+
+exit 0

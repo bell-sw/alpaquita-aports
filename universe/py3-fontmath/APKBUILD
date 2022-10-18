@@ -1,0 +1,38 @@
+pkgname=py3-fontmath
+pkgver=0.8.1
+pkgrel=1
+pkgdesc="set of objects for performing math operations on font data"
+url="https://github.com/robotools/fontMath"
+arch="noarch"
+license="MIT"
+depends="py3-fonttools python3"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest"
+options="!check" # https://github.com/robotools/fontMath/issues/178
+source="https://files.pythonhosted.org/packages/source/f/fontMath/fontMath-$pkgver.zip
+	no-need-setuptools_scm.patch
+	"
+builddir="$srcdir/fontMath-$pkgver"
+
+prepare() {
+	default_prepare
+	sed -e "s/%%PKGVER%%/$pkgver/" \
+		-i setup.cfg
+}
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+5c6f6924ac54357b642db26292909b08a282eb0752ad2004a9f6b7d9ae6ffffbe2e29346dc9c55b678f719a93529d394cba5e620c2d41a1c57ecd1f7d60ceba1  fontMath-0.8.1.zip
+e635b3ed2294293b385a93eefdf5cbae6ad82640ae282687b7a6866a57d6c08aafc5b8f6172856b30348e2b949435016b82ab31a2b986dc7888768b1cac187b2  no-need-setuptools_scm.patch
+"

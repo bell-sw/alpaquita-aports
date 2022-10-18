@@ -1,0 +1,40 @@
+pkgname=ell
+pkgver=0.50
+pkgrel=0
+pkgdesc="Linux library for embedded development"
+url="https://01.org/ell"
+arch="all"
+license="GPL-2.0-only"
+makedepends="glib-dev linux-headers"
+checkdepends="dbus"
+subpackages="$pkgname-dev"
+source="https://mirrors.edge.kernel.org/pub/linux/libs/ell/ell-$pkgver.tar.gz
+	"
+
+case "$CARCH" in
+aarch64) options="!check" ;;
+esac
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--enable-glib
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+123a789306d23e9050611ab69fec1e1d14ab11f2705b32ff82a54d2d2cbca9fa743a129aacae4df098fa006d21f8151b3492dc56b3510b5b51571a67fdd9cb39  ell-0.50.tar.gz
+"

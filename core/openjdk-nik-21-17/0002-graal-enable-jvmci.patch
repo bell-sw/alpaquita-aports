@@ -1,0 +1,12 @@
+diff --git a/sdk/mx.sdk/mx_sdk_vm.py b/sdk/mx.sdk/mx_sdk_vm.py
+index 9067f23c0f4..5dd987cea76 100644
+--- a/graal/sdk/mx.sdk/mx_sdk_vm.py
++++ b/graal/sdk/mx.sdk/mx_sdk_vm.py
+@@ -716,6 +716,7 @@ def _get_image_vm_options(jdk, use_upgrade_module_path, modules, synthetic_modul
+                 vm_options.extend(['-XX:+UnlockExperimentalVMOptions', '-XX:+EnableJVMCIProduct', '-XX:-UseJVMCICompiler', '-XX:-UnlockExperimentalVMOptions'])
+         else:
+             mx.logv('[Creating JDK without -XX:+EnableJVMCIProduct]')
++            vm_options.extend(['-XX:+UnlockExperimentalVMOptions', '-XX:+EnableJVMCI', '-XX:-UnlockExperimentalVMOptions'])
+         if modules and use_upgrade_module_path:
+             vm_options.append('--upgrade-module-path=' + os.pathsep.join((synthetic_modules.get(m, m.jarpath) for m in modules)))
+     elif use_upgrade_module_path:

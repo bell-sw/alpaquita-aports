@@ -1,0 +1,374 @@
+diff -r 4687075d8ccf make/Profiles.gmk
+--- a/jdk/make/Profiles.gmk	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/make/Profiles.gmk	Wed Jul 08 10:27:31 2020 +0300
+@@ -90,9 +90,9 @@
+     $(IMAGES_OUTPUTDIR)/lib/ct.sym \
+     $(IMAGES_OUTPUTDIR)/src.zip
+ 
+-ifeq ($(INCLUDE_SA), true)
+-  ALL_JARS += $(IMAGES_OUTPUTDIR)/lib/sa-jdi.jar
+-endif
++#ifeq ($(INCLUDE_SA), true)
++#  ALL_JARS += $(IMAGES_OUTPUTDIR)/lib/sa-jdi.jar
++#endif
+ 
+ ifeq ($(OPENJDK_TARGET_OS), solaris)
+   ifndef OPENJDK
+diff -r 4687075d8ccf src/aix/native/java/net/aix_close.c
+--- a/jdk/src/aix/native/java/net/aix_close.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/aix/native/java/net/aix_close.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -54,7 +54,7 @@
+ #include <unistd.h>
+ #include <errno.h>
+ 
+-#include <sys/poll.h>
++#include <poll.h>
+ 
+ /*
+  * Stack allocated by thread when doing blocking operation
+diff -r 4687075d8ccf src/aix/native/sun/nio/ch/AixNativeThread.c
+--- a/jdk/src/aix/native/sun/nio/ch/AixNativeThread.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/aix/native/sun/nio/ch/AixNativeThread.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -32,7 +32,7 @@
+ #include "sun_nio_ch_NativeThread.h"
+ 
+ #include <pthread.h>
+-#include <sys/signal.h>
++#include <signal.h>
+ 
+ /* Also defined in src/aix/native/java/net/aix_close.c */
+ #define INTERRUPT_SIGNAL (SIGRTMAX - 1)
+diff -r 4687075d8ccf src/aix/native/sun/nio/ch/AixPollPort.c
+--- a/jdk/src/aix/native/sun/nio/ch/AixPollPort.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/aix/native/sun/nio/ch/AixPollPort.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -34,7 +34,7 @@
+ #include <unistd.h>
+ #include <sys/types.h>
+ #include <sys/socket.h>
+-#include <sys/poll.h>
++#include <poll.h>
+ #include <sys/pollset.h>
+ #include <fcntl.h>
+ #include <stddef.h>
+diff -r 4687075d8ccf src/macosx/javavm/export/jvm_md.h
+--- a/jdk/src/macosx/javavm/export/jvm_md.h	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/macosx/javavm/export/jvm_md.h	Wed Jul 08 10:27:31 2020 +0300
+@@ -60,7 +60,7 @@
+ #include <sys/stat.h>
+ #include <fcntl.h>
+ #include <errno.h>
+-#include <sys/signal.h>
++#include <signal.h>
+ 
+ /* O Flags */
+ 
+diff -r 4687075d8ccf src/share/back/util.h
+--- a/jdk/src/share/back/util.h	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/share/back/util.h	Wed Jul 08 10:27:31 2020 +0300
+@@ -31,6 +31,9 @@
+ #include <string.h>
+ #include <stdlib.h>
+ #include <stdarg.h>
++// Note. On Alpine Linux pthread.h includes calloc/malloc functions declaration.
++// We need to include pthread.h before the following stdlib names poisoning.
++#include <pthread.h>
+ 
+ #ifdef DEBUG
+     /* Just to make sure these interfaces are not used here. */
+diff -r 4687075d8ccf src/share/native/com/sun/java/util/jar/pack/zip.cpp
+--- a/jdk/src/share/native/com/sun/java/util/jar/pack/zip.cpp	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/share/native/com/sun/java/util/jar/pack/zip.cpp	Wed Jul 08 10:27:31 2020 +0300
+@@ -46,6 +46,8 @@
+ 
+ #include "zip.h"
+ 
++#define uchar unsigned char
++
+ #ifdef NO_ZLIB
+ 
+ inline bool jar::deflate_bytes(bytes& head, bytes& tail) {
+diff -r 4687075d8ccf src/share/native/com/sun/java/util/jar/pack/zip.h
+--- a/jdk/src/share/native/com/sun/java/util/jar/pack/zip.h	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/share/native/com/sun/java/util/jar/pack/zip.h	Wed Jul 08 10:27:31 2020 +0300
+@@ -23,9 +23,7 @@
+  * questions.
+  */
+ 
+-#define ushort unsigned short
+-#define uint   unsigned int
+-#define uchar  unsigned char
++#include <sys/types.h>
+ 
+ struct unpacker;
+ 
+diff -r 4687075d8ccf src/share/native/sun/awt/medialib/mlib_types.h
+--- a/jdk/src/share/native/sun/awt/medialib/mlib_types.h	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/share/native/sun/awt/medialib/mlib_types.h	Wed Jul 08 10:27:31 2020 +0300
+@@ -27,6 +27,7 @@
+ #ifndef MLIB_TYPES_H
+ #define MLIB_TYPES_H
+ 
++#include <stddef.h>
+ #include <limits.h>
+ #if defined(_MSC_VER)
+ #include <float.h>                      /* for FLT_MAX and DBL_MAX */
+diff -r 4687075d8ccf src/solaris/bin/java_md_solinux.c
+--- a/jdk/src/solaris/bin/java_md_solinux.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/bin/java_md_solinux.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -291,6 +291,9 @@
+     char *dmllp = NULL;
+     char *p; /* a utility pointer */
+ 
++    // musl libc requires updating LD_LIBRARН_PATH
++    return JNI_TRUE;
++
+ #ifdef AIX
+     /* We always have to set the LIBPATH on AIX because ld doesn't support $ORIGIN. */
+     return JNI_TRUE;
+diff -r 4687075d8ccf src/solaris/javavm/export/jvm_md.h
+--- a/jdk/src/solaris/javavm/export/jvm_md.h	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/javavm/export/jvm_md.h	Wed Jul 08 10:27:31 2020 +0300
+@@ -65,7 +65,7 @@
+ #include <sys/stat.h>
+ #include <fcntl.h>
+ #include <errno.h>
+-#include <sys/signal.h>
++#include <signal.h>
+ 
+ /* O Flags */
+ 
+diff -r 4687075d8ccf src/solaris/native/java/net/Inet4AddressImpl.c
+--- a/jdk/src/solaris/native/java/net/Inet4AddressImpl.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/java/net/Inet4AddressImpl.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -47,7 +47,7 @@
+ 
+ #include "java_net_Inet4AddressImpl.h"
+ 
+-#if defined(__GLIBC__) || (defined(__FreeBSD__) && (__FreeBSD_version >= 601104))
++#if defined(__linux__) || (defined(__FreeBSD__) && (__FreeBSD_version >= 601104))
+ #define HAS_GLIBC_GETHOSTBY_R   1
+ #endif
+ 
+diff -r 4687075d8ccf src/solaris/native/java/net/PlainSocketImpl.c
+--- a/jdk/src/solaris/native/java/net/PlainSocketImpl.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/java/net/PlainSocketImpl.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -28,7 +28,7 @@
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ #if defined(__linux__) && !defined(USE_SELECT)
+-#include <sys/poll.h>
++#include <poll.h>
+ #endif
+ #include <netinet/tcp.h>        /* Defines TCP_NODELAY, needed for 2.6 */
+ #include <netinet/in.h>
+diff -r 4687075d8ccf src/solaris/native/java/net/bsd_close.c
+--- a/jdk/src/solaris/native/java/net/bsd_close.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/java/net/bsd_close.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -38,7 +38,7 @@
+ #include <sys/uio.h>
+ #include <unistd.h>
+ #include <errno.h>
+-#include <sys/poll.h>
++#include <poll.h>
+ 
+ /*
+  * Stack allocated by thread when doing blocking operation
+diff -r 4687075d8ccf src/solaris/native/java/net/linux_close.c
+--- a/jdk/src/solaris/native/java/net/linux_close.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/java/net/linux_close.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -36,7 +36,7 @@
+ #include <sys/uio.h>
+ #include <unistd.h>
+ #include <errno.h>
+-#include <sys/poll.h>
++#include <poll.h>
+ 
+ /*
+  * Stack allocated by thread when doing blocking operation
+@@ -58,7 +58,7 @@
+ /*
+  * Signal to unblock thread
+  */
+-static int sigWakeup = (__SIGRTMAX - 2);
++#define INTERRUPT_SIGNAL (SIGRTMAX - 2)
+ 
+ /*
+  * fdTable holds one entry per file descriptor, up to a certain
+@@ -150,10 +150,10 @@
+     sa.sa_handler = sig_wakeup;
+     sa.sa_flags   = 0;
+     sigemptyset(&sa.sa_mask);
+-    sigaction(sigWakeup, &sa, NULL);
++    sigaction(INTERRUPT_SIGNAL, &sa, NULL);
+ 
+     sigemptyset(&sigset);
+-    sigaddset(&sigset, sigWakeup);
++    sigaddset(&sigset, INTERRUPT_SIGNAL);
+     sigprocmask(SIG_UNBLOCK, &sigset, NULL);
+ }
+ 
+@@ -303,7 +303,7 @@
+         threadEntry_t *curr = fdEntry->threads;
+         while (curr != NULL) {
+             curr->intr = 1;
+-            pthread_kill( curr->thr, sigWakeup );
++            pthread_kill( curr->thr, INTERRUPT_SIGNAL );
+             curr = curr->next;
+         }
+     }
+diff -r 4687075d8ccf src/solaris/native/java/net/net_util_md.c
+--- a/jdk/src/solaris/native/java/net/net_util_md.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/java/net/net_util_md.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -40,7 +40,7 @@
+ #else
+ #include <limits.h>
+ #include <sys/param.h>
+-#include <sys/sysctl.h>
++#include <sysctl.h>
+ #ifndef MAXINT
+ #define MAXINT INT_MAX
+ #endif
+diff -r 4687075d8ccf src/solaris/native/java/net/net_util_md.h
+--- a/jdk/src/solaris/native/java/net/net_util_md.h	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/java/net/net_util_md.h	Wed Jul 08 10:27:31 2020 +0300
+@@ -33,7 +33,7 @@
+ #include <unistd.h>
+ 
+ #ifndef USE_SELECT
+-#include <sys/poll.h>
++#include <poll.h>
+ #endif
+ 
+ 
+diff -r 4687075d8ccf src/solaris/native/sun/management/OperatingSystemImpl.c
+--- a/jdk/src/solaris/native/sun/management/OperatingSystemImpl.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/sun/management/OperatingSystemImpl.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -33,7 +33,7 @@
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #if defined(_ALLBSD_SOURCE)
+-#include <sys/sysctl.h>
++#include <sysctl.h>
+ #ifdef __APPLE__
+ #include <sys/param.h>
+ #include <sys/mount.h>
+diff -r 4687075d8ccf src/solaris/native/sun/net/portconfig.c
+--- a/jdk/src/solaris/native/sun/net/portconfig.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/sun/net/portconfig.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -29,7 +29,7 @@
+ #include <errno.h>
+ 
+ #if defined(_ALLBSD_SOURCE)
+-#include <sys/sysctl.h>
++#include <sysctl.h>
+ #endif
+ 
+ #include "jni.h"
+diff -r 4687075d8ccf src/solaris/native/sun/nio/ch/DevPollArrayWrapper.c
+--- a/jdk/src/solaris/native/sun/nio/ch/DevPollArrayWrapper.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/sun/nio/ch/DevPollArrayWrapper.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -28,7 +28,7 @@
+ #include "jvm.h"
+ #include "jlong.h"
+ #include "sun_nio_ch_DevPollArrayWrapper.h"
+-#include <sys/poll.h>
++#include <poll.h>
+ #include <unistd.h>
+ #include <sys/time.h>
+ 
+diff -r 4687075d8ccf src/solaris/native/sun/nio/ch/NativeThread.c
+--- a/jdk/src/solaris/native/sun/nio/ch/NativeThread.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/sun/nio/ch/NativeThread.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -34,9 +34,9 @@
+ 
+ #ifdef __linux__
+   #include <pthread.h>
+-  #include <sys/signal.h>
++  #include <signal.h>
+   /* Also defined in net/linux_close.c */
+-  #define INTERRUPT_SIGNAL (__SIGRTMAX - 2)
++  #define INTERRUPT_SIGNAL (SIGRTMAX - 2)
+ #elif __solaris__
+   #include <thread.h>
+   #include <signal.h>
+diff -r 4687075d8ccf src/solaris/native/sun/nio/ch/Net.c
+--- a/jdk/src/solaris/native/sun/nio/ch/Net.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/sun/nio/ch/Net.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -23,7 +23,7 @@
+  * questions.
+  */
+ 
+-#include <sys/poll.h>
++#include <poll.h>
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ #include <string.h>
+diff -r 4687075d8ccf src/solaris/native/sun/nio/fs/LinuxWatchService.c
+--- a/jdk/src/solaris/native/sun/nio/fs/LinuxWatchService.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/sun/nio/fs/LinuxWatchService.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -32,7 +32,7 @@
+ #include <dlfcn.h>
+ #include <sys/types.h>
+ #include <sys/socket.h>
+-#include <sys/poll.h>
++#include <poll.h>
+ #include <sys/inotify.h>
+ 
+ #include "sun_nio_fs_LinuxWatchService.h"
+diff -r 4687075d8ccf src/solaris/native/sun/tools/attach/LinuxVirtualMachine.c
+--- a/jdk/src/solaris/native/sun/tools/attach/LinuxVirtualMachine.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/sun/tools/attach/LinuxVirtualMachine.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -202,6 +202,9 @@
+     char* s;
+     jboolean res;
+ 
++    // Use NPTL in musl
++    return JNI_FALSE;
++
+     n = confstr(_CS_GNU_LIBPTHREAD_VERSION, NULL, 0);
+     if (n <= 0) {
+        /* glibc before 2.3.2 only has LinuxThreads */
+diff -r 4687075d8ccf src/solaris/native/sun/xawt/XToolkit.c
+--- a/jdk/src/solaris/native/sun/xawt/XToolkit.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/native/sun/xawt/XToolkit.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -27,9 +27,9 @@
+ #include <X11/Xutil.h>
+ #include <X11/Xos.h>
+ #include <X11/Xatom.h>
+-#ifdef __linux__
+-#include <execinfo.h>
+-#endif
++//#ifdef __linux__
++//#include <execinfo.h>
++//#endif
+ 
+ #include <jvm.h>
+ #include <jni.h>
+@@ -806,6 +806,7 @@
+ #ifdef __linux__
+ void print_stack(void)
+ {
++/*
+   void *array[10];
+   size_t size;
+   char **strings;
+@@ -820,6 +821,7 @@
+      fprintf (stderr, "%s\n", strings[i]);
+ 
+   free (strings);
++*/
+ }
+ #endif
+ 
+diff -r 4687075d8ccf src/solaris/transport/socket/socket_md.c
+--- a/jdk/src/solaris/transport/socket/socket_md.c	Sat Jun 27 23:22:00 2020 +0100
++++ b/jdk/src/solaris/transport/socket/socket_md.c	Wed Jul 08 10:27:31 2020 +0300
+@@ -37,7 +37,7 @@
+ #include <thread.h>
+ #else
+ #include <pthread.h>
+-#include <sys/poll.h>
++#include <poll.h>
+ #endif
+ 
+ #include "socket_md.h"

@@ -1,0 +1,45 @@
+pkgname=pinentry
+pkgver=1.2.0
+pkgrel=0
+pkgdesc="Collection of simple PIN or passphrase entry dialogs which utilize the Assuan protocol"
+url="https://www.gnupg.org/aegypten2/"
+arch="all"
+license="GPL-2.0-or-later"
+install="$pkgname.post-install $pkgname.post-upgrade"
+makedepends="ncurses-dev libcap-dev libgpg-error-dev libassuan-dev"
+subpackages="$pkgname-doc $pkgname-tty"
+source="https://gnupg.org/ftp/gcrypt/pinentry/pinentry-$pkgver.tar.bz2"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--disable-pinentry-gtk2 \
+		--disable-pinentry-gnome3 \
+		--disable-pinentry-qt \
+		--enable-fallback-curses \
+		--enable-pinentry-tty
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make -C "$builddir" DESTDIR="$pkgdir" install
+
+	# created by post install scripts so we can override with other UI versions
+	rm -f "$pkgdir"/usr/bin/pinentry
+}
+
+tty() {
+	pkgdesc="Minimal dumb-terminal PIN or pass-phrase entry dialog for GnuPG"
+
+	amove usr/bin/pinentry-tty
+}
+
+sha512sums="
+19cea79aa3982d1f0d75220c8e24ca38d6c49475c6f4c5aa7101151b4690db23ed316096a4a411136e716ba4eb471f48f9b09556e5c9837533c2356b9b384b63  pinentry-1.2.0.tar.bz2
+"

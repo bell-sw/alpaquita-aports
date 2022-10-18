@@ -1,0 +1,126 @@
+pkgname=nfs-utils
+pkgver=2.6.1
+pkgrel=1
+pkgdesc="kernel-mode NFS"
+url="https://linux-nfs.org/"
+arch="all"
+license="GPL-2.0-or-later BSD-3-Clause"
+depends="rpcbind python3"
+options="suid"
+makedepends="autoconf automake bsd-compat-headers keyutils-dev krb5-dev
+	libcap-dev libevent-dev libtirpc-dev libtool lvm2-dev musl:musl-libintl
+	openldap-dev sqlite-dev util-linux-dev"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-dbg $pkgname-openrc rpcgen
+	libnfsidmap libnfsidmap-ldap"
+source="https://www.kernel.org/pub/linux/utils/nfs-utils/$pkgver/nfs-utils-$pkgver.tar.xz
+	musl-getservbyport.patch
+	musl-svcgssd-sysconf.patch
+
+	nfs.initd
+	nfsmount.initd
+	nfsmount.confd
+	rpc.gssd.initd
+	rpc.idmapd.initd
+	rpc.pipefs.initd
+	rpc.statd.initd
+	rpc.svcgssd.initd
+	nfs.confd
+	nfs.exports
+	nfsclient.initd
+	nfsclient.confd
+	"
+
+prepare() {
+	default_prepare
+	./autogen.sh
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--without-tcp-wrappers \
+		--with-rpcgen=internal \
+		--enable-ipv6 \
+		--enable-nfsv4 \
+		--enable-uuid \
+		--enable-gss \
+		--enable-svcgss \
+		--enable-libmount-mount \
+		--enable-static=no
+	make
+}
+
+# Simple test, "make check" requires running nfsd
+check() {
+	./utils/showmount/showmount -v
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -Dm644 "$srcdir"/nfs.exports "$pkgdir"/etc/exports
+	mv "$pkgdir"/usr/sbin/rpc.statd "$pkgdir"/sbin/
+
+	local file
+	for file in $source; do
+		case "$file" in
+		*.confd) install -Dm644 "$srcdir"/"$file" \
+			"$pkgdir"/etc/conf.d/${file%.*} ;;
+		*.initd) install -Dm755 "$srcdir"/"$file" \
+			"$pkgdir"/etc/init.d/${file%.*} ;;
+		esac
+	done
+}
+
+dev() {
+	replaces="libnfsidmap-dev libnfsidmap-ldap-dev"
+	default_dev
+}
+
+doc() {
+	replaces="libnfsidmap-doc"
+	default_doc
+}
+
+rpcgen() {
+	pkgdesc="Remote Procedure Call (RPC) protocol compiler"
+	amove usr/bin/rpcgen
+}
+
+libnfsidmap() {
+	pkgdesc="NFSv4 User and Group ID Mapping Library"
+	install -Dm644 "$builddir"/support/nfsidmap/idmapd.conf "$subpkgdir"/etc/idmapd.conf
+	mkdir -p "$subpkgdir"/usr/lib/libnfsidmap
+	mv "$pkgdir"/usr/lib/libnfsidmap.so* "$subpkgdir"/usr/lib/
+	mv "$pkgdir"/usr/lib/libnfsidmap/static* "$subpkgdir"/usr/lib/libnfsidmap/
+	mv "$pkgdir"/usr/lib/libnfsidmap/nsswitch* "$subpkgdir"/usr/lib/libnfsidmap/
+
+}
+
+ldap() {
+	pkgdesc="LDAP plugin for libnfsidmap"
+	mkdir -p "$subpkgdir"/usr/lib/libnfsidmap
+	mv "$pkgdir"/usr/lib/libnfsidmap/*ldap* "$subpkgdir"/usr/lib/libnfsidmap/
+}
+
+sha512sums="
+20017b276781a79d00f22c5a9472499264983d571af617e79e72d93a9c06e81de3d04afb890e1e0d7f1f2566176266a91915d2ca5b27ae6d8b959849f0fd427a  nfs-utils-2.6.1.tar.xz
+94d7ba23164660f1da9298494dff75c57f5a300cb32b2922bc2226fcdaded7eaaa0c50a59a145ac7c75639d177558b5f5594fb1f03a50f60f4c577c93b135748  musl-getservbyport.patch
+52eeade44753f2002bf99d58ad4982086aab74ef8b14de46be547f23508197f58a6ff529145f96de7f031ac0bb7779b648d05fd981cdd91556dd13d068dfe57b  musl-svcgssd-sysconf.patch
+5e1ed960aff40501ebb08affa077642575004859972551d164aafb25ad66c49fd53db14a91f3fea5195351d364151372610946a1fd15626ff7c8304e1787cc6f  nfs.initd
+cd5931c697d8759a5eeec1aa55f69830c9432d1faedb9c9f69699a9c9897c6bd2dccebee8cc0df7b3b1648194bf889f02ac458cb68e29f804e1fc154fd7f1d37  nfsmount.initd
+6e23897885cc33c49d9c7353b456585a1e0c7300822edba81bc48ba4ccc18297adce137260cc0aa9487aa5ef0aab3eecf931532cfa5bd40fd03bc9e0ddacfb28  nfsmount.confd
+527f65014cc1f95db14ea0839073b2913c844339eef8b6b2abccc2df751b22d111ed551c861cc34269c42bc59c64dc4b3fc015dd7e4e170c41969f8456d964ef  rpc.gssd.initd
+8c1478fd8cf779cd685b5bb2fbd5e955082d5e7b3ba9d90edfe4e306c9354875f933f81afa3e488562f26b435e8cabfd5185df74c434b9b48afd7576f6411699  rpc.idmapd.initd
+7544a0fd55409e91a3d1d351b7e8901f0db766f9c9fcd044874ee41aeab9e16fc8da36f8003780301889fbdfd6f464c853017678e0e23b1ed35499753593935b  rpc.pipefs.initd
+75c0a5297e25a172d50ee882792a49b3c311f4aec5d2431b7c5e860af48dac0c14ea5a282e20646493ef71a92f5215726b6d0aeabad74ec2680c58152492482b  rpc.statd.initd
+684283aa2ad700b42236e8368a6712887d9afbc6543615b6eaf397a71d24c74aec0c83a525e8a75662da9c1dc7663070f52b95694b88e5143f321d6c520dedcb  rpc.svcgssd.initd
+bc11b073735ee86c96b9c249ee187f4d16329c279a4e26760875059d2b5fa1d510ef3e4df5ee9dfb2a3133d755e1eb5c323d2fadc432a0cf630191ec353ac535  nfs.confd
+70f96bb3a465ee0fa857a6e511051ca3ced9f5a5d1e6b8b32eec843a2067f2475d8979c724a3661de0a2b078eef143f55d75ed184d823841d9de5038da91fb91  nfs.exports
+6c85c496ef93a8a2d3ad3919ecc55bae7c341998f4482fe4b17d88d987df17cabcc17274a3a8eb52c80ed6afc32d58c6774ae01209baaf6b30bd7a3803c2a244  nfsclient.initd
+f12e67728ac4e76357685e2fe38bd7f6fcd90064165758ffeca145e6962ac44d4ff9d8d57e18cc6925a6ada8e95ad8321e9fc355931a804dd455aae1e4850e92  nfsclient.confd
+"

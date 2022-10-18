@@ -1,0 +1,37 @@
+pkgname=fribidi
+pkgver=1.0.12
+pkgrel=0
+pkgdesc="Free Implementation of the Unicode Bidirectional Algorithm"
+url="https://github.com/fribidi/fribidi"
+arch="all"
+license="LGPL-2.0-or-later"
+makedepends="meson"
+subpackages="$pkgname-doc $pkgname-static $pkgname-dev"
+source="https://github.com/fribidi/fribidi/releases/download/v$pkgver/fribidi-$pkgver.tar.xz"
+
+# secfixes:
+#   1.0.12-r0:
+#     - CVE-2022-25308
+#     - CVE-2022-25309
+#     - CVE-2022-25310
+#   1.0.7-r1:
+#     - CVE-2019-18397
+
+build() {
+	abuild-meson \
+		-Ddefault_library=both \
+	. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+cd624f519b270303e89139ced4020115abe3b6a0d774ba57f17fa69c6036edebd76c635a42c468786e76c6ffb0c7d63b435cd2663bc2fba08dec405840dd8e49  fribidi-1.0.12.tar.xz
+"

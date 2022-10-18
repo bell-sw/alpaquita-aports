@@ -1,0 +1,29 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=py3-defcon
+pkgver=0.7.2
+pkgrel=2
+pkgdesc="Flexible objects for represnting UFO data"
+options="!check" # Requires unpackaged FontPens
+url="https://pypi.org/project/defcon/"
+arch="noarch"
+license="MIT"
+depends="python3 py3-fonttools"
+makedepends="py3-setuptools"
+source="https://pypi.org/packages/source/d/defcon/defcon-$pkgver.zip"
+builddir="$srcdir/defcon-$pkgver"
+
+build() {
+	python3 setup.py build
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+	rm -rf "$pkgdir"/usr/lib/python3*/site-packages/defcon/test
+}
+
+sha512sums="
+3cd74b070fdaf5cc099db8fe005070db2f4872b5a26aee03fc9de723793e3428d8100e30e3de035027541dd4b7815f36ba57b7143d44805005e0e482310d3771  defcon-0.7.2.zip
+"

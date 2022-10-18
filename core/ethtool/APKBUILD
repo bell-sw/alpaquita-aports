@@ -1,0 +1,44 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: ethtool package contains utilities to configure Ethernet devices
+# parameters.
+
+pkgname=ethtool
+pkgver=5.17
+pkgrel=0
+pkgdesc="Network drivers and hardware controlling tools"
+url="https://mirrors.edge.kernel.org/pub/software/network/ethtool/"
+arch="all"
+license="GPL-2.0-only"
+makedepends="linux-headers libmnl-dev"
+subpackages="$pkgname-doc $pkgname-bash-completion:bashcomp:noarch"
+source="https://www.kernel.org/pub/software/network/ethtool/ethtool-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+bashcomp() {
+	depends=""
+	pkgdesc="Bash completions for $pkgname"
+	install_if="$pkgname=$pkgver-r$pkgrel bash-completion"
+
+	amove usr/share/bash-completion/completions
+}
+
+sha512sums="
+c9677829e3ed1f373bd993f72c710293a6e987bbd19829d437a436f42cf4e7995ee70a7db3590b1499ff6aa29c26815f4d0a3e4798ffb6992ae3f52b079cd3ff  ethtool-5.17.tar.xz
+"

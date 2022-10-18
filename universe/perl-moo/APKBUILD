@@ -1,0 +1,30 @@
+pkgname=perl-moo
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=Moo
+pkgver=2.005004
+pkgrel=1
+pkgdesc="Minimalist Object Orientation (with Moose compatibility)"
+url="https://metacpan.org/release/Moo/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-class-method-modifiers perl-sub-quote perl-role-tiny"
+checkdepends="perl-test-fatal"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/H/HA/HAARG/Moo-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="a1335d180cd19dc7189bc1663efd5a05650d579c5e5d049fc4059a382d1eeb882fdd9cd2b107fdd40499e22a5c6196fc47c1334145101def531e5f5fd3cd0edf  Moo-2.005004.tar.gz"

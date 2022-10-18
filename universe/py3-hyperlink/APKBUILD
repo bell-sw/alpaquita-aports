@@ -1,0 +1,29 @@
+pkgname=py3-hyperlink
+_pkgname=hyperlink
+pkgver=21.0.0
+pkgrel=2
+pkgdesc="Python implementation of immutable URLs"
+url="https://github.com/python-hyper/hyperlink"
+arch="noarch"
+license="MIT"
+depends="py3-idna"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest"
+source="https://files.pythonhosted.org/packages/source/h/hyperlink/hyperlink-$pkgver.tar.gz"
+builddir="$srcdir/"$_pkgname-$pkgver
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	py.test-3
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+9e0e9273dde1b0a41329a74fbb26c4f327b87f387ee64b9a2ab641ca5cc8b9ea0516884415e9adf1d4880ae9c053a5cba2c550fc508bb56fddb44a543d5da860  hyperlink-21.0.0.tar.gz
+"

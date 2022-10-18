@@ -1,0 +1,64 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: provides error values, messages and other common stuff for GnuPG
+# components.
+
+
+pkgname=libgpg-error
+pkgver=1.45
+pkgrel=0
+pkgdesc="Support library for GnuPG runtime"
+url="https://www.gnupg.org/"
+arch="all"
+license="GPL-2.0-or-later LGPL-2.1-or-later"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-lisp:lisp:noarch"
+makedepends="automake autoconf"
+source="https://gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-$pkgver.tar.bz2"
+
+prepare() {
+	default_prepare
+	aclocal
+	automake
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--enable-static \
+		--disable-nls
+	make
+}
+
+check() {
+	make -C "$builddir" check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+dev() {
+	default_dev
+
+	amove usr/bin/yat2m
+}
+
+lisp() {
+	mkdir -p "$subpkgdir"/usr/
+	mv "$pkgdir"/usr/share "$subpkgdir"/usr/share/
+}
+
+static() {
+	pkgdesc="$pkgname static libraries"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/*.a "$subpkgdir"/usr/lib/
+}
+
+sha512sums="
+882f2dd617e89137d7a9d61b60488dac32321dd4fdb699e9687b6bd9380c056c027da502837f4482289c0fe00e7de01210e804428f05a0843ae2ca23fdcc6457  libgpg-error-1.45.tar.bz2
+"

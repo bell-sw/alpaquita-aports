@@ -1,0 +1,74 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: iptables packet filter extensions that are used without the need
+# to recompile the kernel.
+
+# when changing _ver we *must* bump _rel
+_name=xtables-addons
+_ver=3.20
+_rel=0
+
+_flavor=${FLAVOR:-lts}
+_kpkg=linux-$_flavor
+_kver=5.10.133
+_krel=0
+
+_kpkgver="$_kver-r$_krel"
+_kabi="$_kver-$_krel-$_flavor"
+
+pkgname=$_name-$_flavor
+pkgver=$_kver
+pkgrel=$(( $_krel + $_rel ))
+
+pkgdesc="iptables packet filter extensions"
+url="https://inai.de/projects/xtables-addons/"
+arch="all !armhf !mips64 !riscv64"
+license="GPL-2.0"
+depends="$_kpkg=$_kpkgver"
+makedepends="$_kpkg-dev=$_kpkgver iptables-dev linux-headers"
+install_if="$_kpkg=$_kpkgver $_name"
+source="https://inai.de/files/xtables-addons/xtables-addons-$_ver.tar.xz
+	x509.genkey
+	0001-xt_ECHO-use-flowi6_to_flowi_common-starting-Linux-5..patch
+"
+builddir="$srcdir/$_name-$_ver"
+options="!check"
+
+prepare() {
+	default_prepare
+	local _kapkbuild=../../main/linux-$_flavor/APKBUILD
+	if [ -f $_kapkbuild ]; then
+		(	. $_kapkbuild
+			pkgname=$_name-$_flavor
+			[ "$_kver" != "$pkgver" ] && die "please update _kver to $pkgver"
+			[ "$_krel" != "$pkgrel" ] && die "please update _krel to $pkgrel"
+			return 0
+		)
+	fi
+}
+
+build() {
+	cd "$builddir"
+	unset LDFLAGS
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--with-kbuild=/usr/src/linux-headers-$_kabi
+
+	cd extensions
+	make modules
+}
+
+package() {
+	sign_kernel_modules "$builddir"/extensions $_kabi
+
+	cd "$builddir/extensions"
+	make DESTDIR="$pkgdir" CONFIG_MODULE_SIG_ALL="" modules_install
+}
+
+sha512sums="
+0a38c12159dd555a31f24dc5a74d012b27723925df827edffe2343f6b8e61e838b5dc4776bafe37587e9622b9da1e9cd4220e4f576d58e78eb21ad18a419fb2e  xtables-addons-3.20.tar.xz
+934513020e555a3584f545e8a0e39cdce4f26db228a3c7fb407f3d8bab05aa9021197e761e8538dbf0f6650cbc1289a0f56c784bd71306b9ab24d3a153912a5f  x509.genkey
+bea7f505757edab6623e93073255df6a101dc388c2aa5620404a0853297e912f6d88e99c69be71dc0924544a4e2abd5bafbcc2177f0bd263f19d4d8797d7616a  0001-xt_ECHO-use-flowi6_to_flowi_common-starting-Linux-5..patch
+"

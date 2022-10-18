@@ -1,0 +1,38 @@
+pkgname=libical
+pkgver=3.0.14
+pkgrel=0
+pkgdesc="Reference implementation of the iCalendar format"
+url="https://libical.github.io/libical/"
+arch="all"
+license="LGPL-2.1-only OR MPL-2.0"
+depends_dev="libxml2-dev gobject-introspection-dev"
+makedepends="perl cmake vala glib-dev icu-dev $depends_dev"
+checkdepends="tzdata py3-gobject3"
+subpackages="$pkgname-dev"
+source="https://github.com/libical/libical/releases/download/v$pkgver/libical-$pkgver.tar.gz"
+
+
+build() {
+	cmake -B build \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DSHARED_ONLY=true \
+		-DENABLE_GTK_DOC=false \
+		-DGOBJECT_INTROSPECTION=true \
+		-DICAL_GLIB_VAPI=true
+	cmake --build build
+}
+
+check() {
+	cd build
+	CTEST_OUTPUT_ON_FAILURE=TRUE ctest -E regression
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+36da5516672976c71b049a12af36164d91f9b655f81f1884766558149f25e80c30e64d15da848842f8a629295d708f39ce6fa63a3b0da39b5cbeb91911a4e6d8  libical-3.0.14.tar.gz
+"

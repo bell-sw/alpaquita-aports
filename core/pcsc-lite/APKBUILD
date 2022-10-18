@@ -1,0 +1,97 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: pcsc-lite allows you to integrate a smart card into a computer
+# by means of Scard API.
+
+pkgname=pcsc-lite
+pkgver=1.9.6
+pkgrel=0
+pkgdesc="Smart card access middleware"
+url="https://pcsclite.apdu.fr/"
+arch="all"
+license="BSD-3-clause AND BSD-2-clause AND ISC"
+depends_dev="
+	$pkgname-libs=$pkgver-r$pkgrel
+	eudev-dev
+	"
+makedepends="
+	$depends_dev
+	flex
+	libcap-ng-utils
+	perl
+	perl-dev
+	"
+install="$pkgname.pre-install $pkgname.pre-upgrade"
+subpackages="
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-spy-libs:spylibs
+	$pkgname-libs
+	$pkgname-openrc
+	"
+source="https://pcsclite.apdu.fr/files/pcsc-lite-$pkgver.tar.bz2
+	pcscd.initd
+	"
+
+build() {
+	./configure \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--disable-libusb \
+		--enable-libudev \
+		--disable-maintainer-mode \
+		--disable-silent-rules \
+		--without-systemdsystemunitdir \
+		--enable-ipcdir=/run/pcscd \
+		--enable-usbdropdir=/usr/lib/pcsc/drivers \
+		--disable-libsystemd \
+		--disable-polkit \
+		--disable-strict
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	license="$license AND GPL-3.0-or-later"
+
+	make DESTDIR="$pkgdir" install
+
+	install -D -m755 "$srcdir/pcscd.initd" "$pkgdir/etc/init.d/pcscd"
+
+	mkdir -p "$pkgdir/usr/lib/pcsc/drivers"
+
+	# grant sysfs access
+	filecap "$pkgdir/usr/sbin/pcscd" "dac_override"
+}
+
+spylibs() {
+	pkgdesc="$pkgdesc (log/debug/spy libraries)"
+	license="GPL-3.0-or-later"
+
+	amove usr/lib/libpcscspy.so.*
+}
+
+libs() {
+	pkgdesc="$pkgdesc (libraries)"
+
+	amove usr/lib
+}
+
+dev() {
+	default_dev
+
+	# move back the /usr/lib/libpcsclite.so
+	# see http://bugs.alpinelinux.org/issues/3236 (and 6392)
+	mv "$subpkgdir/usr/lib/libpcsclite.so" "$pkgdir/usr/lib/libpcsclite.so"
+}
+
+sha512sums="
+b9911fa2239104cb3aa45f0c26f29a6a19519239273c1a3399beaad694010931f6d050dd85530cbd500ba8b1cc3057223fdaa38a8aad40f9ea70079b62f91657  pcsc-lite-1.9.6.tar.bz2
+5bad40a0b0f531a47b0a161c45c9963549bd190a3cf686369f7d0bdb526ae8c687ff1d9883ce3c14bef92a7a1ab9fc829a3d348bd4e85d184589027811515fc8  pcscd.initd
+"

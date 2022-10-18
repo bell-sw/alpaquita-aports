@@ -1,0 +1,47 @@
+pkgname=fstrm
+pkgver=0.6.1
+pkgrel=0
+pkgdesc="Frame Streams implementation in C"
+url="https://github.com/farsightsec/fstrm"
+arch="all"
+# check failure on s390x reported upstream:
+#    https://github.com/farsightsec/fstrm/issues/58
+license="MIT"
+checkdepends="findutils"
+makedepends="libevent-dev"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-utils"
+source="https://dl.farsightsecurity.com/dist/fstrm/fstrm-$pkgver.tar.gz
+	reduce-testruns.patch"
+
+build() {
+	./configure \
+		--build="$CBUILD" \
+		--host="$CHOST" \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man
+	make
+}
+
+_cat_found_file() {
+	local _rc="$?"
+	find -name "$1" -type f -ls -printf '%P {{{\n' -exec cat -v -n '{}' ';' -printf '}}} %P\n'
+	return "$_rc"
+}
+
+check() {
+	make check || _cat_found_file 'test-suite.log'
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install
+}
+
+utils() {
+	pkgdesc="$pkgname utilities"
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/* "$subpkgdir"/usr/bin/
+}
+
+sha512sums="b8bc954d894a6967ab20975949d3b5ab142933bb14d51f0bd93d6f72e6a8963d06365626ae4df977b70b2678eb495ca6edaedbfd1b9149ac1ec9384df2b56806  fstrm-0.6.1.tar.gz
+1c687ee7741fb20a571c3d7d3fb9a1cf09709d83d66d788eb09835750ee2313aa565f74d35a9cdece2154e1b8c41c68b268ca8f5bc33f8d14550ebe46880d550  reduce-testruns.patch"

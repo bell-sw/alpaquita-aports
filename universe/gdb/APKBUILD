@@ -1,0 +1,79 @@
+pkgname=gdb
+pkgver=11.2
+pkgrel=0
+pkgdesc="The GNU Debugger"
+url="https://www.gnu.org/software/gdb/"
+arch="all"
+license="GPL-3.0-or-later LGPL-3.0-or-later"
+makedepends="ncurses-dev expat-dev texinfo readline-dev python3-dev
+	zlib-dev autoconf automake libtool linux-headers perl gmp-dev"
+options="!check"
+[ "$CARCH" = "riscv64" ] && options="$options textrels"
+subpackages="$pkgname-doc $pkgname-multiarch"
+source="https://ftp.gnu.org/gnu/gdb/gdb-$pkgver.tar.xz
+	musl:musl-signals.patch
+	glibc:gdb-11.1-glibc-2.34-sim.patch
+	"
+
+prepare() {
+	default_prepare
+	mkdir -p "$builddir"/vanilla "$builddir"/multiarch
+}
+
+build() {
+	local _config="
+		--build=$CBUILD
+		--host=$CHOST
+		--prefix=/usr
+		--target=$CTARGET
+		--with-build-sysroot=$CBUILDROOT
+		--with-python=/usr/bin/python3
+		--disable-nls
+		--disable-werror
+		--mandir=/usr/share/man
+		--infodir=/usr/share/info"
+
+	# use system readline if not cross compiling
+	[ "$CBUILD" = "$CHOST" ] && _config="$_config --with-system-readline"
+
+	# use system zlib if not cross compiling
+	[ "$CBUILD" = "$CHOST" ] && _config="$_config --with-system-zlib"
+
+	# avoid generation of mangled and non-mangled objects on ppc64
+	[ "$CARCH" = ppc64le ] && _config="$_config --enable-build-with-cxx=no"
+
+	cd "$builddir"/vanilla
+	../configure $_config
+	make
+
+	cd "$builddir"/multiarch
+	../configure $_config --enable-targets=all
+	make
+}
+
+package() {
+	cd "$builddir"/vanilla
+	make DESTDIR="$pkgdir" install
+
+	# resolve conflict with binutils-doc
+	rm -f "$pkgdir"/usr/share/info/bfd.info
+	rm -f "$pkgdir"/usr/share/info/dir
+
+	# those are provided by binutils
+	rm -rf "$pkgdir"/usr/include
+	rm -rf "$pkgdir"/usr/lib
+}
+
+multiarch() {
+	depends="$pkgname"
+	pkgdesc="The GNU Debugger for all supported architectures"
+
+	install -Dm755 "$builddir"/multiarch/gdb/gdb \
+		"$subpkgdir"/usr/bin/gdb-multiarch
+}
+
+sha512sums="
+07e9026423438049b11f4f784d57401ece4e940570f613bd6958b3714fe7fbc2c048470bcce3e7d7d9f93331cdf3881d30dcc964cb113a071143a02b28e5b127  gdb-11.2.tar.xz
+58aacc7cdc119eab729a3c5a5521f6a0db41c6a5bc2d09d6e32cbdd071d85dd1a31b5e6559616f8da1237c5b79ad9e04aab485211e957b4d1ca752c0c5ad660b  musl-signals.patch
+c75b4e197416fbbb47226b9a846174fc07835a159eac304303f952f5cd15afceeb165a3f867ab3807c7687b294af805a0249ed3ab257dcb270d9d31d7ef6b6a7  gdb-11.1-glibc-2.34-sim.patch
+"

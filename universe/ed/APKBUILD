@@ -1,0 +1,37 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=ed
+pkgver=1.18
+pkgrel=2
+pkgdesc="line-oriented text editor used to create, display, modify and otherwise manipulate text files"
+url="https://www.gnu.org/software/ed/"
+arch="all"
+license="GPL-2.0-or-later"
+subpackages="$pkgname-doc"
+source="https://ftp.gnu.org/gnu/ed/ed-$pkgver.tar.lz"
+
+
+build() {
+	# bindir needs correspond with busybox location
+	./configure CC="${CC:-cc}" CFLAGS+="$CFLAGS" LDFLAGS="$LDFLAGS" \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--bindir=/bin \
+		--mandir=/usr/share/man
+	make all
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+e5dac94697d63fb90cc17e3e653fa56309e9652cc25b2e98a0e21f1ed41e38c48bc33b5fc746275a59e702d1644d3af88f3d82598b482f7309f4e68aab783286  ed-1.18.tar.lz
+"

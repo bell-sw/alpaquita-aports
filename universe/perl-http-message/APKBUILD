@@ -1,0 +1,36 @@
+pkgname=perl-http-message
+_pkgreal=HTTP-Message
+pkgver=6.36
+pkgrel=0
+pkgdesc="HTTP style message"
+url="https://metacpan.org/release/HTTP-Message"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-http-date perl-uri perl-io-html perl-encode-locale perl-lwp-mediatypes"
+checkdepends="perl-try-tiny"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/O/OA/OALDERS/HTTP-Message-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+prepare() {
+	default_prepare
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+}
+
+build() {
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+
+sha512sums="
+60b753395829027b52b78ce638e17650e17792c5b1427f34a0b4a71bacb127145da90a20f9e126b8dcd86ae8d555725e01f2baea76c52ddb8702455badf51055  HTTP-Message-6.36.tar.gz
+"

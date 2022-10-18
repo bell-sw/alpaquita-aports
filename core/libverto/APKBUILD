@@ -1,0 +1,54 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: Libverto provides an asynchronous programming interface
+# independent of any particular event loop and allows applications to attach
+# this interface to whatever event loop they select.
+
+pkgname=libverto
+pkgver=0.3.2
+pkgrel=0
+pkgdesc="Event loop abstraction"
+url="https://github.com/npmccallum/libverto"
+arch="all"
+license="MIT"
+makedepends="glib-dev libevent-dev libev-dev automake autoconf libtool"
+subpackages="$pkgname-dev $pkgname-libev $pkgname-libevent $pkgname-glib"
+source="$pkgname-$pkgver.tar.gz::https://github.com/npmccallum/libverto/archive/$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+	cd "$builddir"
+	autoreconf -i
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--with-libev \
+		--with-libevent
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+_mv_backend() {
+	pkgdesc="$1 driver for libverto"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libverto-$1.so.* "$subpkgdir"/usr/lib/
+}
+
+libev() { _mv_backend libev; }
+libevent() { _mv_backend libevent; }
+glib() { _mv_backend glib; }
+
+sha512sums="
+0fb2b1bb80b62a06f8c068ba23011a5ddf1f640e08f3273292f33d9e4b6d101a3cd34113a592b7f4789931e95f180aae8d81e6fca94d8dc39dbf42d075da91f3  libverto-0.3.2.tar.gz
+"

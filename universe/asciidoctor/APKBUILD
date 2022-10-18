@@ -1,0 +1,40 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=asciidoctor
+pkgver=2.0.17
+pkgrel=1
+pkgdesc="Converter for AsciiDoc to HTML5, DocBook 5 (or 4.5) and other formats"
+url="https://rubygems.org/gems/$pkgname"
+arch="noarch"
+license="MIT"
+options="!check"
+depends="ruby"
+source="https://rubygems.org/downloads/asciidoctor-$pkgver.gem"
+
+package() {
+	local gemdir="$(ruby -e 'puts Gem.default_dir')"
+
+	gem install \
+		--local \
+		--install-dir "$pkgdir"/$gemdir \
+		--ignore-dependencies \
+		--verbose \
+		--no-document \
+		"$srcdir"/$pkgname-$pkgver.gem
+
+	rm -rf "$pkgdir"/$gemdir/cache
+
+	cd "$pkgdir"
+	local i; for i in usr/lib/ruby/gems/*/bin/*; do
+		if [ -e "$i" ]; then
+			mkdir -p "$pkgdir"/usr/bin
+			ln -s /$i "$pkgdir"/usr/bin/
+		fi
+	done
+}
+
+sha512sums="
+41ebc833c7b8bded5704034c7fcf7d2f26643a24de24eda57db1a0ac94976e775bf0f093f46faaa99c5007c61af325aa5b02e5321159a88daac3397800adbd03  asciidoctor-2.0.17.gem
+"

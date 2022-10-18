@@ -1,0 +1,30 @@
+pkgname=py3-elementpath
+pkgver=2.5.2
+pkgrel=0
+pkgdesc="XPath 1.0/2.0 parsers and selectors for ElementTree and lxml"
+url="https://github.com/sissaschool/elementpath"
+arch="noarch"
+license="MIT"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest"
+source="$pkgname-$pkgver.tar.gz::https://github.com/sissaschool/elementpath/archive/refs/tags/v$pkgver.tar.gz"
+builddir="$srcdir/elementpath-$pkgver/"
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	# disabled tests fails on locale differences
+	pytest \
+		--deselect tests/test_xpath2_functions.py::XPath2FunctionsTest::test_compare_function \
+		--deselect tests/test_xpath30.py::XPath30FunctionsTest::test_compare_function
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+c425ae4166b0a31f8473efc1cdc2b3f768f9e7881a5e974f995e8b39433bccd6603cbc4f78bd428fe5551c823bf357a38379b72cade3cf96b380d42da1684544  py3-elementpath-2.5.2.tar.gz
+"

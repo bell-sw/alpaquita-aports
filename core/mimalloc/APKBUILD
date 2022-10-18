@@ -1,0 +1,67 @@
+# Maintainer: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+pkgname=mimalloc
+pkgver=1.7.3
+pkgrel=0
+pkgdesc="mimalloc is a general purpose allocator with excellent performance characteristics"
+url="https://github.com/microsoft/mimalloc"
+arch="all"
+license="MIT"
+makedepends_build="cmake"
+subpackages="$pkgname-dbg $pkgname-static $pkgname-dev $pkgname-global"
+source="$pkgname-$pkgver.tar.gz::https://github.com/microsoft/mimalloc/archive/refs/tags/v$pkgver.tar.gz
+	malloc.sh
+"
+builddir="$srcdir/$pkgname-$pkgver"
+
+build() {
+	cd "$builddir"
+
+	cmake . \
+		-DCMAKE_INSTALL_PREFIX="$pkgdir" \
+		-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
+
+	make
+}
+
+package() {
+	make install
+
+	mkdir -p "$pkgdir"/bin/
+	cat > "$pkgdir"/bin/mimalloc.sh << EOF
+#!/bin/sh
+
+LD_PRELOAD=/lib/libmimalloc.so.1.7
+export LD_PRELOAD
+exec "\$@"
+EOF
+	chmod 0755 "$pkgdir"/bin/mimalloc.sh
+}
+
+check() {
+	make test
+}
+
+dev() {
+	default_dev
+	replaces="mimalloc-secure-dev"
+
+	mkdir -p "$subpkgdir"/usr/share/
+	mv "$pkgdir"/share/mimalloc-* "$subpkgdir"/usr/share/
+	rm -rf "$pkgdir"/share/
+}
+
+global() {
+	install="$pkgname-global.post-install"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	provides="malloc-global=1"
+	provider_priority=30
+	alternative=1
+
+	install -D -m 755 "$srcdir"/malloc.sh "$subpkgdir"/etc/profile.d/mimalloc.sh
+	sed -i "s,@LIB_NAME@,libmimalloc.so.1.7,g" "$subpkgdir"/etc/profile.d/mimalloc.sh
+}
+
+sha512sums="
+e5a17b98d77a27d2a544869c2e0302a7e3bf77b5b494b2ee8ddc7af18bf9da152fea41702a8a17eb7e128238259fba6f96fa5bac549f5927453dc9a0bc06d013  mimalloc-1.7.3.tar.gz
+237d11c69c74402a78d0fb67914144653e5215170bb8047726d35d895b6edab603189d611b2b24cf783cc93fe5f6a25bae28f659d20d44054d182faeb07bbf7c  malloc.sh
+"

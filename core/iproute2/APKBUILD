@@ -1,0 +1,104 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: iproute2 is used for TCP/IP networking and traffic control in
+# the Linux kernel.
+
+pkgname=iproute2
+pkgver=5.17.0
+pkgrel=0
+pkgdesc="IP Routing Utilities"
+url="https://www.linuxfoundation.org/collaborate/workgroups/networking/iproute2"
+arch="all"
+license="GPL-2.0-or-later"
+install="$pkgname.post-install"
+depends="
+	$pkgname-minimal
+	$pkgname-tc
+	$pkgname-ss
+	"
+makedepends="
+	bash
+	bison
+	elfutils-dev
+	libax25-dev
+	libcap-dev
+	libmnl-dev
+	flex
+	iptables-dev
+	"
+subpackages="
+	$pkgname-doc
+	$pkgname-dev
+	$pkgname-bash-completion
+	$pkgname-minimal
+	$pkgname-tc
+	$pkgname-ss
+	$pkgname-rdma
+	"
+source="https://kernel.org/pub/linux/utils/net/iproute2/iproute2-$pkgver.tar.xz"
+options="!check"  # requires namespaces support and root
+
+# secfixes:
+#   5.1.0-r0:
+#     - CVE-2019-20795
+
+prepare() {
+	default_prepare
+
+	sed -i '/^TARGETS=/s: arpd : :' misc/Makefile
+	sed -i 's:/usr/local:/usr:' tc/m_ipt.c include/iptables.h
+	sed -i -e 's:=/share:=/usr/share:' \
+		-e 's:-Werror::' Makefile
+}
+
+build() {
+	make CCOPTS="-D_GNU_SOURCE $CFLAGS" V=1
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install
+
+	install -D -m644 include/libnetlink.h "$pkgdir"/usr/include/libnetlink.h
+	install -D -m644 lib/libnetlink.a "$pkgdir"/usr/lib/libnetlink.a
+}
+
+minimal() {
+	pkgdesc="IP Routing Utilities (/sbin/ip only)"
+	depends=""
+	replaces="$pkgname"  # for backward compatibility (Alpine <3.13)
+
+	amove usr/sbin/ip
+	amove etc
+}
+
+tc() {
+	pkgdesc="$pkgdesc (traffic control and XDP support)"
+	depends=""
+	replaces="$pkgname"  # for backward compatibility (Alpine <3.13)
+
+	amove usr/sbin/tc
+	amove usr/lib/tc
+}
+
+ss() {
+	pkgdesc="$pkgdesc (socket statistics tool)"
+	depends=""
+	replaces="$pkgname"  # for backward compatibility (Alpine <3.13)
+
+	amove usr/sbin/ss
+}
+
+rdma() {
+	pkgdesc="$pkgdesc (rdma utilities)"
+	depends=""
+
+	amove sbin/dcb
+	amove sbin/devlink
+	amove sbin/rdma
+	amove sbin/tipc
+	amove sbin/vdpa
+}
+
+sha512sums="
+fcffe96fb4819305ddf5c3764b100bd1d204069cf53a6bd776c2716144f574b4fc17963fc231a83ad253cce6a563814556eeb60b211ba9b0b87330186259b34d  iproute2-5.17.0.tar.xz
+"

@@ -1,0 +1,36 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=py3-markupsafe
+_pkgname=MarkupSafe
+pkgver=2.1.1
+pkgrel=0
+pkgdesc="Implements a XML/HTML/XHTML Markup safe string"
+url="https://github.com/mitsuhiko/markupsafe"
+arch="all"
+license="BSD-3-Clause"
+depends="python3"
+makedepends="python3-dev py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces="py-markupsafe" # Backwards compatibility
+provides="py-markupsafe=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+	find "$pkgdir" -name "*.c" -delete
+}
+
+sha512sums="
+1d9bf55614b4e0aeca726ebda7bab2829452212f03f2295efdd0340f3dd05eefc9733d6dd0e37f0d06a432ce00ed7d06b28c9e817fc25212675006577f468b3e  MarkupSafe-2.1.1.tar.gz
+"

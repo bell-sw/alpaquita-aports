@@ -1,0 +1,49 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: docbook-xsl helps to convert XML documents to different
+# output formats.
+
+pkgname=docbook-xsl
+pkgver=1.79.2
+pkgrel=4
+pkgdesc="stylesheets for DocBook XML transformations to various output formats"
+url="https://docbook.org/"
+arch="noarch"
+license="custom"
+depends="libxml2-utils libxslt docbook-xml"
+options="!check"
+install="$pkgname.post-install $pkgname.post-upgrade $pkgname.post-deinstall"
+source="https://github.com/docbook/xslt10-stylesheets/releases/download/release%2F$pkgver/docbook-xsl-$pkgver.tar.gz
+	765567_non-recursive_string_subst.patch
+	f6c5eefbca775e312afebf576a6990344a0b1b69.patch
+	"
+
+package() {
+	local _dest dir f
+	_dest="$pkgdir"/usr/share/xml/docbook/xsl-stylesheets-$pkgver
+
+	install -dm755 "$_dest"
+	install -m644 VERSION VERSION.xsl "$_dest"/
+
+	for dir in assembly common eclipse epub epub3 fo highlighting html \
+		htmlhelp javahelp lib manpages params profiling roundtrip \
+		template website xhtml xhtml-1_1 xhtml5; do
+
+		install -dm755 $_dest/$dir
+		for f in $dir/*.xml $dir/*.xsl $dir/*.dtd $dir/*.ent; do
+			[ -e "$f" ] || continue
+			install -m644 $f $_dest/$dir
+		done
+	done
+
+	install -dm755 "$pkgdir"/etc/xml
+
+	install -m644 -D COPYING \
+		"$pkgdir"/usr/share/licenses/$pkgname/COPYING
+}
+
+sha512sums="
+cd375e7a2339bcd9d24936b370c4371b351cab7c8a79044e785d0300dab75bed5a5c9b9076d4fba32d39b22535edfc6f449a7b1086139ad8bf54eab844b9434e  docbook-xsl-1.79.2.tar.gz
+3199de6b5a61ed25defa50a55fa3d138b60e1f5e4c2e3b9a14e169099189794adc3ac079fa3f62debc682f4840c6dadff40f8bd5a07fdba34fe1016ce885b9e2  765567_non-recursive_string_subst.patch
+ba7b6fef55673c4d6efd6f956cc82172f44476a87b5dc0a82348ab4f1b55e043503843f31c21ca74254724d77d28696c427bc64e59e8aafebb7961420ad5fd9f  f6c5eefbca775e312afebf576a6990344a0b1b69.patch
+"

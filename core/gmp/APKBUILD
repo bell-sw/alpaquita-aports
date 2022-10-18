@@ -1,0 +1,64 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: gmp allows you to apply high-level and low-level arithmetic
+# functions with precision limited only by the available memory.
+
+pkgname=gmp
+pkgver=6.2.1
+pkgrel=103
+pkgdesc="The GNU multiple precision arithmetic library"
+url="https://gmplib.org/"
+arch="all"
+license="LGPL-3.0-or-later OR GPL-2.0-or-later"
+makedepends="m4 texinfo libtool autoconf automake"
+subpackages="$pkgname-doc $pkgname-dev libgmpxx"
+source="https://gmplib.org/download/gmp/gmp-$pkgver.tar.xz
+	CVE-2021-43618.patch::https://gmplib.org/repo/gmp-6.2/raw-rev/561a9c25298e
+	"
+replaces="gmp5"
+
+# secfixes:
+#   6.2.1-r1:
+#     - CVE-2021-43618
+
+prepare() {
+	default_prepare
+	# force update to libtool with fixed cross-build support
+	autoreconf -vif
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--with-sysroot=$CBUILDROOT \
+		--prefix=/usr \
+		--infodir=/usr/share/info \
+		--mandir=/usr/share/man \
+		--localstatedir=/var/state/gmp \
+		--enable-cxx \
+		--with-pic
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+check() {
+	[ "$CBUILD" = "$CHOST" ] && make check
+}
+
+libgmpxx() {
+	pkgdesc="C++ support for gmp"
+	mkdir -p "$subpkgdir"/usr/lib/
+	mv "$pkgdir"/usr/lib/libgmpxx.so.* "$subpkgdir"/usr/lib/
+}
+
+doc() {
+	default_doc
+	replaces="gmp5-doc"
+}
+
+sha512sums="c99be0950a1d05a0297d65641dd35b75b74466f7bf03c9e8a99895a3b2f9a0856cd17887738fa51cf7499781b65c049769271cbcb77d057d2e9f1ec52e07dd84  gmp-6.2.1.tar.xz
+3956190d9c266feb62f8965c3cd32d0a9260f76ffb0d3e32211974bb53ddd5c6eaa657f7e00ba8fa7c914c0e1375155d25de6a81cdb9b03d6a5bbc16ac121447  CVE-2021-43618.patch"

@@ -1,0 +1,76 @@
+# Maintainer: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+pkgname=rpmalloc
+pkgver=1.4.3
+pkgrel=0
+pkgdesc="Lock free thread caching 16-byte aligned memory allocator implemented in C"
+url="https://github.com/mjansson/rpmalloc"
+arch="x86_64"
+license="MIT"
+makedepends_build="python3 samurai"
+subpackages="$pkgname-static $pkgname-global"
+source="$pkgname-$pkgver.tar.gz::https://github.com/mjansson/rpmalloc/archive/refs/tags/$pkgver.tar.gz
+	../mimalloc/malloc.sh
+	"
+builddir="$srcdir/$pkgname-$pkgver"
+
+build() {
+	cd "$builddir"
+
+	sed -i 's/env python/env python3/' configure.py
+
+	export CPPFLAGS="${CPPFLAGS/-Os/-O3}"
+	export CXXFLAGS="${CXXFLAGS/-Os/-O3}"
+	export CFLAGS="${CFLAGS/-Os/-O3}"
+
+	./configure.py --toolchain gcc --host linux --config release
+
+	ninja -v
+}
+
+package() {
+	cd "$builddir"
+
+	mkdir -p "$pkgdir"/lib
+
+	cp bin/linux/release/x86-64/librpmallocwrap.so "$pkgdir"/lib/
+
+	mkdir -p "$pkgdir"/bin/
+	cat > "$pkgdir"/bin/rpmalloc.sh << EOF
+#!/bin/sh
+
+LD_PRELOAD=/lib/librpmallocwrap.so
+export LD_PRELOAD
+exec "\$@"
+EOF
+	chmod 0755 "$pkgdir"/bin/rpmalloc.sh
+}
+
+check() {
+	cd "$builddir"/bin/linux/release/x86-64
+
+	./rpmallocwrap-test
+}
+
+static() {
+	default_static
+
+	mkdir -p "$subpkgdir"/lib
+
+	cp "$builddir"/lib/linux/release/x86-64/librpmallocwrap.a "$subpkgdir"/lib/
+}
+
+global() {
+	install="$pkgname-global.post-install"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	provides="malloc-global=1"
+	provider_priority=1
+	alternative=1
+
+	install -D -m 755 "$srcdir"/malloc.sh "$subpkgdir"/etc/profile.d/rpmalloc.sh
+	sed -i "s,@LIB_NAME@,librpmallocwrap.so,g" "$subpkgdir"/etc/profile.d/rpmalloc.sh
+}
+
+sha512sums="
+deb352ef91a9d76080109c2d4624d1eb33619a7fdc3de3dee5681333708fac49491731382e16210964f8949b679a8466e83352bb0d5dd3337ca8bffbb65c2693  rpmalloc-1.4.3.tar.gz
+237d11c69c74402a78d0fb67914144653e5215170bb8047726d35d895b6edab603189d611b2b24cf783cc93fe5f6a25bae28f659d20d44054d182faeb07bbf7c  malloc.sh
+"

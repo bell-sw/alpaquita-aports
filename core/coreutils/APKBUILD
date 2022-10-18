@@ -1,0 +1,67 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: coreutils provides GNU implementations of basic tools for
+# file, text, and shell manipulations
+
+pkgname=coreutils
+pkgver=9.1
+pkgrel=0
+pkgdesc="GNU core utilities"
+url="https://www.gnu.org/software/coreutils/"
+arch="all"
+license="GPL-3.0-or-later"
+makedepends="bash acl-dev attr-dev utmps-dev perl automake autoconf"
+subpackages="$pkgname-doc"
+install="$pkgname.post-deinstall"
+source="https://ftp.gnu.org/gnu/coreutils/coreutils-$pkgver.tar.xz
+	0001-Revert-tail-fix-detection-of-closed-stdout-on-macOS.patch
+	"
+options="!check"
+
+# secfixes:
+#   8.30-r0:
+#     - CVE-2017-18018
+
+build() {
+	CFLAGS="$CFLAGS -I/usr/include/utmps" LIBS="-lutmps -lskarnet -lrt" ./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--disable-nls \
+		--enable-no-install-program=hostname,su,kill,uptime \
+		--enable-single-binary=symlinks \
+		--with-packager="Alpaquita Linux" \
+		--with-packager-version="$pkgver-r$pkgrel" \
+		--with-packager-bug-reports="https://bell-sw.com/support/"
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	rm -rf "$pkgdir"/usr/lib/charset.alias
+	rmdir -p "$pkgdir"/usr/lib 2>/dev/null || true
+
+	install -d "$pkgdir"/usr/bin "$pkgdir"/usr/sbin
+	cd "$pkgdir"/usr/bin/
+
+	# chroot lives in /usr/sbin with busybox
+	rm "$pkgdir"/usr/bin/chroot
+	ln -s ../bin/coreutils "$pkgdir"/usr/sbin/chroot
+
+	# resolve conflict between shadow and coreutils for cmd:groups
+	rm "$pkgdir"/usr/bin/groups
+}
+
+# XXX - some gnulib tests broken, find a way to patch out gnulib tests
+check() {
+	make check
+}
+
+sha512sums="
+a6ee2c549140b189e8c1b35e119d4289ec27244ec0ed9da0ac55202f365a7e33778b1dc7c4e64d1669599ff81a8297fe4f5adbcc8a3a2f75c919a43cd4b9bdfa  coreutils-9.1.tar.xz
+9d1538d4929ebaf030a2a9bbcf238ae284281b4564050e9844db69fd8a890432067b6f2006c9beb6f50a12d020cf2dde128c0e66ca6387eb591fa0e54adaf3af  0001-Revert-tail-fix-detection-of-closed-stdout-on-macOS.patch
+"

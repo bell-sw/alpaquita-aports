@@ -1,0 +1,45 @@
+pkgname=xcb-util-image
+pkgver=0.4.0
+pkgrel=1
+pkgdesc="X C-language Binding - port of Xlib XImage and XShmImage"
+url="https://xcb.freedesktop.org/"
+arch="all"
+license="MIT"
+depends_dev="xcb-util-dev"
+makedepends="$depends_dev m4 util-macros"
+checkdepends="check-dev"
+replaces="xcb-util"
+subpackages="$pkgname-dev"
+source="https://xcb.freedesktop.org/dist/xcb-util-image-$pkgver.tar.gz
+	"
+
+prepare() {
+	default_prepare
+	update_config_guess
+	update_config_sub
+}
+
+build() {
+	export CFLAGS="$CFLAGS -std=gnu99"
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+2e580d205e4a054763146c70d735014c7e018322a43c76b07a306c091dca81b140cbbf6db41252e9204ff742f119b69e143b3fdc1fb13bd9d0b9e8e22eda2cd3  xcb-util-image-0.4.0.tar.gz
+"

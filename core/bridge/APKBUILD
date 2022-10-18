@@ -1,0 +1,28 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: bridge  is a set of scripts for network bridging and
+# managing bridge interfaces
+
+pkgname=bridge
+pkgver=1.5
+pkgrel=4
+pkgdesc="Network bridge interfaces configuration scripts"
+url="https://wiki.alpinelinux.org/wiki/Bridge"
+arch="noarch"
+license="GPL-2.0-or-later"
+source="bridge.pre-up"
+options="!check"
+
+builddir="$srcdir"
+
+package() {
+	cd "$builddir"
+	install -Dm755 "$srcdir"/bridge.pre-up \
+		"$pkgdir"/etc/network/if-pre-up.d/bridge
+	install -d "$pkgdir"/etc/network/if-post-down.d
+	ln -s ../if-pre-up.d/bridge "$pkgdir"/etc/network/if-post-down.d/bridge
+}
+
+sha512sums="
+b7ee7193b15d44f4055d51ff83a26cdbf4977f8c319473db923a9f4c175ca883a31408114cd19f479eacb980e8850aa29b5dfbe0dd17782c510a0f2bf9b5b244  bridge.pre-up
+"

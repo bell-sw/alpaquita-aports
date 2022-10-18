@@ -1,0 +1,37 @@
+pkgname=catch2
+pkgver=2.13.9
+pkgrel=0
+arch="all"
+url="https://github.com/catchorg/Catch2"
+pkgdesc="A modern, C++-native, header-only, test framework for unit-tests"
+license="BSL-1.0"
+makedepends="
+	cmake
+	python3
+	"
+source="https://github.com/catchorg/Catch2/archive/v$pkgver/catch2-v$pkgver.tar.gz"
+subpackages="$pkgname-doc"
+builddir="$srcdir/Catch2-$pkgver"
+
+build() {
+	cmake -B build \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_SHARED_LIBS=TRUE
+	cmake --build build
+}
+
+check() {
+	cd build
+	# ApprovalTests is broken https://github.com/catchorg/Catch2/issues/1780
+	CTEST_OUTPUT_ON_FAILURE=TRUE ctest -E "ApprovalTests"
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+4a254a20a1d916c14ffa072daa3d371d9ad4b5eb4d3c9257301c7c2ae9171116701cca2438a66ab731604c5b7a9cf4336197a31e32b8ca9bcf93db64bbba344b  catch2-v2.13.9.tar.gz
+"

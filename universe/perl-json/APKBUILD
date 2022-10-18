@@ -1,0 +1,35 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=perl-json
+_pkgreal=JSON
+pkgver=4.05
+pkgrel=0
+pkgdesc="Perl module implementing a JSON encoder/decoder"
+url="https://metacpan.org/release/JSON"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/I/IS/ISHIGAKI/JSON-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" -name perllocal.pod -delete
+	find "$pkgdir" -name .packlist -delete
+}
+
+sha512sums="
+2655d78baee5d986779f66ab0bb93e9943dcd9eefb06033b76130282e64104c8eb5b702c0edeb69fe3c2b6edb2125b3bf338b7923c50bf702a8c35f09a7bde65  JSON-4.05.tar.gz
+"

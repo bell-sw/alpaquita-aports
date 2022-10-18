@@ -1,0 +1,33 @@
+pkgname=bridge-utils
+pkgver=1.7.1
+pkgrel=0
+pkgdesc="Tools for configuring the Linux kernel 802.1d Ethernet Bridge"
+url="https://wiki.linuxfoundation.org/networking/bridge/"
+arch="all"
+license="GPL-2.0-or-later"
+subpackages="$pkgname-doc"
+makedepends="autoconf linux-headers"
+source="https://git.kernel.org/pub/scm/network/bridge/bridge-utils.git/snapshot/bridge-utils-$pkgver.tar.gz"
+prepare() {
+	default_prepare
+	autoconf
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		--libdir=/usr/lib \
+		--includedir=/usr/include
+	make
+}
+
+package() {
+	make install DESTDIR="$pkgdir"
+}
+
+sha512sums="
+18aed40d36a0c3f7b461f7865a60b35c647e1ff9b0a854e857c8a4e3772163c49c6f99c9130443bedb382abbdced7dcfd4e812d21645b78e91c06c98e5e89305  bridge-utils-1.7.1.tar.gz
+"

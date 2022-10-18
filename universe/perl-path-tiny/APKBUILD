@@ -1,0 +1,34 @@
+pkgname=perl-path-tiny
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=Path-Tiny
+pkgver=0.122
+pkgrel=0
+pkgdesc="File path utility"
+url="https://metacpan.org/release/Path-Tiny/"
+arch="noarch"
+license="Apache-2.0"
+depends="perl"
+checkdepends="perl-test-failwarnings perl-test-mockrandom"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/D/DA/DAGOLDEN/Path-Tiny-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+cca49e56208f767469d37a081817b386eaf2ce2164cc97fd652c2faccc99f483805425e1bf346466871c156f9fe36f5a3f65e96c5b219af33e3e2016144f2c6d  Path-Tiny-0.122.tar.gz
+"

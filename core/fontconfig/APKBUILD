@@ -1,0 +1,57 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: fontconfig is a library that provides systme font
+# configiruations to other programs.
+
+pkgname=fontconfig
+pkgver=2.14.0
+pkgrel=0
+pkgdesc="Font configuration utility"
+url="https://www.freedesktop.org/wiki/Software/fontconfig"
+arch="all"
+license="MIT"
+makedepends="freetype-dev expat-dev python3-dev gperf util-linux-dev docbook2x"
+checkdepends="bash json-c-dev uuidgen"
+triggers="$pkgname.trigger=/usr/share/fonts/*"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
+source="https://www.freedesktop.org/software/fontconfig/release/fontconfig-$pkgver.tar.gz
+	fix-arithmetic.patch
+	"
+
+# FIXME: the failed test: Basic functionality with the bind-mounted cache dir
+case "$CLIBC" in
+glibc) options="$options !check"
+esac
+
+# For generation of man pages
+export DOC2MAN=docbook2x-man
+
+build() {
+	# regenerate hash functions
+	rm -f src/fcobjshash.h
+
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--localstatedir=/var \
+		--enable-static \
+		--enable-docs \
+		--disable-nls
+	rm -f src/fcobjhash.h
+	make
+}
+
+check() {
+	make -j1 check || (cat test/test-suite.log; false)
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+0ba2fc31057d7b2c6521cb850b413f337b0ae39b50cf0ed8d5360ec01e880e1f32489a0d31ea380770c238e217485cebbbb8bd92d42118bcc928aa7d08f7e651  fontconfig-2.14.0.tar.gz
+9e0a010c8075085dedfe6bda1b26d8a7c693091e3ba5e823da8dd79468116c7b6e4a94b1173649999075cf9532bfc81adc97d0182bbff7635e9699bc44d6aa1c  fix-arithmetic.patch
+"

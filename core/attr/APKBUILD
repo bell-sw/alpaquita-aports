@@ -1,0 +1,62 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: These utilities enables work with arbitrary metadata stored with a file.
+# It is possible to search, list, remove, or set an attribute to a value.
+
+pkgname=attr
+pkgver=2.5.1
+pkgrel=1
+pkgdesc="Filesystem extended attributes utility"
+options="checkroot !check" # attr.test fails with no error message
+url="https://savannah.nongnu.org/projects/attr"
+arch="all"
+license="GPL-2.0-or-later"
+checkdepends="perl"
+subpackages="$pkgname-dev $pkgname-doc lib$pkgname:libs"
+source="https://download.savannah.nongnu.org/releases/attr/attr-$pkgver.tar.gz"
+
+build() {
+	OPTIMIZER="$CFLAGS" \
+	DEBUG=-DNDEBUG \
+	INSTALL_USER=root \
+	INSTALL_GROUP=root \
+	./configure \
+		--build="$CBUILD" \
+		--host="$CHOST" \
+		--prefix=/ \
+		--exec-prefix=/ \
+		--sbindir=/bin \
+		--bindir=/usr/bin \
+		--libdir=/lib \
+		--libexecdir=/usr/lib \
+		--includedir=/usr/include \
+		--mandir=/usr/share/man \
+		--docdir=/usr/share/doc/attr \
+		--datadir=/usr/share \
+		--disable-nls \
+		--disable-static
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	mkdir -p "$pkgdir"/usr/lib
+	mv "$pkgdir"/lib/pkgconfig "$pkgdir"/usr/lib
+}
+
+dev() {
+	license="LGPL-2.1-or-later"
+	default_dev
+}
+
+libs() {
+	license="LGPL-2.1-or-later"
+	default_libs
+}
+
+sha512sums="8b4c043d61f8f3e0cd098e701181069f51117b85fd6ba18bfe9af77d894ea671232377d4793ffc822e9259ceee6ac71d75732eb93b2830c6cb5d0d918ba2d21b  attr-2.5.1.tar.gz"

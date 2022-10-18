@@ -1,0 +1,302 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME is a build of OpenJDK verified by the OpenJDK
+# Technology Compatibility Kit test suite to be compliant with the Java SE
+# specifications.
+
+_java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_java_ver=11.0.16.1+1
+_java_rel_date=2022-08-12
+_java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 11 Lite"
+
+pkgname=${_java_pkg_name}11-lite
+pkgver=${_java_ver/+/_p}
+pkgrel=0
+pkgdesc="$_java_name"
+url="$VENDOR_URL"
+license="GPL-2.0 WITH Classpath-Exception-2.0"
+arch="x86_64"
+options="!strip !tracedeps ldpath-recursive"
+depends="$pkgname-jdk=$pkgver-r$pkgrel"
+makedepends="
+	alsa-lib-dev
+	automake
+	autoconf
+	bash
+	ca-certificates
+	coreutils
+	cups-dev
+	file
+	findutils
+	fontconfig-dev
+	freetype-dev
+	gawk
+	gettext
+	grep
+	libx11-dev
+	libxext-dev
+	libxi-dev
+	libxrandr-dev
+	libxrender-dev
+	libxt-dev
+	libxtst-dev
+	linux-headers
+	sed
+	zip
+	zlib-dev
+	${_java_pkg_name}11-bootstrap>=11.0.15
+	"
+subpackages="
+	$pkgname-dbg:_dbg
+	$pkgname-jmods:_jmods:noarch
+	$pkgname-demos:_demos:noarch
+	$pkgname-src:_src:noarch
+	$pkgname-jre-doc:_jre_doc:noarch
+	$pkgname-doc:_doc:noarch
+	$pkgname-jre-client:_jre_client
+	$pkgname-jre-minimal:_jre_minimal
+	$pkgname-jre:_jre
+	$pkgname-jdk:_jdk
+	$pkgname-jdk-all:_jdk_all:noarch
+	"
+
+provides="openjdk11-lite=$pkgver-r$pkgrel"
+
+source="
+	${VENDOR_URL/\/\//\/\/download.}java/$_java_ver/bellsoft-jdk$_java_ver-src.tar.gz
+	readme.txt.template
+	jdk11u_lto.patch
+	jni_md.patch
+	g1_lto.patch
+	linktime_gc.patch
+	8262185_proto.patch
+	001_8071913.patch
+	002_6490394.patch
+	003_8212657.patch
+	dynamically-increase-size-of-cpuset-mask.patch
+	change-process-launch-to-posix-spawn.patch
+	"
+
+
+
+srcdir="$srcdir/$pkgname"
+builddir="$srcdir"
+sonameprefix="$pkgname:"
+
+_java_home=/usr/lib/jvm/"$pkgname"
+_images_dir="$builddir/build/linux-$CARCH-normal-*-release/images"
+ldpath="$_java_home/lib"
+
+_jre_tools="
+	java
+	jjs
+	keytool
+	pack200
+	rmid
+	rmiregistry
+	unpack200
+	"
+
+prepare() {
+	default_prepare
+
+	update_config_sub
+	update_config_guess
+}
+
+build() {
+
+	if [ -z "$JOBS" ]; then
+		export JOBS=$(printf '%s\n' "$MAKEFLAGS" | sed -n -e 's/.*-j\([0-9]\+\).*/\1/p')
+	fi
+
+	local _cflags="-fplugin=annobin -fstack-protector-strong -D_FORTIFY_SOURCE=2"
+
+	CFLAGS='' CXXFLAGS='' LDFLAGS=''
+	bash ./configure \
+		--with-jvm-variants='server,client,minimal' \
+		--with-jvm-features=zgc,link-time-opt \
+		--with-version-string=${_java_ver%+*} \
+		--with-version-build=${_java_ver#*+} \
+		--with-version-date=${_java_rel_date} \
+		--with-version-opt=LTS \
+		--with-vendor-name="$VENDOR_NAME" \
+		--with-vendor-url="$VENDOR_URL" \
+		--with-vendor-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-vendor-vm-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-extra-cflags="$_cflags -fno-asynchronous-unwind-tables" \
+		--with-extra-cxxflags="$_cflags -fno-asynchronous-unwind-tables" \
+		--with-extra-ldflags=-fno-asynchronous-unwind-tables \
+		--disable-warnings-as-errors \
+		--enable-linktime-gc \
+		--with-boot-jdk=/usr/lib/jvm/${_java_pkg_name}11
+	MAKEFLAGS='' make product-bundles
+}
+
+check() {
+	_jdkdir="$builddir"/build/linux-*-release/images/jdk
+
+	$_jdkdir/bin/javac "$startdir"/HelloJava.java -d "$builddir"
+	$_jdkdir/bin/java -cp "$builddir" HelloJava
+}
+
+package() {
+	mkdir srcjdk
+	tar --strip-components=1 -xf build/linux-*-release/bundles/*_bin.tar.gz -C srcjdk
+
+	local _modules=$(srcjdk/bin/java --list-modules | sed "s/@${_java_ver%+*}//" | tr '\n' ',')
+	srcjdk/bin/jlink \
+		--compress 2 \
+		--module-path srcjdk/jmods \
+		--add-modules $_modules \
+		--output "$pkgdir/$_java_home"
+
+	# jlink doesn't copy some directories though it should
+	for f in jmods man; do
+		mv srcjdk/$f "$pkgdir/$_java_home"
+	done
+	mv srcjdk/lib/src.zip "$pkgdir/$_java_home"/lib
+}
+
+_jre_client() {
+	pkgdesc="$_java_name (JRE Client VM)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	install="$pkgname-jre-client.post-install $pkgname-jre-client.post-deinstall"
+	provides="openjdk11-lite-jre-client=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/client" "$subpkgdir/$_java_home/lib"
+}
+
+_jre_minimal() {
+	pkgdesc="$_java_name (JRE Minimal VM)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	install="$pkgname-jre-minimal.post-install $pkgname-jre-minimal.post-deinstall"
+	provides="openjdk11-lite-jre-minimal=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/minimal" "$subpkgdir/$_java_home/lib"
+}
+
+_jre() {
+	pkgdesc="$_java_name (JRE with default Server VM)"
+	depends="java-common fontconfig ttf-dejavu-core freetype"
+	provides="
+		java-jre
+		java11-jre
+		openjdk11-lite-jre=$pkgver-r$pkgrel
+	"
+	provider_priority=1
+	mkdir -p "$subpkgdir/$_java_home"
+
+	rm -rf "$pkgdir/$_java_home/lib/server/*.jsa"
+	mv "$pkgdir/$_java_home/lib" "$subpkgdir/$_java_home/"
+
+	mkdir -p "$subpkgdir/$_java_home/bin"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/bin/$f" "$subpkgdir/$_java_home/bin/$f"
+	done
+
+	for f in legal conf release; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/$f"
+	done
+
+	cp "$subpkgdir/$_java_home/legal/java.base/LICENSE" "$subpkgdir/$_java_home/"
+	VENDOR_NAME="$VENDOR_NAME" VENDOR_URL="$VENDOR_URL" VENDOR_JAVA_NAME="$VENDOR_JAVA_NAME" \
+		envsubst < readme.txt.template > "$subpkgdir/$_java_home/readme.txt"
+
+	ln -sf . "$subpkgdir/$_java_home/jre"
+	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-11-${pkgname/11/}
+}
+
+_jre_doc() {
+	pkgdesc="$_java_name (JRE Documentation)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="openjdk11-lite-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/man/man1"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/man/man1/$f".* "$subpkgdir/$_java_home/man/man1/"
+	done
+}
+
+_jdk() {
+	pkgdesc="$_java_name (JDK)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="
+		java-jdk
+		java11-jdk
+		openjdk11-lite-jdk=$pkgver-r$pkgrel
+	"
+	provider_priority=1
+	mkdir -p "$subpkgdir/$_java_home"
+	for f in bin include; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+}
+
+_jmods() {
+	pkgdesc="$_java_name (Java Modules)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk11-lite-jmods=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/jmods" "$subpkgdir/$_java_home/"
+}
+
+_doc() {
+	pkgdesc="$_java_name (Documentation)"
+	depends="$pkgname-jre-doc=$pkgver-r$pkgrel"
+	provides="openjdk11-lite-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/man" "$subpkgdir/$_java_home/"
+}
+
+_demos() {
+	pkgdesc="$_java_name (Demos)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk11-lite-demos=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	tar --strip-components=1 -xf "$builddir"/build/linux-*-release/bundles/*_bin-tests-demos.tar.gz -C "$subpkgdir/$_java_home"
+}
+
+_src() {
+	pkgdesc="$_java_name (Sources)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk11-lite-src=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/src.zip" "$subpkgdir/$_java_home/lib/"
+}
+
+_dbg() {
+	pkgdesc="$_java_name (Debug Info)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk11-lite-dbg=$pkgver-r$pkgrel"
+
+	local debugdir="$subpkgdir/usr/lib/debug"
+	mkdir -p "$debugdir/$_java_home"
+	tar --strip-components=1 -xf "$builddir"/build/linux-*-release/bundles/*_bin-symbols.tar.gz -C "$debugdir/$_java_home"
+}
+
+_jdk_all() {
+	pkgdesc="$_java_name (JDK all)"
+	depends="binutils $pkgname-jre-client=$pkgver-r$pkgrel $pkgname-jre-minimal=$pkgver-r$pkgrel $pkgname-jdk=$pkgver-r$pkgrel $pkgname-jmods=$pkgver-r$pkgrel"
+	provides="openjdk11-jdk-all=$pkgver-$pkgrel"
+	mkdir -p "$subpkgdir"/usr/lib/jvm/"$pkgname"
+}
+
+sha512sums="
+6135bc224dfce65663c230afc20de6df3eef0d1ffef9ff96c81aab6023e4f54e290d393db0a441311a56b3d6cd33ad38fe3b284f9aa21ee7fd409500f9311abe  bellsoft-jdk11.0.16.1+1-src.tar.gz
+38edd959b1e1880c1b2663c27ec31708538a43e75889209530209c0328e52ddc8eeb92ebe03e2b51b5440c41354316e55897d0d21d04ceff0b488a97242de5d4  readme.txt.template
+307f212e9fe6d09f20a56153e2c6f9f890ad8cc02d2d14b5cdeb8e70ff883e4cbcbfd759f1f63e0bdf471fbcfbe663de8907316626b572bd076779d5a6a95394  jdk11u_lto.patch
+aa0060b7dd37dfb2b595d011237f5f106d0c8ceffa10da7a331e5d3b4dc75b71e27b6a6acc2821d52ffc64e58581cabc04b57291707eb80d47509286d3559c14  jni_md.patch
+a3c395cbf06c01217f61bbd770de5dc6d6dcbb6680d377df8002f2ce9b0d9872e04d438f51d152326081116556625223588440f3f7265ec1927a2dc062a253ab  g1_lto.patch
+5fc42e38c6c3785deee2edf57ddc0340ee407da47c1e5ad17e2c613476614c4943a66ec4c15313a2f59e0b6bab716c91b65e323719846eb4447f0d04f15aaf48  linktime_gc.patch
+32d83f17c43e159bfa89e1061624a7764763a8ec65e88d906399d2e8950ffba959e81d82a0644561fae4a86261b974a8190d3d2d2e038a0a1cf25d8250014676  8262185_proto.patch
+3c5514fb7a765d0fd311444b24a5fa4b0765ce89ec6bdb4fad7c8357ad708cfd3dc665c75ab72dacf6a9d164e1be5d055aeec8e8ae760c83d879a2e5e07b96ba  001_8071913.patch
+55d2c722f448b2d13b8077e0217b9fc85a265493e825601433233d5bea6bd6a638a7a05e74cf2a13600c17494c4ddc34b6c6fbf26df1e88cb28424a29d3a270c  002_6490394.patch
+dd53299a735f89662d00fdbbdfaeb67f7b4b2c8b776cd1ea072a44ff8fae0cceb2a4aba0dcec26eba2792944ea13e287dff526e5f01a800021139dae78fd6ed6  003_8212657.patch
+bd0da3e1d79abcb277250426f25ba5c224dd9fc1a36935f9cd7e564118078322ae45fb286fa7451017fa48b5531ead670845a74cdfd39325808efa541ba956ae  dynamically-increase-size-of-cpuset-mask.patch
+b44e957eada4a2a48852622639a26348226f874b475cb529cb4d02de8cbf703b3ebbd897a58eb299efae7b4f3f7d10648ab2fcdbd9db2053e9777ceb0bf1f21d  change-process-launch-to-posix-spawn.patch
+"

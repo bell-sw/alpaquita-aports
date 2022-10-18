@@ -1,0 +1,36 @@
+From 5f3ca9bc3a17d279df67c0869c1d2ab8315d73b8 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Wed, 20 Apr 2022 15:18:17 +0000
+Subject: [PATCH] mock-variables.c: fix gcc warning
+
+$ make test
+
+    ...
+    mock-variables.c: In function 'mock_sv_attrs_match':
+    mock-variables.c:448:23: error: conversion from 'long unsigned int' to 'UINT32'
+        {aka 'unsigned int'} changes value from '18446744073709551551' to '4294967231' [-Werror=overflow]
+      448 |         UINT32 mask = ~EFI_VARIABLE_APPEND_WRITE;
+          |                       ^
+    cc1: all warnings being treated as errors
+
+Signed-off-by: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+---
+ mock-variables.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mock-variables.c b/mock-variables.c
+index e9bce54..0304454 100644
+--- a/mock-variables.c
++++ b/mock-variables.c
+@@ -445,7 +445,7 @@ free_var(struct mock_variable *var)
+ static bool
+ mock_sv_attrs_match(UINT32 old, UINT32 new)
+ {
+-	UINT32 mask = ~EFI_VARIABLE_APPEND_WRITE;
++	UINT32 mask = ~((UINT32)EFI_VARIABLE_APPEND_WRITE);
+ 
+ 	return (old & mask) == (new & mask);
+ }
+-- 
+2.25.1
+

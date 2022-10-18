@@ -1,0 +1,84 @@
+From f1321dd1e74fc8d7141716f65882f4aea8de5085 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Wed, 7 Sep 2022 15:59:52 +0300
+Subject: [PATCH] clang build and install fixes
+
+Fix:
+* include and lib dirs
+* destdir
+* using $ in Makefile
+* test parsing notes with vendor info.
+---
+ clang-plugin/Makefile.in | 14 +++++++++-----
+ llvm-plugin/Makefile.in  |  6 +++---
+ 2 files changed, 12 insertions(+), 8 deletions(-)
+
+diff --git a/clang-plugin/Makefile.in b/clang-plugin/Makefile.in
+index 5e4dc24..c175261 100644
+--- a/clang-plugin/Makefile.in
++++ b/clang-plugin/Makefile.in
+@@ -19,11 +19,13 @@ PLUGIN_OPTIONS = \
+   -Wl,--build-id=md5 \
+   -Wl,-z,now
+ 
+-INCDIR = @srcdir@/..
++INCDIR := @srcdir@/.. -I$(shell llvm-config --includedir)
+ 
+-CLANG_LIBS = -lLLVM
++LLVM_LIB_DIR := $(shell llvm-config --libdir)
+ 
+-PLUGIN_INSTALL_DIR = `clang --print-search-dirs | gawk -e'BEGIN { FS = ":" } /libraries/ { print gensub(" =","",1,$2) } END { }'`
++CLANG_LIBS := $(shell llvm-config --libs)
++
++PLUGIN_INSTALL_DIR := `clang --print-search-dirs | gawk -e'BEGIN { FS = ":" } /libraries/ { print gensub(" =","",1,$$2) } END { }'`
+ 
+ PLUGIN_NAME = annobin-for-clang.so
+ 
+@@ -33,7 +35,9 @@ $(PLUGIN_NAME): annobin.cpp
+ 	clang++ $(CLANG_TARGET_OPTIONS) $(LLVM_OPTIONS) $(PLUGIN_OPTIONS) -I$(INCDIR) $(CLANG_LIBS) $< -o $@
+ 
+ install: $(PLUGIN_NAME)
+-	install -Dpm0755 -t ${PLUGIN_INSTALL_DIR} $<
++	install -Dpm0755 -t $(DESTDIR)${PLUGIN_INSTALL_DIR} $<
++	mkdir -p $(DESTDIR)$(LLVM_LIB_DIR)
++	ln -s ${PLUGIN_INSTALL_DIR}/$< $(DESTDIR)$(LLVM_LIB_DIR)/annobin
+ 
+ clean:
+ 	rm -f $(PLUGIN_NAME) clang-plugin-test.out hello.o
+@@ -64,7 +68,7 @@ check: @srcdir@/hello.c
+ 	$(CLANG) -fplugin=$(PLUGIN) $(PLUGIN_TEST_OPTIONS) -c @srcdir@/hello.c
+ 	$(READELF) --wide --notes hello.o > clang-plugin-test.out
+ 	@ grep --silent -e "annobin built by clang version" clang-plugin-test.out
+-	@ grep --silent -e "running on clang version" clang-plugin-test.out
++	@ grep --silent -e "running on.*clang version" clang-plugin-test.out
+ 	@ grep --silent -e "sanitize_cfi" clang-plugin-test.out
+ 	@ grep --silent -e "SpecLoadHarden" clang-plugin-test.out
+ 	@ echo "PASS Clang plugin test"
+diff --git a/llvm-plugin/Makefile.in b/llvm-plugin/Makefile.in
+index 1148a1c..0a81cde 100644
+--- a/llvm-plugin/Makefile.in
++++ b/llvm-plugin/Makefile.in
+@@ -19,9 +19,9 @@ PLUGIN_OPTIONS = \
+   -Wl,--build-id=md5 \
+   -Wl,-z,now
+ 
+-INCDIR = @srcdir@/..
++INCDIR := @srcdir@/.. -I$(shell llvm-config --includedir)
+ 
+-PLUGIN_INSTALL_DIR = `clang --print-search-dirs | gawk -e'BEGIN { FS = ":" } /libraries/ { print gensub(" =","",1,$2) } END { }'`
++PLUGIN_INSTALL_DIR := `clang --print-search-dirs | gawk -e'BEGIN { FS = ":" } /libraries/ { print gensub(" =","",1,$$2) } END { }'`
+ 
+ PLUGIN_NAME = annobin-for-llvm.so
+ 
+@@ -31,7 +31,7 @@ $(PLUGIN_NAME): annobin.cpp
+ 	clang++ $(CLANG_TARGET_OPTIONS) $(LLVM_OPTIONS) $(PLUGIN_OPTIONS) -I$(INCDIR) $< -o $@
+ 
+ install: $(PLUGIN_NAME)
+-	install -Dpm0755 -t ${PLUGIN_INSTALL_DIR} $<
++	install -Dpm0755 -t $(DESTDIR)${PLUGIN_INSTALL_DIR} $<
+ 
+ clean:
+ 	rm -f $(PLUGIN_NAME) hello.o llvm-plugin-test.out
+-- 
+2.25.1
+

@@ -1,0 +1,45 @@
+pkgname=gradle
+pkgver=7.4.2
+pkgrel=1
+pkgdesc="Build tool with a focus on build automation and support for multi-language development"
+url="https://gradle.org/"
+arch="noarch !mips64 !riscv64"
+options="!check"
+license="Apache-2.0"
+depends="java-jdk"
+source="https://services.gradle.org/distributions/gradle-$pkgver-bin.zip"
+
+# secfixes:
+#   7.4.2-r0:
+#     - CWE-829
+#   7.2-r0:
+#     - CVE-2021-32751
+#   6.8.3-r0:
+#     - CVE-2020-11979
+
+package() {
+	local gradlehome="/usr/share/java/$pkgname"
+	local destdir="$pkgdir/$gradlehome"
+
+	install -dm755 "$destdir"/bin
+	rm bin/*.bat
+	install -m755 bin/* "$destdir"/bin
+
+	install -dm755 "$pkgdir"/usr/bin
+	ln -sf $gradlehome/bin/gradle "$pkgdir"/usr/bin/gradle
+
+	install -dm755 "$destdir"/lib
+	install -m644 lib/*.jar "$destdir"/lib
+
+	install -dm755 "$destdir"/lib/plugins
+	install -m644 lib/plugins/*.jar "$destdir"/lib/plugins
+
+	# NOTICE file should be redistributed for derivative works
+	local file; for file in LICENSE NOTICE; do
+		install -m644 -D $file "$pkgdir"/usr/share/licenses/$pkgname/$file
+	done
+}
+
+sha512sums="
+47803a7139e779f97eeb87f35f5980eb57040535861f746bf9efeffa7d1dd98ae3b3296d1d180444e21eadcdbeac748dc493ae9a2cff552a5629455bbbaa9074  gradle-7.4.2-bin.zip
+"

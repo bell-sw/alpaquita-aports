@@ -1,0 +1,138 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: ifupdown-ng enables network management and is a replacement for 
+# ifupdown package.
+
+pkgname=ifupdown-ng
+pkgver=0.12.1
+pkgrel=0
+pkgdesc="network configuration tools"
+url="https://github.com/ifupdown-ng/ifupdown-ng"
+arch="all"
+license="ISC"
+checkdepends="kyua atf"
+makedepends="scdoc"
+case "$CLIBC" in
+glibc) makedepends="$makedepends libbsd-dev" ;;
+esac
+install=""
+subpackages="
+	$pkgname-doc
+	$pkgname-iproute2
+	$pkgname-ppp
+	$pkgname-wireguard
+	$pkgname-wireguard-quick:wgquick
+	$pkgname-ethtool
+	$pkgname-batman
+	$pkgname-wifi
+"
+source="
+	https://distfiles.dereferenced.org/ifupdown-ng/ifupdown-ng-$pkgver.tar.xz
+	glibc:0001-use-libbsd-for-glibc.patch
+	"
+builddir="$srcdir/ifupdown-ng-$pkgver"
+provides="ifupdown-any"
+provider_priority=900
+
+# We conflict with the vlan package because we provide our own
+# vlan support with the link executor.
+depends="!vlan"
+
+# We only install the core executors right now.  The other executors are
+# still being ported to run under ifupdown-ng natively, and so we will
+# use the ifupdown scripts for now for those cases.  However, it is nice
+# to make the automatic dependency resolution work, and ifupdown-ng
+# provides some stubs to enable that.
+_executor_stubs="bridge bond"
+
+# These are optional executors which do not conflict with what we are
+# presently shipping.  These executors require iproute2.
+_executor_iproute2="vrf gre vxlan mpls"
+
+# These are all optional executors we plan to use.
+_executor_opt="ppp wireguard wireguard-quick ethtool batman wifi $_executor_iproute2"
+
+build() {
+	make
+	make docs
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" EXECUTOR_SCRIPTS_OPT="$_executor_opt" EXECUTOR_SCRIPTS_STUB="$_executor_stubs" install install_docs
+}
+
+iproute2() {
+	pkgdesc="ifupdown-ng integration for iproute2"
+	depends="iproute2-minimal"
+	install_if="$pkgname $depends"
+
+	for exec in $_executor_iproute2; do
+		amove usr/libexec/ifupdown-ng/$exec
+	done
+}
+
+ppp() {
+	pkgdesc="ifupdown-ng integration for ppp"
+	depends="ppp-daemon"
+	install_if="$pkgname $depends"
+
+	amove usr/libexec/ifupdown-ng/ppp
+}
+
+wireguard() {
+	pkgdesc="ifupdown-ng integration for wireguard"
+	depends="wireguard-tools-wg"
+	install_if="$pkgname $depends"
+
+	amove usr/libexec/ifupdown-ng/wireguard
+}
+
+wgquick() {
+	pkgdesc="ifupdown-ng integration for wireguard wg-quick"
+	depends="wireguard-tools-wg-quick"
+	install_if="$pkgname $depends"
+
+	amove usr/libexec/ifupdown-ng/wireguard-quick
+}
+
+ethtool() {
+	pkgdesc="ifupdown-ng integration for ethtool"
+	depends="ethtool"
+	install_if="$pkgname $depends"
+
+	amove usr/libexec/ifupdown-ng/ethtool
+}
+
+batman() {
+	pkgdesc="ifupdown-ng integration for B.A.T.M.A.N. advanced"
+	depends="batctl"
+	install_if="$pkgname $depends"
+
+	amove usr/libexec/ifupdown-ng/batman
+}
+
+wifi() {
+	pkgdesc="ifupdown-ng integration for wifi"
+	depends="wpa_supplicant"
+	install_if="$pkgname $depends"
+
+	amove usr/libexec/ifupdown-ng/wifi
+}
+
+openrc() {
+	pkgdesc="ifupdown-ng openrc init scripts"
+	install_if="$pkgname openrc"
+	replaces="openrc"
+
+	install -D -m755 "$builddir"/dist/openrc/networking.initd "$subpkgdir"/etc/init.d/networking
+	install -D -m644 "$builddir"/dist/openrc/networking.confd "$subpkgdir"/etc/conf.d/networking
+}
+
+sha512sums="
+c2c1e27fbd53eeb4150e544a893352f13845b491850e982a5880160c3be03b628794f7989c802ff823ac3e8c6c34dc4ab97c0abcefdda85f06fcd64ced8ac60c  ifupdown-ng-0.12.1.tar.xz
+9929cd87b26251efb4fb387d2cd9a938985b5a35a6733c6734833b3a3ed60543f6474b7e9cfd9442d4e47ce6a388673b3538dea35903e3e5f83a9ed190a1cbfb  0001-use-libbsd-for-glibc.patch
+"

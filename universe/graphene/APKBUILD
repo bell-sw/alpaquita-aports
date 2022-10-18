@@ -1,0 +1,43 @@
+pkgname=graphene
+pkgver=1.10.8
+pkgrel=0
+pkgdesc="A thin layer of graphic data types"
+url="http://ebassi.github.io/graphene/"
+arch="all"
+license="MIT"
+makedepends="meson glib-dev gobject-introspection-dev"
+subpackages="$pkgname-dev"
+source="https://github.com/ebassi/graphene/archive/$pkgver/graphene-$pkgver.tar.gz
+	0001-meson-don-t-install-introspection-file-with-installe.patch
+	"
+
+build() {
+	case "$CARCH" in
+	arm*)
+		# XXX: https://github.com/ebassi/graphene/issues/215
+		# neon quite broken on arm 32-bit
+		_neon=false
+		;;
+	*)
+		_neon=true
+		;;
+	esac
+	abuild-meson \
+		-Darm_neon=$_neon \
+		-Dinstalled_tests=false \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+526b0c17049459b687ceb7f6c26c9d982535e4048e74a0b6282704f9811d3c2e7e0e6cfef166aa953306b6cf77add6677bc600ae0c66cc052dc04c3d0345bd68  graphene-1.10.8.tar.gz
+ce7e9f13821c1f0f4a9b3ae8e744c8418ca516af21417b666ed6f52db623b1214c40180a0d3a00e47a628758dabc2399b627b02fa758e4ddcf0a7e485c360f5b  0001-meson-don-t-install-introspection-file-with-installe.patch
+"

@@ -1,0 +1,32 @@
+pkgname=py3-cairo
+pkgver=1.20.1
+pkgrel=1
+pkgdesc="Python3 bindings for the cairo graphics library"
+url="http://cairographics.org/pycairo/"
+arch="all"
+license="LGPL-2.0-or-later"
+makedepends="python3-dev cairo-dev"
+checkdepends="py3-pytest"
+subpackages="$pkgname-dev"
+source="https://github.com/pygobject/pycairo/releases/download/v$pkgver/pycairo-$pkgver.tar.gz
+	"
+builddir="$srcdir"/pycairo-$pkgver
+
+replaces="py-cairo" # Backwards compatibility
+provides="py-cairo=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+bb2340170c1d39d50dd8ceeb1b6ceadd96ddbd27d78a8a5b7dadf7dc427558d766f65d62e1ceeae19ab200e7ffb5ad122b5e51daa8ef9bff08fcd97a44005697  pycairo-1.20.1.tar.gz
+"

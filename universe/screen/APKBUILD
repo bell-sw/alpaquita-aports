@@ -1,0 +1,56 @@
+pkgname=screen
+pkgver=4.9.0
+pkgrel=0
+pkgdesc="Window manager that multiplexes a physical terminal"
+url="https://www.gnu.org/software/screen/"
+arch="all"
+license="GPL-3.0-or-later"
+options="!check"  # No test suite.
+makedepends="autoconf automake utmps-dev ncurses-dev libutempter-dev ncurses"
+subpackages="$pkgname-doc"
+source="https://ftp.gnu.org/gnu/screen/screen-$pkgver.tar.gz
+	utmpx.patch
+	"
+
+# secfixes:
+#   4.8.0-r4:
+#     - CVE-2021-26937
+#   4.8.0-r0:
+#     - CVE-2020-9366
+
+prepare() {
+	default_prepare
+	./autogen.sh
+}
+
+build() {
+	CFLAGS="$CFLAGS -DNONETHACK -DGETUTENT -I/usr/include/utmps" \
+	LIBS="-lutmps -lskarnet" ./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--with-sys-screenrc=/etc/screenrc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--enable-colors256 \
+		--enable-telnet \
+		--enable-rxvt_osc
+	make
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install
+
+	# remove suid root
+	find "$pkgdir" -type f -perm -u+s -print0 \
+		| xargs -0 chmod -s
+
+	install -Dm644 etc/etcscreenrc "$pkgdir"/etc/screenrc
+	install -Dm644 etc/screenrc "$pkgdir"/etc/skel/.screenrc
+}
+
+sha512sums="
+18bbb085d77ecd02cbc02fa88a945c39f06e0c6de4eeaa16b278440dac5c9896811abbe0838144e997cd344ae08b9530399fa8fcb31a65fc571ead90e8307f84  screen-4.9.0.tar.gz
+82aca3e16c8cd7a3029d3b589ff2dd3471708d6287979ebb5cfdaedbd1f3012c0cd660b131e0cbe142b99786e49ef8b24c63159523d870e95ccf71ec94b82634  utmpx.patch
+"

@@ -1,0 +1,114 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: mosquitto package allows you to use publish/subscribe model for
+# messaging; perfect for IoT.
+
+pkgname=mosquitto
+pkgver=2.0.14
+pkgrel=0
+pkgdesc="MQTT broker"
+url="https://mosquitto.org/"
+arch="all"
+license="EPL-1.0"
+replaces="mosquitto-utils"
+install="$pkgname.pre-install"
+options="!check" # FIXME: some of the tests are flaky
+makedepends="openssl1.1-compat-dev c-ares-dev util-linux-dev libxslt"
+checkdepends="python3 cunit-dev"
+subpackages="$pkgname-dbg $pkgname-dev $pkgname-doc $pkgname-libs++:_pp $pkgname-openrc
+	$pkgname-libs $pkgname-clients"
+source="http://mosquitto.org/files/source/mosquitto-$pkgver.tar.gz
+	mosquitto.initd
+	mosquitto.confd
+	"
+
+if [ -z "$BOOTSTRAP" ]; then
+	makedepends="$makedepends libwebsockets-dev cjson-dev"
+	_websockets=yes
+	_cjson=yes
+else
+	_websockets=no
+	_cjson=no
+fi
+
+# secfixes:
+#   2.0.10-r0:
+#     - CVE-2021-28166
+#   2.0.8-r0:
+#     - CVE-2021-34432
+#   1.6.7-r0:
+#     - CVE-2019-11779
+#   1.5.6-r0:
+#     - CVE-2018-12546
+#     - CVE-2018-12550
+#     - CVE-2018-12551
+#   1.5.3-r0:
+#     - CVE-2018-12543
+#   1.4.15-r0:
+#     - CVE-2017-7652
+#     - CVE-2017-7651
+#   1.4.13-r0:
+#     - CVE-2017-9868
+#   1.4.12-r0:
+#     - CVE-2017-7650
+
+prepare() {
+	default_prepare
+
+	# don't strip
+	sed -i -e "s|(INSTALL) -s|(INSTALL)|g" \
+		-e 's|--strip-program=${CROSS_COMPILE}${STRIP}||' \
+		*/Makefile */*/Makefile
+}
+
+build() {
+	# PSK not supported by libressl
+	make \
+		WITH_MEMORY_TRACKING=no \
+		WITH_WEBSOCKETS=$_websockets \
+		WITH_CJSON=$_cjson \
+		WITH_SRV=yes \
+		WITH_ADNS=no \
+		prefix=/usr
+}
+
+check() {
+	make test
+}
+
+package() {
+	make prefix=/usr \
+		DESTDIR="$pkgdir" \
+		WITH_CJSON=$_cjson \
+		install
+
+	mv "$pkgdir"/etc/mosquitto/mosquitto.conf.example \
+		"$pkgdir"/etc/mosquitto/mosquitto.conf
+	sed -i -e 's/#log_dest stderr/log_dest syslog/' \
+		"$pkgdir"/etc/mosquitto/mosquitto.conf
+
+	install -Dm755 "$srcdir"/mosquitto.initd "$pkgdir"/etc/init.d/mosquitto
+	install -Dm755 "$srcdir"/mosquitto.confd "$pkgdir"/etc/conf.d/mosquitto
+}
+
+_pp() {
+	pkgdesc="C++ wrapper for libmosquitto"
+	replaces=""
+
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libmosquittopp.so.* "$subpkgdir"/usr/lib/
+}
+
+clients() {
+	pkgdesc="Mosquitto command line MQTT clients"
+	replaces="mosquitto-utils"
+
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/mosquitto_[ps]ub "$subpkgdir"/usr/bin/
+}
+
+sha512sums="
+a9e4f41b9af679b30318570e86a465546024651373df10e3b132f4593b89d22d0dbac01bb7371a57132ba030a2e73971c612acb5c9ac12f5ccd06aa38d9444c2  mosquitto-2.0.14.tar.gz
+4b6987846e8e9a588719b94e8d27ee56271dbe6e0e3a4a6ba7723552c83683d479df8b59827a2bc41383bfe1944e61b0f40e9f3c0b4f669553482b55a2868c1a  mosquitto.initd
+678a8aaefb9181f5f4998304046e5a8737049f90cf6bbbfd5fd4549592728afe77cb536547b39ad1598d53fe0b7c03e1506b2683e7b936712b9fad4a317f4b43  mosquitto.confd
+"

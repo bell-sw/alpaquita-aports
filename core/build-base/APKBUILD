@@ -1,0 +1,28 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: build-base enables the installation of build tools and
+# utilities to create the build environment
+
+pkgname=build-base
+pkgver=0.5
+pkgrel=2
+url=http://bell-sw.com/
+pkgdesc="Meta package for build base"
+depends="binutils file gcc g++ make libc-dev fortify-headers patch linux-headers"
+if [ "$CHOST" != "$CTARGET" ]; then
+	pkgname="$pkgname-$CTARGET_ARCH"
+	pkgdesc="$pkgdesc ($CTARGET_ARCH)"
+	depends="binutils-$CTARGET_ARCH gcc-$CTARGET_ARCH g++-$CTARGET_ARCH $depends"
+fi
+arch="noarch"
+license=none
+options="!check"
+
+build() {
+	:
+}
+
+package() {
+	mkdir -p "$pkgdir"
+}
+

@@ -1,0 +1,44 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: keyutils package contains a library and tool to access the kernel
+# keyring facility and to interact with it.
+
+pkgname=keyutils
+pkgver=1.6.3
+pkgrel=1
+pkgdesc="Linux kernel key management utilities"
+url="https://people.redhat.com/~dhowells/keyutils/"
+arch="all"
+options="!check"  # Test suite requires RPM.
+license="GPL-2.0-or-later LGPL-2.0-or-later"
+makedepends="file linux-headers"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-libs"
+source="https://git.kernel.org/pub/scm/linux/kernel/git/dhowells/keyutils.git/snapshot/keyutils-$pkgver.tar.gz"
+
+build() {
+	make -j1 \
+		NO_ARLIB=1 \
+		LIBDIR=/usr/lib \
+		USRLIBDIR=/usr/lib \
+		VERSION=$pkgver \
+		RELEASE=-r$pkgrel \
+		CFLAGS="$CFLAGS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" \
+		NO_ARLIB=1 \
+		LIBDIR=/usr/lib \
+		USRLIBDIR=/usr/lib \
+		install
+}
+
+libs() {
+	pkgdesc="Key utilities library"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/* "$subpkgdir"/usr/lib
+}
+
+sha512sums="
+f65965b8566037078b8eeffa66c6fdbe121c8c2bea7fa5bce04cf7ba5ccc50d5b48e51f4a67ca91e4d5d9a12469e7e3eb3036c920ab25e3feba6e93b4c149cf9  keyutils-1.6.3.tar.gz
+"

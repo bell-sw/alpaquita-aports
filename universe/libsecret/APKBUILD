@@ -1,0 +1,33 @@
+pkgname=libsecret
+pkgver=0.20.5
+pkgrel=0
+pkgdesc="Library for storing and retrieving passwords and other secrets"
+url="https://wiki.gnome.org/Projects/Libsecret"
+arch="all"
+license="LGPL-2.0-or-later"
+makedepends="glib-dev intltool libxslt-dev docbook-xsl libgcrypt-dev
+	gobject-introspection-dev vala meson"
+checkdepends="py3-dbus py3-gobject3 xvfb-run dbus-x11"
+options="!check" # gjs is in community now
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-lang"
+source="https://download.gnome.org/sources/libsecret/${pkgver%.*}/libsecret-$pkgver.tar.xz"
+
+build() {
+	abuild-meson \
+		--default-library=both \
+		-Dgtk_doc=false \
+		output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	xvfb-run meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+61ca248aafd265e1f31d56c9084c68d880ebf03660ace3d4a6c6622ab306b56e921ac24647b6a60633bfa99c8a0407d4ae1aa6148511f289bf5ce2025b72692a  libsecret-0.20.5.tar.xz
+"

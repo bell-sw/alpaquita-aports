@@ -1,0 +1,71 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: The GNU Readline library provides a set of functions for use by
+# applications that allow users to edit command lines as they are typed in.
+
+pkgname=readline
+pkgver=8.1.2
+pkgrel=0
+_myver=${pkgver%.*}
+pkgdesc="GNU readline library"
+url="https://tiswww.cwru.edu/php/chet/readline/rltop.html"
+arch="all"
+options="!check"
+license="GPL-2.0-or-later"
+makedepends_host="ncurses-dev chrpath"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc libhistory"
+source="https://ftp.gnu.org/gnu/readline/readline-$_myver.tar.gz
+	fix-ncurses-underlinking.patch
+	inputrc
+	"
+patch_args="-p0" # patchlevel used by upstream patches
+
+_i=1
+while [ $_i -le ${pkgver##*.} ]; do
+	_patch=$(printf "%03d" $_i)
+	_name=$pkgname${_myver//./}-$_patch
+	source="$source
+		$_name.patch::https://ftp.gnu.org/gnu/readline/readline-$_myver-patches/$_name"
+	_i=$((_i+1))
+done
+
+builddir="$srcdir/$pkgname-$_myver"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--enable-static \
+		--enable-shared
+	make
+}
+
+package() {
+	make -C "$builddir" DESTDIR="$pkgdir" install
+	# verfy that its not underlinked as upstream designed it
+	if ! readelf -d "$pkgdir"/usr/lib/libreadline.so | grep -q 'NEEDED.*ncurses'; then
+		error "readline needs to be linked against ncurses"
+		return 1
+	fi
+	rmdir "$pkgdir"/usr/bin
+	mkdir -p "$pkgdir"/etc
+	install -m644 "$srcdir"/inputrc "$pkgdir"/etc/inputrc
+	chrpath -d "$pkgdir"/usr/lib/*.so.*
+}
+
+libhistory() {
+	pkgdesc="GNU History Library"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/$subpkgname.* "$subpkgdir"/usr/lib
+}
+
+sha512sums="
+27790d0461da3093a7fee6e89a51dcab5dc61928ec42e9228ab36493b17220641d5e481ea3d8fee5ee0044c70bf960f55c7d3f1a704cf6b9c42e5c269b797e00  readline-8.1.tar.gz
+b8e2f9a5c9294b49d35c2e1bbde523f01390dd3c8729f3a78e79799a236515ec723af795ba91b0a662a30e8c31df0f63bc80771e82cd31b4673f41428a5049ae  fix-ncurses-underlinking.patch
+5dbe872e94166aaed7ca2edec5a34ef9b13b254381e252cc6d851877b461579903cbb5b5dc588eabececcf1ebe636f6cb4da406cd01b64757f8c7e7f62e9a276  inputrc
+cfbef10bdeb562a302ccf214878d02ebadf799343b3d2d7996a282f81bcfde83997ba6dcc9a8477af4dd7c73bca74105ca00a81e42ed13321672bd2930550e54  readline81-001.patch
+e47c029b82cf3a4d44e85c4348f7e059c56726694c190d84186822e1c893e1c006e7ec75f33c36791112f81abd792a2e2fdae9a65cd128f3c89ff4ffd9a9a1ff  readline81-002.patch
+"

@@ -1,0 +1,38 @@
+pkgname=perl-getopt-long
+_pkgreal=Getopt-Long
+pkgver=2.52
+pkgrel=1
+pkgdesc="Module to handle parsing command line options"
+url="https://metacpan.org/release/Getopt-Long/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/J/JV/JV/$_pkgreal-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+prepare() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+}
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install || return 1
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+doc() {
+	default_doc
+	replaces="perl-doc"
+}
+
+sha512sums="eead028f9b4dc51e2123dc11edc485e6f51bfd2060c89bdd964ab2bf436b3e8a749bbc2f489661268906e207fc4d47f7dea6ec9559769b732dd525e46619a378  Getopt-Long-2.52.tar.gz"

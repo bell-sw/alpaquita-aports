@@ -1,0 +1,28 @@
+pkgname=wayland-protocols
+pkgver=1.25
+pkgrel=0
+pkgdesc="Protocols and protocol extensions complementing the Wayland core protocol"
+url="https://wayland.freedesktop.org"
+arch="noarch"
+license="MIT"
+provides="$pkgname-dev"
+makedepends="meson wayland-dev"
+source="https://wayland.freedesktop.org/releases/wayland-protocols-$pkgver.tar.xz"
+options="!check" # tests are busted
+
+build() {
+	abuild-meson . output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+8269694a0780e4d32f1982ff4cbb50b1ef85f08157b9486bc6d7e489c64665a9d9f959121d0eede7c7b108a604d974b64d74cfdef8b5f14304465309afb0768f  wayland-protocols-1.25.tar.xz
+"

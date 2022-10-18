@@ -1,0 +1,68 @@
+# Description:
+
+pkgname=libssh2
+pkgver=1.10.0
+pkgrel=2
+pkgdesc="library for accessing ssh1/ssh2 protocol servers"
+url="https://libssh2.org/"
+arch="all"
+license="BSD-3-Clause"
+makedepends_host="openssl1.1-compat-dev zlib-dev"
+subpackages="$pkgname-dbg $pkgname-static $pkgname-dev $pkgname-doc"
+source="http://www.libssh2.org/download/libssh2-$pkgver.tar.gz
+	"
+options="!check" # FIXME: debug why integration test fails on builders but not rootbld
+
+# secfixes:
+#   1.9.0-r1:
+#     - CVE-2019-17498
+#   1.9.0-r0:
+#     - CVE-2019-13115
+#   1.8.1-r0:
+#     - CVE-2019-3855
+#     - CVE-2019-3856
+#     - CVE-2019-3857
+#     - CVE-2019-3858
+#     - CVE-2019-3859
+#     - CVE-2019-3860
+#     - CVE-2019-3861
+#     - CVE-2019-3862
+#     - CVE-2019-3863
+
+
+build() {
+	cd "$builddir"
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--with-crypto=openssl \
+		--with-libssl-prefix=$CBUILDROOT/
+	make
+}
+
+check() {
+	cd "$builddir"
+	make check
+}
+
+package() {
+	cd "$builddir"
+	make DESTDIR="$pkgdir" install
+}
+
+static() {
+	depends=""
+	pkgdesc="$pkgdesc (static library)"
+
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/*.a "$subpkgdir"/usr/lib
+}
+
+sha512sums="
+e064ee1089eb8e6cd5fa2617f4fd8ff56c2721c5476775a98bdb68c6c4ee4d05c706c3bb0eb479a27a8ec0b17a8a5ef43e1d028ad3f134519aa582d3981a3a30  libssh2-1.10.0.tar.gz
+"

@@ -1,0 +1,130 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: SQLite is a C-language library that implements a small, fast,
+# self-contained, high-reliability, full-featured, SQL database engine.
+
+pkgname=sqlite
+# NOTE: pkgver needs to correspond with sqlite-tcl
+pkgver=3.38.5
+pkgrel=0
+pkgdesc="SQL database engine library"
+url="https://www.sqlite.org/"
+arch="all"
+license="blessing"
+makedepends="readline-dev"
+subpackages="$pkgname-static $pkgname-doc $pkgname-dev $pkgname-libs"
+
+# compute _ver
+_a=${pkgver%%.*}
+_b=${pkgver#$_a.}
+_b=${_b%%.*}
+_c=${pkgver#$_a.$_b.}
+_c=${_c%%.*}
+case $pkgver in
+	*.*.*.*)_d=${pkgver##*.};;
+	*.*.*)	_d=0;;
+esac
+[ $_b -lt 10 ] && _b=0$_b
+[ $_c -lt 10 ] && _c=0$_c
+[ $_d -lt 10 ] && _d=0$_d
+_ver=${_a}${_b}${_c}$_d
+
+# these variables depend on _ver being set
+builddir="$srcdir/$pkgname-autoconf-$_ver"
+source="https://www.sqlite.org/2022/sqlite-autoconf-$_ver.tar.gz
+	LICENSE.md::https://www.sqlite.org/src/raw?name=LICENSE.md&ci=version-$pkgver
+	"
+
+# secfixes:
+#   3.34.1-r0:
+#     - CVE-2021-20227
+#   3.32.1-r0:
+#     - CVE-2020-13434
+#     - CVE-2020-13435
+#   3.30.1-r3:
+#     - CVE-2020-11655
+#   3.30.1-r1:
+#     - CVE-2019-19242
+#     - CVE-2019-19244
+#   3.28.0-r0:
+#     - CVE-2019-5018
+#     - CVE-2019-8457
+
+# additional CFLAGS to set
+_amalgamation="-DSQLITE_ENABLE_FTS4 \
+	-DSQLITE_ENABLE_FTS3_PARENTHESIS \
+	-DSQLITE_ENABLE_FTS3 \
+	-DSQLITE_ENABLE_FTS5 \
+	-DSQLITE_ENABLE_COLUMN_METADATA \
+	-DSQLITE_SECURE_DELETE \
+	-DSQLITE_ENABLE_UNLOCK_NOTIFY \
+	-DSQLITE_ENABLE_RTREE \
+	-DSQLITE_ENABLE_GEOPOLY \
+	-DSQLITE_USE_URI \
+	-DSQLITE_ENABLE_DBSTAT_VTAB \
+	-DSQLITE_MAX_VARIABLE_NUMBER=250000"
+
+prepare() {
+	if [ -f "$startdir"/../sqlite-tcl/APKBUILD ]; then
+		(
+		_sqlitever=$pkgver
+		. "$startdir"/../sqlite-tcl/APKBUILD
+		if [ "$_sqlitever" != "$pkgver" ]; then
+			warning "sqlite-tcl version mismatch ($_sqlitever != $pkgver)"
+		fi
+		)
+	fi
+
+	default_prepare
+}
+
+build() {
+	export CFLAGS="$CFLAGS $_amalgamation"
+	./configure \
+		--build="$CBUILD" \
+		--host="$CHOST" \
+		--prefix=/usr \
+		--enable-threadsafe \
+		--enable-readline \
+		--enable-static \
+		--enable-dynamic-extensions \
+		--enable-fts3
+
+	# rpath removal
+	sed -i 's|^hardcode_libdir_flag_spec=.*|hardcode_libdir_flag_spec=""|g' libtool
+	sed -i 's|^runpath_var=LD_RUN_PATH|runpath_var=DIE_RPATH_DIE|g' libtool
+
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	install -Dm0644 sqlite3.1 \
+		"$pkgdir"/usr/share/man/man1/sqlite3.1
+	install -Dm644 "$srcdir"/LICENSE.md \
+		"$pkgdir"/usr/share/licenses/$pkgname/LICENSE.md
+}
+
+libs() {
+	replaces="sqlite"
+	pkgdesc="Sqlite3 library"
+
+	mkdir -p "$subpkgdir"/usr
+	mv "$pkgdir"/usr/lib "$subpkgdir"/usr/
+}
+
+static() {
+	pkgdesc="Sqlite3 static library"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/lib*.a "$subpkgdir"/usr/lib/
+}
+
+sha512sums="
+6f515a7782bfb5414702721fc78ada5bf388f4bf8b3e3c2ec269df33a2e372859f682d028c30084e89847705c7050ea80790d51fbcc4decea8fbb0a35b89c0b3  sqlite-autoconf-3380500.tar.gz
+8a347c292363e55a8c0fa0321e3f399bfe9c9aedcb6c838123f0eb3e2a4e078d096b7c152a4981e18ee9fa50c4ef913a33ed840aeed33aee0a46e95cd17f0814  LICENSE.md
+"

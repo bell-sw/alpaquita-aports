@@ -1,0 +1,195 @@
+# Maintainer: Francesco Colista <fcolista@alpinelinux.org>
+pkgname=libvirt
+pkgver=8.3.0
+_ver="${pkgver/_rc/-rc}"
+pkgrel=0
+pkgdesc="A virtualization API for several hypervisor and container systems"
+url="https://libvirt.org/"
+# mips64, s390x and riscv64 blocked by polkit
+arch="all"
+options="!check"
+license="LGPL-2.1-or-later"
+_daemon_deps="bridge-utils dmidecode dnsmasq ip6tables iptables"
+_client_deps="pm-utils gnutls-utils netcat-openbsd"
+depends="lvm2"
+depends_dev="libtirpc-dev"
+makedepends="augeas-dev cyrus-sasl-dev device-mapper
+	e2fsprogs-dev gnutls-dev libcap-ng-dev libgpg-error-dev
+	netcf-dev libnl3-dev libxml2-dev libxslt-dev libtasn1-dev
+	lvm2-dev lxc-dev libgcrypt-dev parted-dev perl pkgconfig
+	eudev-dev zlib-dev yajl-dev libpcap-dev curl-dev libpciaccess-dev
+	polkit-dev readline-dev linux-headers jansson-dev
+	$depends_dev perl-xml-xpath
+	fuse-dev util-linux libxml2-utils bash-completion $_daemon_deps $_client_deps
+	rpcsvc-proto py3-docutils meson ninja
+	"
+install="$pkgname.post-install"
+subpackages="$pkgname-dbg $pkgname-static $pkgname-libs $pkgname-dev $pkgname-doc $pkgname-client $pkgname-daemon
+	$pkgname-lang $pkgname-lxc $pkgname-qemu $pkgname-uml::noarch $pkgname-vbox
+	$pkgname-bash-completion:bashcomp:noarch"
+source="https://libvirt.org/sources/libvirt-$pkgver.tar.xz
+	libvirt.confd
+	libvirt.initd
+	libvirt-guests.confd
+	libvirt-guests.initd
+	virtlogd.initd
+	virtlockd.initd
+	musl:musl-fix-includes.patch
+	stderr-fix.patch
+	libvirt-6.0.0-fix_paths_in_libvirt-guests_sh.patch
+	"
+subpackages="$subpackages $pkgname-common-drivers:_common_drivers"
+
+# secfixes:
+#   7.5.0-r0:
+#     - CVE-2021-3631
+#   6.8.0-r0:
+#     - CVE-2020-25637
+#   6.6.0-r0:
+#     - CVE-2020-14339
+#   5.5.0-r0:
+#     - CVE-2019-10168
+#     - CVE-2019-10167
+#     - CVE-2019-10166
+#     - CVE-2019-10161
+
+build() {
+	# qemu sets libexec dir to /usr/lib/qemu
+	export ac_cv_path_QEMU_BRIDGE_HELPER="/usr/lib/qemu/qemu-bridge-helper"
+	abuild-meson \
+		--libexec=/usr/lib/$pkgname \
+		. output
+
+	meson configure output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" ninja -C output install
+	install -Dm755 $srcdir/$pkgname.initd $pkgdir/etc/init.d/libvirtd
+	install -Dm644 $srcdir/$pkgname.confd $pkgdir/etc/conf.d/libvirtd
+	install -Dm755 $srcdir/$pkgname-guests.initd $pkgdir/etc/init.d/libvirt-guests
+	install -Dm644 $srcdir/$pkgname-guests.confd $pkgdir/etc/conf.d/libvirt-guests
+
+	install -Dm755 $srcdir/virtlogd.initd $pkgdir/etc/init.d/virtlogd
+	install -Dm755 $srcdir/virtlockd.initd $pkgdir/etc/init.d/virtlockd
+
+	install -d "$pkgdir"/usr/lib/modules-load.d
+	echo "tun" > "$pkgdir"/usr/lib/modules-load.d/libvirt.conf
+
+	rm -rf "$pkgdir"/etc/sysconfig
+	rm -rf "$pkgdir"/usr/lib/charset.alias
+	rmdir -p "$pkgdir"/usr/lib 2>/dev/null || true
+}
+
+dev() {
+	default_dev
+	mkdir -p "$subpkgdir"/usr/share/libvirt
+	mv "$pkgdir"/usr/share/libvirt/api \
+		"$subpkgdir"/usr/share/libvirt/
+}
+
+daemon() {
+	cd "$builddir"
+	pkgdesc="libvirt daemon package"
+	depends="libvirt-client $_daemon_deps"
+	replaces="libvirt"
+	mkdir -p "$subpkgdir"/etc/$pkgname \
+	 "$subpkgdir"/etc/logrotate.d \
+	 "$subpkgdir"/usr/sbin
+	mv "$pkgdir"/etc/init.d "$subpkgdir"/etc
+	mv "$pkgdir"/etc/conf.d "$subpkgdir"/etc
+	mv "$pkgdir"/usr/lib/modules-load.d "$subpkgdir"/usr/lib
+	mv "$pkgdir"/etc/$pkgname/libvirtd.conf "$subpkgdir"/etc/libvirt/
+	mv "$pkgdir"/usr/sbin/libvirtd "$subpkgdir"/usr/sbin/
+	mv "$pkgdir"/etc/logrotate.d/libvirtd "$subpkgdir"/etc/logrotate.d/
+	chmod +x "$subpkgdir"/etc/init.d/*
+}
+
+client() {
+	cd "$builddir"
+	pkgdesc="libvirt client package"
+	depends="libvirt $_client_deps"
+	replaces="libvirt"
+	mkdir -p "$subpkgdir"/etc/$pkgname "$subpkgdir"/usr/bin \
+		"$subpkgdir"/usr/lib
+	mv "$pkgdir"/etc/$pkgname/$pkgname.conf "$subpkgdir"/etc/libvirt/
+	mv "$pkgdir"/usr/bin/* "$subpkgdir"/usr/bin/
+}
+
+static() {
+	pkgdesc="$pkgname static libraries"
+	mkdir -p "$subpkgdir"/usr/lib
+	cd "$pkgdir"
+	for _lib in  $(find . -name '*.a'); do
+		mkdir -p "$subpkgdir"/${_lib%/*}
+		mv "$_lib" "$subpkgdir"/${_lib%/*}/
+	done
+}
+
+bashcomp() {
+	depends=""
+	pkgdesc="Bash completions for $pkgname"
+	install_if="$pkgname=$pkgver-r$pkgrel bash-completion"
+	mkdir -p "$subpkgdir"/usr/share/
+	mv "$pkgdir"/usr/share/bash-completion \
+		"$subpkgdir"/usr/share/
+}
+
+_mv_driver() {
+	local _name="$1" _drivers="$2" _pkg="$3"
+	pkgdesc="$_name driver for libvirt"
+	depends="$pkgname-daemon=$pkgver-r$pkgrel
+		$pkgname-common-drivers=$pkgver-r$pkgrel"
+	replaces="libvirt"
+	if [ -n "$_pkg" ]; then
+		install_if="$pkgname-daemon=$pkgver-r$pkgrel $_pkg"
+	else
+		install_if=
+	fi
+	local _dir=/usr/lib/libvirt/connection-driver
+	mkdir -p "$subpkgdir"/$_dir \
+		"$subpkgdir"/etc/libvirt \
+		"$subpkgdir"/etc/logrotate.d
+	local _d
+	cd "$pkgdir"
+	for _d in $_drivers; do
+		find * -name "*$_d[.-]*" -o -name "*$_d" | while read _f; do
+			mkdir -p "$subpkgdir"/${_f%/*}
+			mv "$pkgdir"/$_f "$subpkgdir"/$_f
+		done
+	done
+}
+
+qemu() { _mv_driver "QEMU" qemu qemu; }
+lxc() { _mv_driver "LXC" lxc lxc; }
+uml() { _mv_driver "UML" uml; }
+vbox() { _mv_driver "VirtualBox" vbox; }
+
+_common_drivers() {
+	pkgdesc="Common libvirt daemon drivers"
+	replaces="libvirt"
+	mkdir -p "$subpkgdir"/usr/lib/libvirt \
+		"$subpkgdir"/etc/libvirt/nwfilter
+	mv "$pkgdir"/usr/lib/libvirt/connection-driver \
+		"$subpkgdir"/usr/lib/libvirt/
+	mv "$pkgdir"/etc/libvirt/nwfilter \
+		"$subpkgdir"/etc/libvirt/
+}
+
+sha512sums="
+914c8a4884d703f368849b852ba8330d1b17cf598a359f70d344e0a94e02f60337216e9011cbeba90eb4e87fa644e7eb9e8a407ca58632b2b41511d3f598ff71  libvirt-8.3.0.tar.xz
+c3647366e589f2134599baefcbd7ec480cbc0830c71f95cd903cacb28e463d4cd8d972fbd1db81aa17eef81c1f701bd3937c9b8eb71d56ee630e1ed8b89887e9  libvirt.confd
+3ea7599940bb40b7867c718a24a95bb430940894a37cd22057fd47a8d71dc930ce581e1c15a3b3f29a052f462fa8b2467d3f90f42f6cb7744214aedc6c75f4ac  libvirt.initd
+78f419a89de7aabaad860903c24f1c070786fc1296d987e61dd537705b0e7f71a46c315888028f3826c3417e42861ca8471788be4ec5695e98427c5f18ae63fc  libvirt-guests.confd
+4ece28373ea9e00ccb884493a8489922c8155bc991c1679d956d77a9aaafc99253645ca9a3cdb397ad101356361003a6a2b5f43af5088a3c8c0f8103dfa434ac  libvirt-guests.initd
+e1e092a67294488457064cdc709729814d7dc82482075c7584aeb625d79d6c2c0d0e196e98aef9240f2dd0f15c3c7e9bfcd0876b5671fdbb454bfe87092ba477  virtlogd.initd
+4b8626ac39a4e6c2cc3a8883d6f9fe3234d3a948c000a525a9c8571500989e40e3eb466fce45f1f600235ee282ad6dd05fc14aa689ce108f475dc0dc79bd0268  virtlockd.initd
+dfe042c596028125bf8548115de2922683829c4716f6b0efb8efc38518670e3e848481661b9714bb0664c1022b87e8f3c0773611fe10187b0bc588e2336ada0c  musl-fix-includes.patch
+d32551d56eae2c33bab7571964f76421336967918c293cd1d18fc66626a7ead3551b5672a9e3fc3d8b7bca82cc0abb17e428ee8271d04d73bc06fd16309918b3  stderr-fix.patch
+dc80c9fc459207dd1ff77548054ea5a51c41a2d36e1b8917eca5f69293a86168af3da47466d8ff954a8b2e0ead9f28ed7d6c2c3671cf67d0ebb4039003a0dde2  libvirt-6.0.0-fix_paths_in_libvirt-guests_sh.patch
+"

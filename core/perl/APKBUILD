@@ -1,0 +1,181 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: 
+
+pkgname=perl
+pkgver=5.34.1
+pkgrel=0
+pkgdesc="Larry Wall's Practical Extraction and Report Language"
+url="https://www.perl.org/"
+arch="all"
+license="Artistic-Perl OR GPL-1.0-or-later"
+options="!fhs"
+depends_dev="perl-utils"
+makedepends="bzip2-dev zlib-dev"
+subpackages="$pkgname-doc $pkgname-dev $pkgname-utils::noarch miniperl"
+source="https://www.cpan.org/src/5.0/perl-$pkgver.tar.gz
+	musl:musl-locale.patch
+	musl:musl-skip-dst-test.patch
+	skip-test-due-to-busybox-ps.patch
+	musl:musl-stack-size.patch
+	zlib-test.patch
+	"
+# secfixes:
+#   5.34.0-r1:
+#     - CVE-2021-36770
+#   5.30.3-r0:
+#     - CVE-2020-10543
+#     - CVE-2020-10878
+#     - CVE-2020-12723
+#   5.26.3-r0:
+#     - CVE-2018-18311
+#     - CVE-2018-18312
+#     - CVE-2018-18313
+#     - CVE-2018-18314
+#   5.26.2-r1:
+#     - CVE-2018-12015
+#   5.26.2-r0:
+#     - CVE-2018-6797
+#     - CVE-2018-6798
+#     - CVE-2018-6913
+#   5.26.1-r0:
+#     - CVE-2017-12837
+#     - CVE-2017-12883
+
+
+_privlib=/usr/share/perl5/core_perl
+_archlib=/usr/lib/perl5/core_perl
+
+prepare() {
+	chmod +w "$builddir"/*.c
+	default_prepare
+	sed	-e 's/less -R/less/g' \
+		-e 's/libswanted="\(.*\) nsl\(.*\)"/libswanted="\1\2"/g' \
+		-i ./Configure
+
+	# Ensure that we never accidentally bundle zlib or bzip2
+	rm -rf cpan/Compress-Raw-Zlib/zlib-src
+	rm -rf cpan/Compress-Raw-Bzip2/bzip2-src
+	sed -i '/\(bzip2\|zlib\)-src/d' MANIFEST
+}
+
+build() {
+	BUILD_ZLIB=0
+	BUILD_BZIP2=0
+	BZIP2_LIB=/usr/lib
+	BZIP2_INCLUDE=/usr/include
+
+	export BUILD_ZLIB BUILD_BZIP2 BZIP2_LIB BZIP2_INCLUDE
+	local extra_conf_args=
+	[ "$CLIBC" = "musl" ] && extra_conf_args="-Dusenm"
+	./Configure -des \
+		-Dcccdlflags='-fPIC' \
+		-Dcccdlflags='-fPIC' \
+		-Dccdlflags='-rdynamic' \
+		-Dprefix=/usr \
+		-Dprivlib=$_privlib \
+		-Darchlib=$_archlib \
+		-Dvendorprefix=/usr \
+		-Dvendorlib=/usr/share/perl5/vendor_perl \
+		-Dvendorarch=/usr/lib/perl5/vendor_perl \
+		-Dsiteprefix=/usr/local \
+		-Dsitelib=/usr/local/share/perl5/site_perl \
+		-Dsitearch=/usr/local/lib/perl5/site_perl \
+		-Dlocincpth=' ' \
+		-Doptimize="$CFLAGS" \
+		-Duselargefiles \
+		-Dusethreads \
+		-Duseshrplib \
+		-Dd_semctl_semun \
+		-Dman1dir=/usr/share/man/man1 \
+		-Dman3dir=/usr/share/man/man3 \
+		-Dinstallman1dir=/usr/share/man/man1 \
+		-Dinstallman3dir=/usr/share/man/man3 \
+		-Dman1ext='1' \
+		-Dman3ext='3pm' \
+		-Dcf_by='BellSoft' \
+		-Ud_csh \
+		$extra_conf_args
+	make libperl.so && make
+}
+
+check() {
+	export CI=true
+	export LC_ALL=C
+	make test-notty
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	if [ -n "$(find $pkgdir/usr/local -type f)" ]; then
+		error "files found under /usr/local"
+		return 1
+	fi
+	find "$pkgdir" -name '.*' -delete
+}
+
+miniperl() {
+	install -Dm755 "$builddir"/$subpkgname \
+		"$subpkgdir"/usr/bin/$subpkgname
+}
+
+doc() {
+	default_doc
+	local file; for file in $(find "$pkgdir" -name "*.pod"); do
+		file=${file#$pkgdir/}
+		mkdir -p "$subpkgdir"/${file%/*}
+		mv "$pkgdir"/$file "$subpkgdir"/$file
+	done
+}
+
+dev() {
+	mkdir -p "$subpkgdir"/usr/bin "$subpkgdir"/$_archlib "$subpkgdir"/$_privlib
+	mv "$pkgdir"/$_archlib/Devel "$subpkgdir"/$_archlib/
+	mv "$pkgdir"/$_privlib/Encode "$subpkgdir"/$_privlib/
+
+	mv "$pkgdir"/usr/bin/h2xs \
+		"$pkgdir"/usr/bin/perlivp \
+		"$pkgdir"/usr/bin/enc2xs \
+		"$pkgdir"/usr/bin/xsubpp \
+		"$subpkgdir"/usr/bin/
+
+	default_dev
+}
+
+utils() {
+	pkgdesc="$pkgdesc (misc utilities)"
+	depends="$pkgname"
+	mkdir -p "$subpkgdir"/usr/bin
+	local file
+	for file in \
+		corelist \
+		cpan \
+		encguess \
+		libnetcfg \
+		h2ph \
+		instmodsh \
+		json_pp \
+		perlbug \
+		perlthanks \
+		piconv \
+		pl2pm \
+		prove \
+		ptar \
+		ptardiff \
+		ptargrep \
+		shasum \
+		splain \
+		zipdetails
+	do
+		mv "$pkgdir"/usr/bin/$file "$subpkgdir"/usr/bin/
+	done
+}
+
+sha512sums="
+bf17f2c6fce1b046dce11450f28823fe5df6341f259ec351a4445768feb38706413be867a32c1fd916567657ca9f08c838030e02bb8a3bc1cd8a1350c007cf3a  perl-5.34.1.tar.gz
+a78b5fb1a2b6f60b401329cfd2d8349d4fdcc19628cde0e9b840b82e1a02e705f7d7413fe206aa13ed714ab93a65b62ac3d85dfd526ca8048621d5d89b22f0ef  musl-locale.patch
+3eaec691bc38e208ba4f34130ae45e50b6c339fa50093d0b0f6d7f24cb5b7c2a3734ca714a279c4b51173f82e46a8e7a3e70bfc7d7471a18c55a2102140e4186  musl-skip-dst-test.patch
+ba9cb1ff4a6e8e4c31bf4ef132c071ac919ffe45842cf5e98c8ca72d78ef4803883b57a0e7b8037da0079561a6ce9e6bd8d127892ac1bcb047638cb3ba3157f6  skip-test-due-to-busybox-ps.patch
+c004d6612ec754e5947255a2e2d15b5581f187c32495aeeec9f4fa286919bd9f40c72b63db61e3f4004b09288af2063a6a14b67e5c289e9a8b23ebd7c216e16f  musl-stack-size.patch
+bbb2beb49604982c42c833b229852bc8bca4e3498f97fcfbb3bf7de10dddbef3b21c917f333958c64feb99a65f4093773e33018ae0e91dadeecdf985ab0ed3a2  zlib-test.patch
+"

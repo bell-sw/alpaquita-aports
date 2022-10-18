@@ -1,0 +1,39 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: LZO is a portable, lossless data compression library. It offers
+# pretty fast compression and very fast decompression. Decompression requires
+# no memory.
+
+pkgname=lzo
+pkgver=2.10
+pkgrel=3
+pkgdesc="LZO data compression library"
+url="https://www.oberhumer.com/opensource/lzo"
+arch="all"
+license="GPL-2.0-or-later"
+makedepends="cmake samurai"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://www.oberhumer.com/opensource/lzo/download/lzo-$pkgver.tar.gz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DBUILD_TESTING=ON \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DENABLE_SHARED=ON
+	cmake --build build
+}
+
+check() {
+	cd build
+	CTEST_OUTPUT_ON_FAILURE=TRUE ctest
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+	rm -r "$pkgdir"/usr/libexec/
+}
+
+sha512sums="
+a3dae5e4a6b93b1f5bf7435e8ab114a9be57252e9efc5dd444947d7a2d031b0819f34bcaeb35f60b5629a01b1238d738735a64db8f672be9690d3c80094511a4  lzo-2.10.tar.gz
+"

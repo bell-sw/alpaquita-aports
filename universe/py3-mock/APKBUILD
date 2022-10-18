@@ -1,0 +1,33 @@
+pkgname=py3-mock
+_pkgname=mock
+pkgver=4.0.3
+pkgrel=2
+pkgdesc="Python3 Mocking and Patching Library for Testing"
+url="https://github.com/testing-cabal/mock"
+arch="noarch"
+license="BSD-2-Clause"
+depends="python3 py3-pbr py3-six"
+makedepends="py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/m/mock/mock-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+checkdepends="py3-pytest"
+
+replaces="py-mock" # Backwards compatibility
+provides="py-mock=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+check() {
+	# The skipped test checks internal Python unittest behavior and fails
+	python3 -m pytest -k "not test_bool_not_called"
+}
+
+sha512sums="
+aa4275344a40fd3eea75c1c305f82dd6a561d2a4584b7acd0a85f3a9b34d0cfd1722770d74ae26c04d871d844a3189186d7f087017ddf850d6c378cc98676ea5  mock-4.0.3.tar.gz
+"

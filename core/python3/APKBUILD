@@ -1,0 +1,233 @@
+
+# Description: Python is a clear and powerful object-oriented programming
+# language, comparable to Perl, Ruby, Scheme, or Java.
+
+pkgname=python3
+# the python3-tkinter's pkgver needs to be synchronized with this.
+pkgver=3.10.4
+_bluez_ver=5.64
+_basever="${pkgver%.*}"
+pkgrel=0
+pkgdesc="Python programming language"
+url="https://www.python.org/"
+arch="all"
+license="PSF-2.0"
+subpackages="
+	$pkgname-dbg
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-tests::noarch
+	pythonispython3
+	"
+makedepends="
+	!gettext-dev
+	autoconf
+	autoconf-archive
+	automake
+	bzip2-dev
+	expat-dev
+	gdbm-dev>=1.18.1-r0
+	libffi-dev
+	libtool
+	linux-headers
+	mpdecimal-dev
+	ncurses-dev
+	openssl-dev
+	readline-dev
+	sqlite-dev
+	tcl-dev
+	xz-dev
+	zlib-dev
+	"
+source="https://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz
+	https://www.kernel.org/pub/linux/bluetooth/bluez-$_bluez_ver.tar.xz
+	fix-xattrs-glibc.patch
+	musl:musl-find_library.patch
+	custom-bluetooth-h-path.patch
+	arm-alignment.patch
+	"
+options="net" # Required for tests
+builddir="$srcdir/Python-$pkgver"
+
+# secfixes:
+#   3.9.5-r0:
+#     - CVE-2021-29921
+#   3.9.4-r0:
+#     - CVE-2021-3426
+#   3.8.8-r0:
+#     - CVE-2021-23336
+#   3.8.7-r2:
+#     - CVE-2021-3177
+#   3.8.5-r0:
+#     - CVE-2019-20907
+#   3.8.4-r0:
+#     - CVE-2020-14422
+#   3.8.2-r0:
+#     - CVE-2020-8315
+#     - CVE-2020-8492
+#   3.7.5-r0:
+#     - CVE-2019-16056
+#     - CVE-2019-16935
+#   3.6.8-r1:
+#     - CVE-2019-5010
+
+prepare() {
+	default_prepare
+
+	# force system libs
+	rm -r Modules/expat \
+		Modules/_ctypes/darwin* \
+		Modules/_ctypes/libffi*
+
+	mv "$srcdir"/bluez-$_bluez_ver/lib "$srcdir"/bluez-$_bluez_ver/bluetooth
+
+	# Speed up LTO
+	sed -i -e "s|-flto |-flto=4 |g" configure configure.ac
+
+	autoreconf -fi
+
+	sed "s|@bluetoothdir@|\"$srcdir/bluez-$_bluez_ver\"|g" -i setup.py
+}
+
+build() {
+	# -Os overwrites --enable-optimizations
+	export CFLAGS="${CFLAGS/-Os/}"
+
+	# Include bluez headers. Python only needs bluetooth/bluetoot.h and doesn't
+	# link against bluez. Depending on bluez-dev introduces a circular dep:
+	# Python -> bluez -> glib -> meson -> python
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--enable-ipv6 \
+		--enable-loadable-sqlite-extensions \
+		--enable-optimizations \
+		--enable-shared \
+		--with-lto \
+		--with-computed-gotos \
+		--with-dbmliborder=gdbm:ndbm \
+		--with-system-expat \
+		--with-system-ffi \
+		--with-system-libmpdec \
+		--without-ensurepip \
+		--with-bluetoothdir="$srcdir/bluez-$_bluez_ver"
+
+	# set thread stack size to 1MB so we don't segfault before we hit
+	# sys.getrecursionlimit()
+	make EXTRA_CFLAGS="$CFLAGS -DTHREAD_STACK_SIZE=0x100000"
+}
+
+check() {
+	# test that we reach recursionlimit before we segfault
+	cat > test-stacksize.py <<-EOF
+	import threading
+	import sys
+
+	def fun(i):
+	  try:
+	    fun(i+1)
+	  except:
+	    sys.exit(0)
+
+	t = threading.Thread(target=fun, args=[1])
+	t.start()
+EOF
+	LD_LIBRARY_PATH=$PWD ./python test-stacksize.py
+
+	local fail
+
+	case "$CLIBC" in
+	musl)
+		# musl related
+		fail="test__locale test_locale test_strptime test_re"	# various musl locale deficiencies
+		fail="$fail test_c_locale_coercion"
+		fail="$fail test_datetime"				# hangs if 'tzdata' installed
+		fail="$fail test_os"					# fpathconf, ttyname errno values
+		fail="$fail test_posix"					# sched_[gs]etscheduler not impl
+		fail="$fail test_shutil"				# lchmod, requires real unzip
+		fail="$fail test_minidom test_xml_etree"		# ExpatError: syntax error: line 1, column 0
+		;;
+	glibc)
+		# glibc related
+		fail="$fail test_curses"				# OverflowError: mktime argument out of range
+		fail="$fail test_email"					# _curses.error: inswstr() returned ERR
+		;;
+	esac
+
+	# FIXME: failures needing investigation
+	fail="$fail test_faulthandler test_gdb"			# hangs(?)
+	fail="$fail test_tokenize test_tools"			# SLOW (~60s)
+	fail="$fail test_capi"					# test.test_capi.EmbeddingTests
+	fail="$fail test_threadsignals"				# test_{,r}lock_acquire_interruption
+	fail="$fail test_time"					# strftime/strptime %Z related
+	fail="$fail test_cmath test_math"			# hang(?) on x86
+	fail="$fail test_hash test_plistlib"			# fail on armhf
+	fail="$fail test_ctypes"				# fail on aarch64 (ctypes.test.test_win32.Structures)
+	fail="$fail test_cmd_line_script"			# fails on x86_64
+	fail="$fail test_multiprocessing_main_handling"		# fails on x86_64
+	fail="$fail test_runpy"					# fails on x86_64
+	fail="$fail test_threading"				# hangs on all arches (except x86_64?)
+	fail="$fail test_selectors"				# AssertionError: 'Python' not found in '' (python3.9)
+	fail="$fail test_nntplib"
+	fail="$fail test_asyncio"				# hangs; routinely problematic (e.g. bpo-39101, bpo-41891, bpo-42183)
+
+	# kernel related
+	fail="$fail test_fcntl"					# wants DNOTIFY, we don't have it
+
+	make quicktest TESTOPTS="-j${JOBS:-$(nproc)} --exclude $fail"
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" EXTRA_CFLAGS="$CFLAGS" install maninstall
+	install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+	# those are provided by python3-tkinter
+	rm -r "$pkgdir"/usr/bin/idle* "$pkgdir"/usr/lib/python*/idlelib \
+		"$pkgdir"/usr/lib/python*/tkinter
+
+	# TODO: some stuff still wants /usr/bin/python to be python2
+	# which is a bummer because they are holding back progress but they
+	# are important enough that we need to do it
+	#
+	# Python3 is the canonical python for the moment
+	# ln -s /usr/bin/python3 "$pkgdir"/usr/bin/python
+}
+
+dev() {
+	default_dev
+
+	# pyconfig.h is needed runtime so we move it back
+	mkdir -p "$pkgdir"/usr/include/python$_basever
+	mv "$subpkgdir"/usr/include/python$_basever/pyconfig.h \
+		"$pkgdir"/usr/include/python$_basever/
+}
+
+tests() {
+	pkgdesc="The test modules from the main python package"
+
+	cd "$pkgdir"/usr/lib/python$_basever
+	local i; for i in */test */tests; do
+		mkdir -p "$subpkgdir"/usr/lib/python$_basever/"$i"
+		mv "$i"/* "$subpkgdir"/usr/lib/python$_basever/"$i"
+		rm -rf "$i"
+	done
+	mv "$pkgdir"/usr/lib/python$_basever/test \
+		"$subpkgdir"/usr/lib/python$_basever/
+}
+
+pythonispython3() {
+	pkgdesc="python -> python3 symlink"
+	depends="python3"
+
+	mkdir -p "$subpkgdir"/usr/bin
+	ln -s python3 "$subpkgdir"/usr/bin/python
+}
+
+sha512sums="
+6c9aeecddc55c7896b2e8527fca131c7b2b6127d56ce1a001ccedfebf590334e0c0bb7c517ed3cf1da3c1910e002552b56aa7e03eeb672f42ff0bd8150799113  Python-3.10.4.tar.xz
+f11f9974b29c5c6fce3890d7e42425c1cb02e42c1b8f49c5cc4b249234e67b64317d0e5e82721e2fbf1b53269c8569a9c869d59ce42b5e927f6622f0753e53cd  bluez-5.64.tar.xz
+fe123dd871f7a3fa868c499a957b94f1d815a1e1de964aaff1116c579defd4d9d1e9b7eb418cf114b169b97426ed603bf4b1e61b45ec483df06abe988c6a30ee  fix-xattrs-glibc.patch
+ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e960c4889568d25753b9e4a1494834fea48291b33f07000ec2  musl-find_library.patch
+14b00953cdb5fe757b38dbf759d7203c3504b46e330494ec195db92290640ec640fb29cc4456208a25dadc028ebaf211b0df71f458a3b76023fdafb4f91ff46a  custom-bluetooth-h-path.patch
+a84483246e413650a904c34c18f5e4f4168c39067d069f48557c330de6eb3db19fd96a4d453d742db3dcb7c7f962722903f62823c752ff90510c89830435ffc0  arm-alignment.patch
+"

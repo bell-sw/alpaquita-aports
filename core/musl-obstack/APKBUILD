@@ -1,0 +1,31 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+pkgname=musl-obstack
+pkgver=1.2.3
+pkgrel=0
+pkgdesc="Standalone library to implement GNU libc's obstack"
+url="https://github.com/void-linux/musl-obstack"
+arch="all"
+license="LGPL-2.1-or-later"
+options="!libc_glibc !check" # no test suite
+makedepends="automake autoconf libtool"
+subpackages="$pkgname-dev"
+source="$pkgname-$pkgver.tar.gz::https://github.com/void-linux/musl-obstack/archive/v$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+	./bootstrap.sh
+}
+
+build() {
+	./configure --prefix=/usr
+	make
+}
+
+package() {
+	make install DESTDIR="$pkgdir"
+}
+
+sha512sums="
+b2bbed19c4ab2714ca794bdcb1a84fad1af964e884d4f3bbe91c9937ca089d92b8472cb05ebe998a9f5c85cb922b9b458db91eff29077bd099942e1ce18e16cc  musl-obstack-1.2.3.tar.gz
+"

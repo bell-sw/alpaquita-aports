@@ -1,0 +1,19 @@
+pkgname=mailcap
+pkgver=2.1.53
+pkgrel=1
+pkgdesc="Helper application and MIME type associations for file types"
+url="https://pagure.io/mailcap"
+arch="noarch"
+license="Public-Domain and MIT"
+options="!check" # no testsuite
+subpackages="$pkgname-doc"
+source="https://releases.pagure.org/mailcap/mailcap-$pkgver.tar.xz"
+
+package() {
+	make install DESTDIR="$pkgdir"
+	rm -Rf "$pkgdir"/etc/nginx
+}
+
+sha512sums="
+26cc8b84193e653edd518cb079e0a2baf76b223f6c865b85d68115b7cc2878dbafd6de0eb04f5c495b4ba440f460a9b12e707b91840528494917fa2c1b0b0753  mailcap-2.1.53.tar.xz
+"

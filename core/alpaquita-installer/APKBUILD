@@ -1,0 +1,59 @@
+pkgname=alpaquita-installer
+pkgver=0.5.0
+pkgrel=0
+pkgdesc="Alpaquita Linux Installer"
+url="https://bell-sw.com"
+arch="noarch"
+license="AGPL-3.0-or-later"
+depends="
+	bonding
+	cryptsetup
+	dosfstools
+	e2fsprogs
+	hwids-pci
+	hwids-usb
+	ifupdown-ng-wifi
+	lsblk
+	lvm2
+	mdadm
+	mdadm-udev
+	py3-attrs
+	py3-urwid
+	py3-yaml
+	python3
+	sfdisk
+	tzdata
+	wipefs
+	xfsprogs
+"
+makedepends="py3-setuptools"
+subpackages="$pkgname-doc"
+source="https://packages.bell-sw.com/alpaquita/distfiles/$pkgname-$pkgver.tar.xz
+	https://packages.bell-sw.com/alpaquita/musl/22/keys/$CARCH/info@bell-sw.com-60a2aed7.rsa.pub
+	https://packages.bell-sw.com/alpaquita/glibc/22/keys/$CARCH/info@bell-sw.com-61c66027.rsa.pub
+	"
+
+build() {
+	install -D -m 0644 "$srcdir/info@bell-sw.com-60a2aed7.rsa.pub" -t alpaquita_installer/keys/musl/
+	install -D -m 0644 "$srcdir/info@bell-sw.com-61c66027.rsa.pub" -t alpaquita_installer/keys/glibc/
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py check
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+
+	mkdir -p "$pkgdir/usr/share/doc/$pkgname"
+	for _doc in *.md; do
+		install -m 0644 $_doc "$pkgdir/usr/share/doc/$pkgname"
+	done
+}
+
+sha512sums="
+ef7d162b2b0d69726c40f85f0b197fbe2f09bf691b7d03f714d0dfb10b183398156062b06adc167e039e61d1661c277f51850fc892a0bd67f9a0a3150cae7266  alpaquita-installer-0.5.0.tar.xz
+a92a9c2860fdd4a33adc9f339a7f6c4ce7217b450b6a2800f5d59d9721c5e7aa141f9ff2638bb9f2a940bff2fe1c3cd8979990bc6b9a03e3cbbda0c82292a1f4  info@bell-sw.com-60a2aed7.rsa.pub
+937cb1a84cef6af5707051036f175d50018feeaca4855638558e172775e7adf5c7d0fde4a9d5b6d4ca3f8de81dfcca9f0f4702d9a9b783eaa78c85a118cb7345  info@bell-sw.com-61c66027.rsa.pub
+"

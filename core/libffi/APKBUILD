@@ -1,0 +1,53 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: libffi package enables the creation of a bridge between
+# interpreter and natively compiled code by means of using a calling convention.
+
+pkgname=libffi
+pkgver=3.4.2
+pkgrel=1
+pkgdesc="A Portable Foreign Function Interface Library"
+url="https://sourceware.org/libffi/"
+arch="all"
+license="MIT"
+depends_dev="linux-headers"
+makedepends_build="texinfo automake autoconf libtool"
+# on mips* ffitarget.h wants <asm/sgidefs.h>
+makedepends_host="linux-headers"
+checkdepends="dejagnu"
+subpackages="$pkgname-dbg $pkgname-dev $pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/libffi/libffi/archive/refs/tags/v$pkgver.tar.gz
+	pax-dlmmap.patch
+	"
+
+[ "$CARCH" = "ppc64le" ] && options="$options !check" # test fails
+
+prepare() {
+	default_prepare
+	update_config_sub
+	./autogen.sh
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--enable-pax_emutramp \
+		--enable-portable-binary \
+		--disable-exec-static-tramp
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+d399319efcca375fe901b05722e25eca31d11a4261c6a5d5079480bbc552d4e4b42de2026912689d3b2f886ebb3c8bebbea47102e38a2f6acbc526b8d5bba388  libffi-3.4.2.tar.gz
+72486b389db16055ae4d7d33ba0cb05840537e28fe7a86aa89e2cb922592125d99c18c26c5df7ffde6282742e79f2b9126353e58b58f091f0486589e14dd6474  pax-dlmmap.patch
+"

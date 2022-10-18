@@ -1,0 +1,57 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: a suite of ELF tools to aid auditing systems. Contains various
+# ELF related utils for ELF32, ELF64 binaries useful for displaying PaX and
+# security info on a large groups of binary files.
+
+pkgname=pax-utils
+pkgver=1.3.4
+pkgrel=0
+pkgdesc="utils for ELF binaries"
+url="https://wiki.gentoo.org/wiki/Hardened/PaX_Utilities"
+arch="all"
+license="GPL-2.0-only"
+depends="scanelf"
+makedepends_host="linux-headers libcap-dev"
+makedepends="$makedepends_host"
+checkdepends="bash python3 py3-elftools"
+[ -n "$BOOTSTRAP" ] && options="$options !check" # prevent python dependency
+source="https://dev.gentoo.org/~xen0n/distfiles/pax-utils-$pkgver.tar.xz"
+subpackages="$pkgname-doc scanelf:_scanelf lddtreepax:_lddtreepax:noarch"
+
+build() {
+	make USE_CAP=yes
+}
+
+check() {
+	# Use py3
+	sed -i '1 s:^.*$:#!/usr/bin/python3:' lddtree.py
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir/" install
+
+	# Don't conflict with main/lddtree
+	mv "$pkgdir"/usr/bin/lddtree "$pkgdir"/usr/bin/lddtreepax
+}
+
+_scanelf() {
+	depends=""
+	pkgdesc="Scan ELF binaries for stuff"
+	replaces="pax-utils"
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/scanelf "$subpkgdir"/usr/bin/
+}
+
+_lddtreepax() {
+	depends="python3 py3-elftools"
+	pkgdesc="Read and package ELF dependency trees"
+
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/lddtreepax "$subpkgdir"/usr/bin
+}
+
+sha512sums="
+44a475860823e8b70b1d09d69e5fba3ed8298511d07e1e7b09ce62237cb8b1ecee8fc2fc550d6853d0b9f8db3c350bf78ced49d5f210997b294dc10e36627fcd  pax-utils-1.3.4.tar.xz
+"

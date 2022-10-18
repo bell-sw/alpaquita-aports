@@ -1,0 +1,25 @@
+From 871ba3afa394a18b0df2c407cbb9a366dbf9d0bd Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Mon, 10 Jan 2022 12:23:27 +0300
+Subject: [PATCH] read busybox/ln help from stderr
+
+---
+ dracut-init.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dracut-init.sh b/dracut-init.sh
+index e173e526..ee259e0d 100644
+--- a/dracut-init.sh
++++ b/dracut-init.sh
+@@ -1069,7 +1069,7 @@ instmods() {
+     return $_ret
+ }
+ 
+-if [[ "$(ln --help)" == *--relative* ]]; then
++if ln --help 2>&1 | grep -q '\-\-relative'; then
+     ln_r() {
+         ln -sfnr "${initdir}/$1" "${initdir}/$2"
+     }
+-- 
+2.25.1
+

@@ -1,0 +1,252 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME is a build of OpenJDK verified by the OpenJDK
+# Technology Compatibility Kit test suite to be compliant with the Java SE
+# specifications.
+
+_java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_java_ver=17.0.4.1+1
+_java_rel_date=2022-08-12
+_java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 17"
+
+pkgname=${_java_pkg_name}17
+pkgver=${_java_ver/+/_p}
+pkgrel=0
+pkgdesc="$_java_name"
+url="$VENDOR_URL"
+license="GPL-2.0 WITH Classpath-Exception-2.0"
+arch="x86_64"
+options="!strip ldpath-recursive !tracedeps"
+annocheck_skip="libsyslookup.so"
+depends="$pkgname-doc=$pkgver-r$pkgrel $pkgname-jdk=$pkgver-r$pkgrel"
+makedepends="
+	alsa-lib-dev
+	automake
+	autoconf
+	bash
+	ca-certificates
+	coreutils
+	cups-dev
+	file
+	findutils
+	fontconfig-dev
+	freetype-dev
+	gawk
+	gettext
+	grep
+	libx11-dev
+	libxext-dev
+	libxi-dev
+	libxrandr-dev
+	libxrender-dev
+	libxt-dev
+	libxtst-dev
+	linux-headers
+	sed
+	zip
+	zlib-dev
+	$pkgname-bootstrap>=17.0.3
+	"
+subpackages="
+	$pkgname-dbg:_dbg
+	$pkgname-jmods:_jmods:noarch
+	$pkgname-demos:_demos:noarch
+	$pkgname-src:_src:noarch
+	$pkgname-jre-doc:_jre_doc:noarch
+	$pkgname-doc:_doc:noarch
+	$pkgname-libs-static:_libs_static
+	$pkgname-jre:_jre
+	$pkgname-jdk:_jdk
+	"
+
+provides="openjdk17=$pkgver-r$pkgrel"
+
+source="
+	${VENDOR_URL/\/\//\/\/download.}java/$_java_ver/bellsoft-jdk$_java_ver-src.tar.gz
+	HelloJava.java
+	readme.txt.template
+	cast_nullptr_t_fixes.patch
+	dynamically-increase-size-of-cpuset-mask.patch
+	"
+
+srcdir="$srcdir/$pkgname"
+builddir="$srcdir"
+sonameprefix="$pkgname:"
+
+_java_home=/usr/lib/jvm/"$pkgname"
+ldpath="$_java_home/lib"
+
+_jre_tools="
+	java
+	keytool
+	rmiregistry
+	"
+
+prepare() {
+	default_prepare
+
+	update_config_sub
+	update_config_guess
+}
+
+build() {
+
+	if [ -z "$JOBS" ]; then
+		export JOBS=$(printf '%s\n' "$MAKEFLAGS" | sed -n -e 's/.*-j\([0-9]\+\).*/\1/p')
+	fi
+
+	local _cflags="-fplugin=annobin -fstack-protector-strong -D_FORTIFY_SOURCE=2"
+
+	CFLAGS='' CXXFLAGS='' LDFLAGS=''
+	bash ./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--target=$CTARGET \
+		--with-jvm-variants='server,client,minimal' \
+		--with-jvm-features=shenandoahgc,zgc \
+		--with-version-string=${_java_ver%+*} \
+		--with-version-build=${_java_ver#*+} \
+		--with-version-date=${_java_rel_date} \
+		--with-version-opt=LTS \
+		--with-vendor-name="$VENDOR_NAME" \
+		--with-vendor-url="$VENDOR_URL" \
+		--with-vendor-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-vendor-vm-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-extra-cflags="$_cflags" \
+		--with-extra-cxxflags="$_cflags" \
+		--with-extra-ldflags=$LDFLAGS \
+		--disable-warnings-as-errors \
+		--with-boot-jdk=/usr/lib/jvm/$pkgname
+	MAKEFLAGS='' make product-bundles static-libs-bundles
+}
+
+check() {
+	_jdkdir="$builddir"/build/linux-*-release/images/jdk
+
+	$_jdkdir/bin/javac "$startdir"/HelloJava.java -d "$builddir"
+	$_jdkdir/bin/java -cp "$builddir" HelloJava
+}
+
+package() {
+	mkdir -p "$pkgdir/$_java_home"
+	tar --strip-components=1 -xf build/linux-*-release/bundles/*_bin.tar.gz -C "$pkgdir/$_java_home"
+}
+
+_jre() {
+	pkgdesc="$_java_name (JRE)"
+	depends="java-common fontconfig ttf-dejavu-core freetype"
+	provides="
+		java-jre
+		java17-jre
+		openjdk17-jre=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	rm -rf "$pkgdir/$_java_home/lib/server/*.jsa"
+	mv "$pkgdir/$_java_home/lib" "$subpkgdir/$_java_home/"
+
+	mkdir -p "$subpkgdir/$_java_home/bin"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/bin/$f" "$subpkgdir/$_java_home/bin/$f"
+	done
+
+	for f in legal conf release; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/$f"
+	done
+
+	cp "$subpkgdir/$_java_home/legal/java.base/LICENSE" "$subpkgdir/$_java_home/"
+	VENDOR_NAME="$VENDOR_NAME" VENDOR_URL="$VENDOR_URL" VENDOR_JAVA_NAME="$VENDOR_JAVA_NAME" \
+		envsubst < readme.txt.template > "$subpkgdir/$_java_home/readme.txt"
+
+	ln -sf . "$subpkgdir/$_java_home/jre"
+	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-17-${pkgname%*17}
+}
+
+_jre_doc() {
+	pkgdesc="$_java_name (JRE Documentation)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="openjdk17-jre-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/man/man1"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/man/man1/$f".* "$subpkgdir/$_java_home/man/man1/"
+	done
+}
+
+_jdk() {
+	pkgdesc="$_java_name (JDK)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="
+		java-jdk
+		java17-jdk
+		$pkgname-bootstrap=$pkgver-r$pkgrel
+		openjdk17-bootstrap=$pkgver-r$pkgrel
+		openjdk17-jdk=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	for f in bin include; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+}
+
+_jmods() {
+	pkgdesc="$_java_name (Java Modules)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk17-jmods=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/jmods" "$subpkgdir/$_java_home/"
+}
+
+_doc() {
+	pkgdesc="$_java_name (Documentation)"
+	depends="$pkgname-jre-doc=$pkgver-r$pkgrel"
+	provides="openjdk17-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/man" "$subpkgdir/$_java_home/"
+}
+
+_demos() {
+	pkgdesc="$_java_name (Demos)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk17-demos=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	tar --strip-components=1 -xf "$builddir"/build/linux-*-release/bundles/*_bin-tests-demos.tar.gz -C "$subpkgdir/$_java_home"
+}
+
+_src() {
+	pkgdesc="$_java_name (Sources)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk17-src=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/src.zip" "$subpkgdir/$_java_home/lib/"
+}
+
+_dbg() {
+	pkgdesc="$_java_name (Debug Info)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk17-dbg=$pkgver-r$pkgrel"
+
+	local debugdir="$subpkgdir/usr/lib/debug"
+	mkdir -p "$debugdir/$_java_home"
+	tar --strip-components=1 -xf "$builddir"/build/linux-*-release/bundles/*_bin-symbols.tar.gz -C "$debugdir/$_java_home"
+}
+
+_libs_static() {
+	pkgdesc="$_java_name (Static Libraries)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk17-libs-static=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	tar --strip-components=1 -xf "$builddir"/build/linux-*-release/bundles/*_bin-static-libs.tar.gz -C "$subpkgdir/$_java_home"
+}
+
+sha512sums="
+79a4b38186ad42253dcb68b2e31d3b094552dcbaefa5fd7a22f3a6ff5e66b3b91f905c28b6db7b4507400719d6298de31f063cea96ffa66ee3177bf7fa2710f0  bellsoft-jdk17.0.4.1+1-src.tar.gz
+508cc8511fecee2288f41dc009834d444785ddd4129acfabefeae03ab75a26088bc7e8a60548dac58c6d18865d994e5ad8fa340cac20ba3cc838434dc7cbbcde  HelloJava.java
+38edd959b1e1880c1b2663c27ec31708538a43e75889209530209c0328e52ddc8eeb92ebe03e2b51b5440c41354316e55897d0d21d04ceff0b488a97242de5d4  readme.txt.template
+d52852aed6398a1c9796dadaf7f1ade038b19a36c4f21a93f931475e3e3e348add1cb9d27fec0975336b7294c676eaddfda2df6923db2f341eba1505b4c0cab6  cast_nullptr_t_fixes.patch
+bd0da3e1d79abcb277250426f25ba5c224dd9fc1a36935f9cd7e564118078322ae45fb286fa7451017fa48b5531ead670845a74cdfd39325808efa541ba956ae  dynamically-increase-size-of-cpuset-mask.patch
+"

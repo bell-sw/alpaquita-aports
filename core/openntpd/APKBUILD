@@ -1,0 +1,61 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: openntpd enables clock synchronization with NTP servers; it can
+# also act as an NTP server.
+
+pkgname=openntpd
+pkgver=6.8_p1
+_pkgver=${pkgver/_/}
+pkgrel=6
+pkgdesc="OpenBSD NTP implementation"
+url="http://www.openntpd.org/"
+subpackages="openntpd-doc openntpd-openrc"
+makedepends="libretls-dev linux-headers bsd-compat-headers
+	autoconf automake libtool byacc"
+arch="all"
+license="ISC"
+options="!check"
+source="https://ftp.openbsd.org/pub/OpenBSD/OpenNTPD/openntpd-$_pkgver.tar.gz
+	ntp-user.patch
+	libtls-standalone.patch
+	$pkgname.confd
+	$pkgname.initd
+	"
+builddir="$srcdir/$pkgname-$_pkgver"
+
+prepare() {
+	default_prepare
+	autoreconf -vif
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--localstatedir=/var \
+		--mandir=/usr/share/man \
+		--sysconfdir=/etc \
+		--with-privsep-user=ntp \
+		--enable-https-constraint
+	make
+}
+
+package() {
+	make install DESTDIR="$pkgdir"
+
+	mkdir -p "$pkgdir"/var/empty
+	install -Dm755 "$srcdir"/$pkgname.initd \
+		"$pkgdir"/etc/init.d/"$pkgname"
+	install -Dm644 "$srcdir"/$pkgname.confd \
+		"$pkgdir"/etc/conf.d/"$pkgname"
+	rmdir "$pkgdir"/var/run
+}
+
+sha512sums="
+200056bedb9c757aae1ce5d3f6655175ec058cb479429fe4704955f3a3fa15e8a9cb578ae4898ddb4cfc08c9742bbab6a7c92b5e569f06a148e40c448360b58f  openntpd-6.8p1.tar.gz
+290311e5cd074d5bd1e6374ba9b4776e4acf792d47011c43412e236766b73be2b0e5f0091bd3ad79d0b637754531889b199e66c64952765bbcd1bade0d2ebe94  ntp-user.patch
+4b27edb9b778a8a0437735e010f0606cd03a46d10bb054a6527929d46de44ba470bc81017cb2a61956fc8049879e498aadf545a89a35be1237e26eeac98ef3e3  libtls-standalone.patch
+01c3d9ed18741981fb2d8ebb509cd71801b57f57fcac48ed727687a6402dbad8a791ace1e63c0069a07b0dbcbc98c917885c942dab9616d25dde429f1fb9c348  openntpd.confd
+4dfeee2ba004287f73bf140a374c6987facf91b7ca00685f9b19671605fc1366ae1b405d3239b3ffdd5475f42fb245976d7a856a9955ea9b0779d89be9589e3c  openntpd.initd
+"

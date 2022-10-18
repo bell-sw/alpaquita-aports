@@ -1,0 +1,69 @@
+pkgname=oath-toolkit
+pkgver=2.6.7
+pkgrel=1
+pkgdesc="OATH Toolkit One-time password components"
+url="https://nongnu.org/oath-toolkit/"
+arch="all"
+license="GPL-3.0-or-later"
+depends="perl cvs diffutils"
+makedepends="linux-pam-dev libxml2-dev xmlsec-dev autoconf automake libtool
+	gtk-doc"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-liboath $pkgname-libpskc
+	$pkgname-oathtool $pkgname-pam_oath"
+source="https://download.savannah.gnu.org/releases/oath-toolkit/oath-toolkit-$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+	autoreconf --force --install
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+liboath() {
+	depends=""
+	pkgdesc="A shared and static C library for OATH handling."
+	license="LGPL-2.1-or-later"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/liboath.so* "$subpkgdir"/usr/lib
+}
+
+libpskc() {
+	depends=""
+	pkgdesc="Library for Portable Symmetric Key Container"
+	license="LGPL-2.1-or-later"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libpskc.so* "$subpkgdir"/usr/lib
+}
+
+oathtool() {
+	depends="oath-toolkit-liboath"
+	pkgdesc="A command line tool for generating and validating OTPs."
+	license="GPL-3.0-or-later"
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/oathtool "$subpkgdir"/usr/bin
+}
+
+pam_oath() {
+	depends="oath-toolkit-liboath"
+	license="GPL-3.0-or-later"
+	pkgdesc="A PAM module for pluggable login authentication for OATH."
+	mkdir -p "$subpkgdir"/lib/security
+	mv "$pkgdir"/usr/lib/security/pam_oath.so "$subpkgdir"/lib/security
+}
+
+sha512sums="
+50edff75c8366887d69cf4740c4cc3bdfc3e43cbd4910ff40f735bca489f0953d7e5a21130f12782ac7a1f2fb00f0db313aff139085f23daba78a69bc7b2eb12  oath-toolkit-2.6.7.tar.gz
+"

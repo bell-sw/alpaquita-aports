@@ -1,0 +1,48 @@
+pkgname=libmaxminddb
+pkgver=1.6.0
+pkgrel=2
+pkgdesc="Maxmind GeoIP2 database library"
+url="https://github.com/maxmind/libmaxminddb"
+arch="all"
+license="Apache-2.0"
+depends="curl"
+checkdepends="perl"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-libs"
+source="https://github.com/maxmind/libmaxminddb/releases/download/$pkgver/libmaxminddb-$pkgver.tar.gz
+	libmaxminddb.cron
+	libmaxminddb.confd
+	"
+
+# secfixes:
+#   1.4.3-r0:
+#     - CVE-2020-28241
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--with-pic
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make install DESTDIR="$pkgdir"
+
+	# install alpine specifics
+	mkdir -p "$pkgdir"/var/lib/libmaxminddb
+	install -Dm755 "$srcdir"/libmaxminddb.cron "$pkgdir"/etc/periodic/weekly/libmaxminddb
+
+	# Not an openrc config file. See cron script.
+	install -Dm644 "$srcdir"/libmaxminddb.confd "$pkgdir"/etc/libmaxminddb.cron.conf
+}
+
+sha512sums="
+9394e8dd959982d4ef5d15a928d32700722ed9d6c9988d9cc1bf2f4e67de0a53cc6987e90aaef3a6926c9ff36ac378f7a1fe47818fda4f5a3a22539210b2d004  libmaxminddb-1.6.0.tar.gz
+7eb66e563b156c176a2b23c73c60c55c52f20f94393a82cbdedd8f2ddb136a029bad8a4df0ca2c0f2bb923af170ae56cdd19dbb4e09c3affc23be6f79dd23f80  libmaxminddb.cron
+03bdfd6d1d508ea5261a396ac9539f363dcb477b9cf11fd4c9b01001e03205fa667cde21295dc0cc3d38db50adebb9c57e147a22fc7945de7c72d75d10637128  libmaxminddb.confd
+"

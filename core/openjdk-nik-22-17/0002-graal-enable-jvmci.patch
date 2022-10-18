@@ -1,0 +1,24 @@
+From 4b440ce523dde2515b810246c67086725d5cdd68 Mon Sep 17 00:00:00 2001
+From: Denis Kononenko <denis.kononenko@bell-sw.com>
+Date: Mon, 19 Sep 2022 18:28:30 +0000
+Subject: [PATCH] enable jvmci
+
+---
+ sdk/mx.sdk/mx_sdk_vm.py | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sdk/mx.sdk/mx_sdk_vm.py b/sdk/mx.sdk/mx_sdk_vm.py
+index 70d053c9a0d..47e4101f2c8 100644
+--- a/graal/sdk/mx.sdk/mx_sdk_vm.py
++++ b/graal/sdk/mx.sdk/mx_sdk_vm.py
+@@ -755,6 +755,7 @@ def _get_image_vm_options(jdk, use_upgrade_module_path, modules, synthetic_modul
+                 vm_options.extend(['-XX:+UnlockExperimentalVMOptions', '-XX:+EnableJVMCIProduct', '-XX:-UseJVMCICompiler', '-XX:-UnlockExperimentalVMOptions'])
+         else:
+             mx.logv('[Creating JDK without -XX:+EnableJVMCIProduct]')
++            vm_options.extend(['-XX:+UnlockExperimentalVMOptions', '-XX:+EnableJVMCI', '-XX:-UnlockExperimentalVMOptions'])
+         if modules and use_upgrade_module_path:
+             vm_options.append('--upgrade-module-path=' + os.pathsep.join((synthetic_modules.get(m, m.jarpath) for m in modules)))
+     elif use_upgrade_module_path:
+-- 
+2.34.4
+

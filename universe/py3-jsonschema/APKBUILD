@@ -1,0 +1,40 @@
+pkgname=py3-jsonschema
+pkgver=4.5.1
+pkgrel=0
+pkgdesc="An implementation of JSON Schema validation for Python"
+url="https://github.com/Julian/jsonschema"
+arch="noarch"
+license="MIT"
+depends="python3 py3-pyrsistent py3-attrs py3-six"
+makedepends="py3-build py3-installer py3-setuptools_scm py3-wheel"
+checkdepends="py3-twisted py3-pytest py3-tox"
+source="https://files.pythonhosted.org/packages/source/j/jsonschema/jsonschema-$pkgver.tar.gz"
+builddir="$srcdir/jsonschema-$pkgver"
+
+replaces="py-jsonschema" # Backwards compatibility
+provides="py-jsonschema=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 -m build --no-isolation --wheel
+}
+
+check() {
+	PYTHONPATH="$PWD/build/lib" py.test-3 -v \
+		--deselect jsonschema/tests/test_cli.py::TestCLIIntegration::test_license
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		dist/jsonschema-$pkgver-py3-none-any.whl
+
+	# Add version suffix to executable files.
+	local path; for path in "$pkgdir"/usr/bin/*; do
+		mv "$path" "$path"-3
+	done
+
+	ln -s jsonschema-3 "$pkgdir"/usr/bin/jsonschema
+}
+
+sha512sums="
+3866a649ece45c1c69d3d5e9810cfdb094f1af82fcc08a186f9babd7516ad311c4bffa52f61f013bc84e7ab1be06605c5fab738c1c920ff8ce85a73429d9efde  jsonschema-4.5.1.tar.gz
+"

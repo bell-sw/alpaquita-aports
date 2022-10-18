@@ -1,0 +1,53 @@
+_pkgname=lyaml
+pkgname=lua-$_pkgname
+pkgver=6.2.7
+pkgrel=1
+pkgdesc="LibYAML binding for Lua"
+url="https://github.com/gvvaughan/lyaml"
+arch="all"
+license="MIT"
+makedepends="yaml-dev lua-stdlib-normalize"
+replaces="lua-yaml"
+source="$_pkgname-$pkgver.tar.gz::https://github.com/gvvaughan/lyaml/archive/v$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+_luaversions="5.1 5.2 5.3 5.4"
+for _v in $_luaversions; do
+	makedepends="$makedepends lua$_v-dev"
+	subpackages="$subpackages lua$_v-$_pkgname:_subpackage"
+done
+
+build() {
+	local lver; for lver in $_luaversions; do
+		msg "Building for Lua $lver..."
+
+		cp -r "$builddir" "$srcdir"/build-$lver
+		cd "$srcdir"/build-$lver
+		lua$lver build-aux/luke
+	done
+}
+
+package() {
+	mkdir -p "$pkgdir"
+}
+
+_subpackage() {
+	local lver="${subpkgname%-lyaml}"
+	lver=${lver#lua}
+	pkgdesc="$pkgdesc $lver"
+	depends="lua$lver lua$lver-stdlib-normalize"
+	install_if="$pkgname=$pkgver-r$pkgrel lua$lver"
+	local rockdir="$subpkgdir/usr/lib/luarocks/rocks-$lver/$_pkgname/$pkgver-1"
+
+	cd "$srcdir"/build-$lver
+
+	lua$lver build-aux/luke PREFIX="$subpkgdir"/usr install
+	rm -Rf "$subpkgdir"/usr/share/doc
+
+	mkdir -p "$rockdir"
+	echo 'rock_manifest = {}' > "$rockdir"/rock_manifest
+}
+
+sha512sums="
+a2ee9eefd5fdeda5ddfd1b1cfbd2d2d09beeb13597e63a57a21687fa367c51a574f2cc2cde29faab2cd3e3ead8783f25e8eace6c0cfa13152f6ba00b8b4b4c5b  lyaml-6.2.7.tar.gz
+"

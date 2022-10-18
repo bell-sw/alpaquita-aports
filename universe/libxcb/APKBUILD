@@ -1,0 +1,40 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=libxcb
+pkgver=1.15
+pkgrel=0
+pkgdesc="X11 client-side library"
+url="https://xcb.freedesktop.org"
+arch="all"
+license="MIT"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
+depends_dev="libxau-dev xcb-proto"
+checkdepends="check-dev"
+options="!check" # upstream requires an old check version (0.9.4)
+makedepends="$depends_dev libpthread-stubs libxdmcp-dev libxslt python3"
+source="https://xorg.freedesktop.org/archive/individual/lib/libxcb-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--enable-xkb \
+		--enable-xinput \
+		--disable-xprint
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+check() {
+	make check
+}
+
+sha512sums="
+f6c7d766b7cf9cab6abe948ee424cbae6951dbfe2f76fa58a109cdc05b0f0919dcc4e38176a22ff4b95fc1e38596115317e32ba33b24cae0035a4e30dbcbdad9  libxcb-1.15.tar.xz
+"

@@ -1,0 +1,85 @@
+pkgname=libressl
+pkgver=3.5.3
+_namever=${pkgname}${pkgver%.*}
+pkgrel=0
+pkgdesc="Version of the TLS/crypto stack forked from OpenSSL"
+url="https://www.libressl.org/"
+arch="all"
+license="custom"
+pcprefix="libressl:"  # avoid mix up with openssl pkg-config
+sonameprefix="libressl:"  # avoid mix up with libretls
+#makedepends_build="automake autoconf libtool"
+makedepends_host="linux-headers"
+makedepends="$makedepends_host $makedepends_build"
+subpackages="$pkgname-dbg $_namever-libcrypto:_libs $_namever-libssl:_libs
+	$_namever-libtls:_libs $pkgname-dev $pkgname-doc"
+source="https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-$pkgver.tar.gz"
+
+# secfixes:
+#   3.4.3-r0:
+#     - CVE-2022-0778
+#   3.1.5-r0:
+#     - CVE-2020-1971
+#   2.7.4-r0:
+#     - CVE-2018-0732
+#     - CVE-2018-0495
+#   2.5.3-r1:
+#     - CVE-2017-8301
+#
+
+#prepare() {
+#	default_prepare
+#
+#	autoreconf -vif
+#}
+
+build() {
+	CFLAGS="-L$CBUILDROOT/usr/lib $CFLAGS" \
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--with-sysroot=$CBUILDROOT \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+
+	cd "$pkgdir"
+
+	# /usr/bin/openssl is provided by the openssl package.
+	mv usr/bin/openssl usr/bin/libressl
+	mv usr/share/man/man1/openssl.1 usr/share/man/man1/libressl.1
+
+	# Provided by ca-certificates-cacerts
+	rm etc/ssl/cert.pem
+	rmdir etc/ssl/certs
+
+	# Provided by openssl's libcrypto1.1
+	rm etc/ssl/openssl.cnf
+}
+
+_libs() {
+	local name="${subpkgname#$_namever-}"
+	pkgdesc="libressl $name library"
+	depends=""
+
+	amove usr/lib/$name.so.*
+
+	if [ "$name" = "libcrypto" ]; then
+		amove etc
+	fi
+}
+
+sha512sums="
+19f97f7c2b5cb4591ee6f191255b441373176b1b6539aa6ac2cd54494a14beaf126b151eb2f0b7fb650796fc0e37e2a9b1508ca50722adc7107c460904a5dbb7  libressl-3.5.3.tar.gz
+"

@@ -1,0 +1,32 @@
+pkgname=perl-http-daemon
+pkgver=6.14
+pkgrel=0
+pkgdesc="HTTP::Daemon perl module"
+url="https://metacpan.org/release/HTTP-Daemon"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-http-date perl-http-message"
+makedepends="perl-module-build-tiny"
+checkdepends="perl-test-needs"
+replaces="perl-libwww"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/O/OA/OALDERS/HTTP-Daemon-$pkgver.tar.gz"
+
+builddir="$srcdir"/HTTP-Daemon-$pkgver
+build() {
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+baae522b24211d04bc53d0f89f9e7b6b98681772eb79e28a72aa2b57c023a92e1264923abc2fefc24e28be265e17530541fd9d3a559d5bcfca00a8f5b0e9d85e  HTTP-Daemon-6.14.tar.gz
+"

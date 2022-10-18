@@ -1,0 +1,67 @@
+From daf58e4221336f515d4247a116f3c20516daafa2 Mon Sep 17 00:00:00 2001
+From: Stanislav Kholmanskikh <stanislav.kholmanskikh@bell-sw.com>
+Date: Fri, 24 Sep 2021 15:57:27 +0300
+Subject: [PATCH] Add BellSoft Alpaquita Linux naming customizations
+
+Signed-off-by: Stanislav Kholmanskikh <stanislav.kholmanskikh@bell-sw.com>
+---
+ abuild.in       | 2 +-
+ buildlab.in     | 6 +++---
+ functions.sh.in | 3 ++-
+ 3 files changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/abuild.in b/abuild.in
+index 76cd77b..30aac1e 100644
+--- a/abuild.in
++++ b/abuild.in
+@@ -2425,7 +2425,7 @@ rootbld() {
+ 	$SUDO_APK add --initdb --update \
+ 		--arch $CBUILD_ARCH \
+ 		--root "$BUILD_ROOT" \
+-		abuild alpine-base build-base git $hostdeps $builddeps \
++		abuild alpaquita-base build-base git $hostdeps $builddeps \
+ 		${USE_CCACHE:+ccache}
+ 
+ 	local bwrap_opts=""
+diff --git a/buildlab.in b/buildlab.in
+index 0b4da5d..45adf35 100644
+--- a/buildlab.in
++++ b/buildlab.in
+@@ -128,7 +128,7 @@ prepare_chroot() {
+ 		ln -s /var/cache/apk "$path"/etc/apk/cache
+ 	fi
+ 
+-	echo "alpine-base" > "$path"/etc/apk/world
++	echo "alpaquita-base" > "$path"/etc/apk/world
+ 	mkdir -p "$path"/lib/apk/db
+ 	mkdir -p "$path"/var/lock
+ 	mkdir -p "$path"/var/cache/apk
+@@ -141,9 +141,9 @@ prepare_chroot() {
+ 
+ 	apk --arch $buildarch --root $path --repositories "$path"/etc/apk/repositories update
+ 
+-	msg "Installing alpine-base..."
++	msg "Installing alpaquita-base..."
+ 
+-	apk --arch $buildarch --root $path --repositories "$path"/etc/apk/repositories add --initdb alpine-base
++	apk --arch $buildarch --root $path --repositories "$path"/etc/apk/repositories add --initdb alpaquita-base
+ 
+ 	msg "Installing abuild..."
+ 
+diff --git a/functions.sh.in b/functions.sh.in
+index 9ac358e..eac24b6 100644
+--- a/functions.sh.in
++++ b/functions.sh.in
+@@ -100,7 +100,8 @@ readconfig() {
+ 		if [ -n "$gitbase" ]; then
+ 			case $(git remote get-url origin) in
+ 			# '.git' for SSH URLs, and no suffix for HTTPS URLs
+-			*/aports|*/aports.git) APORTSDIR=$gitbase ;;
++			# BellSoft keeps it in linux-aports, not in aports
++			*/*aports|*/*aports.git) APORTSDIR=$gitbase ;;
+ 			*) APORTSDIR= ;;
+ 			esac
+ 		else
+-- 
+2.25.1
+

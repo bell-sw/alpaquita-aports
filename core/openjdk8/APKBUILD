@@ -1,0 +1,285 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME is a build of OpenJDK verified by the OpenJDK
+# Technology Compatibility Kit test suite to be compliant with the Java SE
+# specifications.
+
+_java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_java_uver=345
+_java_bnum=1
+
+_java_ver=8u$_java_uver+$_java_bnum
+_java_name="${VENDOR_NAME} ${VENDOR_JAVA_NAME} JDK 8"
+
+pkgname=${_java_pkg_name}8
+pkgver=${_java_ver/+/_p}
+pkgrel=0
+pkgdesc="$_java_name"
+url="$VENDOR_URL"
+license="GPL-2.0 WITH Classpath-Exception-2.0"
+arch="x86_64"
+options="!strip !tracedeps ldpath-recursive"
+annocheck_skip="libwaiters.so"
+depends="
+	$pkgname-doc=$pkgver-r$pkgrel
+	$pkgname-jdk=$pkgver-r$pkgrel
+	"
+makedepends="
+	alsa-lib-dev
+	autoconf
+	automake
+	bash
+	ca-certificates
+	coreutils
+	cups-dev
+	file
+	findutils
+	fontconfig-dev
+	freetype-dev
+	gawk
+	gettext
+	libx11-dev
+	libxext-dev
+	libxi-dev
+	libxrender-dev
+	libxt-dev
+	libxtst-dev
+	linux-headers
+	sed
+	zip
+	zlib-dev
+	${pkgname}-bootstrap>=8u333
+	"
+
+subpackages="
+	$pkgname-dbg:_dbg
+	$pkgname-demos:_demos
+	$pkgname-src:_src:noarch
+	$pkgname-jre-doc:_jre_doc:noarch
+	$pkgname-doc:_doc:noarch
+	$pkgname-jre:_jre
+	$pkgname-jdk:_jdk
+	"
+
+source="
+
+	${VENDOR_URL/\/\//\/\/download.}java/$_java_ver/bellsoft-jdk$_java_ver-src.tar.gz
+	musl:portola-8.patch
+	musl:portola-8-hotspot.patch
+	musl:portola-8-hotspot-sa.patch
+	musl:portola-8-hotspot-sa-generic.patch
+	musl:portola-8-jdk.patch
+	musl:portola-8-jdk-execvp.patch
+	musl:portola-8-hotspot-disable-werror.patch
+	gcc11.patch
+	readme.txt.template
+	HelloJava.java
+	"
+
+srcdir="$srcdir/$pkgname"
+builddir="$srcdir"
+sonameprefix="$pkgname:"
+
+provides="
+	$pkgname-lite=$pkgver-r$pkgrel
+	openjdk8=$pkgver-r$pkgrel
+	openjdk8-lite=$pkgver-r$pkgrel
+"
+
+_java_home="/usr/lib/jvm/$pkgname"
+_images_dir="$builddir/build/linux-$CARCH-*-release/images"
+_jre_tools="
+	appletviewer
+	java
+	keytool
+	orbd
+	pack200
+	policytool
+	rmid
+	rmiregistry
+	tnameserv
+	unpack200
+	"
+
+case $CARCH in
+x86_64) _jarch=amd64 ;;
+*) _jarch=$CARCH ;;
+esac
+
+ldpath="$_java_home/jre/lib"
+
+build() {
+
+	if [ -z "$JOBS" ]; then
+		export JOBS=$(printf '%s\n' "$MAKEFLAGS" | sed -n -e 's/.*-j\([0-9]\+\).*/\1/p')
+	fi
+
+	local _cflags="-fplugin=annobin -fstack-protector-strong -D_FORTIFY_SOURCE=2"
+
+	CFLAGS='' CXXFLAGS='' LDFLAGS=''
+	bash ./configure \
+		--enable-jfr \
+		--with-extra-ldflags="-static-libstdc++ -static-libgcc" \
+		--with-extra-cflags="$_cflags -Wformat-overflow=0 -Wno-error=nonnull" \
+		--with-jvm-variants=server \
+		--with-native-debug-symbols=external \
+		--with-milestone=fcs \
+		--with-update-version=$_java_uver \
+		--with-build-number=b0$_java_bnum \
+		--with-vendor-name=${VENDOR_NAME} \
+		--with-vendor-url=${VENDOR_URL} \
+		--with-vendor-bug-url=${VENDOR_BUG_REPORT_URL} \
+		--with-vendor-vm-bug-url=${VENDOR_BUG_REPORT_URL} \
+		--with-boot-jdk=/usr/lib/jvm/$pkgname
+	MAKEFLAGS='' make images
+}
+
+check() {
+	_jdkdir="$_images_dir"/j2sdk-image
+
+	$_jdkdir/bin/javac "$startdir"/HelloJava.java -d "$builddir"
+	$_jdkdir/bin/java -cp "$builddir" HelloJava
+}
+
+package() {
+	mkdir -p "$pkgdir/$_java_home"
+	cp -aR $_images_dir/j2sdk-image/* "$pkgdir/$_java_home/"
+}
+
+_demos() {
+	pkgdesc="$_java_name (Demos)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="
+		$pkgname-lite-demos=$pkgver-r$pkgrel
+		openjdk8-demos=$pkgver-r$pkgrel
+		openjdk8-lite-demos=$pkgver-r$pkgrel
+	"
+	mkdir -p "$subpkgdir/$_java_home"
+	local f
+	for f in demo sample; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+}
+
+_src() {
+	pkgdesc="$_java_name (Sources)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="
+		$pkgname-lite-src=$pkgver-r$pkgrel
+		openjdk8-src=$pkgver-r$pkgrel
+		openjdk8-lite-src=$pkgver-r$pkgrel
+	"
+	mkdir -p "$subpkgdir/$_java_home/"
+	mv "$pkgdir/$_java_home/src.zip" "$subpkgdir/$_java_home/"
+}
+
+_jre_doc() {
+	pkgdesc="$_java_name (JRE Documentation)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="
+		$pkgname-lite-jre-doc=$pkgver-r$pkgrel
+		openjdk8-jre-doc=$pkgver-r$pkgrel
+		openjdk8-lite-jre-doc=$pkgver-r$pkgrel
+	"
+	mkdir -p "$subpkgdir/$_java_home/man/man1"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/man/man1/$f".* "$subpkgdir/$_java_home/man/man1/"
+	done
+	mkdir -p "$subpkgdir/$_java_home/man/ja_JP.UTF-8/man1"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/man/ja_JP.UTF-8/man1/$f".* "$subpkgdir/$_java_home/man/ja_JP.UTF-8/man1/"
+		cp -a "$pkgdir/$_java_home/man/ja" "$subpkgdir/$_java_home/man/"
+	done
+}
+
+_doc() {
+	pkgdesc="$_java_name (Documentation)"
+	depends="$pkgname-jre-doc=$pkgver-r$pkgrel"
+	provides="
+		$pkgname-lite-doc=$pkgver-r$pkgrel
+		openjdk8-doc=$pkgver-r$pkgrel
+		openjdk8-lite-doc=$pkgver-r$pkgrel
+	"
+	mkdir -p "$subpkgdir/$_java_home/"
+	mv "$pkgdir/$_java_home/man" "$subpkgdir/$_java_home/"
+}
+
+_jre() {
+	pkgdesc="$_java_name (JRE)"
+	depends="java-common fontconfig ttf-dejavu-core freetype"
+	provides="
+		java-jre
+		java8-jre
+		$pkgname-lite-jre=$pkgver-r$pkgrel
+		openjdk8-jre=$pkgver-r$pkgrel
+		openjdk8-lite-jre=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home/bin"
+	local f
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/bin/$f" "$subpkgdir/$_java_home/bin/"
+	done
+
+	for f in ASSEMBLY_EXCEPTION LICENSE THIRD_PARTY_README release; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/$_jarch" "$subpkgdir/$_java_home/lib/"
+
+	mv "$pkgdir/$_java_home/jre" "$subpkgdir/$_java_home/"
+	VENDOR_NAME="$VENDOR_NAME" VENDOR_URL="$VENDOR_URL" VENDOR_JAVA_NAME="$VENDOR_JAVA_NAME" \
+		envsubst < readme.txt.template > "$subpkgdir/$_java_home/readme.txt"
+
+	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-8-${pkgname%*8}
+	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-1.8-${pkgname%*8}
+}
+
+_jdk() {
+	pkgdesc="$_java_name (JDK)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="
+		java-jdk
+		java8-jdk
+		$pkgname-bootstrap=$pkgver-r$pkgrel
+		openjdk8-bootstrap=$pkgver-r$pkgrel
+		$pkgname-lite-jdk=$pkgver-r$pkgrel
+		openjdk8-jdk=$pkgver-r$pkgrel
+		openjdk8-lite-jdk=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home/$pkgname"
+	for f in bin include lib; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+}
+
+_dbg() {
+	pkgdesc="$_java_name (Debug Info)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="
+		$pkgname-lite-dbg=$pkgver-r$pkgrel
+		openjdk8-dbg=$pkgver-r$pkgrel
+		openjdk8-lite-dbg=$pkgver-r$pkgrel
+	"
+
+	local debugdir="$subpkgdir/usr/lib/debug"
+	for f in $(find "$pkgdir/$_java_home" -type f -name '*.debuginfo'); do
+		target=${f/$pkgdir/$debugdir}
+		mkdir -p ${target%/*}
+		mv $f $target
+	done
+}
+
+sha512sums="
+991452f705765002bd67be1751bdb88af4d8ff824cd4e13ab10a7b920dbff6b79454e13b443545ccdef3d826a53301ecf8d33de5bcf102504f1410482283d953  bellsoft-jdk8u345+1-src.tar.gz
+57f0ad3e50e7106009873738b6fc4bde5073013c5adcba494a9ffa04bf4446473844bb1d2e68569a6eb9dc8af9ecf8f554b21c86aa02e0674cff37aadcba794b  portola-8.patch
+0d315662fd9ed49fe54fdba9d9d487808ce88c82e16a61108ff807fb08b553333f17494b9e59d71fc5b2620e5caaa87f80cf73e7305e823350e757d8f4a9d5fd  portola-8-hotspot.patch
+f7a815d23589a4d17b9c166d8c30b702776222d39d95f5547a3dea83e4d1d974461638da37d75d9d0ada9b033a7a9cc31a4742f7ddfdef3cd487dd3f47689b8a  portola-8-hotspot-sa.patch
+af5a882b54f69a4530ce12bb61c30795f5b89bc9a5084738afafad6fe7ca3a565f52d51b07df1340f3cb6dfe57d27cd618874c79a119856b3e2df7836f20a707  portola-8-hotspot-sa-generic.patch
+28f644e591b86022653a73e263e21f7676a583410535b1251fc5cd053a3817fdf5a007d19879ece0ee7887f1de23a3ea6660d5b3e1d2c5a95686890e79dd1834  portola-8-jdk.patch
+c5dc99a4027b2a4d07c0a0fb0979f82ce6a21a4b4dc0b21f6d38b0609e2f65a3412648494e03a2a3e66fe0f527f8bdcf0e71aada852eea4cd0ee4a4dc4b616fd  portola-8-jdk-execvp.patch
+2c3e35dd1a6774fdc67b2906b539027e6cc1e907e85e8d76b23276d4aa7ec98b3b62c01d94cdce18aa05766a1e90eeaa074a12d31e8b3a6fc3c5c5bdea8976e7  portola-8-hotspot-disable-werror.patch
+a713282569ba20e6b2cfa6090fd82faef0a73461a8616c291425aae51b9366be453f66f8fe8b2c8631e92491cd5b58db2a9609fdf03cfc71f7ea4cca0633c7ef  gcc11.patch
+38edd959b1e1880c1b2663c27ec31708538a43e75889209530209c0328e52ddc8eeb92ebe03e2b51b5440c41354316e55897d0d21d04ceff0b488a97242de5d4  readme.txt.template
+508cc8511fecee2288f41dc009834d444785ddd4129acfabefeae03ab75a26088bc7e8a60548dac58c6d18865d994e5ad8fa340cac20ba3cc838434dc7cbbcde  HelloJava.java
+"

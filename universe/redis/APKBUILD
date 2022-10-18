@@ -1,0 +1,99 @@
+
+# Description: Redis is an in-memory data structure store, used as a database, 
+# cache, and message broker. Redis provides data structures such as strings, 
+# hashes, lists, sets, sorted sets with range queries, bitmaps, hyperloglogs, 
+# geospatial indexes, and streams.
+
+pkgname=redis
+pkgver=7.0.0
+pkgrel=0
+pkgdesc="Advanced key-value store"
+url="https://redis.io/"
+arch="all"
+license="BSD-3-Clause"
+pkgusers="redis"
+pkggroups="redis"
+makedepends="linux-headers"
+checkdepends="tcl procps"
+install="$pkgname.pre-install $pkgname.post-install"
+subpackages="$pkgname-openrc"
+source="https://download.redis.io/releases/redis-$pkgver.tar.gz
+	redis.conf.patch
+	sentinel.conf.patch
+	$pkgname.initd
+	$pkgname.confd
+	$pkgname-sentinel.initd
+	$pkgname.logrotate
+	"
+# flaky tests are blocking some builders
+options="check"
+
+# secfixes:
+#   6.2.7-r0:
+#     - CVE-2022-24735
+#     - CVE-2022-24736
+#   6.2.6-r0:
+#     - CVE-2021-32626
+#     - CVE-2021-32627
+#     - CVE-2021-32628
+#     - CVE-2021-32672
+#     - CVE-2021-32675
+#     - CVE-2021-32687
+#     - CVE-2021-32762
+#     - CVE-2021-41099
+#   6.2.5-r0:
+#     - CVE-2021-32761
+#   6.2.4-r0:
+#     - CVE-2021-32625
+#   6.2.0-r0:
+#     - CVE-2021-21309
+#     - CVE-2021-3470
+#   6.0.3-r0:
+#     - CVE-2020-14147
+#   5.0.8-r0:
+#     - CVE-2015-8080
+#   5.0.4-r0:
+#     - CVE-2019-10192
+#     - CVE-2019-10193
+
+build() {
+	export CFLAGS="$CFLAGS -DUSE_MALLOC_USABLE_SIZE"
+	make USE_JEMALLOC=no \
+		MALLOC=libc \
+		FINAL_LIBS="-lm -ldl -pthread" \
+		all
+}
+
+check() {
+	make test
+}
+
+package() {
+	make install PREFIX=/usr INSTALL_BIN="$pkgdir/usr/bin"
+
+	cd "$pkgdir"
+
+	install -D -m 644 "$builddir"/redis.conf etc/redis.conf
+
+	# This file must be writable for redis, otherwise Sentinel fails to start.
+	install -D -m 644 -o redis -g redis "$builddir"/sentinel.conf etc/sentinel.conf
+
+	install -D -m 755 "$srcdir"/redis.initd etc/init.d/redis
+	install -D -m 755 "$srcdir"/redis-sentinel.initd etc/init.d/redis-sentinel
+	install -D -m 644 "$srcdir"/redis.confd etc/conf.d/redis
+	install -D -m 644 "$srcdir"/redis.logrotate etc/logrotate.d/redis
+
+	install -d -o redis -g redis \
+		var/lib/redis \
+		var/log/redis
+}
+
+sha512sums="
+12ac925708c54b00b34c365dee39cb207fbe3cb3c99e8daad965e122b6e3a6543e3ca80e23e6a56f5dff6371d4f2b9c149ee51800ed540e1f1b9154a118ea07b  redis-7.0.0.tar.gz
+7725486329f2aba8fe03a768f6d8ab78cc96ab6f2ca403af56c252ef7978f7628b580587b372969ca5dd6257780ef58571ce6dc5aca468c3b2a299033b41047f  redis.conf.patch
+a5dc411c2bd7edf61400e29accb375275dd888fda72a8f7e3889be475010c695a22f536be818ef9441e47285c00b451966db924362a7f56806586078c9e3ff8c  sentinel.conf.patch
+f6de0542ae1dda77f70fc982d9ee5e9f2fd74134dbac3a6557704cd75bacf789693faf55e5bfe751fa0b7b5c21a952a2bcf6888f25886b7cd868903124e714af  redis.initd
+6752e99df632b14d62a3266929e80c3d667be5c270e4f34e0dcf2b7f9b1754fe0ce9d4569fa413dbbe207e406ff2848a64e0c47629997536ae1d14ca84ebd56b  redis.confd
+9d8c7d3bc96365d36b439033b905a30916fb577ac9e366e1d68b057741e635355c4141cc690be4ac4486791d2df4ed8e8e4d12a0d87bf73b96dcef2871050611  redis-sentinel.initd
+bf2def2077a989047e9bfff8a7f754bcdf96e020fd4a470f8967ee1fca601e11f044cfb3742f00e932cc013e0d0b199045d78c8878a0e529715c9f77786d353f  redis.logrotate
+"

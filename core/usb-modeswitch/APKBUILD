@@ -1,0 +1,58 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: manages the multi-mode USB devices by handling mode switching.
+
+pkgname=usb-modeswitch
+pkgver=2.6.1
+pkgrel=0
+_pkgdata=20191128
+pkgdesc="USB mode switch control"
+url="http://www.draisberghof.de/usb_modeswitch/"
+arch="all"
+license="GPL-2.0-or-later"
+makedepends="libusb-compat-dev coreutils"
+subpackages="$pkgname-doc $pkgname-udev::noarch"
+options="!check" # no testsuite
+source="http://www.draisberghof.de/usb_modeswitch/usb-modeswitch-$pkgver.tar.bz2
+	http://www.draisberghof.de/usb_modeswitch/usb-modeswitch-data-$_pkgdata.tar.bz2
+	usb_modeswitch.setup"
+
+prepare() {
+	default_prepare
+
+	make clean
+	sed -i -e 's/--mode=/-m/' Makefile
+
+	cd ../$pkgname-data-$_pkgdata
+	# sed -i -e 's%install -m644 -t $(PREFIX)/share/usb_modeswitch ./usb_modeswitch.d/*%cp -R $(PREFIX)/share/usb_modeswitch/* ./usb_modeswitch.d/%' Makefile
+	sed -i -e 's/--mode=/-m/' Makefile
+}
+
+build() {
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	# installing data
+	cd $srcdir/usb-modeswitch-data-$_pkgdata
+	make DESTDIR=$pkgdir install
+	# installing config
+	cp $srcdir/usb_modeswitch.setup $pkgdir/etc/
+}
+
+udev() {
+	pkgdesc="udev support for usb-modeswitch"
+	depends="eudev tcl $pkgname=$pkgver-r$pkgrel"
+	mkdir -p "$subpkgdir"/usr/sbin
+	mv "$pkgdir"/lib "$subpkgdir"/
+	mv "$pkgdir"/usr/sbin/usb_modeswitch_dispatcher \
+		"$subpkgdir"/usr/sbin/
+}
+
+sha512sums="
+5d800b45257ca1182a13155dc37b614ee2d93273ed226cc9d05b6ae423f9e88b7c9aca6829604bdb86f68707ddf2c51c9ad2bcf898b8261b2c5bb56a21351e1e  usb-modeswitch-2.6.1.tar.bz2
+4b5954ad83f7281e42321c16f5cc5b956923cc0e2db5f238cc64b3ea37a419768f01f2e26310f2b4fe9a9a5b1d901517933effd6e6edd23bc9b8d0c039ed0ba2  usb-modeswitch-data-20191128.tar.bz2
+48bc921849c529059c35f00e9cb10e92fee32622d63291bbd7184039bbe4c4324591b4011b24cf9b6c4ed2a7ad90fe0d5287a58631de5114b36f70d4f6f3c250  usb_modeswitch.setup
+"

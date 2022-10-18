@@ -1,0 +1,108 @@
+# Description: apk-tools provides instruments to work with packages:
+# install, upgrade, or delete them.
+
+pkgname=apk-tools
+pkgver=2.12.9
+pkgrel=3
+pkgdesc="Alpaquita Package Keeper (Derivate from Alpine Package Keeper)"
+arch="all"
+url="https://gitlab.alpinelinux.org/alpine/apk-tools"
+license="GPL-2.0-only"
+subpackages="$pkgname-dbg $pkgname-dev $pkgname-static $pkgname-doc $pkgname-zsh-completion"
+makedepends_build="openssl lua5.3 lua5.3-lzlib scdoc"
+makedepends_host="zlib-dev openssl1.1-compat-dev zlib-static openssl1.1-compat-libs-static linux-headers"
+makedepends="$makedepends_build $makedepends_host"
+_lua="no"
+if [ "$CBUILD" = "$CHOST" ]; then
+	_lua="lua5.3"
+	subpackages="$subpackages $_lua-apk:luaapk"
+	makedepends="$makedepends $_lua-dev"
+
+	# ca-certificates-bundle needed for https certificate validation
+	depends="$depends ca-certificates-bundle"
+fi
+source="https://gitlab.alpinelinux.org/alpine/$pkgname/-/archive/v$pkgver/$pkgname-v$pkgver.tar.gz
+	_apk
+	0001-Get-rid-of-separation-of-sbin-lib-and-their-usr-coun.patch
+	0002-Don-t-run-triggers-till-bin-sh-is-available.patch
+	0003-add-alternative-packages-support.patch
+	0004-commit-make-the-installing-of-alternative-packages-s.patch
+	0005-alternative-packages-tests.patch
+	0006-solver-clean-db-when-removing-alternative-pkg.patch
+	0007-support-gradual-downgrade-with-apk-add.patch
+	0008-apk-search-sorted-output.patch
+	0009-reset-sigpipe-handler-to-default-when-running-script.patch
+	"
+builddir="$srcdir/$pkgname-v$pkgver"
+
+# secfixes:
+#   2.12.6-r0:
+#     - CVE-2021-36159
+#   2.12.5-r0:
+#     - CVE-2021-30139
+
+prepare() {
+	default_prepare
+	sed -i -e 's:-Werror::' Make.rules
+	echo "FULL_VERSION=$pkgver-r$pkgrel" > config.mk
+}
+
+build() {
+	make LUA="$_lua"
+	make static LUA="$_lua"
+}
+
+check() {
+	make check LUA="$_lua"
+}
+
+package() {
+	make DESTDIR="$pkgdir" LUA="$_lua" install
+	
+	install -d "$pkgdir"/var/lib/apk \
+		"$pkgdir"/var/cache/misc \
+		"$pkgdir"/etc/apk/keys \
+		"$pkgdir"/etc/apk/protected_paths.d
+
+		install -Dm644 "$srcdir"/_apk "$pkgdir"/usr/share/zsh/site-functions/_apk
+		rm -r "$pkgdir"/usr/share/doc
+}
+
+static() {
+	pkgshortdesc="Alpaquita Package Keeper - static binary"
+	install -Dm755 "$builddir"/src/apk.static \
+		"$subpkgdir"/usr/sbin/apk.static
+
+	# lets sign the static binary so it can be vefified from distros
+	# that does not have apk-tools
+	local abuild_conf=${ABUILD_CONF:-"/etc/abuild.conf"}
+	local abuild_home=${ABUILD_USERDIR:-"$HOME/.abuild"}
+	local abuild_userconf=${ABUILD_USERCONF:-"$abuild_home/abuild.conf"}
+	[ -f "$abuild_userconf" ] && . "$abuild_userconf"
+	local privkey="$PACKAGER_PRIVKEY"
+	local pubkey=${PACKAGER_PUBKEY:-"$privkey.pub"}
+	local keyname=${pubkey##*/}
+	${CROSS_COMPILE}strip "$subpkgdir"/usr/sbin/apk.static
+	openssl dgst -sha1 -sign "$privkey" \
+		-out "$subpkgdir"/usr/sbin/apk.static.SIGN.RSA.$keyname \
+		"$subpkgdir"/usr/sbin/apk.static
+}
+
+luaapk() {
+	pkgshortdesc="Lua module for apk-tools"
+	amove usr/lib/lua
+}
+
+sha512sums="
+2e299e50c5ca8733f04fad971247146ff4bebb697c3589e4692c9a940ede89432dd9fea48004dc947cb493db1206a336ac0ad1e876b02683183d69b4a127d1c6  apk-tools-v2.12.9.tar.gz
+ba5a35b118ac17ea90e2b4d981e10c29c2c1bb11d5dbec573005b4709dc21e99c808839fa40c8e55cfdb32a0a305e091a46a109e50197fadb4a8ce71b48b0000  _apk
+30217d6567848dda6abc15afa192417b2a825571451702b48a331c9b5bcff64e97ad37e0d50cf99dbc998cae12df4cebd95f1cbabd9733cbdbf6cb74570cbac5  0001-Get-rid-of-separation-of-sbin-lib-and-their-usr-coun.patch
+8bf515d2af7de4a06d6dd2f82354cb8736b707c78702e23fda1fb679fe6bea05c980692ca238e1d16ea302a6244bbd48ffa45f9009ba25016988e6ae2206f4de  0002-Don-t-run-triggers-till-bin-sh-is-available.patch
+83b935b838b0f523cc0786e0823d53920fee6e7c0342a882db050b076bb50fb5af539e81088939f0e32a0de80d643e803251273fa222309d626925e4da9de981  0003-add-alternative-packages-support.patch
+415f11ba12eb4152c6ca40d12fb4d16f402935acec6291e43a10db77df0f3cd7d281d7d91d67f8dcb4fa7e884fc6206d3468d961ac747b70718e435267350c39  0004-commit-make-the-installing-of-alternative-packages-s.patch
+1f4aca948cadd115bb79b275bc15e5d155af14248a59047aca598d7144fe0681e77092103c32df5009ba4fb6ae2a75987528e02821ad5f901f1dcb2d04307189  0005-alternative-packages-tests.patch
+ac2ea7af2379cfa702fbe9aa2a1698464f54c272dde9f1fd7342ffadcec3ce64f98491e70731c686bc2bccb95061e749e7f1a5dea36c62bba8f8fb5b0d4b4e77  0006-solver-clean-db-when-removing-alternative-pkg.patch
+283a72acd6afd90733fd9f130d4163cd324976b2ea74be059e35a1ac3d2d680e2c6eb3bb1535834d663e2ee3a808036bac36c03670235429ec6f8b7fadf71fa2  0007-support-gradual-downgrade-with-apk-add.patch
+1bce08763762ed6be25fd8c60dec0a1dbc2ffb53251758bba51eb3225c8138b10af6f9e0b810adbf2e3ef361b8a5ba8b542ba7eeabd4c12370e3240ec895c4e5  0008-apk-search-sorted-output.patch
+40182197978ef9d810e0bd9cf43cd281d0d70fe5729c7c243f069118034938e3048835a24fed1799ad3f5c8dce1aa3afb7c3afb55af3b45b93289c2dccdd741a  0009-reset-sigpipe-handler-to-default-when-running-script.patch
+"

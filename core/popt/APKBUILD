@@ -1,0 +1,40 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: a command line parser utility, similar to getopt, but includes
+# a number of improvements.
+
+pkgname=popt
+pkgver=1.18
+pkgrel=0
+pkgdesc="Command line option parser"
+url="https://github.com/rpm-software-management/popt"
+arch="all"
+license="MIT"
+subpackages="$pkgname-doc $pkgname-dev"
+source="http://ftp.rpm.org/popt/releases/popt-${pkgver%.*}.x/popt-$pkgver.tar.gz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--libdir=/usr/lib \
+		--disable-static
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+
+	mkdir -p "$pkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/pkgconfig "$pkgdir"/usr/lib
+}
+
+sha512sums="
+86422e8762adda3d02d46c20ac74ffe389d4f991d552b6fea729f007345b6426cbeb71160284e2deaa2ce44ce754a9e6cf6ccbd64bff9bc2253df40cdc2f79a5  popt-1.18.tar.gz
+"

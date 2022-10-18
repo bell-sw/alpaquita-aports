@@ -1,0 +1,31 @@
+pkgname=py3-zope-interface
+_pkgname=zope.interface
+pkgver=5.4.0
+pkgrel=1
+pkgdesc="Separate distribution of the zope.interface package used in Zope"
+url="https://zopeinterface.readthedocs.io"
+arch="all"
+license="ZPL-2.1"
+makedepends="python3-dev py3-setuptools"
+checkdepends="py3-coverage py3-zope-event py3-zope-testing"
+source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces="py-zope-interface" # Backwards compatibility
+provides="py-zope-interface=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+ef15d63397e05ad9fc44b2d5d786b0399b6973bb5f4866fab839ff612756f3157f2099d0f5c0469b574a5c8b5920a7c2a5c6eab8e8f84c24d5c43e816669bffe  zope.interface-5.4.0.tar.gz
+"

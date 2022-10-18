@@ -1,0 +1,38 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: a small but performant library for common Netlink tasks.
+
+pkgname=libmnl
+pkgver=1.0.5
+pkgrel=0
+pkgdesc="Userspace netlink library"
+url="https://www.netfilter.org/projects/libmnl/"
+arch="all"
+license="LGPL-2.1-or-later"
+depends_dev="linux-headers"
+makedepends="$depends_dev bsd-compat-headers"
+subpackages="$pkgname-static $pkgname-dev"
+source="https://www.netfilter.org/projects/$pkgname/files/$pkgname-$pkgver.tar.bz2
+	musl:musl-fix-headers.patch
+	"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--enable-static
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+16fa48e74c9da7724a85c655dfb0abd8369392627934639d65de951543e1447ac3e048d231248f1ce8861443c2ef62654a85a81feeedbbffaf2e5744f6cf4c9f  libmnl-1.0.5.tar.bz2
+984307f6a40bdd1231cf97ac84719eefaf436544bcad3a52f8590ab73676ac3064f44af65b57dfb7920aa3c84a44977e385410faf354a0a64efc5364b4314496  musl-fix-headers.patch
+"

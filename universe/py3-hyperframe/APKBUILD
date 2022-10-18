@@ -1,0 +1,28 @@
+pkgname=py3-hyperframe
+pkgver=6.0.0
+pkgrel=4
+pkgdesc="HTTP/2 framing layer for Python"
+url="https://python-hyper.org/projects/hyperframe/en/stable/"
+arch="noarch"
+license="MIT"
+depends="python3"
+checkdepends="py3-pytest"
+makedepends="py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/h/hyperframe/hyperframe-$pkgver.tar.gz"
+builddir="$srcdir/hyperframe-$pkgver"
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	PYTHONPATH="$PWD/build/lib" python3 -m pytest
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+54812dcd5bc92ebe8333e6976c2edba7309cff9921fbcbae0eda7666bf7de7758b3646f4738404bcbd069c4904e57710cb312c42ef9b6ae1d88a057b0bd0ca44  hyperframe-6.0.0.tar.gz
+"

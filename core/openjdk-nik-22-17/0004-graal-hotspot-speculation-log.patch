@@ -1,0 +1,328 @@
+From 18224824bf40aa3ae20697c27da54d31c37633d9 Mon Sep 17 00:00:00 2001
+From: Denis Kononenko <denis.kononenko@bell-sw.com>
+Date: Mon, 19 Sep 2022 18:32:06 +0000
+Subject: [PATCH] hotspot speculation log
+
+---
+ .../api/directives/GraalDirectives.java       |  12 --
+ ...tSpotManagedFailedSpeculationListTest.java | 122 ------------------
+ .../StandardGraphBuilderPlugins.java          |  29 +----
+ .../hotspot/HotSpotOptimizedCallTarget.java   |  42 ------
+ .../truffle/runtime/OptimizedCallTarget.java  |   4 +-
+ 5 files changed, 9 insertions(+), 200 deletions(-)
+ delete mode 100644 compiler/src/org.graalvm.compiler.hotspot.test/src/org/graalvm/compiler/hotspot/test/HotSpotManagedFailedSpeculationListTest.java
+
+diff --git a/compiler/src/org.graalvm.compiler.api.directives/src/org/graalvm/compiler/api/directives/GraalDirectives.java b/compiler/src/org.graalvm.compiler.api.directives/src/org/graalvm/compiler/api/directives/GraalDirectives.java
+index 5c94516ad57..f6143a33d80 100644
+--- a/graal/compiler/src/org.graalvm.compiler.api.directives/src/org/graalvm/compiler/api/directives/GraalDirectives.java
++++ b/graal/compiler/src/org.graalvm.compiler.api.directives/src/org/graalvm/compiler/api/directives/GraalDirectives.java
+@@ -26,7 +26,6 @@ package org.graalvm.compiler.api.directives;
+ 
+ import jdk.vm.ci.meta.DeoptimizationAction;
+ import jdk.vm.ci.meta.DeoptimizationReason;
+-import jdk.vm.ci.meta.SpeculationLog.SpeculationReason;
+ 
+ // JaCoCo Exclude
+ 
+@@ -44,17 +43,6 @@ public final class GraalDirectives {
+     public static final double SLOWPATH_PROBABILITY = 0.0001;
+     public static final double FASTPATH_PROBABILITY = 1.0 - SLOWPATH_PROBABILITY;
+ 
+-    /**
+-     * Directive for the compiler to fall back to the bytecode interpreter at this point. All
+-     * arguments to this method must be compile-time constant.
+-     *
+-     * @param action the action to take with respect to the code being deoptimized
+-     * @param reason the reason to use for the deoptimization
+-     * @param speculation a speculation to be attached to the deoptimization
+-     */
+-    public static void deoptimize(DeoptimizationAction action, DeoptimizationReason reason, SpeculationReason speculation) {
+-    }
+-
+     /**
+      * Directive for the compiler to fall back to the bytecode interpreter at this point. All
+      * arguments to this method must be compile-time constant.
+diff --git a/compiler/src/org.graalvm.compiler.hotspot.test/src/org/graalvm/compiler/hotspot/test/HotSpotManagedFailedSpeculationListTest.java b/compiler/src/org.graalvm.compiler.hotspot.test/src/org/graalvm/compiler/hotspot/test/HotSpotManagedFailedSpeculationListTest.java
+deleted file mode 100644
+index 94e04414e14..00000000000
+--- a/graal/compiler/src/org.graalvm.compiler.hotspot.test/src/org/graalvm/compiler/hotspot/test/HotSpotManagedFailedSpeculationListTest.java
++++ /dev/null
+@@ -1,122 +0,0 @@
+-/*
+- * Copyright (c) 2021, Oracle and/or its affiliates. All rights reserved.
+- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+- *
+- * This code is free software; you can redistribute it and/or modify it
+- * under the terms of the GNU General Public License version 2 only, as
+- * published by the Free Software Foundation.  Oracle designates this
+- * particular file as subject to the "Classpath" exception as provided
+- * by Oracle in the LICENSE file that accompanied this code.
+- *
+- * This code is distributed in the hope that it will be useful, but WITHOUT
+- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+- * version 2 for more details (a copy is included in the LICENSE file that
+- * accompanied this code).
+- *
+- * You should have received a copy of the GNU General Public License version
+- * 2 along with this work; if not, write to the Free Software Foundation,
+- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+- *
+- * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+- * or visit www.oracle.com if you need additional information or have any
+- * questions.
+- */
+-package org.graalvm.compiler.hotspot.test;
+-
+-import org.graalvm.compiler.api.directives.GraalDirectives;
+-import org.graalvm.compiler.nodes.StructuredGraph;
+-import org.graalvm.compiler.options.OptionValues;
+-import org.graalvm.compiler.serviceprovider.SpeculationReasonGroup;
+-import org.junit.Assert;
+-import org.junit.Assume;
+-import org.junit.Test;
+-
+-import jdk.vm.ci.code.InstalledCode;
+-import jdk.vm.ci.hotspot.HotSpotNmethod;
+-import jdk.vm.ci.hotspot.HotSpotSpeculationLog;
+-import jdk.vm.ci.meta.DeoptimizationAction;
+-import jdk.vm.ci.meta.DeoptimizationReason;
+-import jdk.vm.ci.meta.ResolvedJavaMethod;
+-import jdk.vm.ci.meta.SpeculationLog;
+-import jdk.vm.ci.meta.SpeculationLog.SpeculationReason;
+-
+-/**
+- * Tests the fix for GR-35930. This test relies on implementation details of {@link HotSpotNmethod}
+- * and {@link HotSpotSpeculationLog}.
+- */
+-public class HotSpotManagedFailedSpeculationListTest extends HotSpotGraalCompilerTest {
+-    private static final SpeculationReasonGroup MY_SPECULATIONS = new SpeculationReasonGroup("HotSpotSpeculationLogTest", int.class);
+-    private static final SpeculationReason MY_SPECULATION = MY_SPECULATIONS.createSpeculationReason(42);
+-
+-    /**
+-     * A simple method that unconditionally deoptimizes upon entry and associates
+-     * {@link #MY_SPECULATION} with the deoptimization.
+-     */
+-    public static int deoptimizeSnippet() {
+-        GraalDirectives.deoptimize(DeoptimizationAction.None, DeoptimizationReason.TransferToInterpreter, MY_SPECULATION);
+-        return 42;
+-    }
+-
+-    InstalledCode compiledMethod;
+-
+-    @Override
+-    protected SpeculationLog getSpeculationLog() {
+-        return getCodeCache().createSpeculationLog();
+-    }
+-
+-    /**
+-     * Determines if {@link HotSpotNmethod} declares
+-     * {@code setSpeculationLog(HotSpotSpeculationLog)}. Only such versions properly add a tether
+-     * from an nmethod to the failed speculation list.
+-     */
+-    private static boolean hasSpeculationLogTether() {
+-        try {
+-            HotSpotNmethod.class.getDeclaredMethod("setSpeculationLog", HotSpotSpeculationLog.class);
+-            return true;
+-        } catch (NoSuchMethodException e) {
+-            return false;
+-        }
+-    }
+-
+-    @Test
+-    public void testDeoptimize() throws Exception {
+-        Assume.assumeTrue(hasSpeculationLogTether());
+-
+-        // Compile and run deoptimizeSnippet
+-        test("deoptimizeSnippet");
+-
+-        cutGraphTether();
+-
+-        // The combination of a GC and creation of a new failed speculation list
+-        // would reclaim the failed speculation list associated with compiledMethod
+-        // if there is no tether from compiledMethod to the list.
+-        System.gc();
+-        ((HotSpotSpeculationLog) getCodeCache().createSpeculationLog()).getFailedSpeculationsAddress();
+-
+-        // Execute compiledMethod again. If the failed speculation list has been
+-        // freed, then this crashes the VM with a fatal error message along the lines of
+-        // "Adding to failed speculations list that appears to have been freed."
+-        compiledMethod.executeVarargs();
+-    }
+-
+-    /**
+-     * Clears reference to the last compiled graph such that the only remaining tether to the failed
+-     * speculation list is {@code lastCompiledGraph.speculationLog}.
+-     */
+-    private void cutGraphTether() {
+-        // Assert that MY_SPECULATION was recorded as a failed speculation
+-        SpeculationLog log = lastCompiledGraph.getSpeculationLog();
+-        Assert.assertFalse("expected failed " + MY_SPECULATION + " in " + log, log.maySpeculate(MY_SPECULATION));
+-
+-        lastCompiledGraph = null;
+-    }
+-
+-    @Override
+-    protected InstalledCode getCode(ResolvedJavaMethod installedCodeOwner, StructuredGraph graph, boolean forceCompile, boolean installAsDefault, OptionValues options) {
+-        compiledMethod = super.getCode(installedCodeOwner, graph, true, installAsDefault, options);
+-        SpeculationLog speculationLog = lastCompiledGraph.getSpeculationLog();
+-        Assert.assertTrue("unexpected failed " + MY_SPECULATION + " in " + speculationLog, speculationLog.maySpeculate(MY_SPECULATION));
+-        return compiledMethod;
+-    }
+-}
+diff --git a/compiler/src/org.graalvm.compiler.replacements/src/org/graalvm/compiler/replacements/StandardGraphBuilderPlugins.java b/compiler/src/org.graalvm.compiler.replacements/src/org/graalvm/compiler/replacements/StandardGraphBuilderPlugins.java
+index e79d13937fb..5294a02fa7d 100644
+--- a/graal/compiler/src/org.graalvm.compiler.replacements/src/org/graalvm/compiler/replacements/StandardGraphBuilderPlugins.java
++++ b/graal/compiler/src/org.graalvm.compiler.replacements/src/org/graalvm/compiler/replacements/StandardGraphBuilderPlugins.java
+@@ -1505,37 +1505,24 @@ public class StandardGraphBuilderPlugins {
+         }
+ 
+         @Override
+-        public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode actionValue, ValueNode reasonValue, ValueNode speculationValue) {
++        public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode actionValue, ValueNode reasonValue, ValueNode withSpeculationValue) {
+             DeoptimizationAction deoptAction = asConstant(DeoptimizationAction.class, actionValue);
+             DeoptimizationReason deoptReason = asConstant(DeoptimizationReason.class, reasonValue);
+-            JavaConstant javaConstant = Objects.requireNonNull(speculationValue.asJavaConstant(), speculationValue + " must be a non-null compile time constant");
+-            if (javaConstant.getJavaKind().isObject()) {
+-                SpeculationReason speculationReason = snippetReflection.asObject(SpeculationReason.class, javaConstant);
+-                add(b, deoptAction, deoptReason, speculationReason);
+-            } else {
+-                boolean speculation = javaConstant.asInt() != 0;
+-                add(b, deoptAction, deoptReason, speculation);
+-            }
++            boolean speculation = ((JavaConstant) Objects.requireNonNull(withSpeculationValue.asConstant(), withSpeculationValue + " must be a non-null compile time constant")).asInt() != 0;
++            add(b, deoptAction, deoptReason, speculation);
+             return true;
+         }
+ 
+         private <T> T asConstant(Class<T> type, ValueNode value) {
+-            return Objects.requireNonNull(snippetReflection.asObject(type, value.asJavaConstant()), value + " must be a non-null compile time constant");
++            return Objects.requireNonNull(snippetReflection.asObject(type, (JavaConstant) value.asConstant()), value + " must be a non-null compile time constant");
+         }
+ 
+         static void add(GraphBuilderContext b, DeoptimizationAction action, DeoptimizationReason reason, boolean withSpeculation) {
+-            SpeculationReason speculationReason = null;
+-            if (withSpeculation) {
+-                BytecodePosition pos = new BytecodePosition(null, b.getMethod(), b.bci());
+-                speculationReason = DIRECTIVE_SPECULATIONS.createSpeculationReason(pos);
+-            }
+-            add(b, action, reason, speculationReason);
+-        }
+-
+-        static void add(GraphBuilderContext b, DeoptimizationAction action, DeoptimizationReason reason, SpeculationReason speculationReason) {
+             Speculation speculation = SpeculationLog.NO_SPECULATION;
+-            if (speculationReason != null) {
++            if (withSpeculation) {
+                 GraalError.guarantee(b.getGraph().getSpeculationLog() != null, "A speculation log is needed to use `deoptimize with speculation`");
++                BytecodePosition pos = new BytecodePosition(null, b.getMethod(), b.bci());
++                SpeculationReason speculationReason = DIRECTIVE_SPECULATIONS.createSpeculationReason(pos);
+                 if (b.getGraph().getSpeculationLog().maySpeculate(speculationReason)) {
+                     speculation = b.getGraph().getSpeculationLog().speculate(speculationReason);
+                 }
+@@ -1550,8 +1537,6 @@ public class StandardGraphBuilderPlugins {
+         r.register(new DeoptimizePlugin(snippetReflection, InvalidateReprofile, TransferToInterpreter, false, "deoptimizeAndInvalidate"));
+         r.register(new DeoptimizePlugin(snippetReflection, null, null, null,
+                         "deoptimize", DeoptimizationAction.class, DeoptimizationReason.class, boolean.class));
+-        r.register(new DeoptimizePlugin(snippetReflection, null, null, null,
+-                        "deoptimize", DeoptimizationAction.class, DeoptimizationReason.class, SpeculationReason.class));
+ 
+         r.register(new RequiredInlineOnlyInvocationPlugin("inCompiledCode") {
+             @Override
+diff --git a/compiler/src/org.graalvm.compiler.truffle.runtime.hotspot/src/org/graalvm/compiler/truffle/runtime/hotspot/HotSpotOptimizedCallTarget.java b/compiler/src/org.graalvm.compiler.truffle.runtime.hotspot/src/org/graalvm/compiler/truffle/runtime/hotspot/HotSpotOptimizedCallTarget.java
+index 64fea190bfc..60626d050c8 100644
+--- a/graal/compiler/src/org.graalvm.compiler.truffle.runtime.hotspot/src/org/graalvm/compiler/truffle/runtime/hotspot/HotSpotOptimizedCallTarget.java
++++ b/graal/compiler/src/org.graalvm.compiler.truffle.runtime.hotspot/src/org/graalvm/compiler/truffle/runtime/hotspot/HotSpotOptimizedCallTarget.java
+@@ -24,8 +24,6 @@
+  */
+ package org.graalvm.compiler.truffle.runtime.hotspot;
+ 
+-import java.lang.reflect.Method;
+-
+ import org.graalvm.compiler.truffle.common.CompilableTruffleAST;
+ import org.graalvm.compiler.truffle.common.OptimizedAssumptionDependency;
+ import org.graalvm.compiler.truffle.common.TruffleCompiler;
+@@ -36,7 +34,6 @@ import com.oracle.truffle.api.nodes.RootNode;
+ 
+ import jdk.vm.ci.code.InstalledCode;
+ import jdk.vm.ci.hotspot.HotSpotNmethod;
+-import jdk.vm.ci.hotspot.HotSpotSpeculationLog;
+ import jdk.vm.ci.meta.SpeculationLog;
+ 
+ /**
+@@ -77,21 +74,6 @@ public final class HotSpotOptimizedCallTarget extends OptimizedCallTarget implem
+         return true;
+     }
+ 
+-    /**
+-     * Reflective reference to {@code HotSpotNmethod.setSpeculationLog} so that this code can be
+-     * compiled against older JVMCI API.
+-     */
+-    private static final Method setSpeculationLog;
+-
+-    static {
+-        Method method = null;
+-        try {
+-            method = HotSpotNmethod.class.getDeclaredMethod("setSpeculationLog", HotSpotSpeculationLog.class);
+-        } catch (NoSuchMethodException e) {
+-        }
+-        setSpeculationLog = method;
+-    }
+-
+     /**
+      * This method may only be called during compilation, and only by the compiling thread.
+      */
+@@ -115,35 +97,11 @@ public final class HotSpotOptimizedCallTarget extends OptimizedCallTarget implem
+             if (nmethod.isDefault()) {
+                 throw new IllegalArgumentException("Cannot install a default nmethod for a " + getClass().getSimpleName());
+             }
+-            tetherSpeculationLog(nmethod);
+         }
+ 
+         this.installedCode = code;
+     }
+ 
+-    /**
+-     * Tethers this object's speculation log with {@code nmethod} if the log has speculations and
+-     * manages its failed speculation list. This maintains the invariant described by
+-     * {@link AbstractHotSpotTruffleRuntime#createSpeculationLog}.
+-     */
+-    private void tetherSpeculationLog(HotSpotNmethod nmethod) throws Error, InternalError {
+-        if (setSpeculationLog != null) {
+-            if (speculationLog instanceof HotSpotSpeculationLog) {
+-                HotSpotSpeculationLog log = (HotSpotSpeculationLog) speculationLog;
+-                if (log.managesFailedSpeculations() && log.hasSpeculations()) {
+-                    try {
+-                        // org.graalvm.compiler.truffle.runtime.hotspot.AbstractHotSpotTruffleRuntime.createSpeculationLog()
+-                        setSpeculationLog.invoke(nmethod, log);
+-                    } catch (Error e) {
+-                        throw e;
+-                    } catch (Throwable throwable) {
+-                        throw new InternalError(throwable);
+-                    }
+-                }
+-            }
+-        }
+-    }
+-
+     @Override
+     public CompilableTruffleAST getCompilable() {
+         return this;
+diff --git a/compiler/src/org.graalvm.compiler.truffle.runtime/src/org/graalvm/compiler/truffle/runtime/OptimizedCallTarget.java b/compiler/src/org.graalvm.compiler.truffle.runtime/src/org/graalvm/compiler/truffle/runtime/OptimizedCallTarget.java
+index ea9f4b633cd..56558af6620 100644
+--- a/graal/compiler/src/org.graalvm.compiler.truffle.runtime/src/org/graalvm/compiler/truffle/runtime/OptimizedCallTarget.java
++++ b/graal/compiler/src/org.graalvm.compiler.truffle.runtime/src/org/graalvm/compiler/truffle/runtime/OptimizedCallTarget.java
+@@ -302,9 +302,9 @@ public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootC
+     private final OptimizedCallTarget sourceCallTarget;
+ 
+     /**
+-     * The speculation log to keep track of assumptions taken and failed for previous compilations.
++     * The speculation log to keep track of assumptions taken and failed for previous compialtions.
+      */
+-    protected volatile SpeculationLog speculationLog;
++    private volatile SpeculationLog speculationLog;
+ 
+     /**
+      * When this call target is inlined, the inlining {@link InstalledCode} registers this
+-- 
+2.34.4
+

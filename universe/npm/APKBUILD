@@ -1,0 +1,107 @@
+pkgname=npm
+pkgver=8.10.0
+pkgrel=0
+pkgdesc="The package manager for JavaScript"
+url="https://npm.community"
+arch="noarch !riscv64"  # blocked by nodejs
+license="Artistic-2.0"
+depends="cmd:node"
+replaces="nodejs-doc"  # for backward compatibility
+subpackages="$pkgname-doc $pkgname-bash-completion"
+source="https://registry.npmjs.org/npm/-/npm-$pkgver.tgz
+	dont-check-for-last-version.patch
+	npmrc
+	"
+builddir="$srcdir/package"
+
+# secfixes:
+#   8.1.4-r0:
+#     - CVE-2021-43616
+
+prepare() {
+	default_prepare
+
+	# Remove bunch of unnecessary files to reduce size of the package.
+
+	# Wrapper scripts written in Bash and CMD.
+	rm bin/npm bin/npx bin/*.cmd bin/node-gyp-bin/*.cmd
+	rm README.md
+	# HTML docs
+	rm -rf docs
+
+	cd node_modules
+
+	find . -type f \( \
+		-name '.*' -o \
+		-name '*.cmd' -o \
+		-name '*.bat' -o \
+		-name '*.map' -o \
+		-name '*.md' -o \
+		\( -name '*.ts' -a ! -name '*.d.ts' \) -o \
+		-name 'AUTHORS*' -o \
+		-name 'LICENSE*' -o \
+		-name 'license' -o \
+		-name 'Makefile' -o \
+		-name 'README*' -o \
+		-name 'readme.markdown' \) -delete
+	rm -rf ./*/.git* ./*/doc ./*/docs ./*/examples ./*/scripts ./*/test
+	rm -rf ./node-gyp/gyp/.git*
+
+	# No files should be executable here, except node-gyp.
+	find . -type f -executable ! -name 'node-gyp*' -exec chmod -x {} \;
+
+	cd ../man
+
+	# XXX: Workaround for https://github.com/npm/cli/issues/780.
+	local f name sec title
+	for f in man5/folders.5 man5/install.5 man7/*.7; do
+		sec=${f##*.}
+		name=$(basename $f .$sec)
+		title=$(echo "$name" | tr '[a-z]' '[A-Z]')
+
+		sed -Ei "s/^\.TH \"$title\"/.TH \"NPM-$title\"/" "$f"
+		mv "$f" "${f%/*}/npm-$name.$sec"
+	done
+}
+
+check() {
+	./bin/npm-cli.js --version
+	./bin/npx-cli.js --version
+}
+
+package() {
+	local destdir="$pkgdir/usr/lib/node_modules/npm"
+
+	mkdir -p "$destdir"
+	cp -r "$builddir"/* "$destdir"/
+	cp "$srcdir"/npmrc "$destdir"/
+
+	cd "$pkgdir"
+
+	mkdir -p usr/bin
+	ln -s ../lib/node_modules/npm/bin/npm-cli.js usr/bin/npm
+	ln -s ../lib/node_modules/npm/bin/npx-cli.js usr/bin/npx
+	ln -s ../lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js usr/bin/node-gyp
+
+	mkdir -p usr/share
+	mv "$destdir"/man usr/share/
+	ln -s ../../../share/man "$destdir"/man
+
+	mkdir -p usr/share/licenses/$pkgname
+	mv "$destdir"/LICENSE usr/share/licenses/$pkgname/
+
+	install -D -m644 "$destdir"/lib/utils/completion.sh \
+		"$pkgdir"/usr/share/bash-completion/completions/npm
+}
+
+doc() {
+	default_doc
+
+	amove usr/lib/node_modules/npm/man
+}
+
+sha512sums="
+ea8a3ae6af50baff6644f19926e7e6487f82fd415d81e970cd15e28254ffda60c1e74cddcbf9592b97456344c9f5f27ff201ea9f1717d4d336d3a28b8d304c95  npm-8.10.0.tgz
+7b0c309fc5c4aeba48f95968ec3b5234a3a96b3b47be65337a2e8f28109a6b7ed4fbb6eb9d9bbad0ed329a21eb9c1a45744c56dfa775f5ac4b852a1d07e7a86a  dont-check-for-last-version.patch
+6d0ce425061ffff1c5d7a42c9908f3382cd77abf81a9c30a62ff6fff1f0d02ff633b2bb090814aa619f7d2a51237b3da7f85d97d0f584e037639b60ccfaf0e96  npmrc
+"

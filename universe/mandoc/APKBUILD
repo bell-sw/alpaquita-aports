@@ -1,0 +1,76 @@
+pkgname=mandoc
+pkgver=1.14.6
+pkgrel=1
+pkgdesc="mandoc (formerly mdocml) UNIX manpage compiler toolset"
+url="https://mandoc.bsd.lv/"
+arch="all"
+license="ISC and BSD-2-Clause and BSD-3-Clause"
+makedepends="zlib-dev"
+checkdepends="perl"
+install="$pkgname.post-deinstall"
+triggers="$pkgname-apropos.trigger=/usr/share/man/*"
+replaces="mdocml"
+provides="mdocml=$pkgver-r$pkgrel"
+subpackages="$pkgname-doc $pkgname-dev $pkgname-apropos $pkgname-soelim"
+source="https://mandoc.bsd.lv/snapshots/mandoc-$pkgver.tar.gz
+	shared-libmandoc.patch
+	outdated-warn-disable.patch
+	"
+
+# TODO: some tests fail due to locale issues
+case "$CLIBC" in
+glibc) options="$options !check" ;;
+esac
+
+prepare() {
+	default_prepare
+
+	cat >configure.local<<-__EOF__
+	PREFIX=/usr
+	MANDIR=/usr/share/man
+	LIBDIR=/usr/lib
+	CFLAGS="$CFLAGS"
+	UTF8_LOCALE="en_US.UTF-8"
+	MANPATH_DEFAULT="/usr/share/man:/usr/local/man"
+	MANPATH_BASE="/usr/share/man"
+	LN="ln -sf"
+	HAVE_LESS_T=0
+__EOF__
+}
+
+build() {
+	./configure
+	make
+}
+
+check() {
+	LD_LIBRARY_PATH="$builddir" make regress
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" base-install lib-install
+}
+
+apropos() {
+	pkgdesc="makewhatis/whatis and apropos tools and index"
+	mkdir -p "$subpkgdir"/usr/sbin "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/apropos \
+		"$pkgdir"/usr/bin/whatis \
+		"$subpkgdir"/usr/bin/
+	mv "$pkgdir"/usr/sbin/makewhatis \
+		"$subpkgdir"/usr/sbin/
+}
+
+soelim() {
+	pkgdesc="so elimination tool"
+	depends=""
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/soelim \
+		"$subpkgdir"/usr/bin/
+}
+
+sha512sums="
+54286070812a47b629f68757046d3c9a1bdd2b5d1c3b84a5c8e4cb92f1331afa745443f7238175835d8cfbe5b8dd442e00c75c3a5b5b8f8efd8d2ec8f636dad4  mandoc-1.14.6.tar.gz
+b512bcb8bae11853a3006e2122d7e652806d4bf2234638d8809fd823375b5b0bd590f7d6a90412baffcc3b7b6a0f197a10986728a70f24fe628f91bfb651d266  shared-libmandoc.patch
+6eda39920cccb1238b104bb90ac4be2c32883897c72363560d8d39345819cdeff535680e78396052b2b8f981e169ad9b3c30da724def80a1501785d82ce7fa25  outdated-warn-disable.patch
+"

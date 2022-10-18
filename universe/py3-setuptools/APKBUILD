@@ -1,0 +1,81 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=py3-setuptools
+_pkgname=${pkgname#py3-}
+# Be very careful when upgrading major versions as upstream
+# is prone to deprecating stuff that breaks perfectly acceptable
+# setup.py and setup.cfg
+pkgver=59.4.0
+pkgrel=0
+pkgdesc="Collection of enhancements to the Python3 distutils"
+options="!check" # Tests require packages out of main/
+url="https://pypi.python.org/pypi/setuptools"
+arch="noarch"
+license="MIT"
+depends="
+	py3-appdirs
+	py3-more-itertools
+	py3-ordered-set
+	py3-packaging
+	py3-parsing
+	python3
+	"
+makedepends="py3-setuptools-bootstrap"
+source="$_pkgname-$pkgver.tar.gz::https://github.com/pypa/$_pkgname/archive/v$pkgver.tar.gz"
+builddir="$srcdir"/$_pkgname-$pkgver
+
+provides="py-setuptools=$pkgver-r$pkgrel" # Backwards compatibility
+replaces="py-setuptools" # Backwards compatiblity
+
+# py3-setuptools needs itself to build, bootstrapped with a lower version
+# in main/py3-setuptools-stage0
+provides="$provides py3-setuptools-bootstrap"
+provider_priority=100 # highest
+
+export SETUPTOOLS_INSTALL_WINDOWS_SPECIFIC_FILES=0
+
+prepare() {
+	default_prepare
+
+	# Unbundle
+	rm -rf pkg_resources/extern pkg_resources/_vendor \
+		setuptools/extern setuptools/_vendor
+
+	# Upstream devendoring logic is badly broken, see:
+	# https://bugs.archlinux.org/task/58670
+	# https://github.com/pypa/pip/issues/5429
+	# https://github.com/pypa/setuptools/issues/1383
+	# The simplest fix is to simply rewrite import paths to use the canonical
+	# location in the first place
+	for _module in setuptools pkg_resources '' ; do
+		find . -name \*.py -exec sed -i \
+			-e 's/from '$_module.extern' import/import/' \
+			-e 's/from '$_module.extern'./from /' \
+			-e 's/import '$_module.extern'./import /' \
+			-e "s/__import__('$_module.extern./__import__('/" \
+			{} +
+	done
+
+	# Fix post-release tag
+	sed -e '/tag_build = .post/d' \
+		-e '/tag_date = 1/d' \
+		-i setup.cfg
+}
+
+build() {
+	python3 setup.py build
+}
+
+package() {
+	# Otherwise it complains that build/scripts-3.10 cannot be found
+	# no other changes noted
+	mkdir -p build/scripts-3.10
+
+	python3 setup.py install --root="$pkgdir" --skip-build
+}
+
+sha512sums="
+4a7454e376e003cb3ff9ccf39cc3fb98ce7aae9ff97198c639e5e7dccc2307b5d3a2562ff3cc30e1b9bfa67ab4b9fe29b71887220e7a001df2075c1dc7e92641  setuptools-59.4.0.tar.gz
+"

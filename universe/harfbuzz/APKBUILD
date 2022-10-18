@@ -1,0 +1,58 @@
+pkgname=harfbuzz
+pkgver=4.3.0
+pkgrel=0
+pkgdesc="Text shaping library"
+url="https://freedesktop.org/wiki/Software/HarfBuzz"
+arch="all"
+license="MIT"
+makedepends="freetype-dev glib-dev gobject-introspection-dev cairo-dev icu-dev
+	graphite2-dev meson gtk-doc"
+checkdepends="python3"
+subpackages="$pkgname-static $pkgname-dev $pkgname-icu $pkgname-utils $pkgname-doc"
+source="harfbuzz-$pkgver.tar.gz::https://github.com/harfbuzz/harfbuzz/archive/$pkgver.tar.gz"
+
+build() {
+	abuild-meson \
+		--default-library=both \
+		-Dglib=enabled \
+		-Dgobject=enabled \
+		-Dgraphite=enabled \
+		-Dicu=enabled \
+		-Dfreetype=enabled \
+		-Dcairo=enabled \
+		-Ddocs=enabled \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+static() {
+	pkgdesc="$pkgdesc (static libraries)"
+
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/*.a "$subpkgdir"/usr/lib/
+}
+
+icu() {
+	pkgdesc="Harfbuzz ICU support library"
+	replaces="harfbuzz"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/lib*icu.so.* "$subpkgdir"/usr/lib/
+}
+
+utils() {
+	pkgdesc="$pkgdesc (utilities)"
+	mkdir -p "$subpkgdir"/usr
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+}
+
+sha512sums="
+bccf7cfb06ac18a9a9bf465c30dbfb51d73762a6667b3a069a85f9f597e6d27858e9e39a36cce12e23ec5b002b9e572638bf00c76bdea66545ae67a2bb7915f4  harfbuzz-4.3.0.tar.gz
+"

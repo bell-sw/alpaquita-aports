@@ -1,0 +1,21 @@
+diff -r 54aa3fd1151f src/os_cpu/linux_aarch64/vm/os_linux_aarch64.cpp
+--- a/src/os_cpu/linux_aarch64/vm/os_linux_aarch64.cpp	Fri Nov 06 03:45:25 2020 +0000
++++ b/src/os_cpu/linux_aarch64/vm/os_linux_aarch64.cpp	Mon Dec 07 13:10:57 2020 +0300
+@@ -72,7 +72,7 @@
+ # include <pwd.h>
+ # include <poll.h>
+ # include <ucontext.h>
+-# include <fpu_control.h>
++//# include <fpu_control.h>
+ 
+ #define REG_FP 29
+ 
+@@ -382,7 +382,7 @@
+     // save all thread context in case we need to restore it
+     if (thread != NULL) thread->set_saved_exception_pc(pc);
+ 
+-    uc->uc_mcontext.pc = (__u64)stub;
++    uc->uc_mcontext.pc = (long unsigned int)stub;
+     return true;
+   }
+ 

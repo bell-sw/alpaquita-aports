@@ -1,0 +1,94 @@
+pkgname=poppler
+pkgver=22.05.0
+pkgrel=0
+pkgdesc="PDF rendering library based on xpdf 3.0"
+url="https://poppler.freedesktop.org/"
+arch="all"
+options="!check" # Requires dl of testfiles and only checks qt5 libs
+# temp allow textrels on riscv64
+[ "$CARCH" = "riscv64" ] && options="$options textrels"
+license="GPL-2.0-or-later"
+depends_dev="cairo-dev glib-dev"
+makedepends="$depends_dev cmake fontconfig-dev
+	gobject-introspection-dev lcms2-dev libjpeg-turbo-dev
+	libpng-dev libxml2-dev openjpeg-dev openjpeg-tools
+	samurai tiff-dev zlib-dev"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-glib $pkgname-utils"
+source="https://poppler.freedesktop.org/poppler-$pkgver.tar.xz
+	dont-enforce-build-type.patch
+	"
+
+# secfixes:
+#   0.80.0-r0:
+#     - CVE-2019-9959
+#   0.76.0-r0:
+#     - CVE-2020-27778
+
+prepare() {
+	default_prepare
+
+	local _linked_pkg=poppler-qt5
+	local _linked_apkbuild="$startdir"/../../community/$_linked_pkg/APKBUILD
+	mkdir -p "$builddir"
+	if  [ -f "$_linked_apkbuild" ]; then
+		local _linked_ver=$( . "$_linked_apkbuild"; echo "$pkgver")
+		if [ "$_linked_ver" != "$pkgver" ]; then
+			error "pkgver needs to be identical with $_linked_pkg ($_linked_ver)"
+			return 1
+		fi
+	fi
+}
+
+build() {
+	if [ "$CBUILD" != "$CHOST" ]; then
+		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DENABLE_UNSTABLE_API_ABI_HEADERS=ON \
+		-DBUILD_QT5_TESTS=OFF \
+		-DENABLE_QT5=OFF \
+		-DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+		-DCMAKE_C_FLAGS="$CFLAGS" \
+		-DENABLE_BOOST=OFF \
+		$CMAKE_CROSSOPTS
+	cmake --build build
+}
+
+check() {
+	cd build
+	CTEST_OUTPUT_ON_FAILURE=TRUE ctest
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --build build --target install
+}
+
+utils() {
+	pkgdesc="Poppler's xpdf-workalike command line utilities"
+	install -d "$subpkgdir"/usr
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+}
+
+glib() {
+	pkgdesc="Glib wrapper for poppler"
+	replaces="poppler-gtk"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libpoppler-glib.so.* \
+		"$pkgdir"/usr/lib/girepository* \
+		"$subpkgdir"/usr/lib/
+}
+
+_cpp() {
+	pkgdesc="Pure C++ wrapper for poppler"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libpoppler-cpp.so.* \
+		"$subpkgdir"/usr/lib/
+}
+
+sha512sums="
+629098793050f7a901c2a2cf1efcad83c58d26164cf94f4aa3985465f016a8875c62be4fb8ab8005ca00ef061402962e6d6c14eb611ce29f2d71d3ae83f24737  poppler-22.05.0.tar.xz
+b4141912e73e9a0baaf7b69d0901db24b4aba854c6aff8e01389ac760e4d23606ff29c37626747f24184f1bfc97e25d53a0f99b24eef7661ac9805ea3311802a  dont-enforce-build-type.patch
+"

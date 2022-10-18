@@ -1,0 +1,18 @@
+diff -r 3d2b77f2c2fd src/solaris/native/java/lang/childproc.c
+--- a/jdk/src/solaris/native/java/lang/childproc.c	Mon Nov 16 13:36:36 2020 +0000
++++ b/jdk/src/solaris/native/java/lang/childproc.c	Fri Nov 20 12:40:29 2020 +0000
+@@ -235,7 +235,13 @@
+ {
+     if (envp == NULL || (char **) envp == environ) {
+         execvp(file, (char **) argv);
+-        return;
++        // ENOEXEC indicates that the file header was not recognized. The musl C
++        // library does not implement the fallback to /bin/sh for that case, so fall
++        // through to the code below which implements that fallback using
++        // execve_with_shell_fallback.
++        if (errno != ENOEXEC) {
++            return;
++        }
+     }
+ 
+     if (*file == '\0') {

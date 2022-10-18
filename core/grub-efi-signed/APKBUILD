@@ -1,0 +1,31 @@
+# Maintainer: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+pkgname=grub-efi-signed
+pkgver=2.06
+pkgrel=402
+pkgdesc="Bootloader with support for Linux, Multiboot and more (signed)"
+url="https://www.gnu.org/software/grub/"
+arch="x86_64"
+license="GPL-3.0-or-later"
+depends="grub-efi"
+makedepends="sbsigntool grub-efi"
+install="$pkgname.post-install"
+options="!strip !check"
+
+package() {
+	mkdir -p "$pkgdir"/boot/efi/EFI/alpaquita/
+	mkdir -p "$pkgdir"/usr/lib/grub/${CARCH}-efi/unified/
+	mkdir -p "$pkgdir"/boot/grub
+
+	[ -z "$SHIM_SIGNKEY_PRIVATE" -o -z "$SHIM_SIGNKEY_X509" ] && \
+		error "Please provide signing keys"
+
+	cp "$SHIM_SIGNKEY_X509" "$pkgdir"/usr/lib/grub/${CARCH}-efi/unified/
+
+	sbsign --key "$SHIM_SIGNKEY_PRIVATE" --cert "$SHIM_SIGNKEY_X509" \
+		--output "$pkgdir"/boot/efi/EFI/alpaquita/grubx64.efi \
+		/usr/lib/grub/${CARCH}-efi/unified/grubx64.efi
+
+	sbsign --key "$SHIM_SIGNKEY_PRIVATE" --cert "$SHIM_SIGNKEY_X509" \
+		--output "$pkgdir"/usr/lib/grub/${CARCH}-efi/unified/gcdx64.efi.signed \
+		/usr/lib/grub/${CARCH}-efi/unified/gcdx64.efi
+}

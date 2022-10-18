@@ -1,0 +1,30 @@
+pkgname=py3-jsonpointer
+_pkgname=python-json-pointer
+pkgver=2.1
+pkgrel=2
+pkgdesc="Identify specific nodes in a JSON document (RFC 6901)"
+url="https://github.com/stefankoegl/python-json-pointer"
+arch="noarch"
+license="BSD-3-Clause"
+makedepends="py3-setuptools"
+source="$pkgname-$pkgver.tar.gz::https://github.com/stefankoegl/python-json-pointer/archive/v$pkgver.tar.gz"
+builddir="$srcdir"/$_pkgname-$pkgver
+
+replaces="py-jsonpointer" # Backwards compatibility
+provides="py-jsonpointer=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+b35da9d4bfc9585278a0b85e030332ea8c304af984f82bc3ac760476db9b585a0a20dd8100b773c529d77d4ccdc95fce46d439ecd944032cab45fc26091924ae  py3-jsonpointer-2.1.tar.gz
+"

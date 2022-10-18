@@ -1,0 +1,28 @@
+pkgname=py3-iso8601
+pkgver=1.0.2
+pkgrel=1
+pkgdesc="Simple module to parse ISO 8601 dates"
+url="https://github.com/micktwomey/pyiso8601"
+license="MIT"
+arch="noarch"
+depends="python3"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest py3-hypothesis py3-tz"
+source="https://files.pythonhosted.org/packages/source/i/iso8601/iso8601-$pkgver.tar.gz"
+builddir="$srcdir/iso8601-$pkgver"
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	pytest --verbose iso8601
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+f28fbfe82c25575ad73a92df144c108ef3cf4e1a5a9af8362187014904073f26daa3b77dde689a23cfd87cdbf86196b241e925dd8cf5fd81728f0dbeee4836b7  iso8601-1.0.2.tar.gz
+"

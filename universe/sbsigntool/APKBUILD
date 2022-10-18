@@ -1,0 +1,53 @@
+pkgname=sbsigntool
+pkgver=0.9.4
+pkgrel=3
+_ccancommit=b1f28e17227f2320d07fe052a8a48942fe17caa5
+pkgdesc="Secure Boot signing tools"
+url="https://git.kernel.org/pub/scm/linux/kernel/git/jejb/sbsigntools.git/"
+arch="all !armhf !s390x !ppc64le !mips !mips64"  # limited by gnu-efi
+license="GPL-3.0-only WITH OpenSSL-Exception"
+makedepends="autoconf automake bash binutils-dev gnu-efi-dev help2man openssl1.1-compat-dev util-linux-dev"
+options="!check"	# testsuite is not functional
+subpackages="$pkgname-doc"
+source="https://git.kernel.org/pub/scm/linux/kernel/git/jejb/sbsigntools.git/snapshot/sbsigntools-$pkgver.tar.gz
+	ccan-$_ccancommit.tar.gz::https://git.ozlabs.org/?p=ccan;a=snapshot;h=$_ccancommit;sf=tgz
+	0001-fix-autogen.patch
+	"
+builddir="$srcdir/sbsigntools-$pkgver"
+
+prepare() {
+	default_prepare
+	rm -rf "$builddir"/lib/ccan.git "$builddir"/lib/ccan
+	ln -s ../../ccan-$(echo $_ccancommit | cut -b -7) "$builddir"/lib/ccan.git
+
+	# fix ccan for musl and to work outside git checkout
+	sed -i -e 's,sys/unistd.h,unistd.h,g' "$builddir"/lib/ccan.git/ccan/opt/usage.c
+	sed -i -e 's,--git-only "$module_dir","$module_srcdir",g' "$builddir"/lib/ccan.git/tools/create-ccan-tree
+
+	# autogen.sh is missing 'list', instantiate ccan here
+	lib/ccan.git/tools/create-ccan-tree \
+		--build-type=automake lib/ccan \
+		"talloc read_write_all build_assert array_size endian list"
+
+	./autogen.sh
+}
+
+build() {
+	CFLAGS="$CFLAGS -Wno-error" \
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="953d3d9a7f92b837da966eabe3572163a29c5292e792d5ef17cf842d7373ffaa901377cb4ec68006a6ef2f9c97d48db8ffdd3a6d2853be67016d3484a118bba9  sbsigntools-0.9.4.tar.gz
+35a1c1de05a755df50a75440865146dd363c47015be6fa84250888f01e6bab1661c3af5db0340e1fd7f9f84db388fb2d5fcd0d86d0e1bde34ed13b23d673d740  ccan-b1f28e17227f2320d07fe052a8a48942fe17caa5.tar.gz
+9bf0a12c7735d09e1562ad901676a7ca9572265abee88580d4f830723a28423062d5b77fe02f21414884aeb046e84cf09da599754eafaad660c5938469c460a9  0001-fix-autogen.patch"

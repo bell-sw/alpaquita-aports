@@ -1,0 +1,43 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=dos2unix
+pkgver=7.4.2
+pkgrel=0
+pkgdesc="Text file format converters"
+url="http://waterlan.home.xs4all.nl/dos2unix.html"
+arch="all"
+license="BSD-2-Clause"
+checkdepends="gettext-dev perl-utils"
+subpackages="$pkgname-doc"
+source="http://waterlan.home.xs4all.nl/dos2unix/dos2unix-$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+	sed -e '/^LDFLAGS/s|=|+=|' \
+		-e '/CFLAGS_OS \+=/d' \
+		-e '/LDFLAGS_EXTRA \+=/d' \
+		-e "/^CFLAGS/s|-O2|${CFLAGS}|" \
+		-i Makefile
+}
+
+build() {
+	make ENABLE_NLS= -C "$builddir"
+}
+
+check() {
+	make check -C "$builddir"
+}
+
+package() {
+	make prefix=/usr \
+		docsubdir=$pkgname \
+		ENABLE_NLS= \
+		DESTDIR="$pkgdir" \
+		-C "$builddir" install
+}
+
+sha512sums="
+3fb77561596bafd83f3f7807ce967e58d5a96e5235afe3a4074ae7112297445690b2586bf652eb0b5bd1984fd41a79478355f6df8244561b4167a8a09593110d  dos2unix-7.4.2.tar.gz
+"

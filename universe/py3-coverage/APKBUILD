@@ -1,0 +1,29 @@
+pkgname=py3-coverage
+pkgver=5.5
+pkgrel=1
+pkgdesc="Code coverage measurement for Python"
+options="!check" # Requires unpackaged 'flaky'
+url="https://pypi.python.org/pypi/coverage"
+arch="all"
+license="Apache-2.0"
+makedepends="python3-dev py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/c/coverage/coverage-$pkgver.tar.gz"
+builddir="$srcdir/coverage-$pkgver"
+
+replaces="py-coverage" # Backwards compatibility
+provides="py-coverage=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+sha512sums="
+fb78b4920a2f18afb9545a6f13910f491708443965881954fff6ee8553ab3d6bd898f7a95df1091435e8d5627ac850b880a6233e716a6acb934ecc195ec2ee52  coverage-5.5.tar.gz
+"

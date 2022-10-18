@@ -1,0 +1,25 @@
+From 513bb6cf71a1474559f9fb7ba9cd005f40931e62 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Sat, 5 Mar 2022 17:19:37 +0300
+Subject: [PATCH] solver: clean db when removing alternative pkg
+
+---
+ src/commit.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/commit.c b/src/commit.c
+index e984987..044927b 100644
+--- a/src/commit.c
++++ b/src/commit.c
+@@ -361,6 +361,8 @@ int apk_solver_commit_changeset(struct apk_database *db,
+ 						       progress_cb, &prog) != 0;
+ 				if (r && change->new_pkg && change->new_pkg->alternative)
+ 					return -1;
++				if (!change->new_pkg && change->old_pkg && change->old_pkg->alternative)
++					apk_deps_del(&world, change->old_pkg->name);
+ 			}
+ 			if (r == 0 && change->new_pkg && change->new_pkg->ipkg)
+ 				change->new_pkg->ipkg->repository_tag = change->new_repository_tag;
+-- 
+2.25.1
+

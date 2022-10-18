@@ -1,0 +1,35 @@
+pkgname=py3-flit-core
+pkgver=3.7.1
+pkgrel=0
+pkgdesc="simple packaging tool for simple packages (core)"
+url="https://flit.readthedocs.io/"
+arch="noarch"
+license="BSD-3-Clause"
+makedepends="py3-installer"
+checkdepends="py3-pytest py3-testpath"
+source="https://files.pythonhosted.org/packages/source/f/flit/flit-$pkgver.tar.gz"
+builddir="$srcdir/flit-$pkgver/flit_core"
+options="!check" # py3-testpath depends on this
+
+# split from py3-flit, allow replacing files
+replaces="py3-flit<3.5.1-r3"
+
+build() {
+	python3 build_dists.py
+}
+
+check() {
+	python3 -m pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		dist/flit_core-$pkgver-py3-none-any.whl
+
+	# remove installed tests
+	rm -r "$pkgdir"/usr/lib/python3*/site-packages/flit_core/tests
+}
+
+sha512sums="
+336e81b034da2f38d7decb32c8961ce62d30f6fd2cb4778b09c956eb400277673d4c94cd57cf08fa7f115f8836aadb0469197d0096f833da9317db8a4f75baed  flit-3.7.1.tar.gz
+"

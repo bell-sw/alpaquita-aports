@@ -1,0 +1,45 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=diffutils
+pkgver=3.8
+pkgrel=0
+pkgdesc="Show differences among files"
+subpackages="$pkgname-doc"
+url="https://www.gnu.org/software/diffutils/"
+arch="all"
+license="GPL-3.0-or-later"
+checkdepends="coreutils perl"
+# cyclic dependency during bootstrap:
+# m4 -> diffutils -> coreutils -> bash -> flex -> bison -> m4
+[ -n "$BOOTSTRAP" ] && options="$options !check"
+source="https://ftp.gnu.org/pub/gnu/$pkgname/$pkgname-$pkgver.tar.xz
+	skip-test-presue-output-tty.patch
+	"
+
+builddir=$srcdir/$pkgname-$pkgver
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--disable-nls
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make install DESTDIR=$pkgdir
+}
+
+sha512sums="
+279441270987e70d5ecfaf84b6285a4866929c43ec877e50f154a788858d548a8a316f2fc26ad62f7348c8d289cb29a09d06dfadce1806e3d8b4ea88c8b1aa7c  diffutils-3.8.tar.xz
+5df0dc7a452180c361698ee502b4636a5e7277132e543136c205747fac64acc6276186ec8c884b17e9fe3e307f15e045ba327d44ac4662db88675c309c56367a  skip-test-presue-output-tty.patch
+"

@@ -1,0 +1,53 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: contains a library for userspace interfaces to POSIX 1003.1e
+# capabilities. It makes programming much easier than the traditional
+# libcap library.
+
+pkgname=libcap-ng
+pkgver=0.8.3
+pkgrel=1
+pkgdesc="POSIX 1003.1e capabilities next-gen library"
+url="https://people.redhat.com/sgrubb/libcap-ng/index.html"
+arch="all"
+license="GPL-2.0-or-later LGPL-2.1-or-later"
+depends_dev="linux-headers"
+makedepends_host="$depends_dev"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-utils"
+source="https://people.redhat.com/sgrubb/libcap-ng/libcap-ng-$pkgver.tar.gz
+	apply-disable.patch
+	"
+
+build() {
+	ac_cv_prog_swig_found=no \
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--without-python \
+		--without-python3 \
+		--enable-static
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+utils() {
+	pkgdesc="posix capabilities utils"
+
+	amove usr/bin
+}
+
+sha512sums="
+0ef9bc7bc6b7b59991f43b79aa6cde3e8d2c22c4b9ced2af8deae501e01d51e893033d109cb8aa0fdcba190140110993089245346334d7b114d18f1bb1b55b97  libcap-ng-0.8.3.tar.gz
+5f362d5d3f791d1bddc5d9ef3b31e5089c54f852904e12bc3b58dcd22fa87086766cfc095ae8b485bee1b3c4fd854575b89821052b77967a6fdca4ff7e0a0397  apply-disable.patch
+"

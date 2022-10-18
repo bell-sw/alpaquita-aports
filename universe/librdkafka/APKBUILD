@@ -1,0 +1,27 @@
+pkgname=librdkafka
+pkgver=1.8.2
+pkgrel=0
+pkgdesc="The Apache Kafka C/C++ library"
+url="https://github.com/edenhill/librdkafka"
+arch="all"
+license="BSD-2-Clause"
+makedepends="bash openssl1.1-compat-dev cyrus-sasl-dev lz4-dev zlib-dev zstd-dev rapidjson-dev"
+subpackages="$pkgname-static $pkgname-dev"
+source="$pkgname-$pkgver.tar.gz::https://github.com/edenhill/librdkafka/archive/v$pkgver.tar.gz"
+
+build() {
+	./configure --prefix=/usr
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+8c8ae291129b78e3b8367307ad1b1715af1438cd76d7160d64d13a58adf84c7c9f51efeba4656f55e101c25e4cb744db0d8bb5c01a2decb229e4567d16bdcb22  librdkafka-1.8.2.tar.gz
+"

@@ -1,0 +1,45 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: SVR4 compatible GNU implementation of the traditional UNIX macro
+# processor.
+
+pkgname=m4
+pkgver=1.4.19
+pkgrel=2
+pkgdesc="GNU macro processor"
+url="https://www.gnu.org/software/m4"
+depends=
+makedepends=texinfo
+checkdepends=diffutils
+arch="all"
+license="GPL-3.0+"
+subpackages="m4-doc"
+source="
+	https://ftp.gnu.org/gnu/m4/$pkgname-$pkgver.tar.gz
+	0001-doc-Minor-formatting-tweak.patch
+	0002-tests-Fix-198.sysval.patch
+	musl:musl-realpath.patch
+	"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make install DESTDIR="$pkgdir"
+}
+
+sha512sums="
+f5dd0f02fcae65a176a16af9a8e1747c26e9440c6c224003ba458d3298b777a75ffb189aee9051fb0c4840b2a48278be4a51d959381af0b1d627570f478c58f2  m4-1.4.19.tar.gz
+7ea49a9b0aa663219cd918bb43f3992b4df9102e474854ac57b17f1a1a6aa8a3f4b63857c050f071f1a17f5f1cafaf291366dc25dbbd4578b69a9d92f9c0f705  0001-doc-Minor-formatting-tweak.patch
+e7b03ff7c3d7f406409bfaf91fa3b8b642550dc8f16822cd874270a4dd0e64655e3e184d39631bb45e93142743042e0cec0fda3c8e590cc8193e3dde9f8c3b0d  0002-tests-Fix-198.sysval.patch
+cc86f883eac255301615278af9ee172e13bbe48ce0ac318ab6c325ab2406000ceb10c5360868111210eb784ea028ef93cdfe12b77e17fa0066786957c347fd71  musl-realpath.patch
+"

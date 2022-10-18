@@ -1,0 +1,41 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: Mtools is a collection of utilities to access MS-DOS disks from
+# Unix without mounting them.
+
+pkgname=mtools
+pkgver=4.0.39
+pkgrel=0
+pkgdesc="Tools for manipulating MS-DOS files"
+url="https://www.gnu.org/software/mtools/"
+arch="all"
+license="GPL-3.0-or-later"
+makedepends="texinfo linux-headers"
+source="https://ftp.gnu.org/gnu/mtools/mtools-$pkgver.tar.bz2
+	fix-uninitialized.patch"
+subpackages="$pkgname-dbg $pkgname-doc"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--sysconfdir=/etc/mtools \
+		--without-x
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make -j1 install DESTDIR="$pkgdir"
+}
+
+sha512sums="
+6f84ce57a7c088b526e3e4fa7c509f1869a55b87951134d6257533d311b4a97496c44fa374de6f8cb15c645d60b9f9745ccbdf405d0d77a30a86e31ed8d54ce4  mtools-4.0.39.tar.bz2
+3c41e2f84d7c2b15b119708453b30b6a056a443dbbf24198f2bdc82c99e6463974f7bb0bb13569fd1f929212506d43deed1ed77502c434a89b2da885baeab597  fix-uninitialized.patch
+"

@@ -1,0 +1,67 @@
+pkgname=inih
+pkgver=55
+pkgrel=0
+pkgdesc="Simple .INI file parser for embedded systems"
+options="!check" # No testsuite in Meson, unittests always return 0
+url="https://github.com/benhoyt/inih"
+arch="all"
+license="BSD-3-Clause"
+makedepends="meson"
+checkdepends="bash"
+subpackages="
+	$pkgname-dev:_dev
+	$pkgname-inireader
+	$pkgname-inireader-dev
+	"
+source="$pkgname-$pkgver.tar.gz::https://github.com/benhoyt/inih/archive/r$pkgver.tar.gz"
+builddir="$srcdir/inih-r$pkgver"
+
+prepare() {
+	default_prepare
+
+	sed -i "s|@PKGVER@|$pkgver|" meson.build
+}
+
+build() {
+	abuild-meson \
+		-Ddefault_library=both \
+		-Ddistro_install=true \
+		-Dwith_INIReader=true \
+		-Dmulti-line_entries=true \
+		-Dutf-8_bom=true \
+		-Dinline_comments=true \
+		-Duse_heap=false \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+inireader() {
+	pkgdesc="C++ library and API for inih"
+	amove usr/lib/libINIReader.so.*
+}
+
+_dev() {
+	default_dev
+
+	# Move inireader stuff out, it will be caught later
+	mkdir -p "$pkgdir"/usr/lib/pkgconfig "$pkgdir"/usr/include
+
+	# Headers
+	mv "$subpkgdir"/usr/include/INIReader.h "$pkgdir"/usr/include
+
+	# Static and Shared libraries
+	mv "$subpkgdir"/usr/lib/libINIReader.so "$pkgdir"/usr/lib
+	mv "$subpkgdir"/usr/lib/libINIReader.a "$pkgdir"/usr/lib
+
+	# Pkgconfig
+	mv "$subpkgdir"/usr/lib/pkgconfig/INIReader.pc "$pkgdir"/usr/lib/pkgconfig
+}
+
+
+sha512sums="
+bcbef361a4400da017dbed811ad21672b58512d2b2b537cc0058cdeca709dd0d5a9def4045ce1c1972873c3d3d35182123337e4388676f6f0d16e8dbff967b0f  inih-55.tar.gz
+"

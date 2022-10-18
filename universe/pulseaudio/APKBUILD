@@ -1,0 +1,218 @@
+pkgname=pulseaudio
+pkgver=15.0
+pkgrel=3
+pkgdesc="featureful, general-purpose sound server"
+provider_priority=10
+url="https://www.freedesktop.org/wiki/Software/PulseAudio/"
+arch="all"
+license="LGPL-2.1-or-later"
+makedepends="
+	meson
+	tdb-dev
+	alsa-lib-dev
+	libasyncns-dev
+	dbus-dev
+	glib-dev
+	gtk+3.0-dev
+	orc-dev
+	orc-compiler
+	libsndfile-dev
+	soxr-dev
+	libx11-dev
+	libxcb-dev
+	libice-dev
+	libsm-dev
+	libxtst-dev
+	avahi-dev
+	sbc-dev
+	fftw-dev
+	jack-dev
+	openssl1.1-compat-dev
+	speexdsp-dev
+	eudev-dev
+	libcap-dev
+	bluez-dev
+	check-dev
+	libtool
+	perl
+	perl-xml-parser
+	m4
+	gstreamer-dev
+	gst-plugins-base-dev
+	"
+depends_openrc="alsa-utils-openrc"
+subpackages="
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-bluez
+	libpulse:_libpulse
+	libpulse-mainloop-glib:_libpulse_mainloop_glib
+	$pkgname-alsa
+	$pkgname-utils
+	$pkgname-jack
+	$pkgname-zeroconf
+	$pkgname-openrc
+	$pkgname-bash-completion
+	$pkgname-zsh-completion
+	$pkgname-lang
+	"
+# Excluded this subpackage as not needed in our release
+#       $pkgname-equalizer
+
+install="pulseaudio.post-install"
+source="https://freedesktop.org/software/pulseaudio/releases/pulseaudio-$pkgver.tar.xz
+	musl:link-libintl.patch
+	$pkgname.initd
+	$pkgname.confd
+	"
+
+options="$options !check" # once-test fails, all others pass
+
+makedepends="$makedepends webrtc-audio-processing-dev"
+
+prepare() {
+	default_prepare
+
+	sed "s|sysconfdir, 'dbus-1'|datadir, 'dbus-1'|" \
+		-i src/daemon/meson.build
+}
+
+build() {
+	abuild-meson \
+		-Dgcov=false \
+		-Dman=true \
+		-Dtests=true \
+		-Dsystem_user=pulse \
+		-Dsystem_group=pulse \
+		-Ddatabase=tdb \
+		-Dalsa=enabled \
+		-Dasyncns=enabled \
+		-Davahi=enabled \
+		-Dbluez5=enabled \
+		-Ddbus=enabled \
+		-Dfftw=enabled \
+		-Dglib=enabled \
+		-Dgsettings=enabled \
+		-Dgtk=enabled \
+		-Dhal-compat=false \
+		-Dipv6=true \
+		-Djack=enabled \
+		-Dlirc=disabled \
+		-Dopenssl=enabled \
+		-Dorc=enabled \
+		-Dsamplerate=disabled \
+		-Dsoxr=enabled \
+		-Dspeex=enabled \
+		-Dsystemd=disabled \
+		-Dudev=enabled \
+		-Dx11=enabled \
+		-Dudevrulesdir=/usr/lib/udev/rules.d \
+		-Dgstreamer=enabled \
+		-Dwebrtc-aec=enabled \
+		-Ddoxygen=false \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild -v -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+
+	install -Dm755 "$srcdir"/$pkgname.initd "$pkgdir"/etc/init.d/$pkgname
+	install -Dm644 "$srcdir"/$pkgname.confd "$pkgdir"/etc/conf.d/$pkgname
+
+	# Assumes that any volume adjustment is intended by the user, who can control
+	# each app's volume. Misbehaving clients can trigger earsplitting volume
+	# jumps. App volumes can diverge wildly and cause apps without their own
+	# volume control to fall below sink volume; a sink-only volume control will
+	# suddenly be unable to make such an app loud enough.
+	sed '/flat-volumes/iflat-volumes = no' -i "$pkgdir"/etc/pulse/daemon.conf
+
+	# Disable cork-request module, can result in e.g. media players unpausing
+	# when there's a Skype call incoming
+	sed 's|/usr/bin/pactl load-module module-x11-cork-request|#&|' \
+		-i "$pkgdir"/usr/bin/start-pulseaudio-x11
+
+	# Required by qpaeq
+	sed '/Load several protocols/aload-module module-dbus-protocol' \
+		-i "$pkgdir"/etc/pulse/default.pa
+}
+
+openrc() {
+	replaces="$pkgname-system" # Backward compatibility
+	default_openrc
+}
+
+_libpulse() {
+	pkgdesc="Pulseaudio libraries"
+	replaces="$pkgname-libs"
+
+	amove usr/lib/pulseaudio/*
+	amove usr/lib/libpulse.so.0*
+	amove usr/lib/libpulse-simple.so.0*
+	amove etc/pulse/client.conf
+}
+
+_libpulse_mainloop_glib() {
+	pkgdesc="Pulseaudio mainloop-glib library"
+
+	amove usr/lib/libpulse-mainloop-glib.so.*
+}
+
+bluez() {
+	pkgdesc="Pulseaudio Bluetooth support"
+	install_if="$pkgname=$pkgver-r$pkgrel bluez"
+	provider_priority=10  # highest (other provider is pipewire-pulse)
+
+	mkdir -p "$subpkgdir"/usr/lib/pulse-$pkgver/modules
+	mv "$pkgdir"/usr/lib/pulse-$pkgver/modules/*bluez*.so \
+		"$pkgdir"/usr/lib/pulse-$pkgver/modules/*bluetooth*.so \
+		"$subpkgdir"/usr/lib/pulse-$pkgver/modules/
+}
+
+alsa() {
+	pkgdesc="Pulseaudio ALSA support"
+	install_if="$pkgname=$pkgver-r$pkgrel alsa-lib"
+	provider_priority=10  # highest (other provider is pipewire-pulse)
+
+	amove usr/lib/pulse-$pkgver/modules/*alsa*.so
+}
+
+utils() {
+	pkgdesc="Pulseaudio utilities"
+
+	amove usr/bin/pa*
+}
+
+jack() {
+	pkgdesc="Pulseaudio JACK support"
+
+	amove usr/lib/pulse-$pkgver/modules/*jack*.so
+}
+
+zeroconf() {
+	pkgdesc="Pulseaudio Zeroconf support"
+	depends="avahi"
+
+	amove usr/lib/pulse-$pkgver/modules/*avahi*.so
+	amove usr/lib/pulse-$pkgver/modules/*zeroconf*.so
+	amove usr/lib/pulse-$pkgver/modules/*raop*.so
+}
+
+equalizer() {
+	pkgdesc="Equalizer for $pkgname"
+	depends="pulseaudio=$pkgver-r$pkgrel py3-qt5 py3-dbus"
+
+	amove usr/bin/qpaeq
+	amove usr/lib/pulse-$pkgver/modules/module-equalizer-sink.so
+}
+
+sha512sums="
+352ef20384c76c631c0faa73b08e2318902a433712e0c086a5ac7a0ae58873c8d4be8f35879bdec71a93b19ae8e2ba073cacac4d56215bcf58375a0cd9d88833  pulseaudio-15.0.tar.xz
+2c31c5bc592e748248215f8f62f85687cfec230b05f65441e6dafa5fa77d4967e97636209b2011a4501ed1337ecd880b264baa175586fc85183a980846cb8146  link-libintl.patch
+3817b19ad9bccaf001c50e7b5c9d4f9db350e6fdeecf5f3a8d5a2b6f6aea8f83e7e976d9968dc1390de07580959e86633b8094c414d3511f052ede0501652f77  pulseaudio.initd
+75b54581591519d63a3362b155c0f9b0501a60763ab394693a456c44d0216138cf3a40bdd0f7442028663bc045e9ffee286f8f8eaf2ee3bb17379b43615fee0e  pulseaudio.confd
+"

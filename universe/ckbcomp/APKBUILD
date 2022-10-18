@@ -1,0 +1,25 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=ckbcomp
+pkgver=1.207
+pkgrel=0
+pkgdesc="Compile a XKB keyboard description to a keymap"
+url="https://packages.debian.org/sid/console-setup"
+arch="noarch"
+license="GPL-2.0-or-later"
+depends="perl"
+options="!check"
+subpackages="$pkgname-doc"
+source="https://deb.debian.org/debian/pool/main/c/console-setup/console-setup_$pkgver.tar.xz"
+builddir="$srcdir"/console-setup-$pkgver
+
+package() {
+	install -D -m755 Keyboard/$pkgname $pkgdir/usr/bin/$pkgname
+	install -D -m644 man/$pkgname.1 $pkgdir/usr/share/man/man1/$pkgname.1
+}
+
+sha512sums="
+0652b43c2488246e5bf7fac7ad5dc7986ba0ae832ae2179d2ade14da0412639f9055216e6a5e73a7a7c682d4e606441bf3a24dd5dbce0c3b0aff8416571587e5  console-setup_1.207.tar.xz
+"

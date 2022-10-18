@@ -1,0 +1,40 @@
+pkgname=perl-dbi
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=DBI
+pkgver=1.643
+pkgrel=3
+pkgdesc="Database independent interface for Perl"
+url="https://metacpan.org/release/DBI/"
+arch="all"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+makedepends="perl-dev"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/T/TI/TIMB/DBI-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+# secfixes:
+#   1.643-r0:
+#     - CVE-2020-14392
+#     - CVE-2020-14393
+#     - CVE-2014-10402
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+03812f3eb1e43c8290dadb8cb14bbced9ec6e237228ea2a2ba91f22e52143906a91a7e82945dab30b1d1b9fc925073721111adafd9a09fac070808ab88f908b8  DBI-1.643.tar.gz
+"

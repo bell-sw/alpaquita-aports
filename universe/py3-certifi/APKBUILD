@@ -1,0 +1,34 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+pkgname=py3-certifi
+pkgver=2021.10.8
+pkgrel=0
+pkgdesc="Python3 package for providing Mozilla's CA Bundle"
+url="https://pypi.python.org/pypi/certifi"
+arch="noarch"
+license="MPL-2.0"
+depends="python3 ca-certificates-bundle"
+makedepends="py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/c/certifi/certifi-$pkgver.tar.gz
+	use-alpine-system-certs.patch
+	"
+builddir="$srcdir/certifi-$pkgver"
+options="!check" # no tests provided
+
+replaces="py-certifi" # Backwards compatibility
+provides="py-certifi=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+
+	# Remove bundled certificates, we use system certificates
+	rm -f "$pkgdir"/usr/lib/python3*/site-packages/certifi/cacert.pem
+}
+
+sha512sums="
+06dc41a471f16f6c52751854e82fb42011c9388651cff55761298b86ba437d431e6325ab039ef330f2b2c5f69f5ba43dc468e7ca3df205a8bb31468f43711fbe  certifi-2021.10.8.tar.gz
+10c8859f31cf259ee29a2ba8b08130f76aa93a64c41fa1abc0202a599fa1084321b4bbbd8599a219d7c20159e5b1fd318c259d6f7e8ddc37a7ad57b9bb684abb  use-alpine-system-certs.patch
+"

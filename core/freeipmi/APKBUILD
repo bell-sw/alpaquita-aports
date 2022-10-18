@@ -1,0 +1,65 @@
+pkgname=freeipmi
+pkgver=1.6.9
+pkgrel=0
+pkgdesc="IPMI library and utilities"
+url="https://www.gnu.org/software/freeipmi/"
+arch="all !ppc64le"
+license="GPL-3.0-or-later"
+options="!check" # no test suite
+makedepends="musl:argp-standalone libgcrypt-dev"
+subpackages="$pkgname-doc $pkgname-dev $pkgname-libs $pkgname-openrc"
+source="https://ftp.gnu.org/gnu/freeipmi/freeipmi-$pkgver.tar.gz
+	bmc-watchdog.confd
+	bmc-watchdog.initd
+	ipmidetectd.confd
+	ipmidetectd.initd
+	ipmiseld.confd
+	ipmiseld.initd"
+
+prepare() {
+	default_prepare
+	update_config_sub
+	update_config_guess
+}
+
+build() {
+	# musl stropts.h does not define getmsg or putmsg
+	# checked for by ipmi-sunbmc-driver.c. Disable it.
+	./configure ac_cv_header_sys_stropts_h=no \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--disable-static \
+		--disable-init-scripts
+	make
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install
+	install -Dm 644 "$srcdir"/bmc-watchdog.confd \
+		"$pkgdir"/etc/conf.d/bmc-watchdog
+	install -Dm755 "$srcdir"/bmc-watchdog.initd \
+		"$pkgdir"/etc/init.d/bmc-watchdog
+	install -Dm 644 "$srcdir"/ipmidetectd.confd \
+		"$pkgdir"/etc/conf.d/ipmidetectd
+	install -Dm755 "$srcdir"/ipmidetectd.initd \
+		"$pkgdir"/etc/init.d/ipmidetectd
+	install -Dm 644 "$srcdir"/ipmiseld.confd \
+		"$pkgdir"/etc/conf.d/ipmiseld
+	install -Dm755 "$srcdir"/ipmiseld.initd \
+		"$pkgdir"/etc/init.d/ipmiseld
+}
+
+sha512sums="
+536add8dc01aa4d9df45e3499f8be1318185b19beb579c8f991a11ca973626d7e0aabe1d8760a9addadc418ea5c1e2b5432053e46ba94fd9078fb6dcabf48280  freeipmi-1.6.9.tar.gz
+11bbd920eb67a64a9d3742e860ae146c1a00398f44d4cead49f8f6070f46a09249c05bb647a1b7bf2c4c6c78e1ae393b2e52395f640bc7e5139aade7c99b45b2  bmc-watchdog.confd
+52b852257c3e7628268b8e31475a524982635c34cb58c91f5e29b3fc93946e0e6a9d946953f46d0422bb1ab184b39c4ffa5c459bc2da4f6b0d0a1908b6214d32  bmc-watchdog.initd
+f10e908a451c646b2c61338d79e69663c05216a54093745bd2b659041e0b91adb9be4077c92d63f6f3d62cb5510168b6a57e5e86375533e235fd3abb2b72a49c  ipmidetectd.confd
+292c6019a1f8e6d4761ca7c28213e5c51d8bd7e96c7333859d75f88ca53057a49cd2622c6264ec880bf8bbe68cf0e8df41d65f82572af55c31794fbbdb8045a2  ipmidetectd.initd
+0a031f29a4692085054d5fc2dfe6d0ad7fb762f7ee96849ce2d562a90d6e3b0f3ae8328ab852dc22bee6221bc5cd8b588bd02075222038fa0f0e2f64ac185799  ipmiseld.confd
+7098e83e99131ba2da763e4cce5f9ce1647835a7ea1431f06d144d4c13b9c4dfcc4c294f375ee1cc14235440059608038ea219483074395f44c902fb74c885d9  ipmiseld.initd
+"

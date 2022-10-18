@@ -1,0 +1,103 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: a library of functions to support regular expressions whose
+# syntax and semantics are as close as possible to those of the Perl 5 language.
+
+pkgname=pcre
+pkgver=8.45
+pkgrel=2
+pkgdesc="Perl Compatible Regular Expression Library"
+url="https://www.pcre.org/"
+arch="all"
+makedepends="m4 libtool autoconf automake"
+license="BSD-3-Clause"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-tools
+	libpcrecpp libpcre16 libpcre32"
+source="https://downloads.sourceforge.net/project/pcre/pcre/$pkgver/pcre-$pkgver.tar.bz2"
+
+# secfixes:
+#   8.44-r0:
+#     - CVE-2020-14155
+#   8.40-r2:
+#     - CVE-2017-7186
+#   7.8-r0:
+#     - CVE-2017-11164
+#     - CVE-2017-16231
+
+# use sysroot if cross compiling to avoid pulling in system libs
+[ "$CBUILD"  != "$CHOST" ] && _cross_configure="--with-sysroot=$CBUILDROOT"
+
+prepare() {
+	default_prepare
+
+	# update libtool so it won't use system libs when a sysroot is provided
+	libtoolize -f &&
+		aclocal &&
+		autoconf &&
+		automake --add-missing
+}
+
+build() {
+	local _enable_jit="--enable-jit"
+	case "$CARCH" in
+	mips64*) export CPPFLAGS="$CPPFLAGS -DSLJIT_IS_FPU_AVAILABLE=0";;
+	mips*) export CPPFLAGS="$CPPFLAGS -DSLJIT_IS_FPU_AVAILABLE=0 -DSLJIT_MIPS_R1=1";;
+	s390x) _enable_jit="";;
+	riscv*) _enable_jit="";;
+	esac
+
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		$_enable_jit \
+		--enable-utf8 \
+		--enable-unicode-properties \
+		--enable-pcre8 \
+		--enable-pcre16 \
+		--enable-pcre32 \
+		--with-match-limit-recursion=8192 \
+		--htmldir=/usr/share/doc/$pkgname-$pkgver/html \
+		--docdir=/usr/share/doc/$pkgname-$pkgver \
+		$_cross_configure
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+check() {
+	# skip locale specific tests
+	sed -i -e 's/do3=yes//g' RunTest
+
+	make check
+}
+
+libpcrecpp() {
+	pkgdesc="C++ bindings for PCRE"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libpcrecpp.so* "$subpkgdir"/usr/lib/
+}
+
+libpcre16() {
+	pkgdesc="PCRE with 16 bit character support"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libpcre16.so* "$subpkgdir"/usr/lib/
+}
+
+libpcre32() {
+	pkgdesc="PCRE with 32 bit character support"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libpcre32.so* "$subpkgdir"/usr/lib/
+}
+
+tools() {
+	pkgdesc="Auxiliary utilities for PCRE"
+	mkdir -p "$subpkgdir"/usr/
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+}
+
+sha512sums="
+91bff52eed4a2dfc3f3bfdc9c672b88e7e2ffcf3c4b121540af8a4ae8c1ce05178430aa6b8000658b9bb7b4252239357250890e20ceb84b79cdfcde05154061a  pcre-8.45.tar.bz2
+"

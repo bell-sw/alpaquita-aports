@@ -1,0 +1,53 @@
+From c2e9894884881ec2e36a5c22dc0ddadaa6f572ce Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Mon, 16 Aug 2021 22:01:30 +0300
+Subject: [PATCH] add sign_kernel_modules() helper
+
+It can be used to sign kernel modules with either auto-generated
+signing keys or existing ones.
+
+The following environment variables must be defined when using
+existed keys:
+
+    KERNEL_SIGNKEY_PRIVATE
+    KERNEL_SIGNKEY_X509
+
+It is also required that the x509 config file is in the srcdir.
+---
+ functions.sh.in | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/functions.sh.in b/functions.sh.in
+index 14ec5d6..9ac358e 100644
+--- a/functions.sh.in
++++ b/functions.sh.in
+@@ -278,3 +278,26 @@ die() {
+ 	cleanup
+ 	exit 1
+ }
++
++sign_kernel_modules() {
++	local _search_dir="$1"
++	local _kernel_abi="$2"
++	local _modules="$(find $_search_dir -type f -name '*.ko')"
++
++	if [ -z "$KERNEL_SIGNKEY_PRIVATE" -o -z "$KERNEL_SIGNKEY_X509" ]; then
++		msg "Generate build time signing keys $KERNEL_SIGNKEY_PRIVATE $KERNEL_SIGNKEY_X509"
++		KERNEL_SIGNKEY_PRIVATE="$srcdir"/signing_key.pem
++		KERNEL_SIGNKEY_X509="$srcdir"/signing_key.x509
++
++		openssl req -new -nodes -utf8 -sha512 -days 36500 -batch -x509 -config "$srcdir"/x509.genkey \
++			-outform PEM -out $KERNEL_SIGNKEY_X509 -keyout $KERNEL_SIGNKEY_PRIVATE
++	else
++		msg "Using signing keys: '$KERNEL_SIGNKEY_PRIVATE', '$KERNEL_SIGNKEY_X509'"
++	fi
++
++	cd /usr/src/linux-headers-${_kernel_abi}
++	for m in $_modules; do
++		scripts/sign-file sha512 $KERNEL_SIGNKEY_PRIVATE $KERNEL_SIGNKEY_X509 $m
++	done
++	cd -
++}
+-- 
+2.25.1
+

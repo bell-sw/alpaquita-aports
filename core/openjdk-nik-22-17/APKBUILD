@@ -1,0 +1,246 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME Native Image Kit is a versatile multilingual
+# tool for accelerating your applications, based on GraalVM Open Source. 
+
+_java_pkgname=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_pkgname="${_java_pkgname}-nik"
+_nikmajor=22
+_javamajor=17
+_javaver=17.0.4
+
+pkgname=$_pkgname-$_nikmajor-$_javamajor
+pkgver=22.2.0
+pkgrel=0
+pkgdesc="$VENDOR_JAVA_NAME Native Image Kit $pkgver (Java $_javamajor)"
+url="$VENDOR_URL"
+arch="x86_64"
+license="GPL-2.0"
+depends="$pkgname-core=$pkgver-r$pkgrel $pkgname-native-image=$pkgver-r$pkgrel"
+makedepends="
+	openjdk17>=$_javaver
+	openjdk17-jmods>=$_javaver
+	openjdk17-libs-static>=$_javaver
+	openjdk17-src>=$_javaver
+	cmake
+	linux-headers
+	zlib-static
+	python2
+	python3
+	gfortran
+	readline-dev
+	bzip2-dev
+	xz-dev
+	pcre2-dev
+	curl-dev
+	sed
+	coreutils
+	diffutils
+	z3-dev
+	grep
+	ed
+	pcre-dev
+	perl
+	git
+	unzip
+	bash
+	patch
+	"
+
+options="!annobin !strip !check !tracedeps textrels ldpath-recursive"
+subpackages="
+	$pkgname-core:_core
+	$pkgname-native-image:_native_image
+	$pkgname-llvm-toolchain:_llvm_toolchain
+	$pkgname-js:_js
+	$pkgname-nodejs:_nodejs
+	$pkgname-python:_python
+	$pkgname-ruby:_ruby
+	"
+
+provides="openjdk-nik-22-17=$pkgver-r$pkgrel"
+
+source="
+	${VENDOR_URL/\/\//\/\/download.}graalvm/graal-22.2.0.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}graalvm/graaljs-22.2.0.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}graalvm/graalpython-22.2.0.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}graalvm/truffleruby-22.2.0.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}graalvm/fastr-22.2.0.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}graalvm/mx-6.0.1.tar.gz
+	0001-graal-musl-libc-support.patch
+	0002-graal-enable-jvmci.patch
+	0003-graal-disable-watchdog.patch
+	0004-graal-hotspot-speculation-log.patch
+	0005-graal-use-patch-instead-of-git-apply.patch
+	0006-graal-rmain-disable-initialization-policy.patch
+	0007-graal-update-llvm-toolchain.patch
+	0001-graaljs-gyp-fix-node-build-failure-with-long-build-directory.patch
+	0001-graalpython-add-ssizet-includes.patch
+	0001-truffleruby-librt-fix.patch
+	0002-truffleruby-allow-build-from-sources-out-of-the-vcs.patch
+	0003-truffleruby-rubyvm-unsupported-methods.patch
+	0001-fastr-musl-c-library-compatibility.patch
+	0002-fastr-build-suite-reduce-number-of-jobs.patch
+	0003-fastr-one-job-to-build-gnur.patch
+	0001-mx-cmake-musl-libc-support.patch
+	0002-mx-fix-errno.h-includes.patch
+	0003-mx-fix-for-local-ninja.patch
+	0004-mx-MX_NO_VCS-disable-automatic-detection-of-VCS.patch
+"
+
+builddir="$srcdir"/$_pkgname-$pkgver
+_java_home="/usr/lib/jvm/$pkgname"
+ldpath="$_java_home/lib:$java_home/languages/python/lib-graalpython/lib"
+sonameprefix="$pkgname:"
+
+prepare() {
+	default_prepare
+
+	for p in graal graaljs graalpython truffleruby fastr mx ; do
+		touch $p/.mx_vcs_root
+	done
+}
+
+
+build() {
+	export CFLAGS=
+	export CXXFLAGS=
+	export MX_PYTHON=python3
+        export PATH=$(pwd)/mx:$PATH
+	export JAVA_HOME=/usr/lib/jvm/$_java_pkgname$_javamajor
+	export MX_CACHE_DIR=$SRCDEST/mx.cache
+	export MX_NO_VCS=true
+	
+	cd graal/vm
+	export DYNAMIC_IMPORTS=/substratevm
+	export COMPONENTS=svm,nfi,gvm,poly
+	export FORCE_BASH_LAUNCHERS=polyglot
+	export SKIP_LIBRARIES=polyglot
+	export SULONG_BOOTSTRAP_TOOLCHAIN_NO_HOME=/usr
+	
+	mx -V build
+	mx graalvm-show
+	mkdir ../../nik-core
+	cp -aR $(mx graalvm-home)/* ../../nik-core/
+        
+	export TRUFFLERUBY_COMMIT_SHA=56ecb196a559ba921d395ff1b3e4f1f8c3ab8580
+	export TRUFFLERUBY_COMMIT_DATE=2022-07-13
+	export FASTR_RELEASE=true
+	export FASTR_NO_RECOMMENDED=true
+	export FASTR_BUNDLE_DEPENDENCIES=
+	export FASTR_CAPTURE_DEPENDENCIES=
+	export DYNAMIC_IMPORTS=/substratevm,/tools,/sulong,/graal-js,/wasm,graal-nodejs,truffleruby,graalpython
+	unset COMPONENTS=
+	export DISABLE_INSTALLABLES=false
+	export EXCLUDE_COMPONENTS=nju,nic,dis,pbm,llmulrl,lg,pbm,gwa
+	export FORCE_BASH_LAUNCHERS=polyglot,polybench,truffleruby
+	export SKIP_LIBRARIES=polyglot
+
+	mx graalvm-show
+	mx -V build
+
+}
+
+package() {
+	mkdir -p "$pkgdir/$_java_home"
+}
+
+_make_symlinks() {
+	while read line ; do
+		local args=$(echo $line | tr -d '=' | xargs)
+		local src=${args##* }
+		local dest=${args% *}
+		local destdir="$1/$(dirname $dest)"
+		[ -d $destdir ] || mkdir -p "$destdir"
+		ln -s "$src" "$1/$dest"
+	done < "$1"/META-INF/symlinks
+}
+
+_core() {
+	pkgdesc="$pkgname (Core)"
+	depends="java-common"
+	provides="openjdk-nik-22-17-core=$pkgver-r$pkgrel"
+	mkdir -p "$subpkgdir/$_java_home"
+	cp -aR $builddir/nik-core/* "$subpkgdir/$_java_home/"
+}
+
+_native_image() {
+	pkgdesc="pkgname (Native Image)"
+	depends="$pkgname-core=$pkgver-r$pkgrel gcc libc-dev zlib-dev linux-headers"
+	provides="openjdk-nik-22-17-native-image=$pkgver-r$pkgrel"
+	mkdir -p "$subpkgdir/$_java_home"
+	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/native-image-installable-svm-java17.jar -d "$subpkgdir/$_java_home/"
+	_make_symlinks "$subpkgdir/$_java_home"
+}
+
+_llvm_toolchain() {
+	pkgdesc="$pkgname (LLVM.org toolchain)"
+	depends="$pkgname-native-image=$pkgver-r$pkgrel"
+	provides="openjdk-nik-22-17-llvm-toolchain=$pkgver-r$pkgrel"
+	mkdir -p "$subpkgdir/$_java_home"
+	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/llvm-toolchain-installable-java17.jar -d "$subpkgdir/$_java_home/"
+	_make_symlinks "$subpkgdir/$_java_home"
+}
+
+_js() {
+	pkgdesc="$pkgname (Graal.js)"
+	depends="$pkgname-native-image=$pkgver-r$pkgrel"
+	provides="openjdk-nik-22-17-js=$pkgver-r$pkgrel"
+	mkdir -p "$subpkgdir/$_java_home"
+	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/js-installable-svm-java17.jar -d "$subpkgdir/$_java_home/"
+	_make_symlinks "$subpkgdir/$_java_home"
+}
+
+_nodejs() {
+	pkgdesc="$pkgname (Graal.nodejs)"
+	depends="$pkgname-native-image=$pkgver-r$pkgrel"
+	provides="openjdk-nik-22-17-nodejs=$pkgver-r$pkgrel"
+	mkdir -p "$subpkgdir/$_java_home"
+	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/nodejs-installable-svm-java17.jar -d "$subpkgdir/$_java_home/"
+	_make_symlinks "$subpkgdir/$_java_home"
+}
+
+_python() {
+	pkgdesc="$pkgname (Graal.python)"
+	depends="$pkgname-native-image=$pkgver-r$pkgrel"
+	provides="openjdk-nik-22-17-python=$pkgver-r$pkgrel"
+	mkdir -p "$subpkgdir/$_java_home"
+	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/python-installable-svm-java17.jar -d "$subpkgdir/$_java_home/"
+	rm "$subpkgdir/$_java_home"/languages/python/lib-python/3/distutils/command/*.exe
+	_make_symlinks "$subpkgdir/$_java_home"
+}
+
+_ruby() {
+	pkgdesc="$pkgname (Graal.ruby)"
+	depends="$pkgname-native-image=$pkgver-r$pkgrel $pkgname-llvm-toolchain=$pkgver-r$pkgrel"
+	provides="openjdk-nik-22-17-ruby=$pkgver-r$pkgrel"
+	mkdir -p "$subpkgdir/$_java_home"
+	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/ruby-installable-svm-java17.jar -d "$subpkgdir/$_java_home/"
+	_make_symlinks "$subpkgdir/$_java_home"
+}
+
+sha512sums="
+3d3a4d97ffccc303268c2571ceb4b06f2ae26262e258d2402e67f294a1592b991e312a45e21d32105ca2b4a7e9f2c4c651405a83391a9779503d21c247dd3cb4  graal-22.2.0.tar.gz
+b0ce24e7f5f04e66b55f2a8ddcf0d996e5409d7bd55ff81f9bf0949e7dd350fd04c4703f9730e895a7e180594976627422499f079137c695c78b56cdd7d3f208  graaljs-22.2.0.tar.gz
+f8971509ea30e50a411ac87cb0b6782c53faf243c05ea2e1f7002edda44059168269ec8af81834e074a7c0842d895a6708630fc52303ff3247911f8bda0fb86d  graalpython-22.2.0.tar.gz
+1a1fbde8572f504bf851457ebb3b2eb41bdbe6740299b4115978191872ed97a7ef85ea36737c27bf1ec34f9dd06861cc222d0b924a403a2e1bc061d1661605fb  truffleruby-22.2.0.tar.gz
+5ef40f512aec486164a666ef911eb17ac725dd3600c55436f33392e281878ee330fe8a6596d2dc00f900a34680e6f9af63b1539a2736bde3c4aecdcbf6ffbc5f  fastr-22.2.0.tar.gz
+aa75eb66f1b1a6e18f4b6c01a85c797cc5ab4a61798bc20a016986bbb02a26da640775db529dbdeae0c02af7cd3a3bd0c263fde373323be43ec46f54fcdd28b7  mx-6.0.1.tar.gz
+22a22180bba3ffd0cd46f76b199b55b3400beb5cbee81e1bdce8891a0bf8cd3bf946d8f730346c6246084cec63eecafedb5920b8c2b8e18db93398125b4a205f  0001-graal-musl-libc-support.patch
+254d6bc15b6058017b0e1ae03b74501263b2b378f9c8b3664c661ac9218de410dc837e2e23c050d18b3ff988aaa35757721fbff034331616db608416853078bd  0002-graal-enable-jvmci.patch
+f48fe9eb922cdbd76a2ab429c684104db8f330899fc1eb802d4e8260e77221b910f8f6fc3177adcf286f1a8c1f3c1d13b17df947a693691bacb97c15515cc3ef  0003-graal-disable-watchdog.patch
+fc4acacdcaf993e8e452109fd137ab05db6eab1847b683a31c86d0d52cc6842f5bb99376bf5ceb13eab14531f1aacf98fae970fa767f31344b60ea6ffdebee5f  0004-graal-hotspot-speculation-log.patch
+d08f09e4f73aad4f2d1dcd7e8897a77f348063a20722c2a26a61ca0dcc8395f7c4a2f42cc7b33f296226686d892ff4eb6524835ab514c4ee9815b431464f90a8  0005-graal-use-patch-instead-of-git-apply.patch
+ac4979e81dac50dad0891a060602502dc546607fa938ddf41d7936a0991d7cbd40b7afd37d043fcba10d0676760046594cd3ebfed0e5236a48db921cc0bf57b3  0006-graal-rmain-disable-initialization-policy.patch
+072753730fc3d8a9a217d5a326fdd7e9dcaf4aeb88707cf41c7c4c14bde4b430b34af6f34395782e2909df7f11dc2c86e449b937ba9e1c370a82d6a31dbaffc0  0007-graal-update-llvm-toolchain.patch
+7954925fb8d349369c0874913fc8e4ef77f3dddfcf52c80b8d5d66378783a67d13e8782f6837939b4951bafdf4c9f119092896c9658b4a4b2e12b19643bd97ac  0001-graaljs-gyp-fix-node-build-failure-with-long-build-directory.patch
+443899decf1b0932cc14d3275e503c361e4e419569365a339bfb32b34cf776d0448cb73381828320e8e1b5fa6fe26b04e8c3b125c59b29f436329ff06e30272d  0001-graalpython-add-ssizet-includes.patch
+a252ade8bcdb0224584ff75111f33900de7087b6b9fb3f08f61e30cf21f0141413e37a9d5a734c1f51958631a1c872e3be434e0e1ddd249b17d34269b181464f  0001-truffleruby-librt-fix.patch
+6447ed9e85ce60069a7fef3d41cdf93ad5141c6094a77812e5f23dc4cf61d7b3356349d74d083659dc3c3b48b2481c7d593b05d0a4ffd3f441334358685671b4  0002-truffleruby-allow-build-from-sources-out-of-the-vcs.patch
+1df4dad9d1aa9a42ac81744aba9f0bf37b79bdbc99451667672005b7bc149fe67ae74a5789132cbebfaf18ecef7626242d7b2562bfb5da8dcdcb8e23d1662c2d  0003-truffleruby-rubyvm-unsupported-methods.patch
+b2e9ace1fdae5e5de2a8a8c7c5a06d4a4763307f63aed3073599082027663334ac1bdb4379984c14d6c5afc3d89b30a87cf13c80e000e3338f8ec17c6feed0e5  0001-fastr-musl-c-library-compatibility.patch
+7b5280a7363809f213ef6c0b0ab6a6bc5894a233bf3cddf8c382d7af1437bfb9f375813ae717876d6d92cf95af344c5305bce70c20909f7f430c31dbec995b99  0002-fastr-build-suite-reduce-number-of-jobs.patch
+68d695800c95a1d8b36e947633a3f3953d6d9ad5a8838f39957428fc6096f45159e738d6fd1495c5906609bce3115c027af6d51372fa811fe76bc2fd5dacedf8  0003-fastr-one-job-to-build-gnur.patch
+5373497134ecaeb0a389d473c79147b4ffa95b70801ee67c5930070ebd1a3a0c6f1c436b5519c38be8565abde152a5e081748d07866df0e4d34814f063598901  0001-mx-cmake-musl-libc-support.patch
+2f3372dabf3678840df0b4cd115cab1984fe7da52e23cf0a5894aabbc7bd95fe0ad8b1fc36a2fec96fdacc4a3da0d5413078b0e05f3dd59794d5cddfcee8027c  0002-mx-fix-errno.h-includes.patch
+194629940734588a143f48e74da99c0c19b66185bd785785ed5b1ca5d3c6837b6f4f7795232d5b41e31a0f626ded3cc1e1f0ef22fed566c770438366ce7a1e0b  0003-mx-fix-for-local-ninja.patch
+7c209e2eccd6fd1b4d3456ee0196fd510df86faeda446f03e50880ea903d6c2a951b33a3d3ba5a428e140df41705834e46cdca6c43220ab26cb6958c7a0765e8  0004-mx-MX_NO_VCS-disable-automatic-detection-of-VCS.patch
+"

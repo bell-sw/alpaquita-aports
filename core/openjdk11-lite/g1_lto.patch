@@ -1,0 +1,149 @@
+diff -r 1356affa5e44 src/hotspot/share/gc/g1/g1OopClosures.hpp
+--- a/src/hotspot/share/gc/g1/g1OopClosures.hpp	Wed Nov 25 08:27:15 2020 +0100
++++ b/src/hotspot/share/gc/g1/g1OopClosures.hpp	Tue Dec 01 04:38:07 2020 -0500
+@@ -72,8 +72,8 @@
+     G1ScanClosureBase(g1h, pss), _worker_i(worker_i) { }
+ 
+   template <class T> void do_oop_work(T* p);
+-  virtual void do_oop(narrowOop* p) { do_oop_work(p); }
+-  virtual void do_oop(oop* p) { do_oop_work(p); }
++  virtual void do_oop(narrowOop* p);
++  virtual void do_oop(oop* p);
+ };
+ 
+ // Used during the Scan RS phase to scan cards from the remembered set during garbage collection.
+@@ -84,8 +84,8 @@
+     G1ScanClosureBase(g1h, par_scan_state) { }
+ 
+   template <class T> void do_oop_work(T* p);
+-  virtual void do_oop(oop* p)          { do_oop_work(p); }
+-  virtual void do_oop(narrowOop* p)    { do_oop_work(p); }
++  virtual void do_oop(oop* p);
++  virtual void do_oop(narrowOop* p);
+ };
+ 
+ // This closure is applied to the fields of the objects that have just been copied during evacuation.
+@@ -95,8 +95,8 @@
+     G1ScanClosureBase(g1h, par_scan_state) { }
+ 
+   template <class T> void do_oop_work(T* p);
+-  virtual void do_oop(oop* p)          { do_oop_work(p); }
+-  virtual void do_oop(narrowOop* p)    { do_oop_work(p); }
++  virtual void do_oop(oop* p);
++  virtual void do_oop(narrowOop* p);
+ 
+   void set_ref_discoverer(ReferenceDiscoverer* rd) {
+     set_ref_discoverer_internal(rd);
+@@ -173,8 +173,8 @@
+ public:
+   G1CMOopClosure(G1CollectedHeap* g1h,G1CMTask* task);
+   template <class T> void do_oop_work(T* p);
+-  virtual void do_oop(      oop* p) { do_oop_work(p); }
+-  virtual void do_oop(narrowOop* p) { do_oop_work(p); }
++  virtual void do_oop(      oop* p);
++  virtual void do_oop(narrowOop* p);
+ };
+ 
+ // Closure to scan the root regions during concurrent marking
+@@ -187,8 +187,8 @@
+   G1RootRegionScanClosure(G1CollectedHeap* g1h, G1ConcurrentMark* cm, uint worker_id) :
+     _g1h(g1h), _cm(cm), _worker_id(worker_id) { }
+   template <class T> void do_oop_work(T* p);
+-  virtual void do_oop(      oop* p) { do_oop_work(p); }
+-  virtual void do_oop(narrowOop* p) { do_oop_work(p); }
++  virtual void do_oop(      oop* p);
++  virtual void do_oop(narrowOop* p);
+ };
+ 
+ class G1ConcurrentRefineOopClosure: public BasicOopIterateClosure {
+@@ -205,8 +205,8 @@
+   virtual ReferenceIterationMode reference_iteration_mode() { return DO_DISCOVERED_AND_DISCOVERY; }
+ 
+   template <class T> void do_oop_work(T* p);
+-  virtual void do_oop(narrowOop* p) { do_oop_work(p); }
+-  virtual void do_oop(oop* p)       { do_oop_work(p); }
++  virtual void do_oop(narrowOop* p);
++  virtual void do_oop(oop* p);
+ };
+ 
+ class G1RebuildRemSetClosure : public BasicOopIterateClosure {
+@@ -217,8 +217,8 @@
+   }
+ 
+   template <class T> void do_oop_work(T* p);
+-  virtual void do_oop(oop* p)       { do_oop_work(p); }
+-  virtual void do_oop(narrowOop* p) { do_oop_work(p); }
++  virtual void do_oop(oop* p);
++  virtual void do_oop(narrowOop* p);
+   // This closure needs special handling for InstanceRefKlass.
+   virtual ReferenceIterationMode reference_iteration_mode() { return DO_DISCOVERED_AND_DISCOVERY; }
+ };
+diff -r 1356affa5e44 src/hotspot/share/gc/g1/g1OopClosures.inline.hpp
+--- a/src/hotspot/share/gc/g1/g1OopClosures.inline.hpp	Wed Nov 25 08:27:15 2020 +0100
++++ b/src/hotspot/share/gc/g1/g1OopClosures.inline.hpp	Tue Dec 01 04:38:07 2020 -0500
+@@ -91,11 +91,17 @@
+   }
+ }
+ 
++inline void G1ScanEvacuatedObjClosure::do_oop(      oop* p) { do_oop_work(p); }
++inline void G1ScanEvacuatedObjClosure::do_oop(narrowOop* p) { do_oop_work(p); }
++
+ template <class T>
+ inline void G1CMOopClosure::do_oop_work(T* p) {
+   _task->deal_with_reference(p);
+ }
+ 
++inline void G1CMOopClosure::do_oop(      oop* p) { do_oop_work(p); }
++inline void G1CMOopClosure::do_oop(narrowOop* p) { do_oop_work(p); }
++
+ template <class T>
+ inline void G1RootRegionScanClosure::do_oop_work(T* p) {
+   T heap_oop = RawAccess<MO_VOLATILE>::oop_load(p);
+@@ -106,6 +112,9 @@
+   _cm->mark_in_next_bitmap(_worker_id, obj);
+ }
+ 
++inline void G1RootRegionScanClosure::do_oop(      oop* p) { do_oop_work(p); }
++inline void G1RootRegionScanClosure::do_oop(narrowOop* p) { do_oop_work(p); }
++
+ template <class T>
+ inline static void check_obj_during_refinement(T* p, oop const obj) {
+ #ifdef ASSERT
+@@ -156,6 +165,9 @@
+   }
+ }
+ 
++inline void G1ConcurrentRefineOopClosure::do_oop(      oop* p) { do_oop_work(p); }
++inline void G1ConcurrentRefineOopClosure::do_oop(narrowOop* p) { do_oop_work(p); }
++
+ template <class T>
+ inline void G1ScanObjsDuringUpdateRSClosure::do_oop_work(T* p) {
+   T o = RawAccess<>::oop_load(p);
+@@ -182,6 +194,9 @@
+   }
+ }
+ 
++inline void G1ScanObjsDuringUpdateRSClosure::do_oop(      oop* p) { do_oop_work(p); }
++inline void G1ScanObjsDuringUpdateRSClosure::do_oop(narrowOop* p) { do_oop_work(p); }
++
+ template <class T>
+ inline void G1ScanObjsDuringScanRSClosure::do_oop_work(T* p) {
+   T heap_oop = RawAccess<>::oop_load(p);
+@@ -201,6 +216,9 @@
+   }
+ }
+ 
++inline void G1ScanObjsDuringScanRSClosure::do_oop(      oop* p) { do_oop_work(p); }
++inline void G1ScanObjsDuringScanRSClosure::do_oop(narrowOop* p) { do_oop_work(p); }
++
+ void G1ParCopyHelper::do_cld_barrier(oop new_obj) {
+   if (_g1h->heap_region_containing(new_obj)->is_young()) {
+     _scanned_cld->record_modified_oops();
+@@ -295,4 +313,7 @@
+   rem_set->add_reference(p, _worker_id);
+ }
+ 
++inline void G1RebuildRemSetClosure::do_oop(      oop* p) { do_oop_work(p); }
++inline void G1RebuildRemSetClosure::do_oop(narrowOop* p) { do_oop_work(p); }
++
+ #endif // SHARE_VM_GC_G1_G1OOPCLOSURES_INLINE_HPP

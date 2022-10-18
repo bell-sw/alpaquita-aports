@@ -1,0 +1,33 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=perl-xml-namespacesupport
+pkgver=1.12
+pkgrel=3
+pkgdesc="Generic namespace helpers (ported from SAX2)"
+url="https://metacpan.org/release/XML-NamespaceSupport"
+arch="noarch"
+license="GPL"
+depends="perl"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/P/PE/PERIGRIN/XML-NamespaceSupport-$pkgver.tar.gz"
+builddir="$srcdir"/XML-NamespaceSupport-$pkgver
+
+build() {
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+8a29698acc152888b3abd53b277f89209252830cc3b57d587a5b66e5019445d7c1858a08fa548d42387c1143b726da1440e36eb0c69b0b59c3770b5f528f38b2  XML-NamespaceSupport-1.12.tar.gz
+"

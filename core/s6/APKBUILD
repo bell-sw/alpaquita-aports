@@ -1,0 +1,54 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description:
+
+pkgname=s6
+pkgver=2.11.1.0
+pkgrel=0
+pkgdesc="skarnet.org's small & secure supervision software suite."
+url="https://skarnet.org/software/$pkgname/"
+arch="all"
+license="ISC"
+makedepends="skalibs-dev>=2.11.2 execline-dev"
+depends="s6-ipcserver"
+options="!check"
+subpackages="$pkgname-ipcserver $pkgname-static $pkgname-dev $pkgname-doc $pkgname-openrc"
+source="https://skarnet.org/software/s6/s6-$pkgver.tar.gz s6-svscanboot s6.initd"
+install="s6.pre-install s6.pre-upgrade"
+triggers="s6.trigger=/run/service"
+
+_ipcserver_binaries="bin/s6-ipcserver bin/s6-ipcserver-socketbinder bin/s6-ipcserverd bin/s6-applyuidgid"
+
+build() {
+	./configure \
+		--enable-shared \
+		--enable-static \
+		--disable-allstatic \
+		--libdir=/usr/lib \
+		--libexecdir="/usr/lib/$pkgname" \
+		--with-dynlib=/usr/lib
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -D "$srcdir/s6-svscanboot" "$pkgdir/lib/s6/s6-svscanboot"
+	install -D "$srcdir/s6.initd" "$pkgdir/etc/init.d/s6"
+}
+
+doc() {
+	default_doc
+	mkdir -p "$subpkgdir/usr/share/doc"
+	cp -a "$builddir/doc" "$subpkgdir/usr/share/doc/$pkgname"
+}
+
+ipcserver() {
+	depends=""
+	amove $_ipcserver_binaries
+}
+
+sha512sums="
+ab3cb4a61fae21537eacffdaa427a0a6b23b12088586f0cd8dc993e0de29e9863d04c8706cb044acdc08254002b19eb5f894262d37348d467f8c713d8124e738  s6-2.11.1.0.tar.gz
+bcb503c64fe4644b8f33775e94f03f08e422854247d14c9ff85f5d593b37fb2373fadf373da4226a1e2f4eba17a99fdcd40acb3645f8533f2f3e1a55c984f053  s6-svscanboot
+e7f4fcdc04fc7f72df4419018d048e14f80d50d01ebc284b6d208d6bada3201ca91be0a110930618a26fb0e6bcc1603de01467f6f1dc635c8dcae60f1a0b1b9b  s6.initd
+"

@@ -1,0 +1,24 @@
+From 181595960165a1edf6d450fc599197fdf21e8fe1 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Thu, 2 Jun 2022 11:39:46 +0300
+Subject: [PATCH] reset sigpipe handler to default when running scripts
+
+---
+ src/database.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/database.c b/src/database.c
+index 7b0d58a..d464027 100644
+--- a/src/database.c
++++ b/src/database.c
+@@ -1966,6 +1966,7 @@ int apk_db_run_script(struct apk_database *db, char *fn, char **argv)
+ 		return -2;
+ 	}
+ 	if (pid == 0) {
++		signal(SIGPIPE, SIG_DFL);
+ 		umask(0022);
+ 
+ 		if (fchdir(db->root_fd) != 0) {
+-- 
+2.25.1
+

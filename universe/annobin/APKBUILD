@@ -1,0 +1,61 @@
+pkgname=annobin
+pkgver=10.75
+pkgrel=5
+pkgdesc="Annobin is a binary annotation and examination package"
+url="https://sourceware.org/annobin/"
+arch="all"
+license="GPL-3.0"
+makedepends="
+	elfutils-dev
+	rpm-dev
+	gmp-dev
+	binutils-dev
+	texinfo
+	clang-dev
+	llvm-dev
+	gawk
+	"
+depends="rpm-libs"
+checkdepends="bash grep rpm"
+subpackages="$pkgname-doc"
+options="!annobin"
+source="
+	https://nickc.fedorapeople.org/$pkgname-$pkgver.tar.xz
+	0001-10.77-Annocheck-Fix-seg-fault-looking-for-unknown-pr.patch
+	0002-Update-meson-ninja-support.patch
+	0003-annocheck-add-libiberty-include.patch
+	0004-hardened-skip-gap-glibcxx_assertions-cf_protection-b.patch
+	0005-allow-common-java-rpath-pattern-with-origin.patch
+	0006-hardened-add-musl-specific-functions-and-libs.patch
+	0007-clang-build-and-install-fixes.patch
+	0008-add-missing-Os-optimization.patch
+	"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--with-clang
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make install DESTDIR="$pkgdir"
+}
+
+sha512sums="
+8268f1a49ccc002590a2d4419d03e89edd9bc0b8dae54400cce91e5ae5331f31b1e44f79717a712d757653accc76a1a7daa2b12cc4e0c4ce66cfadc5a71cd95e  annobin-10.75.tar.xz
+e24f5ed57f13bd0a6e1e2585287f27d7d5c6a8bd571cb2cc04dfa73b1869f05eeecfddef6e068629bd9ba4f36a32c1098038faa42e6406e9661eea3d445b9442  0001-10.77-Annocheck-Fix-seg-fault-looking-for-unknown-pr.patch
+d0d86b14cce381a3a09b1ed934ac755fae44e1f1d1ba862d3d7e0d00aa05377344cca3ede29cbf889fe72ca4d8a7c2f3fd7e9a7da0c5c9ecc5b44690521dd3e4  0002-Update-meson-ninja-support.patch
+4ea9a62c58d9585c9e0a7ff37af640ed8ecb81370218db93073a425fff9756199ec87de643de901885e21bece7a56b512e8ade4bbab8a912f51c24e725d3037b  0003-annocheck-add-libiberty-include.patch
+f5e70d4e3a1aa1ba193b339db706aef628e4b79c04dd45b152e880794d78196809d3718aafb336eeea67d7385eb3c4d997d8fdcd7c60768a7682dd6b0846a0dc  0004-hardened-skip-gap-glibcxx_assertions-cf_protection-b.patch
+813c92c0d0ee3c54cbbfca8618697329895f94da81f3b8023001bbefed1110800f7d724d92658ab6300afa3639f425a0593f0a4e132720abdbdb03ca28bc5d9d  0005-allow-common-java-rpath-pattern-with-origin.patch
+af639016da2f2f8aace60b0036839bd0cc6375ca44e6c14a970e6c2284c3a6fa2130745feba06fc160a051787f1e643b3dbd1e58ba0abd8dac165c4b87f15b0f  0006-hardened-add-musl-specific-functions-and-libs.patch
+92d62a9d83b65cee4f7c0c86eecced6558b4e76c7c1ef212fcbac35670cecbb1c40d7867ea6b2aef31d040fe9296b5c89bebb8bc7cf2f892eb8eb33589de37e8  0007-clang-build-and-install-fixes.patch
+e2da0c30c731b1940df69793f6d9533d41d0529a03dcb28cd0b1a9f13257d94cb9c9961e64195861ebce4b7d7b1f402346757c8cc1e6e292d3a544f513e4d7d0  0008-add-missing-Os-optimization.patch
+"

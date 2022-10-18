@@ -1,0 +1,192 @@
+# Maintainer: BellSoft <info@bell-sw.com>
+
+# Description: curl is a command line tool and library for URL transfers by
+# means of Internet protocols.
+
+# RESTRICTED: Do NOT enable the rustls or hyper backends, as they depend on Rust
+# and Rust is not yet available on all architectures.  Any commit which changes
+# this aport from arch=all WILL be reverted.
+
+pkgname=curl
+pkgver=7.83.1
+pkgrel=1
+pkgdesc="Command line tool for data transfer with URL syntax"
+url="https://curl.se/"
+arch="all"
+license="curl"
+depends="ca-certificates"
+depends_dev="openssl1.1-compat-dev nghttp2-dev zlib-dev brotli-dev"
+checkdepends="nghttp2 python3"
+makedepends_host="$depends_dev"
+makedepends_build="autoconf automake groff libtool perl"
+subpackages="$pkgname-dbg $pkgname-static $pkgname-doc $pkgname-dev libcurl"
+[ -z "$BOOTSTRAP" ] && subpackages="$subpackages $pkgname-zsh-completion $pkgname-fish-completion"
+source="
+	https://curl.se/download/curl-$pkgver.tar.xz
+	"
+options="net" # Required for running tests
+[ -n "$BOOTSTRAP" ] && options="$options !check" # remove python3 dependency
+
+# secfixes:
+#   7.83.1-r0:
+#     - CVE-2022-27778
+#     - CVE-2022-27779
+#     - CVE-2022-27780
+#     - CVE-2022-27781
+#     - CVE-2022-27782
+#     - CVE-2022-30115
+#   7.83.0-r0:
+#     - CVE-2022-22576
+#     - CVE-2022-27774
+#     - CVE-2022-27775
+#     - CVE-2022-27776
+#   7.79.0-r0:
+#     - CVE-2021-22945
+#     - CVE-2021-22946
+#     - CVE-2021-22947
+#   7.78.0-r0:
+#     - CVE-2021-22922
+#     - CVE-2021-22923
+#     - CVE-2021-22924
+#     - CVE-2021-22925
+#   7.77.0-r0:
+#     - CVE-2021-22898
+#     - CVE-2021-22901
+#   7.76.0-r0:
+#     - CVE-2021-22876
+#     - CVE-2021-22890
+#   7.74.0-r0:
+#     - CVE-2020-8284
+#     - CVE-2020-8285
+#     - CVE-2020-8286
+#   7.72.0-r0:
+#     - CVE-2020-8231
+#   7.71.0-r0:
+#     - CVE-2020-8169
+#     - CVE-2020-8177
+#   7.66.0-r0:
+#     - CVE-2019-5481
+#     - CVE-2019-5482
+#   7.65.0-r0:
+#     - CVE-2019-5435
+#     - CVE-2019-5436
+#   7.64.0-r0:
+#     - CVE-2018-16890
+#     - CVE-2019-3822
+#     - CVE-2019-3823
+#   7.62.0-r0:
+#     - CVE-2018-16839
+#     - CVE-2018-16840
+#     - CVE-2018-16842
+#   7.61.1-r0:
+#     - CVE-2018-14618
+#   7.61.0-r0:
+#     - CVE-2018-0500
+#   7.60.0-r0:
+#     - CVE-2018-1000300
+#     - CVE-2018-1000301
+#   7.59.0-r0:
+#     - CVE-2018-1000120
+#     - CVE-2018-1000121
+#     - CVE-2018-1000122
+#   7.57.0-r0:
+#     - CVE-2017-8816
+#     - CVE-2017-8817
+#     - CVE-2017-8818
+#   7.56.1-r0:
+#     - CVE-2017-1000257
+#   7.55.0-r0:
+#     - CVE-2017-1000099
+#     - CVE-2017-1000100
+#     - CVE-2017-1000101
+#   7.54.0-r0:
+#     - CVE-2017-7468
+#   7.53.1-r2:
+#     - CVE-2017-7407
+#   7.53.0-r0:
+#     - CVE-2017-2629
+#   7.52.1-r0:
+#     - CVE-2016-9594
+#   7.51.0-r0:
+#     - CVE-2016-8615
+#     - CVE-2016-8616
+#     - CVE-2016-8617
+#     - CVE-2016-8618
+#     - CVE-2016-8619
+#     - CVE-2016-8620
+#     - CVE-2016-8621
+#     - CVE-2016-8622
+#     - CVE-2016-8623
+#     - CVE-2016-8624
+#     - CVE-2016-8625
+#   7.50.3-r0:
+#     - CVE-2016-7167
+#   7.50.2-r0:
+#     - CVE-2016-7141
+#   7.50.1-r0:
+#     - CVE-2016-5419
+#     - CVE-2016-5420
+#     - CVE-2016-5421
+#   7.36.0-r0:
+#     - CVE-2014-0138
+#     - CVE-2014-0139
+#   0:
+#     - CVE-2021-22897
+
+prepare() {
+	default_prepare
+	autoreconf -vfi
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--enable-ipv6 \
+		--enable-unix-sockets \
+		--enable-static \
+		--with-openssl \
+		--without-libidn \
+		--without-libidn2 \
+		--with-nghttp2 \
+		--disable-ldap \
+		--with-pic \
+		--without-libssh2 # https://bugs.alpinelinux.org/issues/10222
+	make
+
+	# generation of completions is not supported when cross-compiling.
+	[ -z "$BOOTSTRAP" ] && make -C scripts/
+}
+
+check() {
+	make -C tests nonflaky-test
+}
+
+package() {
+	make install DESTDIR="$pkgdir"
+	if [ -z "$BOOTSTRAP" ]; then
+		install -Dm644 scripts/_curl -t \
+			"$pkgdir"/usr/share/zsh/site-functions/
+		install -Dm644 scripts/curl.fish -t \
+			"$pkgdir"/usr/share/fish/completions/
+	fi
+}
+
+libcurl() {
+	pkgdesc="The multiprotocol file transfer library"
+
+	mkdir -p "$subpkgdir"/usr
+	mv "$pkgdir"/usr/lib "$subpkgdir"/usr
+}
+
+static() {
+	pkgdesc="$pkgdesc (static library)"
+
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/*.a "$subpkgdir"/usr/lib
+}
+
+sha512sums="
+2f63327d6d3687ba36fb7b8d5d3d15599eca33ebfb08681613612ea9c4b629d3b6ce4d2742fa1ebd7a997ed332001d3a4c798985f9277c83b9e7a9aecdb1b1ee  curl-7.83.1.tar.xz
+"

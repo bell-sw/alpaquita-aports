@@ -1,0 +1,93 @@
+diff -r 405102e26a62 make/autoconf/flags-cflags.m4
+--- a/make/autoconf/flags-cflags.m4	Wed Dec 23 09:07:55 2020 +0100
++++ b/make/autoconf/flags-cflags.m4	Tue Jan 12 03:33:15 2021 -0500
+@@ -1,5 +1,5 @@
+ #
+-# Copyright (c) 2011, 2019, Oracle and/or its affiliates. All rights reserved.
++# Copyright (c) 2011, 2020, Oracle and/or its affiliates. All rights reserved.
+ # DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ #
+ # This code is free software; you can redistribute it and/or modify it
+@@ -500,10 +500,13 @@
+   if test "x$TOOLCHAIN_TYPE" = xgcc; then
+     TOOLCHAIN_CFLAGS_JVM="$TOOLCHAIN_CFLAGS_JVM -fcheck-new -fstack-protector"
+     TOOLCHAIN_CFLAGS_JDK="-pipe -fstack-protector"
+-    # reduce lib size on s390x in link step, this needs also special compile flags
+-    if test "x$OPENJDK_TARGET_CPU" = xs390x; then
+-      TOOLCHAIN_CFLAGS_JVM="$TOOLCHAIN_CFLAGS_JVM -ffunction-sections -fdata-sections"
++    # reduce lib size on linux in link step, this needs also special compile flags
++    # do this on s390x also for libjvm (where serviceability agent is not supported)
++    if test "x$ENABLE_LINKTIME_GC" = xtrue; then
+       TOOLCHAIN_CFLAGS_JDK="$TOOLCHAIN_CFLAGS_JDK -ffunction-sections -fdata-sections"
++      if test "x$OPENJDK_TARGET_CPU" = xs390x; then
++        TOOLCHAIN_CFLAGS_JVM="$TOOLCHAIN_CFLAGS_JVM -ffunction-sections -fdata-sections"
++      fi
+     fi
+     # technically NOT for CXX (but since this gives *worse* performance, use
+     # no-strict-aliasing everywhere!)
+diff -r 405102e26a62 make/autoconf/flags-ldflags.m4
+--- a/make/autoconf/flags-ldflags.m4	Wed Dec 23 09:07:55 2020 +0100
++++ b/make/autoconf/flags-ldflags.m4	Tue Jan 12 03:33:15 2021 -0500
+@@ -75,9 +75,13 @@
+     # add -z,relro (mark relocations read only) for all libs
+     # add -z,now ("full relro" - more of the Global Offset Table GOT is marked read only)
+     BASIC_LDFLAGS="$BASIC_LDFLAGS -Wl,-z,defs -Wl,-z,relro -Wl,-z,now"
+-    # s390x : remove unused code+data in link step
+-    if test "x$OPENJDK_TARGET_CPU" = xs390x; then
+-      BASIC_LDFLAGS="$BASIC_LDFLAGS -Wl,--gc-sections"
++    # Linux : remove unused code+data in link step
++    if test "x$ENABLE_LINKTIME_GC" = xtrue; then
++      if test "x$OPENJDK_TARGET_CPU" = xs390x; then
++        BASIC_LDFLAGS="$BASIC_LDFLAGS -Wl,--gc-sections -Wl,--print-gc-sections"
++      else
++        BASIC_LDFLAGS_JDK_ONLY="$BASIC_LDFLAGS_JDK_ONLY -Wl,--gc-sections"
++      fi
+     fi
+ 
+     BASIC_LDFLAGS_JVM_ONLY="-Wl,-O1"
+diff -r 405102e26a62 make/autoconf/jdk-options.m4
+--- a/make/autoconf/jdk-options.m4	Wed Dec 23 09:07:55 2020 +0100
++++ b/make/autoconf/jdk-options.m4	Tue Jan 12 03:33:15 2021 -0500
+@@ -154,6 +154,30 @@
+ 
+   AC_SUBST(ENABLE_HEADLESS_ONLY)
+ 
++  # should we linktime gc unused code sections in the JDK build ?
++  AC_MSG_CHECKING([linktime gc])
++  AC_ARG_ENABLE([linktime-gc], [AS_HELP_STRING([--enable-linktime-gc],
++      [linktime gc unused code sections in the JDK build @<:@disabled@:>@])])
++
++  if test "x$enable_linktime_gc" = "xyes"; then
++    ENABLE_LINKTIME_GC="true"
++    AC_MSG_RESULT([yes])
++  elif test "x$enable_linktime_gc" = "xno"; then
++    ENABLE_LINKTIME_GC="false"
++    AC_MSG_RESULT([no])
++  elif test "x$OPENJDK_TARGET_OS" = "xlinux" && test "x$OPENJDK_TARGET_CPU" = xs390x; then
++    ENABLE_LINKTIME_GC="true"
++    AC_MSG_RESULT([yes])
++  elif test "x$enable_linktime_gc" = "x"; then
++    ENABLE_LINKTIME_GC="false"
++    AC_MSG_RESULT([no])
++  else
++    AC_MSG_ERROR([--enable-linktime-gc can only take yes or no])
++  fi
++
++  AC_SUBST(ENABLE_LINKTIME_GC)
++
++
+   # Should we build the complete docs, or just a lightweight version?
+   AC_ARG_ENABLE([full-docs], [AS_HELP_STRING([--enable-full-docs],
+       [build complete documentation @<:@enabled if all tools found@:>@])])
+diff -r 405102e26a62 make/autoconf/spec.gmk.in
+--- a/make/autoconf/spec.gmk.in	Wed Dec 23 09:07:55 2020 +0100
++++ b/make/autoconf/spec.gmk.in	Tue Jan 12 03:33:15 2021 -0500
+@@ -290,6 +290,8 @@
+ # Ship debug symbols (e.g. pdbs on Windows)
+ SHIP_DEBUG_SYMBOLS := @SHIP_DEBUG_SYMBOLS@
+ 
++ENABLE_LINKTIME_GC := @ENABLE_LINKTIME_GC@
++
+ ENABLE_FULL_DOCS := @ENABLE_FULL_DOCS@
+ 
+ # JDK_OUTPUTDIR specifies where a working jvm is built.
