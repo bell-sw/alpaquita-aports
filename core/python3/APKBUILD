@@ -7,7 +7,7 @@ pkgname=python3
 pkgver=3.10.5
 _bluez_ver=5.64
 _basever="${pkgver%.*}"
-pkgrel=0
+pkgrel=1
 pkgdesc="Python programming language"
 url="https://www.python.org/"
 arch="all"
@@ -93,6 +93,9 @@ prepare() {
 build() {
 	# -Os overwrites --enable-optimizations
 	export CFLAGS="${CFLAGS/-Os/}"
+	export CPPFLAGS="${CPPFLAGS/-Os/}"
+	export CXXFLAGS="${CXXFLAGS/-Os/}"
+	export LDFLAGS=''
 
 	# Include bluez headers. Python only needs bluetooth/bluetoot.h and doesn't
 	# link against bluez. Depending on bluez-dev introduces a circular dep:
@@ -106,6 +109,7 @@ build() {
 		--enable-optimizations \
 		--enable-shared \
 		--with-lto \
+		--with-pymalloc \
 		--with-computed-gotos \
 		--with-dbmliborder=gdbm:ndbm \
 		--with-system-expat \
