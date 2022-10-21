@@ -1,0 +1,137 @@
+From 4533e35d02e92cd6ea03a42a36acae9131177afb Mon Sep 17 00:00:00 2001
+From: Guobing Chen <guobing.chen@intel.com>
+Date: Fri, 21 Oct 2022 18:55:20 +0300
+Subject: [PATCH] AVX2 and AVX512 support
+
+Merged the original AVX2/AVX512 support patch together with fix to
+enable using AVX version static libs when linking binaries. The
+static lib should be libname-avx2 or libname-avx512. An example
+usage is scikit-learn.
+
+Signed-off-by: Guobing Chen <guobing.chen@intel.com>
+Signed-off-by: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+---
+ Lib/distutils/unixccompiler.py | 59 ++++++++++++++++++++++++++++++++++
+ Python/dynload_shlib.c         | 15 ++++++++-
+ 2 files changed, 73 insertions(+), 1 deletion(-)
+
+diff --git a/Lib/distutils/unixccompiler.py b/Lib/distutils/unixccompiler.py
+index d00c48981e..0bfc11c46a 100644
+--- a/Lib/distutils/unixccompiler.py
++++ b/Lib/distutils/unixccompiler.py
+@@ -116,6 +116,16 @@ def _compile(self, obj, src, ext, cc_args, extra_postargs, pp_opts):
+         try:
+             self.spawn(compiler_so + cc_args + [src, '-o', obj] +
+                        extra_postargs)
++            self.spawn(compiler_so + cc_args + ["-march=haswell", "-O3",
++                                                "-fno-semantic-interposition",
++                                                "-ffat-lto-objects",
++                                                "-flto=auto"] +
++                       [src, '-o', obj + ".avx2"] + extra_postargs)
++            self.spawn(compiler_so + cc_args + ["-march=skylake-avx512", "-O3",
++                                                "-fno-semantic-interposition",
++                                                "-ffat-lto-objects", "-flto=auto", "-Wa,-mbranches-within-32B-boundaries",
++                                                "-mprefer-vector-width=256"] +
++                       [src, '-o', obj + ".avx512"] + extra_postargs)
+         except DistutilsExecError as msg:
+             raise CompileError(msg)
+ 
+@@ -157,6 +167,37 @@ def link(self, target_desc, objects,
+ 
+         lib_opts = gen_lib_options(self, library_dirs, runtime_library_dirs,
+                                    libraries)
++        lib_opts_avx2 = []
++        for element in lib_opts:
++            if element.startswith('-l'):
++                element_tmp = element + '-avx2'
++                lib_opts_avx2.append(element_tmp)
++                # Try with gcc to check whether there are avx2/avx512 lib versions.
++                # subprocess or os.popen() cannot be used as not support in python
++                # self-boost building.
++                ret = os.system(f"echo 'main() {{}}' | gcc -o /dev/null {element_tmp} -xc - >/dev/null 2>&1")
++                if ret:
++                    lib_opts_avx2.pop()
++                    lib_opts_avx2.append(element)
++            else:
++                lib_opts_avx2.append(element)
++
++        lib_opts_avx512 = []
++        for element in lib_opts:
++            if element.startswith('-l'):
++                element_tmp = element + '-avx512'
++                lib_opts_avx512.append(element_tmp)
++                # try with gcc to check whether there are avx2/avx512 lib versions
++                # subprocess or os.popen() cannot be used as not support in python
++                # self-boost building.
++                ret = os.system(f"echo 'main() {{}}' | gcc -o /dev/null {element_tmp} -xc - >/dev/null 2>&1")
++                if ret:
++                    lib_opts_avx512.pop()
++                    lib_opts_avx512.append(element)
++            else:
++                lib_opts_avx512.append(element)
++
++
+         if not isinstance(output_dir, (str, type(None))):
+             raise TypeError("'output_dir' must be a string or None")
+         if output_dir is not None:
+@@ -202,6 +243,24 @@ def link(self, target_desc, objects,
+                     linker = _osx_support.compiler_fixup(linker, ld_args)
+ 
+                 self.spawn(linker + ld_args)
++                ld_args = ([(obj + ".avx2").replace(".s.avx2", ".s") for obj in objects] + self.objects +
++                       lib_opts_avx2 + ['-o', output_filename + ".avx2"])
++                if debug:
++                    ld_args[:0] = ['-g']
++                if extra_preargs:
++                    ld_args[:0] = extra_preargs
++                if extra_postargs:
++                    ld_args.extend(extra_postargs + ['-lgfortran'])
++                self.spawn(linker + ld_args)
++                ld_args = ([(obj + ".avx512").replace(".s.avx512", ".s") for obj in objects] + self.objects +
++                          lib_opts_avx512 + ['-o', output_filename + ".avx512"])
++                if debug:
++                    ld_args[:0] = ['-g']
++                if extra_preargs:
++                    ld_args[:0] = extra_preargs
++                if extra_postargs:
++                    ld_args.extend(extra_postargs + ['-lgfortran'])
++                self.spawn(linker + ld_args)
+             except DistutilsExecError as msg:
+                 raise LinkError(msg)
+         else:
+diff --git a/Python/dynload_shlib.c b/Python/dynload_shlib.c
+index 23828898d3..93a7b8a7a3 100644
+--- a/Python/dynload_shlib.c
++++ b/Python/dynload_shlib.c
+@@ -65,6 +65,9 @@ _PyImport_FindSharedFuncptr(const char *prefix,
+     void *handle;
+     char funcname[258];
+     char pathbuf[260];
++    char pathname2[sizeof(pathbuf)];
++    char pathname3[sizeof(pathbuf)];
++    char *dl_path;
+     int dlopenflags=0;
+ 
+     if (strchr(pathname, '/') == NULL) {
+@@ -97,7 +100,17 @@ _PyImport_FindSharedFuncptr(const char *prefix,
+ 
+     dlopenflags = _PyInterpreterState_GET()->dlopenflags;
+ 
+-    handle = dlopen(pathname, dlopenflags);
++    PyOS_snprintf(pathname2, sizeof(pathname2), "%s%s", pathname, ".avx2");
++    PyOS_snprintf(pathname3, sizeof(pathname3), "%s%s", pathname, ".avx512");
++
++    if (__builtin_cpu_supports("avx512dq") && access(pathname3, R_OK) == 0)
++        dl_path = pathname3;
++    else if (__builtin_cpu_supports("avx2") && access(pathname2, R_OK) == 0)
++        dl_path = pathname2;
++    else
++        dl_path = pathname;
++
++    handle = dlopen(dl_path, dlopenflags);
+ 
+     if (handle == NULL) {
+         PyObject *mod_name;
+-- 
+2.25.1
+
