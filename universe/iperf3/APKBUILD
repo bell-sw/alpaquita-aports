@@ -1,0 +1,48 @@
+pkgname=iperf3
+_pkgname=iperf
+pkgver=3.12
+pkgrel=0
+pkgdesc="A tool to measure IP bandwidth using UDP or TCP"
+url="https://github.com/esnet/iperf"
+arch="all"
+license="BSD-3-Clause"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-openrc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/esnet/$_pkgname/archive/$pkgver.tar.gz
+	$pkgname.initd
+	$pkgname.confd
+
+	remove-pg-flags.patch
+	"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--disable-static
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	install -Dm755 "$srcdir"/$pkgname.initd \
+		"$pkgdir"/etc/init.d/$pkgname
+	install -Dm644 "$srcdir"/$pkgname.confd \
+		"$pkgdir"/etc/conf.d/$pkgname
+}
+
+sha512sums="
+9b0600a19750311557833b32ca5c4be809ab98643522f125645dd8f83c482017e42fbe5fc9484624731176a59b67203a468eb81eebf1a37b9c1b3eff818857ba  iperf3-3.12.tar.gz
+6d9ce72666ad6138174c428b692e886fb36ae617fabaf2ebf2b6881dc101d0a38aad1cb36cad76eea634d62400a2c793b5f0714f8767495c136826e8c16dc03a  iperf3.initd
+4c6b766c154612f5f2e5f6150396f443ba37ec59ed0a8a994bf84612059db22827aee3dd3b7c3249e0bb6037163788d830efcb1caad5eba1c97d2349bdbc55f9  iperf3.confd
+9334d51ec4bb4931272f972a83109dadd44123c9b46803a5b2d16e725576b860f93b62ae3d85be2a2d8a955cff24211da7675fe733a4f3ad8aaae005939a4097  remove-pg-flags.patch
+"
