@@ -1,30 +1,31 @@
 pkgname=shim-signed
 pkgver=15.6
-pkgrel=0
+pkgrel=1
 pkgdesc="shim, a first-stage UEFI bootloader (signed)"
 url="https://github.com/rhboot/shim"
 arch="x86_64"
 license="BSD-2-Clause-Patent"
 makedepends="sbsigntool shim-utils"
 options="!strip !check !libc_musl"
+install="$pkgname.post-install $pkgname.post-upgrade"
+_efi="boot/efi/EFI"
+sign_list="
+	$_efi/BOOT/mmx64.efi
+	$_efi/alpaquita/mmx64.efi
+	$_efi/BOOT/fbx64.efi
+"
 
 package() {
-	[ -z "$SHIM_SIGNKEY_PRIVATE" -o -z "$SHIM_SIGNKEY_X509" ] && \
-		error "Please provide signing keys"
+	mkdir -p "$pkgdir"/$_efi/BOOT
+	mkdir -p "$pkgdir"/$_efi/alpaquita
 
-	mkdir -p "$pkgdir"/boot/efi/EFI/BOOT
-	mkdir -p "$pkgdir"/boot/efi/EFI/alpaquita
+	cp /usr/lib/shim/mmx64.efi "$pkgdir"/$_efi/BOOT/mmx64.efi
+	cp /usr/lib/shim/mmx64.efi "$pkgdir"/$_efi/alpaquita/mmx64.efi
 
-	cp /usr/lib/shim/shimx64.efi "$pkgdir"/boot/efi/EFI/BOOT/BOOTX64.EFI
-	cp /usr/lib/shim/shimx64.efi "$pkgdir"/boot/efi/EFI/alpaquita
-	cp /usr/lib/shim/BOOTX64.CSV "$pkgdir"/boot/efi/EFI/alpaquita
+	cp /usr/lib/shim/fbx64.efi "$pkgdir"/$_efi/BOOT/fbx64.efi
 
-	sbsign --key "$SHIM_SIGNKEY_PRIVATE" --cert "$SHIM_SIGNKEY_X509" \
-		--output "$pkgdir"/boot/efi/EFI/alpaquita/mmx64.efi \
-		/usr/lib/shim/mmx64.efi
-	cp "$pkgdir"/boot/efi/EFI/alpaquita/mmx64.efi "$pkgdir"/boot/efi/EFI/BOOT/
+	cp /usr/lib/shim/shimx64.efi "$pkgdir"/$_efi/BOOT/BOOTX64.EFI
+	cp /usr/lib/shim/shimx64.efi "$pkgdir"/$_efi/alpaquita
 
-	sbsign --key "$SHIM_SIGNKEY_PRIVATE" --cert "$SHIM_SIGNKEY_X509" \
-		--output "$pkgdir"/boot/efi/EFI/BOOT/fbx64.efi \
-		/usr/lib/shim/fbx64.efi
+	cp /usr/lib/shim/BOOTX64.CSV "$pkgdir"/$_efi/alpaquita
 }
