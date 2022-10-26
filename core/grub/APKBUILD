@@ -5,7 +5,9 @@
 
 pkgname=grub
 pkgver=2.06
-pkgrel=6
+pkgrel=7
+# Security patches backported from Debian version:
+_debian_ver=2.06-3
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
 arch="all !s390x"
@@ -55,9 +57,50 @@ source="https://ftp.gnu.org/gnu/grub/grub-$pkgver.tar.xz
 	0011-mkconfig-ignore-apk-new-files.patch
 	0012-remove-udevadm-usage.patch
 	0013-prevent-vgs-warnings.patch
+
+	0063-loader-efi-chainloader-Simplify-the-loader-state.patch
+	0064-commands-boot-Add-API-to-pass-context-to-loader.patch
+	0065-loader-efi-chainloader-Use-grub_loader_set_ex.patch
+	0066-kern-efi-sb-Reject-non-kernel-files-in-the-shim_lock.patch
+	0067-kern-file-Do-not-leak-device_name-on-error-in-grub_f.patch
+	0068-video-readers-png-Abort-sooner-if-a-read-operation-f.patch
+	0069-video-readers-png-Refuse-to-handle-multiple-image-he.patch
+	0070-video-readers-png-Drop-greyscale-support-to-fix-heap.patch
+	0071-video-readers-png-Avoid-heap-OOB-R-W-inserting-huff-.patch
+	0072-video-readers-png-Sanity-check-some-huffman-codes.patch
+	0073-video-readers-jpeg-Abort-sooner-if-a-read-operation-.patch
+	0074-video-readers-jpeg-Do-not-reallocate-a-given-huff-ta.patch
+	0075-video-readers-jpeg-Refuse-to-handle-multiple-start-o.patch
+	0076-video-readers-jpeg-Block-int-underflow-wild-pointer-.patch
+	0077-normal-charset-Fix-array-out-of-bounds-formatting-un.patch
+	0078-net-netbuff-Block-overly-large-netbuff-allocs.patch
+	0079-net-ip-Do-IP-fragment-maths-safely.patch
+	0080-net-dns-Fix-double-free-addresses-on-corrupt-DNS-res.patch
+	0081-net-dns-Don-t-read-past-the-end-of-the-string-we-re-.patch
+	0082-net-tftp-Prevent-a-UAF-and-double-free-from-a-failed.patch
+	0083-net-tftp-Avoid-a-trivial-UAF.patch
+	0084-net-http-Do-not-tear-down-socket-if-it-s-already-bee.patch
+	0085-net-http-Fix-OOB-write-for-split-http-headers.patch
+	0086-net-http-Error-out-on-headers-with-LF-without-CR.patch
+	0087-fs-f2fs-Do-not-read-past-the-end-of-nat-journal-entr.patch
+	0088-fs-f2fs-Do-not-read-past-the-end-of-nat-bitmap.patch
+	0089-fs-f2fs-Do-not-copy-file-names-that-are-too-long.patch
+	0090-fs-btrfs-Fix-several-fuzz-issues-with-invalid-dir-it.patch
+	0091-fs-btrfs-Fix-more-ASAN-and-SEGV-issues-found-with-fu.patch
+	0092-fs-btrfs-Fix-more-fuzz-issues-related-to-chunks.patch
+
 	sbat.alpaquita.csv
 	"
 
+# secfixes:
+#   2.06-r7:
+#     - CVE-2022-28736
+#     - CVE-2022-28735
+#     - CVE-2022-28734
+#     - CVE-2022-28733
+#     - CVE-2021-3697
+#     - CVE-2021-3696
+#     - CVE-2021-3695
 #   2.06-r0:
 #     - CVE-2021-3418
 #     - CVE-2020-10713
@@ -230,10 +273,10 @@ efi() {
 
 	local _modules="$_cd_modules \
 		boot btrfs cryptodisk efifwsetup efinet ext2 f2fs font \
-		gcry_rijndael gcry_rsa gcry_serpent gcry_sha256 gcry_twofish \
-		gcry_whirlpool gfxmenu gfxterm halt hfsplus http iso9660 jpeg \
+		gcry_rijndael gcry_rsa gcry_serpent gcry_sha256 gcry_sha512 \
+		gcry_twofish gcry_whirlpool gfxmenu gfxterm halt hfsplus http jpeg \
 		loadenv loopback lvm lsefi lsefimmap luks luks2 mdraid09 mdraid1x \
-		minicmd net part_apple password_pbkdf2 pgp png reboot regexp \
+		minicmd net part_apple password_pbkdf2 png reboot regexp \
 		search_fs_uuid search_fs_file serial sleep syslinuxcfg tftp \
 		video xfs zstd \
 		"
@@ -262,6 +305,7 @@ efi() {
 	_grub_gen_earlyconf > "$builddir"/grub_early.cfg
 
 	sed -e "s,@PKGVER@,$pkgver,g" -e "s,@PKGREL@,$pkgrel," \
+		-e "s,@DEBVER@,$_debian_ver,g" \
 		< "$srcdir"/sbat.alpaquita.csv > "$builddir"/sbat.alpaquita.csv
 
 	# Create unified grub efi with .sbat section for signing
@@ -354,5 +398,35 @@ d4432a36286f0ad7d3527d34e20daf9fbef24d6037171582ae3ccdd51668ffe422b87d984f107a9b
 229fe710de9fb106e08457a5a19dd3cc1746389ff1cdd95721b092913c51550fc8ad05141a23fc396a9e8dbbcec909920eda5f3eed339af9938774feb9e6c7bc  0011-mkconfig-ignore-apk-new-files.patch
 c6011ece89e55d92e351bdab3eae180d75fcde642865934800641d42969febebd3a29a68941a10ef42a0bdeae0069432f2bb31e42fa651263cdedc1b964d5b33  0012-remove-udevadm-usage.patch
 979d02731f2ae1769aa80fc86fe5fd6e1f872a9d614491ca166d73151a0c9156c4636b986aed26d705f0dbe3ef6ad4d8ff623eddb190266c361aa43ebb563315  0013-prevent-vgs-warnings.patch
-06d8ce8f4dedbfe4b849893689b8689dd0c4e243614d547faca90c9b7e366402c9eff1f6cd624a207ec28c51cbe12d4809b2298dcd3cf99f2ef180dad92c366a  sbat.alpaquita.csv
+05590d4e5886aee043f56637adada64f43bb07358f287309ae760be12dc0247f385efcf9e7e01aa9e01b888d5d568e05a3f6cdf2c19053dbcc0097fb43e166fe  0063-loader-efi-chainloader-Simplify-the-loader-state.patch
+2d0d42f2447e20436cca5593def537963b3183ddf851037e70f55de2e1afab36184794187b4b1ccc7f605018a39d5a81bff89a6992a373d0eae457aba80851d8  0064-commands-boot-Add-API-to-pass-context-to-loader.patch
+f6a19a0080dfa5208eb1d20e8350502662ad916d10dc8da4fd4e92070c8bc490f4749ceff87d70055c0e4fde4db1488da911c6a65b476d10cfd460f364fcdb49  0065-loader-efi-chainloader-Use-grub_loader_set_ex.patch
+787322e6f47705fe7588c685bf9f7abfa78d8f766aba2babde75fd07a6598e70fc209c677f4140aa90be4261d74277ddf31d0408dee62389d4e6bb0daeb4e0ef  0066-kern-efi-sb-Reject-non-kernel-files-in-the-shim_lock.patch
+d525fcafec35ca394fa945c7cbc8601b4b8c8fccf965079ad7063bd8ce7364b6ef89af77af16e0a4e7c99d0175e6eace1e99ff99cd257ab77d0681f9ef7b2a0a  0067-kern-file-Do-not-leak-device_name-on-error-in-grub_f.patch
+f8c804b6b6c360c134c10709647c391f6fa24b4d7910751b45c5297c3362cb432ab8e47e0d821135c491990b2340b88d7698c7cd1d4e6eb52ba10aea19d6e337  0068-video-readers-png-Abort-sooner-if-a-read-operation-f.patch
+3ba8e7a05c83794b78f01a25b89e5427b6231804594810a603bd37aeeb70a1c0867f2ff1167fd3ffa808288e46b0803370b8d8279b947f32eba09a98c6f3c71a  0069-video-readers-png-Refuse-to-handle-multiple-image-he.patch
+34a0c02dac0c7e53dfd85befbdd82101548a536cf34c8b15ed13663a3d54c0c0cf40054362dcda4029aff6359dcd9c9b86bf11b3f98cbec1a62af35b7aa1fa4c  0070-video-readers-png-Drop-greyscale-support-to-fix-heap.patch
+2b8aa67ffd961bf8eea7392184cb6f2cb36c009726e6599d8578ecd82a980a3d4e03678ed74dd24fb8a9ceec2dc12886792d5d4b967a6f8e52a0125d94843860  0071-video-readers-png-Avoid-heap-OOB-R-W-inserting-huff-.patch
+73b5977fdc752488f466843730c1a2a6d6b3da86b01db9d979ae0034ee2d10a2ecd4623cdea8a8a236a4a3ff1343a8d945f458f34689dd9556c9a1ddeb2febef  0072-video-readers-png-Sanity-check-some-huffman-codes.patch
+cf322c51df69431e6778ae8334dc68656a564919aae91548be70206182fcdde81453eea2df9659dc6d9fd6e88acd087a374dbefddbddcbf301d33cba4e89ee43  0073-video-readers-jpeg-Abort-sooner-if-a-read-operation-.patch
+64a13663627bea931bcc67500552de1ca5127e0040f223e298042e9a88dddf4c9db030b8a7518fa760b84d151dcfbd1b298b87307d2ce05cfb24d1291f56f528  0074-video-readers-jpeg-Do-not-reallocate-a-given-huff-ta.patch
+8a01f0850280e36ffbf516ecf00e6f8f922ed1e0312a0a0bddb42d01f6738d2d930125ac8e390cb92ca002eeaa6df1a2051a7f9f99582606223a2ff109604802  0075-video-readers-jpeg-Refuse-to-handle-multiple-start-o.patch
+a977f71318ae2123ff173a655dba8fb7029f10a71b98dac7f3fbc6030a0ffbd947acd23b523e556b8d209da0b98f9f5baa4504be84c18dc7298ca60f2dab3d71  0076-video-readers-jpeg-Block-int-underflow-wild-pointer-.patch
+6c1e4068e6485ad537426f5f267a53764568714f10d463e14a3418fec39ee1b5badf1c2934c3315c29124690047c0cb368c7e7d449d84edee27b13fe845b9e11  0077-normal-charset-Fix-array-out-of-bounds-formatting-un.patch
+b592654967ae942206e2cb2fc12f402e3641d9931725bf9d6ce07fb941c07867c6f57a80e58f8fdb798eb52a177e9a799ba9e6426fdb3d7905c71d19648a7525  0078-net-netbuff-Block-overly-large-netbuff-allocs.patch
+3f3e5071fd12fd5359037c771d0e8c3bce8627e8ad235ebd035175aa43ed65d4ca7a826fbc240e00ff852313aaab8c35fb96213940e1d64796b1ac32314bd8cd  0079-net-ip-Do-IP-fragment-maths-safely.patch
+4907778f71c802a4d7af5d92396f467ab27196536630c31b0bc1850b0ae2e836a0d4d3229fde33c49226c3afe8b97e7533f29e62ab53f0ec9a824ccbb8a1a7ad  0080-net-dns-Fix-double-free-addresses-on-corrupt-DNS-res.patch
+8a1c65849dd03f637cf7b5abff78db12272b03025fa397971b0eec4a662e2430d92b6666a4ed2882b9bc78db37c365b24e0c96304c317366ded862ded4dccf68  0081-net-dns-Don-t-read-past-the-end-of-the-string-we-re-.patch
+12fab7afcde64f37abe5d7df139e111dff278af8f051e160b799f329f74965fe69d2318260d07a851585f2dc6515d166c94586b502c85413add279058682a146  0082-net-tftp-Prevent-a-UAF-and-double-free-from-a-failed.patch
+37544752e80f5f3e2cc6b42e928e6cd49cc5d0b213abc6615563da5a24861bb30bfb31a0172e454b946bdc58f6848cb9f971f97a1f427417f26dd5740354c63f  0083-net-tftp-Avoid-a-trivial-UAF.patch
+f9dc687861f621415c07e472eb727eebd45525e83e0d3f60ef7323e3fe6e519617a6df0fda1039680fbc159f0123c1a22bab78c5f96d4dc17cf40d5efab31f28  0084-net-http-Do-not-tear-down-socket-if-it-s-already-bee.patch
+5928268ee21e51b1c59554582ed2b113392862957faa686ee58131f18fac33b33f95365b87107780b8199b20d90d305854f071bd129a8363e8f099d615d9fb85  0085-net-http-Fix-OOB-write-for-split-http-headers.patch
+de1a85c843bf5e743352c9838764092446ab38ba68aa7bf355902b613cd8c4d1aa70b0bedb41db3ffb7b8b5f185694d3dfd33e7a8bb545e2b5902bc0545637be  0086-net-http-Error-out-on-headers-with-LF-without-CR.patch
+2a1683a9cccfa4fccaa5d0e4bcb502071b905fda4a082eca897e06de5938ed86f3d1a5b2657403af81299da152ac211cc26855999d1cbcbd0dbc3f105bab9427  0087-fs-f2fs-Do-not-read-past-the-end-of-nat-journal-entr.patch
+4687a82421bc71a0c53cb57b96eaad74ebdba7f4cfc6af99fff3f8d10502dfe2aca13abbaf9ee90ca98cae31fa44b3987364c8b6b41849e006985977ebaca819  0088-fs-f2fs-Do-not-read-past-the-end-of-nat-bitmap.patch
+69f17101447b497f1123c7a3a3a84fcaa84d13deb3b46e2752e455803b9b550c20314b1c077a33226cc8482be2844228a806dacda527e17344bc7a58921fbbd0  0089-fs-f2fs-Do-not-copy-file-names-that-are-too-long.patch
+237ac1f0f11ee081abbbb6b1cc2ad11609a82ba7f768fa1f2fa2f856638d127e3c6071bb444bafdf4312b7d9a74986cb99479c8546765610959ad907da14f111  0090-fs-btrfs-Fix-several-fuzz-issues-with-invalid-dir-it.patch
+32ccf37e8ecd7539c6057110c206b560141509df0400a56d54b24d93211e9aab7aa526b02f0db56314f56076ae9f797c9a4dffc48576207097bf2215b225916e  0091-fs-btrfs-Fix-more-ASAN-and-SEGV-issues-found-with-fu.patch
+e3854fde89bfb6d89f5565897f7ef7f2f47a003270eff6d9a4a98b4c3890efdb62799ed329af156626faaad04f02024d7438834611dbd7e08b72bbd3d1627d01  0092-fs-btrfs-Fix-more-fuzz-issues-related-to-chunks.patch
+48d84bbfe210d224b12ac7ecc878972192df84e2375592e6762141991f3002d91b7c4e5b0634af1668320932229e400ad941b700941f9f37f9d81f1e3595438f  sbat.alpaquita.csv
 "
