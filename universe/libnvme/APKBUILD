@@ -1,0 +1,58 @@
+pkgname=libnvme
+pkgver=1.1
+pkgrel=0
+pkgdesc="C Library for NVM Express on Linux"
+url="https://github.com/linux-nvme/libnvme/"
+arch="all"
+license="LGPL-2.1-or-later"
+depends_dev="
+	json-c-dev
+	linux-headers
+	openssl-dev
+	"
+makedepends="
+	$depends_dev
+	bash
+	meson
+	python3-dev
+	swig
+	util-linux-dev
+	"
+subpackages="$pkgname-dev $pkgname-doc py3-nvme:_py3"
+source="https://github.com/linux-nvme/libnvme/archive/v$pkgver/libnvme-v$pkgver.tar.gz
+	doc-test.patch
+	"
+
+case "$CARCH" in
+s390x)
+	# fails a test
+	# Assertion failed: hdr[11] == nvme_mi_dtyp_ctrl_list
+	# (endianness test issue)
+	options="$options !check"
+	;;
+esac
+
+build() {
+	abuild-meson \
+		-Ddocs=man \
+		. output
+	meson compile -C output
+}
+
+check() {
+	meson test --print-errorlogs -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+_py3() {
+	pkgdesc="$pkgdesc (python bindings)"
+	amove usr/lib/python3*
+}
+
+sha512sums="
+4cff793506566ff493db0026aac6271003c21c691a459fe5e3b45fe42655b78b1e19aea4b848e4d9535f43782945738500b2f42c3615379110e9938c8b105869  libnvme-v1.1.tar.gz
+6ca036287d964db018a2ddfb5480b0b46e6f2edd9f0a7c39dbf5977ce58d8da4d619705e16a3f269bfa7c619d6da5aeff20d9b558c697f6d68e5d89a73ef586e  doc-test.patch
+"
