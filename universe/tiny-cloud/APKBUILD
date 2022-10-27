@@ -6,9 +6,10 @@ url="https://gitlab.alpinelinux.org/alpine/cloud/tiny-cloud"
 arch="noarch"
 license="MIT"
 options="!check"  # no tests provided
-depends="e2fsprogs-extra partx sfdisk"
+depends="e2fsprogs-extra eudev partx sfdisk"
 source="
 	$url/-/archive/$pkgver/$pkgname-$pkgver.tar.gz
+	0100-alpaquita.patch
 	$pkgname-aws.post-install
 	$pkgname-azure.post-install
 	$pkgname-gcp.post-install
@@ -27,6 +28,9 @@ subpackages="
 
 package() {
 	make PREFIX="$pkgdir" core openrc
+
+	# delete mdev-related files
+	rm "$pkgdir"/lib/tiny-cloud/mdev
 }
 
 network() {
@@ -34,6 +38,9 @@ network() {
 	depends="ifupdown-ng iproute2-minimal $pkgname=$pkgver-r$pkgrel"
 	cd "$builddir"
 	make PREFIX="$subpkgdir" network
+
+	# keep "$subpkgdir"/lib/mdev/vnic-eth-hotplug
+	# to reuse it from an udev rule
 }
 
 aws() {
@@ -43,6 +50,12 @@ aws() {
 	install="$pkgname-aws.post-install"
 	cd "$builddir"
 	make PREFIX="$subpkgdir" aws
+
+	# delete mdev-related files
+	rm "$subpkgdir"/lib/tiny-cloud/aws/mdev
+
+	# keep "$subpkgdir"/lib/mdev/nvme-ebs-links
+	# to reuse it from an udev rule
 }
 
 azure() {
@@ -79,7 +92,8 @@ nocloud() {
 
 sha512sums="
 306aa9111c8b5d27cccc2505181dea08909d1ba3f6bf4e70c6fd329327c8d6fa74b6c67975896fc75760daaa2e040c2e6003e92eecf012197707d37dba777cfd  tiny-cloud-2.1.2.tar.gz
-31e0afa5dae245675249d894974e4dd81770bf7ec70068525f59737a854f09f699a5c62136c53ac5872d776f14b2ee2cee455fcc1702b3378861c3854a48d819  tiny-cloud-aws.post-install
+41eb6a82be0c20dc20d259dab666d30268acb0606342323a69eb1bc12ee6af9eba1ddb544260b4461f6357bc8af407230a91553506d5c928666d8cd1be8219fc  0100-alpaquita.patch
+01cb237fc89a7b8e03b2582564ab9072c3bad98e79bc99c2308b6379c46739ee6e019902e7e85aca40403c270eac13751b1e7a57863a1e47b148aa0f6bd97bfa  tiny-cloud-aws.post-install
 068d9beabfa2bbc6b3194eca7f3892c55a17ac905d60b20f3c2d3f11c9d83aca7db0d5bdf9261431df12e3b0c2044fb1dd91dc3cd74577286a711ab59984a476  tiny-cloud-azure.post-install
 eebb872461f8580e87c5a5ba1c41be965341ce9cb37f9aac1e01a74c518862162f2538f7b5042534539046ae8292f9743b4ba8c1d1630a6df137ed02f1c528e4  tiny-cloud-gcp.post-install
 84838ed91582db1f2c30a814f34e545bcee48f209a6b02a01fe17d3243a8d9dc191e1fa79ed7493016a63668aabddf5843d9bf138ceae8f74091df428a4d5c80  tiny-cloud-nocloud.post-install

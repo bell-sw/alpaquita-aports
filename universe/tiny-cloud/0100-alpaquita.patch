@@ -1,0 +1,183 @@
+  Add Alpaquita support.  This patch changes the default user name to
+  "alpaquita" and adds udev proxy to the original mdev scripts.
+
+diff --git a/Makefile b/Makefile
+index 1f56224..71663c5 100644
+--- a/Makefile
++++ b/Makefile
+@@ -13,6 +13,7 @@ core:
+ 		lib/tiny-cloud/common \
+ 		lib/tiny-cloud/init-* \
+ 		lib/tiny-cloud/mdev \
++		lib/tiny-cloud/udev \
+ 		lib/tiny-cloud/tiny-cloud.conf
+ 	install -Dm644 lib/tiny-cloud/tiny-cloud.conf \
+ 		"$(PREFIX)"/etc/conf.d/tiny-cloud
+@@ -24,6 +25,8 @@ network:
+ 		lib/mdev/vnic-eth-hotplug
+ 	install -Dm755 -t "$(PREFIX)"/sbin \
+ 		sbin/*
++	install -Dm644 -t "$(PREFIX)"/usr/lib/udev/rules.d \
++		usr/lib/udev/rules.d/99-tiny-cloud-vnic.rules
+ 	install -Dm755 -t "$(PREFIX)"/usr/libexec/ifupdown-ng \
+ 		usr/libexec/ifupdown-ng/imds
+ 
+@@ -36,6 +39,8 @@ aws:
+ 		lib/mdev/nvme-ebs-links
+ 	install -Dm644 -t "$(PREFIX)"/lib/tiny-cloud/aws \
+ 		lib/tiny-cloud/aws/*
++	install -Dm644 -t "$(PREFIX)"/usr/lib/udev/rules.d \
++		usr/lib/udev/rules.d/99-tiny-cloud-aws-nvme.rules
+ 
+ azure:
+ 	install -Dm644 -t $(PREFIX)/lib/tiny-cloud/azure \
+diff --git a/lib/mdev/nvme-ebs-links b/lib/mdev/nvme-ebs-links
+index e407bab..d63c249 100755
+--- a/lib/mdev/nvme-ebs-links
++++ b/lib/mdev/nvme-ebs-links
+@@ -1,6 +1,8 @@
+ #!/bin/sh
+ # vim:set ts=2 et:
+ 
++cd /dev		 # mdev starts scripts in /dev; but udev - in the root
++
+ source /lib/tiny-cloud/common
+ 
+ # nvme tool not installed?
+diff --git a/lib/mdev/vnic-eth-hotplug b/lib/mdev/vnic-eth-hotplug
+index a8adb9f..8657a29 100755
+--- a/lib/mdev/vnic-eth-hotplug
++++ b/lib/mdev/vnic-eth-hotplug
+@@ -3,6 +3,8 @@
+ 
+ set -e
+ 
++cd /dev		 # mdev starts scripts in /dev; but udev - in the root
++
+ source /lib/tiny-cloud/common
+ 
+ if [ -z "$MDEV" ] || [ -z "$ACTION" ]; then
+diff --git a/lib/tiny-cloud/aws/udev b/lib/tiny-cloud/aws/udev
+new file mode 100644
+index 0000000..e176e68
+--- /dev/null
++++ b/lib/tiny-cloud/aws/udev
+@@ -0,0 +1,15 @@
++# AWS udev Hotplug Modules
++# vim:set ts=4 et ft=sh:
++
++# With mdev - tiny-cloud needs to change the monolithic mdev config to
++# add the rules to run scripts on hotplug (it does that in
++# tiny-cloud-early rc script).  With udev we just install them as
++# separate rule files.  We can get rid of this hotplug file
++# completely, but leave a stub to tell users that copy an Alpine
++# config that they don't need HOTPLUG_MODULES.
++
++# makes symlinks for NVMe devices that correlate to AWS EBS sd/xvd devices
++mod__nvme_ebs_links() {
++    log -s warning "nvme_ebs_links: not necessary, you can remove it from HOTPLUG_MODULES"
++    return 0
++}
+diff --git a/lib/tiny-cloud/common b/lib/tiny-cloud/common
+index dcc72aa..baa3077 100644
+--- a/lib/tiny-cloud/common
++++ b/lib/tiny-cloud/common
+@@ -4,7 +4,7 @@
+ # set defaults
+ [ -f /etc/conf.d/tiny-cloud ] && source /etc/conf.d/tiny-cloud
+ : "${CLOUD:=unknown}"
+-: "${CLOUD_USER:=alpine}"
++: "${CLOUD_USER:=alpaquita}"
+ : "${TINY_CLOUD_LOGS:=/var/log}"
+ : "${TINY_CLOUD_VAR:=/var/lib/cloud}"
+ 
+diff --git a/lib/tiny-cloud/init-early b/lib/tiny-cloud/init-early
+index 0728861..1bcccb7 100644
+--- a/lib/tiny-cloud/init-early
++++ b/lib/tiny-cloud/init-early
+@@ -41,4 +41,5 @@ install_hotplugs() {
+     done
+ }
+ 
+-[ -f /lib/tiny-cloud/"${HOTPLUG_TYPE:=mdev}" ] && source /lib/tiny-cloud/"$HOTPLUG_TYPE"
++: "${HOTPLUG_TYPE:=udev}"
++[ -f /lib/tiny-cloud/"$HOTPLUG_TYPE" ] && source /lib/tiny-cloud/"$HOTPLUG_TYPE"
+diff --git a/lib/tiny-cloud/tiny-cloud.conf b/lib/tiny-cloud/tiny-cloud.conf
+index 5daf7ab..96fc764 100644
+--- a/lib/tiny-cloud/tiny-cloud.conf
++++ b/lib/tiny-cloud/tiny-cloud.conf
+@@ -6,7 +6,7 @@
+ #CLOUD=
+ 
+ # User account where instance SSH keys are installed
+-#CLOUD_USER=alpine
++#CLOUD_USER=alpaquita
+ 
+ # IMDS token validity, in seconds (AWS only)
+ #IMDS_TOKEN_TTL=5
+@@ -17,11 +17,11 @@
+ # Location of log directory
+ #TINY_CLOUD_LOGS=/var/log
+ 
+-# Hotplug Method (valid: mdev)
+-#HOTPLUG_TYPE=mdev
++# Hotplug Method (valid: udev)
++#HOTPLUG_TYPE=udev
+ 
+ # Cloud-related Hotplug Modules
+-# valid: vnic_eth_hotplug, nvme_ebs_links (aws)
++# valid: none needed with udev
+ #HOTPLUG_MODULES=
+ 
+ # Explicitly skip these (whitespace delimited) things during init
+diff --git a/lib/tiny-cloud/udev b/lib/tiny-cloud/udev
+new file mode 100644
+index 0000000..286b450
+--- /dev/null
++++ b/lib/tiny-cloud/udev
+@@ -0,0 +1,19 @@
++# Tiny Cloud - udev hotplug functions
++# vim:set ts=4 et ft=sh:
++
++# With mdev - tiny-cloud needs to change the monolithic mdev config to
++# add the rules to run scripts on hotplug (it does that in
++# tiny-cloud-early rc script).  With udev we just install them as
++# separate rule files.  We can get rid of this hotplug file
++# completely, but leave a stub to tell users that copy an Alpine
++# config that they don't need HOTPLUG_MODULES.
++
++# hotpluggable VNICs (multi-cloud)
++mod__vnic_eth_hotplug() {
++    log -s warning "vnic_eth_hotplug: not necessary, you can remove it from HOTPLUG_MODULES"
++    return 0
++}
++
++# load cloud-specific functions
++
++[ -f /lib/tiny-cloud/"$CLOUD"/udev ] && source /lib/tiny-cloud/"$CLOUD"/udev
+diff --git a/usr/lib/udev/rules.d/99-tiny-cloud-aws-nvme.rules b/usr/lib/udev/rules.d/99-tiny-cloud-aws-nvme.rules
+new file mode 100644
+index 0000000..98670f3
+--- /dev/null
++++ b/usr/lib/udev/rules.d/99-tiny-cloud-aws-nvme.rules
+@@ -0,0 +1,9 @@
++# EBS volumes are attached to AWS EC2 Nitro instances using the NVMe
++# driver.  Set up /dev/xvd* symlinks to the right NVMe devices for EBS
++# volumes and their partitions.
++
++# reuse mdev script for udev too
++SUBSYSTEM=="block", ACTION=="add|remove", \
++    KERNEL=="nvme*[0-9]n*[0-9]*", \
++        ENV{MDEV}="$kernel", \
++        RUN+="/lib/mdev/nvme-ebs-links"
+diff --git a/usr/lib/udev/rules.d/99-tiny-cloud-vnic.rules b/usr/lib/udev/rules.d/99-tiny-cloud-vnic.rules
+new file mode 100644
+index 0000000..de7af22
+--- /dev/null
++++ b/usr/lib/udev/rules.d/99-tiny-cloud-vnic.rules
+@@ -0,0 +1,5 @@
++# reuse mdev script for udev too
++SUBSYSTEM=="net", ACTION=="add|remove", \
++    KERNEL=="eth[0-9]*", \
++        ENV{MDEV}="$env{INTERFACE}", \
++        RUN+="/lib/mdev/vnic-eth-hotplug"
