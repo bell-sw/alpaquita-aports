@@ -1,0 +1,47 @@
+pkgname=nvme-cli
+pkgver=2.1.2
+pkgrel=0
+pkgdesc="NVM-Express user space tooling for Linux"
+arch="all"
+url="https://github.com/linux-nvme/nvme-cli"
+license="GPL-2.0-only"
+makedepends="
+	bash
+	libnvme-dev
+	linux-headers
+	meson
+	util-linux-dev
+	uuidgen
+	zlib-dev
+	"
+checkdepends="
+	py3-nose2
+	"
+subpackages="
+	$pkgname-doc
+	$pkgname-bash-completion
+	$pkgname-zsh-completion
+	"
+source="$pkgname-$pkgver.tar.gz::https://github.com/linux-nvme/nvme-cli/archive/v$pkgver.tar.gz"
+options="!check" # needs pci nvme stuff
+
+build() {
+	abuild-meson \
+		-Ddocs=man \
+		-Dudevrulesdir=/usr/lib/udev/rules.d/ \
+		. output
+	meson compile -C output
+}
+
+check() {
+	meson test --print-errorlogs --no-rebuild -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+	rm -rf "$pkgdir"/usr/lib/systemd
+}
+
+sha512sums="
+2162a6967a221a4ae7e0261748c26a10ff43d5b592039e29578d8310cf176428d528c2d510c0b58419b70bd6d28f4d2c77f0cd27606d87079c64289d5d14f930  nvme-cli-2.1.2.tar.gz
+"
