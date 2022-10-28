@@ -4,21 +4,22 @@
 # decompression.
 
 pkgname=xz
-pkgver=5.2.5
-pkgrel=1
+pkgver=5.2.7
+pkgrel=0
 pkgdesc="Data compression utilities for XZ and LZMA"
 url="https://tukaani.org/xz"
 arch="all"
 license="GPL-2.0-or-later AND Public-Domain AND LGPL-2.1-or-later"
-subpackages="$pkgname-dev $pkgname-doc $pkgname-libs"
-source="https://tukaani.org/xz/xz-$pkgver.tar.xz
-	xzgrep-ZDI-CAN-16587.patch"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-libs"
+source="https://tukaani.org/xz/xz-$pkgver.tar.xz"
 
 # secfixes:
 #   5.2.5-r1:
 #     - CVE-2022-1271
 
 build() {
+	# compression utility
+	CFLAGS="$CFLAGS -O2" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -47,6 +48,5 @@ package() {
 }
 
 sha512sums="
-59266068a51cb616eb31b67cd8f07ffeb2288d1391c61665ae2ec6814465afac80fec69248f6a2f2db45b44475af001296a99af6a32287226a9c41419173ccbb  xz-5.2.5.tar.xz
-52b16268e333399444f433a11ccf3a9b020a6914ed23fc8e082128fec596011d7c6863d47414d4c0f245d20ebed4b3a50b422599b4b88d66f6c6eb2e74b9a939  xzgrep-ZDI-CAN-16587.patch
+81955e136832a21fdbde2158a36a0c3c0db413ddf9b4b69bab9c58e7a500dc426c99799a2563e1412c287a392d8f9cb1e58595ad5c2d3731519c3f91688b65a1  xz-5.2.7.tar.xz
 "
