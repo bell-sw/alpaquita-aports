@@ -4,7 +4,7 @@
 
 pkgname=bzip2
 pkgver=1.0.8
-pkgrel=1
+pkgrel=3
 pkgdesc="A high-quality data compressor"
 url="http://sources.redhat.com/bzip2"
 arch="all"
@@ -16,6 +16,7 @@ source="https://sourceware.org/pub/bzip2/bzip2-$pkgver.tar.gz
 	bzip2-1.0.2-progress.patch
 	bzip2-1.0.3-no-test.patch
 	saneso.patch
+	bzip2.pc.in
 	"
 
 # secfixes:
@@ -54,6 +55,10 @@ package() {
 	install -D libbz2.so.$pkgver "$pkgdir"/usr/lib/libbz2.so.$pkgver
 	ln -s libbz2.so.$pkgver "$pkgdir"/usr/lib/libbz2.so
 	ln -s libbz2.so.$pkgver "$pkgdir"/usr/lib/libbz2.so.${pkgver%%.*}
+
+	mkdir -p "$pkgdir"/usr/lib/pkgconfig/
+	sed "s|@VERSION@|$pkgver|" "$srcdir"/bzip2.pc.in \
+		> "$pkgdir"/usr/lib/pkgconfig/bzip2.pc
 }
 
 libbz2() {
@@ -69,4 +74,5 @@ sha512sums="
 b6810c73428f17245e0d7c2decd00c88986cd8ad1cfe4982defe34bdab808d53870ed92cb513b2d00c15301747ceb6ca958fb0e0458d0663b7d8f7c524f7ba4e  bzip2-1.0.2-progress.patch
 aefcafaaadc7f19b20fe023e0bd161127b9f32e0cd364621f6e5c03e95fb976e7e69e354ec46673a554392519532a3bfe56d982a5cde608c10e0b18c3847a030  bzip2-1.0.3-no-test.patch
 dd624110ce06426d2990ad1de96f5b6a2790c599030fb8848e26b64aa847cf956806f7a539fe61c6005d99bfc135920fc704f274862d2557ab1861adb7391d45  saneso.patch
+e17c6f8f88a89d38667a68cd1397c863663c7996a9f18481f3f6ed35902044220c01e5fe19f114159fceac068a4dd32c2ddc903f0d0901cdf722c841dd9f2b93  bzip2.pc.in
 "
