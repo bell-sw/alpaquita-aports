@@ -3,10 +3,9 @@
 
 pkgname=python3
 # the python3-tkinter's pkgver needs to be synchronized with this.
-pkgver=3.10.8
-_bluez_ver=5.65
+pkgver=3.11.0
 _basever="${pkgver%.*}"
-pkgrel=6
+pkgrel=0
 pkgdesc="Python programming language"
 url="https://www.python.org/"
 arch="all"
@@ -20,19 +19,16 @@ subpackages="
 	"
 makedepends="
 	!gettext-dev
-	autoconf
-	autoconf-archive
-	automake
+	bluez-headers
 	bzip2-dev
 	expat-dev
-	gdbm-dev>=1.18.1-r0
+	gdbm-dev
 	libffi-dev
-	libtool
 	linux-headers
 	mpdecimal-dev
 	musl:musl-libintl
 	ncurses-dev
-	openssl-dev>3
+	openssl-dev
 	readline-dev
 	sqlite-dev
 	tcl-dev
@@ -40,14 +36,11 @@ makedepends="
 	zlib-dev
 	"
 source="https://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz
-	https://www.kernel.org/pub/linux/bluetooth/bluez-$_bluez_ver.tar.xz
 	fix-xattrs-glibc.patch
 	musl:musl-find_library.patch
-	custom-bluetooth-h-path.patch
-	arm-alignment.patch
-	skip-test_url_host_with-test-cases.patch
-	0100-AVX2-and-AVX512-support.patch
-	0101-Build-avx2-and-avx512-versions-of-the-math-library.patch
+
+	0100-skip-test_url_host_with-test-cases.patch
+	0101-AVX2-and-AVX512-support.patch
 	0102-Force-config-to-always-be-shared.patch
 	"
 options="net" # Required for tests
@@ -87,12 +80,6 @@ prepare() {
 	rm -r Modules/expat \
 		Modules/_ctypes/darwin* \
 		Modules/_ctypes/libffi*
-
-	mv "$srcdir"/bluez-$_bluez_ver/lib "$srcdir"/bluez-$_bluez_ver/bluetooth
-
-	autoreconf -fi
-
-	sed "s|@bluetoothdir@|\"$srcdir/bluez-$_bluez_ver\"|g" -i setup.py
 }
 
 build() {
@@ -102,9 +89,6 @@ build() {
 	export CXXFLAGS="${CXXFLAGS/-Os/}"
 	export LDFLAGS=''
 
-	# Include bluez headers. Python only needs bluetooth/bluetoot.h and doesn't
-	# link against bluez. Depending on bluez-dev introduces a circular dep:
-	# Python -> bluez -> glib -> meson -> python
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -120,12 +104,14 @@ build() {
 		--with-system-expat \
 		--with-system-ffi \
 		--with-system-libmpdec \
-		--without-ensurepip \
-		--with-bluetoothdir="$srcdir/bluez-$_bluez_ver"
+		--without-ensurepip
 
-	# set thread stack size to 1MB so we don't segfault before we hit
+	# set thread stack size to 2MB so we don't segfault before we hit
 	# sys.getrecursionlimit()
-	make EXTRA_CFLAGS="$CFLAGS -DTHREAD_STACK_SIZE=0x100000"
+	# note: raised from 1 as we ran into some stack limit on x86_64 too
+	# sometimes, but not recursion
+	local stacksize=0x200000
+	make EXTRA_CFLAGS="$CFLAGS -DTHREAD_STACK_SIZE=$stacksize"
 }
 
 check() {
@@ -191,6 +177,7 @@ EOF
 package() {
 	make -j1 DESTDIR="$pkgdir" EXTRA_CFLAGS="$CFLAGS" install maninstall
 	install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+
 	# those are provided by python3-tkinter
 	rm -r "$pkgdir"/usr/bin/idle* "$pkgdir"/usr/lib/python*/idlelib \
 		"$pkgdir"/usr/lib/python*/tkinter
@@ -217,8 +204,8 @@ tests() {
 		mv "$i"/* "$subpkgdir"/usr/lib/python$_basever/"$i"
 		rm -rf "$i"
 	done
-	mv "$pkgdir"/usr/lib/python$_basever/test \
-		"$subpkgdir"/usr/lib/python$_basever/
+
+	amove usr/lib/python$_basever/test
 }
 
 gdbm() {
@@ -228,14 +215,10 @@ gdbm() {
 }
 
 sha512sums="
-40e3e77d79618c81d6fc57c5d119b99c2959dcf932f40aad6b26f2ec39c5e713e6ff298f7597b4fad2ab94680db3732483b5ca0a45e6ae58c14580b3ea44cb0f  Python-3.10.8.tar.xz
-c20c09a1a75053c77d73b3ce15ac7fd321eb6df5ca1646d57c6848b87c0c9957908bc17dd928da4ef2aacfc8667877cbc7511c1ba43db839bfa9bf1fb8269907  bluez-5.65.tar.xz
+314eef88ae0d68760f34d7a32f238fd2ecb27c50963baa7357c42ad8159026ec50229a0b31d83c39710a472904a06422afc082f9658a90a1dc83ccb74c08039d  Python-3.11.0.tar.xz
 fe123dd871f7a3fa868c499a957b94f1d815a1e1de964aaff1116c579defd4d9d1e9b7eb418cf114b169b97426ed603bf4b1e61b45ec483df06abe988c6a30ee  fix-xattrs-glibc.patch
 ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e960c4889568d25753b9e4a1494834fea48291b33f07000ec2  musl-find_library.patch
-14b00953cdb5fe757b38dbf759d7203c3504b46e330494ec195db92290640ec640fb29cc4456208a25dadc028ebaf211b0df71f458a3b76023fdafb4f91ff46a  custom-bluetooth-h-path.patch
-a84483246e413650a904c34c18f5e4f4168c39067d069f48557c330de6eb3db19fd96a4d453d742db3dcb7c7f962722903f62823c752ff90510c89830435ffc0  arm-alignment.patch
-563dc931e442a2b1a0837cc37b445768e3b76e33e4b6c5a3821428a46f3bb4512bc6f5a0160573b2567a2f20c0da27c19d5aa39a1bbaada8f409c1d3d83db7ad  skip-test_url_host_with-test-cases.patch
-24d774c1aaff858fa36706e925a1e1a2d8d01a0ba738673d82ffae08c15a8557a27502bae5a48552d113118b3924fdfc9c3ded94a68ab879afd4263b6c2fe9d3  0100-AVX2-and-AVX512-support.patch
-617cbf2672e4ebb82026207faba3cf92dbde0bd5109ef4458e9106755990e4023d242d8fdc0b754a191179e40a041194e9e8572e22afce276b96e526babcad07  0101-Build-avx2-and-avx512-versions-of-the-math-library.patch
+563dc931e442a2b1a0837cc37b445768e3b76e33e4b6c5a3821428a46f3bb4512bc6f5a0160573b2567a2f20c0da27c19d5aa39a1bbaada8f409c1d3d83db7ad  0100-skip-test_url_host_with-test-cases.patch
+24d774c1aaff858fa36706e925a1e1a2d8d01a0ba738673d82ffae08c15a8557a27502bae5a48552d113118b3924fdfc9c3ded94a68ab879afd4263b6c2fe9d3  0101-AVX2-and-AVX512-support.patch
 1252eb743e780003897d658a6cc08e13acfec6cfb7bd1b650bda7420c23dd11a3269eda0e0c37f6685e0a0bc5a14aa31478aaff8f45ff38cab78e2afb5e658f2  0102-Force-config-to-always-be-shared.patch
 "
