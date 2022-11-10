@@ -6,7 +6,7 @@
 
 pkgname=musl-perf
 pkgver=1.2.3
-pkgrel=9
+pkgrel=10
 pkgdesc="the musl c library (libc) implementation (optimized for performance)"
 url="https://musl.libc.org/"
 arch="x86_64"
@@ -85,8 +85,12 @@ build() {
 		rm -f ./src/string/$n.c ./src/string/$CARCH/$n*
 	done
 
+	
 	# note: not autotools
-	LDFLAGS="$LDFLAGS -Wl,-soname,libc.musl-${CARCH}.so.1" \
+	# note: having -z,pack-relative-relocs passed to musl itself causes it to
+	# fail to load anything, so we want to filter it here.
+	unset LDFLAGS
+	LDFLAGS="-Wl,--as-needed,-O1,--sort-common -Wl,-soname,libc.musl-$CARCH.so.1" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -97,8 +101,7 @@ build() {
 		--infodir=/usr/share/info \
 		--localstatedir=/var \
 		--enable-optimize \
-		--enable-debug \
-		--disable-eh-frame
+		--enable-debug
 	make
 }
 
