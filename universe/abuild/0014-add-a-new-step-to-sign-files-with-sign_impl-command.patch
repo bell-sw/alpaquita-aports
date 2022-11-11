@@ -1,0 +1,49 @@
+From 4f7fe2b541d0f6285b4f90f4f47f6e2bfc949232 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Fri, 11 Nov 2022 19:16:23 +0300
+Subject: [PATCH] add a new step to sign files with sign_impl command
+
+Packages requiring signing will need to specify a sign_list
+in APKBUILD files.
+---
+ abuild.in | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/abuild.in b/abuild.in
+index 1daa21c..ed50146 100644
+--- a/abuild.in
++++ b/abuild.in
+@@ -739,6 +739,22 @@ build() {
+ 	:
+ }
+ 
++sign() {
++	[ -z "$sign_list" ] && return 0
++
++	if ! type -q 'sign_impl'; then
++		warning "Please provide 'sign_impl' command/function to sign 'sign_list' (or sign manually)"
++		return 0
++	fi
++
++	local dir="${subpkgdir:-$pkgdir}"
++	local f
++
++	for f in $sign_list; do
++		sign_impl "$dir"/$f
++	done
++}
++
+ # generate a simple tar.gz package of pkgdir
+ targz() {
+ 	cd "$pkgdir" || return 1
+@@ -1328,6 +1344,7 @@ archcheck() {
+ prepare_package() {
+ 	msg "Preparing ${subpkgname:+sub}package ${subpkgname:-$pkgname}..."
+ 	stripbin
++	sign
+ 	prepare_metafiles \
+ 		&& prepare_trace_rpaths \
+ 		&& prepare_symlinks \
+-- 
+2.25.1
+
