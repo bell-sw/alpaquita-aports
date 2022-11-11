@@ -1,7 +1,7 @@
 _flavor=lts
 pkgname=linux-${_flavor}
 pkgver=5.10.154
-pkgrel=0
+pkgrel=1
 _kernver=${pkgver%.*}
 pkgdesc="Alpaquita Linux lts kernel"
 url="https://www.kernel.org"
@@ -170,6 +170,7 @@ _package() {
 	local _buildflavor="$1" _outdir="$2"
 	local _abi_release=${pkgver}-${pkgrel}-${_buildflavor}
 	export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
+	sign_list="boot/vmlinuz-${_abi_release}"
 
 	cd "$srcdir"/build-$_buildflavor.$CARCH
 	mkdir -p "$_outdir"/boot "$_outdir"/lib/modules
@@ -194,15 +195,6 @@ _package() {
 
 	install -D -m644 include/config/kernel.release \
 		"$_outdir"/usr/share/kernel/$_buildflavor/kernel.release
-
-	if [ "$SHIM_SIGNKEY_PRIVATE" -a "$SHIM_SIGNKEY_X509" ]; then
-		msg "Signing kernel, using provided keys '$SHIM_SIGNKEY_X509'"
-		local img="$_outdir/boot/vmlinuz-${_abi_release}"
-		sbsign --key "$SHIM_SIGNKEY_PRIVATE" --cert "$SHIM_SIGNKEY_X509" \
-			--detached --output $img.sig $img
-		sbattach --attach $img.sig $img
-		rm -f $img.sig
-	fi
 }
 
 package() {
