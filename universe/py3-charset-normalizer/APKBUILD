@@ -3,7 +3,7 @@
 # Description:
 
 pkgname=py3-charset-normalizer
-pkgver=2.0.10
+pkgver=2.1.1
 pkgrel=0
 pkgdesc="offers you an alternative to Universal Charset Encoding Detector, also known as Chardet"
 url="https://github.com/ousret/charset_normalizer"
@@ -11,10 +11,16 @@ arch="noarch"
 license="MIT"
 depends="python3"
 makedepends="py3-setuptools"
-checkdepends="py3-pytest-cov"
-options="!check" # py3-pytest-cov is not in main repository
+checkdepends="py3-pytest"
 source="https://files.pythonhosted.org/packages/source/c/charset-normalizer/charset-normalizer-$pkgver.tar.gz"
 builddir="$srcdir/charset-normalizer-$pkgver"
+
+prepare() {
+	default_prepare
+
+	# community/py3-pytest-cov not available
+	sed -i '/cov-report/d' setup.cfg
+}
 
 build() {
 	python3 setup.py build
@@ -29,5 +35,5 @@ package() {
 }
 
 sha512sums="
-ee4934978a7939d7d4575dc0018b4c92f1c43fff45e3976907c21937b0a3db03d2d19d3e13431f59b5dfb86b14fac9665767433577c1bd3d4eca1f3c88d74ab5  charset-normalizer-2.0.10.tar.gz
+f52abab683ebda4100d67ec6ee0349713baee453a742d60a1356f405c5ce2c3b4d850b0891527f08f92fa1217d59c46d6b181dc4ff1b962ce60d9c5ef8c913d1  charset-normalizer-2.1.1.tar.gz
 "
