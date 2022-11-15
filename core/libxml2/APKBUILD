@@ -3,30 +3,32 @@
 # Description: This providesan extensive API for parsing XML data files.
 
 pkgname=libxml2
-pkgver=2.9.14
-pkgrel=1
+pkgver=2.10.3
+pkgrel=0
 pkgdesc="GNOME XML parsing library"
 url="http://www.xmlsoft.org/"
 arch="all"
 license="MIT"
-depends_dev="zlib-dev xz-dev"
+depends_dev="zlib-dev xz-dev $pkgname-utils=$pkgver-r$pkgrel"
 checkdepends="perl tar"
 makedepends_host="$depends_dev"
 subpackages="$pkgname-dbg $pkgname-doc $pkgname-dev $pkgname-utils"
 if [ -z "$BOOTSTRAP" ]; then
-	makedepends_build="python3-dev"
+	makedepends_build="$makedepends_build python3-dev"
 	subpackages="$subpackages py3-$pkgname:_py3"
-	py_configure="--with-python=/usr/bin/python3"
+	_py_configure="--with-python=/usr/bin/python3"
+else
+	_py_configure="--with-python=no"
 fi
-options="!strip"
 source="https://download.gnome.org/sources/libxml2/${pkgver%.*}/libxml2-$pkgver.tar.xz
 	libxml2-2.9.8-python3-unicode-errors.patch
-	$pkgname-CVE-2022-3209-1.patch::https://gitlab.gnome.org/GNOME/libxml2/-/commit/5930fe01963136ab92125feec0c6204d9c9225dc.patch
-	$pkgname-CVE-2022-3209-2.patch::https://gitlab.gnome.org/GNOME/libxml2/-/commit/a82ea25fc83f563c574ddb863d6c17d9c5abdbd2.patch
 	"
 
 # secfixes:
-#   2.9.14-r1:
+#   2.10.3-r0:
+#     - CVE-2022-40303
+#     - CVE-2022-40304
+#   2.10.0-r0:
 #     - CVE-2022-2309
 #   2.9.14-r0:
 #     - CVE-2022-29824
@@ -58,9 +60,6 @@ source="https://download.gnome.org/sources/libxml2/${pkgver%.*}/libxml2-$pkgver.
 prepare() {
 	default_prepare
 
-	# setup.py is generated
-	rm python/setup.py
-
 	# We don't build libxml2 with icu.
 	rm test/icu_parse_test.xml
 }
@@ -75,7 +74,7 @@ build() {
 		--infodir=/usr/share/info \
 		--with-lzma \
 		--with-zlib \
-		$py_configure
+		$_py_configure
 	make
 }
 
@@ -86,35 +85,23 @@ check() {
 
 package() {
 	make -j1 DESTDIR="$pkgdir" install
-
-	# We don't need static lib for python bindings.
-	if [ -z "$BOOTSTRAP" ]; then
-		rm "$pkgdir"/usr/lib/python*/site-packages/*.a
-	fi
-}
-
-dev() {
-	default_dev
-	mv "$pkgdir"/usr/lib/*.sh "$subpkgdir"/usr/lib/
 }
 
 _py3() {
 	depends="python3"
 	pkgdesc="$pkgname python3 bindings"
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/python3* "$subpkgdir"/usr/lib/
+
+	amove usr/lib/python3*
 }
 
 utils() {
 	pkgdesc="XML utilities"
 	replaces="libxml2"
-	mkdir -p "$subpkgdir"/usr
-	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+
+	amove usr/bin
 }
 
 sha512sums="
-d08e6cafb289c499fdc5b3a12181e032a34f7a249bc66758859f964d3e71e19fd69be79921e1a9d8ab1e692d15b13f5fae95eeb10c3236974d89e218f5107606  libxml2-2.9.14.tar.xz
+33bb87ae9a45c475c3de09477e5d94840d8f687f893ef7839408bc7267e57611c4f2b863ed8ec819a4b5f1ebd6a122db9f6054c73bceed427d37f3e67f62620c  libxml2-2.10.3.tar.xz
 a205c97fa1488fb8907cfa08b5f82e2055c80b86213dc3cc5c4b526fe6aa786bcc4e4eeb226c44635a1d021307b39e3940f706c42fb60e9e3e9b490a84164df7  libxml2-2.9.8-python3-unicode-errors.patch
-17741ee5fcddb1a5d802a90fdbd7bd38a6f6e03ce11c2fe2fb92c0420e94dffd50846c653ffd69425517ccf287ec8830698201dd1cfd34200ea1fd7c5e115de8  libxml2-CVE-2022-3209-1.patch
-5c02cc54bf3f1507f2851468397d28922d9d6aac32a8c4b31ca96792da56ba17b8bb3c4e1aca2b4bd720d922d761635d53d29791b0066b3329c48aa0359dbb1e  libxml2-CVE-2022-3209-2.patch
 "
