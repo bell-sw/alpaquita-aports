@@ -1,5 +1,5 @@
 pkgname=numactl
-pkgver=2.0.14
+pkgver=2.0.16
 pkgrel=0
 pkgdesc="Simple NUMA policy support"
 url="https://github.com/numactl/numactl"
@@ -7,12 +7,13 @@ arch="all"
 license="LGPL-2.1-only"
 makedepends="autoconf automake libtool linux-headers"
 subpackages="$pkgname-dev $pkgname-doc $pkgname-tools"
-source="numactl-$pkgver.tar.gz::https://github.com/numactl/numactl/archive/v$pkgver.tar.gz
-	musl:musl.patch"
+source="numactl-$pkgver.tar.gz::https://github.com/numactl/numactl/archive/refs/tags/v$pkgver.tar.gz"
 
 case "$CARCH" in
-	s390x)  options="!check";; # FAIL: distance test
-	mips*)  options="!check";; # XXX: numa support not enabled on builder
+x86)
+	# test-distance fails
+	options="$options !check"
+	;;
 esac
 
 prepare() {
@@ -21,16 +22,20 @@ prepare() {
 	./autogen.sh
 }
 
-check() {
-	make check VERBOSE=1 TESTS='test/distance test/nodemap test/tbitmap'
-}
-
 build() {
+	CFLAGS="$CFLAGS -flto=auto"
 	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
 		--prefix=/usr \
 		--mandir=/usr/share/man
 	make
 }
+
+check() {
+	make check VERBOSE=1 TESTS='test/distance test/nodemap test/tbitmap'
+}
+
 
 package() {
 	make DESTDIR="$pkgdir" install
@@ -43,11 +48,9 @@ tools() {
 	pkgdesc="NUMA policy control tools"
 	license="GPL-2.0-only"
 
-	mkdir -p "$subpkgdir"/usr
-	mv "$pkgdir"/usr/bin "$subpkgdir"/usr
+	amove usr/bin
 }
 
 sha512sums="
-adaf405f092fd9653f26d00f8c80cb83852c56ebd5d00e714e20d505008e74aa7105b0fb7aa55a605deac0d1491ceff57de931037d33e7944fca105bc6510ed4  numactl-2.0.14.tar.gz
-c24affa5a8a8ea83d7f0ee384dc0629e17a5c4201357132f770f894ad4236772116d96d8389d54fb99095af40d1ccbffc3170b5fb9cc88cfca39179f50bee9c9  musl.patch
+de89bd9f4a9be0e27b21d096aa17a554c209414b5d08b6a2dbd03f8f4830fe4fc5adc88fa8cb08ae1cf75884835dacbde5b6f5d31386244a2582924d2260fcb6  numactl-2.0.16.tar.gz
 "
