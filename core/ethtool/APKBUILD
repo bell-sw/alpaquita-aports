@@ -4,14 +4,14 @@
 # parameters.
 
 pkgname=ethtool
-pkgver=5.17
+pkgver=6.0
 pkgrel=0
 pkgdesc="Network drivers and hardware controlling tools"
 url="https://mirrors.edge.kernel.org/pub/software/network/ethtool/"
 arch="all"
 license="GPL-2.0-only"
 makedepends="linux-headers libmnl-dev"
-subpackages="$pkgname-doc $pkgname-bash-completion:bashcomp:noarch"
+subpackages="$pkgname-doc $pkgname-bash-completion"
 source="https://www.kernel.org/pub/software/network/ethtool/ethtool-$pkgver.tar.xz"
 
 build() {
@@ -31,14 +31,6 @@ package() {
 	make DESTDIR="$pkgdir" install
 }
 
-bashcomp() {
-	depends=""
-	pkgdesc="Bash completions for $pkgname"
-	install_if="$pkgname=$pkgver-r$pkgrel bash-completion"
-
-	amove usr/share/bash-completion/completions
-}
-
 sha512sums="
-c9677829e3ed1f373bd993f72c710293a6e987bbd19829d437a436f42cf4e7995ee70a7db3590b1499ff6aa29c26815f4d0a3e4798ffb6992ae3f52b079cd3ff  ethtool-5.17.tar.xz
+4a8b17ab71aaae3a74e2a82eab19e4ce147fda01af618aa1baaf4c337df22f968ab1f90569118c83ce0405bf0950cdab08212977e43dc0293239bb8e2ceb868a  ethtool-6.0.tar.xz
 "
