@@ -4,13 +4,13 @@
 # applications for performing XSLT transformations.
 
 pkgname=libxslt
-pkgver=1.1.35
+pkgver=1.1.37
 pkgrel=0
 pkgdesc="XSLT 1.0 processing library"
 url="http://xmlsoft.org/XSLT/"
 arch="all"
 license="custom"
-makedepends="libxml2-dev libgcrypt-dev libgpg-error-dev"
+makedepends="autoconf automake libtool libxml2-dev libgcrypt-dev libgpg-error-dev"
 subpackages="$pkgname-dev $pkgname-doc"
 source="https://download.gnome.org/sources/libxslt/${pkgver%.*}/libxslt-$pkgver.tar.xz"
 
@@ -32,13 +32,17 @@ source="https://download.gnome.org/sources/libxslt/${pkgver%.*}/libxslt-$pkgver.
 prepare() {
 	default_prepare
 	chmod 644 python/tests/*
+	
+	# can't detect py3.10 otherwise
+	autoreconf -fvi
 }
 
 build() {
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
-		--prefix=/usr
+		--prefix=/usr \
+		--with-python=no
 	make
 }
 
@@ -50,6 +54,7 @@ package() {
 	make DESTDIR="$pkgdir" install
 	install -D -m644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
 }
+
 sha512sums="
-9dd4a699235f50ae9b75b25137e387471635b4b2da0a4e4380879cd49f1513470fcfbfd775269b066eac513a1ffa6860c77ec42747168e2348248f09f60c8c96  libxslt-1.1.35.tar.xz
+a4e477d2bb918b7d01945e2c7491c3a4aae799dc1602bbd13de55c8a5052e210a20bc45115347eae44473c8b1d03dbc5e4a2aa18c2218f1fdfd376d87cd501ca  libxslt-1.1.37.tar.xz
 "
