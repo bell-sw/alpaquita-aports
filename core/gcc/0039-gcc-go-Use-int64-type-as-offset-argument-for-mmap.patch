@@ -1,0 +1,39 @@
+From 4b6240d5301ce04b8bbc3e2152915cbc7da80584 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?S=C3=B6ren=20Tempel?= <soeren+git@soeren-tempel.net>
+Date: Wed, 28 Sep 2022 17:30:14 +0200
+Subject: [PATCH] libgo: use _off_t for mmap offset argument
+
+On glibc-based systems, off_t is a 32-bit type on 32-bit systems and a
+64-bit type on 64-bit systems by default. However, on systems using musl
+libc off_t is unconditionally a 64-bit type. As such, it is insufficient
+to use a uintptr type for the mmap offset parameter.
+
+Presently, the (incorrect) mmap declaration causes a libgo run-time
+failure on 32-bit musl systems (fatal error: runtime: cannot allocate
+memory). This commit fixes this run-time error.
+---
+ libgo/go/runtime/mem_gccgo.go | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libgo/go/runtime/mem_gccgo.go b/libgo/go/runtime/mem_gccgo.go
+index fa3389d8..07bf325a 100644
+--- a/libgo/go/runtime/mem_gccgo.go
++++ b/libgo/go/runtime/mem_gccgo.go
+@@ -15,7 +15,7 @@ import (
+ //go:linkname sysFree
+ 
+ //extern mmap
+-func sysMmap(addr unsafe.Pointer, n uintptr, prot, flags, fd int32, off uintptr) unsafe.Pointer
++func sysMmap(addr unsafe.Pointer, n uintptr, prot, flags, fd int32, off _off_t) unsafe.Pointer
+ 
+ //extern munmap
+ func munmap(addr unsafe.Pointer, length uintptr) int32
+@@ -38,7 +38,7 @@ func init() {
+ }
+ 
+ func mmap(addr unsafe.Pointer, n uintptr, prot, flags, fd int32, off uintptr) (unsafe.Pointer, int) {
+-	p := sysMmap(addr, n, prot, flags, fd, off)
++	p := sysMmap(addr, n, prot, flags, fd, _off_t(off))
+ 	if uintptr(p) == _MAP_FAILED {
+ 		return nil, errno()
+ 	}
