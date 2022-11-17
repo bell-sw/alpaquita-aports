@@ -1,18 +1,16 @@
 pkgname=xmodmap
-pkgver=1.0.10
+pkgver=1.0.11
 pkgrel=0
 pkgdesc="Utility for modifying keymaps and pointer button mappings in X"
 url="http://xorg.freedesktop.org/"
 arch="all"
 license="MIT"
 options="!check"  # No test suite.
-depends=""
 makedepends="libx11-dev util-macros"
 subpackages="$pkgname-doc"
-source="https://www.x.org/releases/individual/app/$pkgname-$pkgver.tar.bz2"
+source="https://www.x.org/releases/individual/app/xmodmap-$pkgver.tar.gz"
 
-build () {
-	cd "$builddir"
+build() {
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -24,11 +22,10 @@ build () {
 }
 
 package() {
-	cd "$builddir"
 	make DESTDIR="$pkgdir" install
 	install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
 }
 
 sha512sums="
-324c7dcef843186088f16b3bc47485eb3c9b4331e56ce43b692deb4bb3d4f4f27512480e91a379cceac8383df920dc5e37cd825246b50b6343291cec48134c04  xmodmap-1.0.10.tar.bz2
+221d42ce3c5b263b1859562ca3041c484874723552545e42e47624ad5285b4a4047a75d3fbb9c25f4dd8c9527cfb735b8187b62dc9231e4ed5923fafe883b089  xmodmap-1.0.11.tar.gz
 "
