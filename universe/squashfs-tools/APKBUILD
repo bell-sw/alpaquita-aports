@@ -1,6 +1,6 @@
 pkgname=squashfs-tools
 pkgver=4.5.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Tools for squashfs, a highly compressed read-only filesystem for Linux"
 url="https://github.com/plougher/squashfs-tools"
 arch="all"
@@ -10,7 +10,6 @@ makedepends="zlib-dev xz-dev lzo-dev lz4-dev attr-dev zstd-dev"
 source="$pkgname-$pkgver.tar.gz::https://github.com/plougher/squashfs-tools/archive/$pkgver.tar.gz
 	fix-compat.patch
 	"
-builddir="$srcdir/$pkgname-$pkgver"
 
 # secfixes:
 #   4.5-r1:
@@ -23,8 +22,13 @@ build() {
 }
 
 package() {
-	mkdir -p "$pkgdir"/sbin
-	cp -a squashfs-tools/*squashfs "$pkgdir"/sbin
+	install -D -m 0755 -t "$pkgdir/usr/bin" \
+	        'squashfs-tools/mksquashfs' \
+	        'squashfs-tools/unsquashfs' \
+	        ;
+
+	ln -f -s 'unsquashfs' "$pkgdir/usr/bin/sqfscat"
+	ln -f -s 'unsquashfs' "$pkgdir/usr/bin/sqfstar"
 }
 
 sha512sums="
