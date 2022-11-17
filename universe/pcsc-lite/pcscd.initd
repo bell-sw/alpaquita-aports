@@ -1,0 +1,18 @@
+#!/sbin/openrc-run
+description="PC/SC Smart Card Daemon"
+
+command=/usr/sbin/pcscd
+# EXTRA_OPTS is for backward compatibility only (Alpine <3.16)
+command_args="${cfgfile:+--config $cfgfile} ${command_args:-$EXTRA_OPTS}"
+command_user="pcscd:pcscd"
+pidfile=/run/pcscd/pcscd.pid
+
+depend() {
+	need localmount
+	after udev openct dbus
+	use logger
+}
+
+start_pre() {
+	checkpath -d -m 0755 -o "$command_user" /run/pcscd
+}

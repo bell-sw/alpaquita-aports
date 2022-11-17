@@ -1,0 +1,95 @@
+pkgname=pcsc-lite
+pkgver=1.9.9
+pkgrel=0
+pkgdesc="Middleware to access a smart card using SCard API (PC/SC)"
+url="https://pcsclite.apdu.fr/"
+arch="all"
+license="BSD-3-Clause AND BSD-2-Clause AND ISC"
+depends_dev="
+	$pkgname-libs=$pkgver-r$pkgrel
+	eudev-dev
+	"
+makedepends="
+	$depends_dev
+	flex
+	libcap-ng-utils
+	perl
+	perl-dev
+	"
+install="$pkgname.pre-install $pkgname.pre-upgrade"
+subpackages="
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-spy-libs:spylibs
+	$pkgname-libs
+	$pkgname-openrc
+	"
+source="https://pcsclite.apdu.fr/files/pcsc-lite-$pkgver.tar.bz2
+	pcscd.initd
+	"
+
+# temp allow textrels on riscv64
+[ "$CARCH" = "riscv64" ] && options="$options textrels"
+
+build() {
+	./configure \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--disable-libusb \
+		--enable-libudev \
+		--disable-maintainer-mode \
+		--disable-silent-rules \
+		--without-systemdsystemunitdir \
+		--enable-ipcdir=/run/pcscd \
+		--enable-usbdropdir=/usr/lib/pcsc/drivers \
+		--disable-libsystemd \
+		--disable-polkit \
+		--disable-strict
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	license="$license AND GPL-3.0-or-later"
+
+	make DESTDIR="$pkgdir" install
+
+	install -D -m755 "$srcdir/pcscd.initd" "$pkgdir/etc/init.d/pcscd"
+
+	mkdir -p "$pkgdir/usr/lib/pcsc/drivers"
+
+	# grant sysfs access
+	filecap "$pkgdir/usr/sbin/pcscd" "dac_override"
+}
+
+spylibs() {
+	pkgdesc="$pkgdesc (log/debug/spy libraries)"
+	license="GPL-3.0-or-later"
+
+	amove usr/lib/libpcscspy.so.*
+}
+
+libs() {
+	pkgdesc="$pkgdesc (libraries)"
+
+	amove usr/lib
+}
+
+dev() {
+	default_dev
+
+	# move back the /usr/lib/libpcsclite.so
+	# see http://bugs.alpinelinux.org/issues/3236 (and 6392)
+	mv "$subpkgdir/usr/lib/libpcsclite.so" "$pkgdir/usr/lib/libpcsclite.so"
+}
+
+sha512sums="
+748ec3d82ff48af1a8dc5a581863e5d94adc47ab8f3158ceb838c2b521ece3a746b737c7b4bb2ba8b545be85ff18b9639443864e50b2e065cf2fbfdf79ef9700  pcsc-lite-1.9.9.tar.bz2
+df1dc4e38b3f843812c5bf88d12765bd9ffe6246868ab2ab61d4e2bcd5131687d07b530e4d339749a40d2d785bde6aac0ab98807b15f2c293c2bd53acf3090a9  pcscd.initd
+"
