@@ -1,12 +1,12 @@
 pkgname=yajl
 pkgver=2.1.0
-pkgrel=2
+pkgrel=5
 pkgdesc="Yet Another JSON Library (YAJL)"
 url="https://lloyd.github.io/yajl/"
 arch="all"
 license="MIT"
-makedepends="cmake"
-subpackages="$pkgname-dev $pkgname-tools"
+makedepends="cmake samurai"
+subpackages="$pkgname-static $pkgname-dev $pkgname-tools"
 source="https://dev.alpinelinux.org/archive/yajl/yajl-$pkgver.tar.gz"
 
 # How to create archive from git:
@@ -37,18 +37,24 @@ snapshot() {
 }
 
 build() {
-	cmake -B build . \
-		-DCMAKE_BUILD_TYPE=None \
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DCMAKE_INSTALL_LIBDIR=lib \
 		-DCMAKE_INSTALL_PREFIX=/usr
-	make -C build
+	cmake --build build
 }
 
 package() {
-	make install -C build DESTDIR="$pkgdir"
+	DESTDIR="$pkgdir" cmake --install build
 
 	mkdir -p "$pkgdir"/usr/lib
 	mv "$pkgdir"/usr/share/pkgconfig "$pkgdir"/usr/lib/
+	mv "$pkgdir"/usr/lib/libyajl_s.a "$pkgdir"/usr/lib/libyajl.a
+}
+
+check() {
+	cd build
+	CTEST_OUTPUT_ON_FAILURE=TRUE ctest
 }
 
 tools() {
