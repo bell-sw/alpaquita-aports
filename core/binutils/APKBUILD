@@ -4,8 +4,8 @@
 # of programs within the GNU system.
 
 pkgname=binutils
-pkgver=2.38
-pkgrel=3
+pkgver=2.39
+pkgrel=2
 pkgdesc="GNU tools for programs building"
 url="https://www.gnu.org/software/binutils/"
 makedepends_build="bison flex texinfo linux-headers"
@@ -17,6 +17,7 @@ subpackages="$pkgname-dev $pkgname-doc"
 source="https://ftp.gnu.org/gnu/binutils/binutils-$pkgver.tar.xz
 	binutils-ld-fix-static-linking.patch
 	0001-Revert-PR25882-.gnu.attributes-are-not-checked-for-s.patch
+	CVE-2022-38533.patch
 	"
 builddir="$srcdir/$pkgname-$pkgver"
 
@@ -31,6 +32,10 @@ if [ "$CHOST" != "$CTARGET" ]; then
 fi
 
 # secfixes:
+#   2.39-r2:
+#     - CVE-2022-38533
+#   2.39-r0:
+#     - CVE-2022-38126
 #   2.35.2-r1:
 #     - CVE-2021-3487
 #   2.32-r0:
@@ -72,12 +77,14 @@ build() {
 		--mandir=/usr/share/man \
 		--infodir=/usr/share/info \
 		--disable-multilib \
+		--disable-gprofng \
 		--enable-ld=default \
 		$_gold_configure \
 		--enable-64-bit-bfd \
 		$_plugin_configure \
 		--enable-relro \
 		--enable-deterministic-archives \
+		--enable-default-execstack=no \
 		$_cross_configure \
 		$_arch_configure \
 		--enable-default-hash-style=gnu \
@@ -130,7 +137,8 @@ gold() {
 }
 
 sha512sums="
-8bf0b0d193c9c010e0518ee2b2e5a830898af206510992483b427477ed178396cd210235e85fd7bd99a96fc6d5eedbeccbd48317a10f752b7336ada8b2bb826d  binutils-2.38.tar.xz
+68e038f339a8c21faa19a57bbc447a51c817f47c2e06d740847c6e9cc3396c025d35d5369fa8c3f8b70414757c89f0e577939ddc0d70f283182504920f53b0a3  binutils-2.39.tar.xz
 ecee33b0e435aa704af1c334e560f201638ff79e199aa11ed78a72f7c9b46f85fbb227af5748e735fd681d1965fcc42ac81b0c8824e540430ce0c706c81e8b49  binutils-ld-fix-static-linking.patch
 70ec22bd72ef6dddecfd970613387dd4a8cdc8730dd3cbf03d5a0c3a7c4d839383167bb06dad21bf7c235329fd44b5dc4aefe762f68544f17155cf002bf1be4a  0001-Revert-PR25882-.gnu.attributes-are-not-checked-for-s.patch
+631726e557524633ace39c597acbc5ac39bfd25f7b292eee1f0b2a80a503f4ff799f027757d12d5a24b2fa3c07c7e14602d8a86d96e19876d6d0d5d1a02817e7  CVE-2022-38533.patch
 "
