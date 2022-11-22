@@ -4,7 +4,7 @@
 
 pkgname=giflib
 pkgver=5.2.1
-pkgrel=0
+pkgrel=1
 pkgdesc="A library for reading and writing GIF images"
 url="https://sourceforge.net/projects/giflib/"
 arch="all"
@@ -16,25 +16,22 @@ source="https://downloads.sourceforge.net/sourceforge/$pkgname/$pkgname-$pkgver.
 	giflib-restore-deprecated-functions.patch"
 
 build() {
-	cd "$builddir"
 	make CFLAGS="-fPIC"
 }
 
 check() {
-	cd "$builddir"
 	make check
 }
 
 package() {
-	cd "$builddir"
 	make DESTDIR="$pkgdir" PREFIX=/usr install
 	rm -f "$pkgdir"/usr/lib/*.a
 }
 
 utils() {
 	pkgdesc="Programs for manipulating GIF format image files"
-	mkdir -p "$subpkgdir"/usr
-	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+
+	amove usr/bin
 }
 
 sha512sums="
