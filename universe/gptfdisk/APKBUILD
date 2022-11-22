@@ -22,16 +22,16 @@ build() {
 	make CXX="${CXX:-g++}" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
 }
 
-check() {
-	sh "$builddir"/gdisk_test.sh
-}
-
 package() {
 	mkdir -p "$pkgdir"/usr/bin "$pkgdir"/usr/share/man/man8
 	local i; for i in gdisk cgdisk sgdisk fixparts; do
 		install $i "$pkgdir"/usr/bin/
 		install $i.8 "$pkgdir"/usr/share/man/man8/
 	done
+}
+
+check() {
+	sh "$builddir"/gdisk_test.sh
 }
 
 sgdisk() {
