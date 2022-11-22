@@ -4,16 +4,19 @@
 
 pkgname=kyua
 pkgver=0.13
-pkgrel=4
+pkgrel=6
 pkgdesc="testing framework for infrastructure software"
 url="https://github.com/jmmv/kyua"
 arch="all"
 license="BSD-3-Clause"
 makedepends="atf-dev lutok-dev sqlite-dev"
-subpackages="$pkgname-doc"
+subpackages="$pkgname-dbg $pkgname-doc"
 source="https://github.com/jmmv/kyua/releases/download/kyua-$pkgver/kyua-$pkgver.tar.gz"
 
 build() {
+
+	# reduce size of debug syms
+	CFLAGS="$CFLAGS -g1" CXXFLAGS="$CXXFLAGS -g1" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
