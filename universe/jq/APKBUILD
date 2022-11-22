@@ -1,6 +1,6 @@
 pkgname=jq
 pkgver=1.6
-pkgrel=1
+pkgrel=2
 pkgdesc="A lightweight and flexible command-line JSON processor"
 url="https://stedolan.github.io/jq/"
 arch="all"
@@ -13,6 +13,12 @@ builddir="$srcdir/$pkgname-$pkgname-$pkgver"
 # secfixes:
 #   1.6_rc1-r0:
 #     - CVE-2016-4074
+
+case "$CARCH" in
+riscv64)
+	options="$options textrels"
+	;;
+esac
 
 prepare() {
 	default_prepare
