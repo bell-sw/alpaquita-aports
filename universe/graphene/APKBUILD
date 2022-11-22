@@ -1,6 +1,6 @@
 pkgname=graphene
 pkgver=1.10.8
-pkgrel=0
+pkgrel=1
 pkgdesc="A thin layer of graphic data types"
 url="http://ebassi.github.io/graphene/"
 arch="all"
@@ -12,14 +12,26 @@ source="https://github.com/ebassi/graphene/archive/$pkgver/graphene-$pkgver.tar.
 	"
 
 build() {
+	case "$CARCH" in
+	arm*)
+		# XXX: https://github.com/ebassi/graphene/issues/215
+		# neon quite broken on arm 32-bit
+		_neon=false
+		;;
+	*)
+		_neon=true
+		;;
+	esac
 	abuild-meson \
+		-Db_lto=true \
+		-Darm_neon=$_neon \
 		-Dinstalled_tests=false \
 		. output
 	meson compile ${JOBS:+-j ${JOBS}} -C output
 }
 
 check() {
-	meson test --no-rebuild -v -C output
+	meson test --no-rebuild --print-errorlogs -C output
 }
 
 package() {
