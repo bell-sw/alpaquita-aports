@@ -1,5 +1,5 @@
 pkgname=libdrm
-pkgver=2.4.110
+pkgver=2.4.113
 pkgrel=0
 pkgdesc="Userspace interface to kernel DRM services"
 url="https://dri.freedesktop.org/"
@@ -16,19 +16,21 @@ builddir="$srcdir/drm-libdrm-$pkgver"
 
 build() {
 	abuild-meson \
-		-Dfreedreno=true \
-		-Dtegra=true \
-		-Domap=true \
-		-Dexynos=true \
-		-Dvc4=true \
-		-Detnaviv=true \
+		-Db_lto=true \
+		-Dfreedreno=enabled \
+		-Dtegra=enabled \
+		-Domap=enabled \
+		-Dexynos=enabled \
+		-Dvc4=enabled \
+		-Detnaviv=enabled \
 		-Dudev=true \
+		-Dtests="$(want_check && echo true || echo false)" \
 		. output
 	meson compile ${JOBS:+-j ${JOBS}} -C output
 }
 
 check() {
-	meson test -v -C output
+	meson test --print-errorlogs -C output
 }
 
 package() {
@@ -36,5 +38,5 @@ package() {
 }
 
 sha512sums="
-59de1ece583c3fcf8ba62273caf705c3bbc0735f8c50775387357590681c4d4a6133772a4afda0355a0f65e25d5394fbfdf30f4adaeabe707af797e95d48dc02  drm-libdrm-2.4.110.tar.gz
+ce2db4966518d5daf3e909f51f2b8de1250ab131626c1e772db85f01f8868f699274dab3143833a144f52e22d79241646cbe374fcde1f42ba8914755def3f738  drm-libdrm-2.4.113.tar.gz
 "
