@@ -1,23 +1,25 @@
 pkgname=orc
 pkgver=0.4.32
-pkgrel=0
+pkgrel=2
 pkgdesc="The Oil Run-time Compiler"
 url="https://gstreamer.freedesktop.org/modules/orc.html"
 arch="all"
 license="BSD-2-Clause"
+depends_dev="$pkgname-compiler=$pkgver-r$pkgrel"
 makedepends="linux-headers meson"
 subpackages="$pkgname-dev $pkgname-compiler"
 source="https://gstreamer.freedesktop.org/src/orc/orc-$pkgver.tar.xz"
 
 build() {
 	abuild-meson \
+		-Db_lto=true \
 		-Dorc-test=disabled \
 		. output
 	meson compile ${JOBS:+-j ${JOBS}} -C output
 }
 
 check() {
-	meson test --no-rebuild -v -C output
+	meson test --no-rebuild --print-errorlogs -C output
 }
 
 package() {
@@ -26,8 +28,8 @@ package() {
 
 compiler() {
 	pkgdesc="Orc compiler"
-	mkdir -p "$subpkgdir"/usr/
-	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+
+	amove usr/bin
 }
 
 sha512sums="
