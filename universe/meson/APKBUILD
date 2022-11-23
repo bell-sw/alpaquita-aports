@@ -3,7 +3,7 @@
 # Description:
 
 pkgname=meson
-pkgver=0.62.1
+pkgver=0.63.3
 pkgrel=0
 pkgdesc="Fast and user friendly build system"
 url="https://mesonbuild.com"
@@ -11,25 +11,62 @@ arch="noarch"
 license="Apache-2.0"
 depends="samurai python3"
 makedepends="py3-setuptools"
+# glib-dev, gobject-introspection-dev, gtk+3.0-dev is a circular dep,
+# but only during bootstrap-
+# not installing checkdepends with !check should be fine
+options="$options !check" # circular deps above with check on bootstrap
+checkdepends="
+	boost-dev
+	boost-static
+	cmake
+	cups-dev
+	doxygen
+	gettext-static
+	gfortran
+	glib-dev
+	gobject-introspection-dev
+	gtest-dev
+	gtk+3.0-dev
+	libpcap-dev
+	libxml2-dev
+	linux-headers
+	llvm-dev
+	nasm
+	ncurses-dev
+	py3-pytest
+	python3-dev
+	vala
+	zlib-dev
+	zlib-static
+	"
 subpackages="
 	$pkgname-doc
 	$pkgname-vim::noarch
 	$pkgname-bash-completion
 	$pkgname-zsh-completion
 	"
-source="
-	https://github.com/mesonbuild/meson/releases/download/$pkgver/meson-$pkgver.tar.gz
+source="https://github.com/mesonbuild/meson/releases/download/$pkgver/meson-$pkgver.tar.gz
 	skip-broken-tests.patch
 	fix-ninja-output-test.patch
 	abuild-meson
 	"
+
+prepare() {
+	default_prepare
+
+	# https://github.com/mesonbuild/meson/issues/10104
+	rm -r "$builddir/test cases/linuxlike/13 cmake dependency"
+}
 
 build() {
 	python3 setup.py build
 }
 
 check() {
-	python3 setup.py check
+	MESON_CI_JOBNAME=thirdparty \
+		NINJA=samu \
+		NINJA_1_9_OR_NEWER=1 \
+		python3 run_tests.py
 }
 
 package() {
@@ -55,8 +92,8 @@ vim() {
 }
 
 sha512sums="
-52d2d06c27275b824046164403908be8555faed33aef862940623cef3e4f84b4c9b8d461c291642e6ea2c0db30b2ec4a99f46bde5d54945a26c1dbeca219cc32  meson-0.62.1.tar.gz
+6855b2bfe05d592419bfeaf4346c3d1079319f14de995109c09a7e5e9770cef829f66d659553337b3e54ca0dd6c497bccd4abef720f299173077b664d905864b  meson-0.63.3.tar.gz
 0bbbf65f56f4feab43b4ec3fbe7d4c64ef9abb563ea114d0b960048319b936dd577e538a762991661a1cb256f32c0da0fef2d3add07730e37a8bbd4ec27dc611  skip-broken-tests.patch
 a60dd85ecc1004523c213f4d06bfe10ba906a5115e93cfa4f1b70733e0c16f39c2c22b38ff71bb07c67166f3121c263a56842e8f8e2022f0a44094f956e28f02  fix-ninja-output-test.patch
-1029e7a7af86ff4a5636f8cea4b5dbe970a58741d2f25dad50712664f1e387078e7583fafd4f7d1d420c9e116b0ea72b20cf22532cfece9a7d2d8cf60c9aadab  abuild-meson
+5531e31c99e3a202e30148c0f80d13b34428bd72ba4aa89a5e752392027d1f5af38b0201cfc72f9d1198d5db0ceecd00b6b3e308dae665ca860796e690206d01  abuild-meson
 "
