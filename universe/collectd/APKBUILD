@@ -10,7 +10,6 @@ pkggroups="collectd"
 makedepends="
 	autoconf
 	automake
-	chrpath
 	curl-dev
 	eudev-dev
 	hiredis-dev
@@ -33,6 +32,7 @@ makedepends="
 	openipmi-dev
 	openldap-dev
 	openssl-dev>3
+	patchelf
 	perl-dev
 	python3-dev
 	rabbitmq-c-dev
@@ -222,7 +222,7 @@ build() {
 
 	if [ -f .libs/java.so ]; then
 		# Fix RPATH (there's /usr/lib/jvm/default-jvm/lib/server/jre/jre/.../jre/lib/server).
-		chrpath -r "$(readlink -f /usr/lib/jvm/default-jvm/lib/server)" .libs/java.so
+		patchelf --set-rpath "$(readlink -f /usr/lib/jvm/default-jvm/lib/server)" .libs/java.so
 	fi
 
 	# disable plugins by default since its in a subpackage
