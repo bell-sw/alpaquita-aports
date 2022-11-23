@@ -90,7 +90,7 @@ build() {
 	perl ./Configure \
 		$_target \
 		--prefix=/usr \
-		--libdir=lib \
+		--libdir=/usr/lib \
 		--openssldir=/etc/ssl \
 		enable-ktls \
 		shared \
@@ -134,7 +134,7 @@ package() {
 _libcrypto() {
 	pkgdesc="Crypto library from openssl"
 	replaces="libcrypto1.1"
-	mkdir -p "$subpkgdir"/lib "$subpkgdir"/usr/lib
+	mkdir -p "$subpkgdir"/usr/lib
 	mv "$pkgdir"/etc "$subpkgdir"/
 	mv "$pkgdir"/usr/lib/libcrypto* "$subpkgdir"/usr/lib/
 	mv "$pkgdir"/usr/lib/engines-$_abiver "$subpkgdir"/usr/lib/
@@ -144,7 +144,7 @@ _libcrypto() {
 _libssl() {
 	pkgdesc="SSL shared libraries"
 
-	mkdir -p "$subpkgdir"/lib "$subpkgdir"/usr/lib
+	mkdir -p "$subpkgdir"/usr/lib
 	mv "$pkgdir"/usr/lib/libssl* "$subpkgdir"/usr/lib/
 }
 
