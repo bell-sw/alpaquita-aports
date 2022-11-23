@@ -1,13 +1,13 @@
 pkgname=mandoc
 pkgver=1.14.6
-pkgrel=1
+pkgrel=6
 pkgdesc="mandoc (formerly mdocml) UNIX manpage compiler toolset"
 url="https://mandoc.bsd.lv/"
 arch="all"
 license="ISC and BSD-2-Clause and BSD-3-Clause"
 makedepends="zlib-dev"
 checkdepends="perl"
-install="$pkgname.post-deinstall"
+install="$pkgname-apropos.post-deinstall"
 triggers="$pkgname-apropos.trigger=/usr/share/man/*"
 replaces="mdocml"
 provides="mdocml=$pkgver-r$pkgrel"
@@ -17,10 +17,12 @@ source="https://mandoc.bsd.lv/snapshots/mandoc-$pkgver.tar.gz
 	outdated-warn-disable.patch
 	"
 
-# TODO: some tests fail due to locale issues
 case "$CLIBC" in
 glibc) options="$options !check" ;;
 esac
+# higher than community/man-db for this
+provides="doc-provider"
+provider_priority=100
 
 prepare() {
 	default_prepare
@@ -31,7 +33,7 @@ prepare() {
 	LIBDIR=/usr/lib
 	CFLAGS="$CFLAGS"
 	UTF8_LOCALE="en_US.UTF-8"
-	MANPATH_DEFAULT="/usr/share/man:/usr/local/man"
+	MANPATH_DEFAULT="/usr/share/man:/usr/local/man:/usr/local/share/man"
 	MANPATH_BASE="/usr/share/man"
 	LN="ln -sf"
 	HAVE_LESS_T=0
