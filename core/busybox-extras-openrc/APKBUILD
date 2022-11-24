@@ -1,0 +1,33 @@
+pkgname=busybox-extras-openrc
+pkgver=1.2
+pkgrel=0
+pkgdesc="Init scripts for miscellaneous services provided by busybox-extras"
+url="https://git.alpinelinux.org/aports/tree/main/busybox-extras-openrc"
+arch="noarch"
+license="GPL-2.0-only"
+depends="busybox-extras openrc>=0.24.1-r6"
+makedepends=""
+options="!check"
+replaces="busybox-openrc<1.2"
+source="dnsd.initd httpd.initd inetd.initd udhcpd.initd"
+
+package() {
+	mkdir -p "$pkgdir"/etc/init.d
+	cd "$srcdir"
+	for i in *.initd; do
+		install -m755 "$i" "$pkgdir"/etc/init.d/${i%%.initd} || return 1
+	done
+	if test "`echo *.confd`" != '*.confd'; then
+		mkdir -p "$pkgdir"/etc/conf.d
+		for i in *.confd; do
+			install -m644 "$i" "$pkgdir"/etc/conf.d/${i%%.confd} || return 1
+		done
+	fi
+}
+
+sha512sums="
+c571c5acf8cec351a41cbce00a7e21d08e8db5da129830d4bcc09cba5dc7ce5acfe8670bb4475436917d53cd7e5e0502042025124e2a905d929ff811bc2036d0  dnsd.initd
+f8dcfb5c722a3bd87d4e08f0af0e047270e9158d262bf5909caed2f641a44f38a742437c315909a3f70a588282054af0f9356ebb9aab8d51d35c702bbb5559f4  httpd.initd
+81bba7fc625a86e04069b82cdf9dcfb5b6a9b3ceaf138e08cc8fd5e7680d8c9aa670e74783b00778e1cb1f7b1fb65946b003d0927771e412d15e2d92b4d5c5e2  inetd.initd
+1171b4144fa2bca2fd48ea6143a297a271d76cf9b109efe4fb09a07d07427a5cee028ebdce1efa9b18fdea84002a82674c2dc08fbf25647fd22443abefbb02ae  udhcpd.initd
+"
