@@ -1,7 +1,7 @@
 pkgname=py3-wheel
 _pyname=wheel
 pkgver=0.37.1
-pkgrel=0
+pkgrel=1
 pkgdesc="built-package format for Python"
 url="https://github.com/pypa/wheel"
 arch="noarch"
@@ -9,13 +9,21 @@ license="MIT"
 subpackages="$pkgname-doc"
 depends="python3 py3-packaging"
 makedepends="py3-setuptools"
-checkdepends="py3-pytest py3-pytest-cov python3-dev"
+checkdepends="py3-pytest python3-dev"
 [ -n "BOOTSTRAP" ] && options="!check" # To break a cyclic dependency on py3-pytest
-_pypiprefix="${_pyname%${_pyname#?}}"
-source="https://files.pythonhosted.org/packages/source/$_pypiprefix/$_pyname/$_pyname-$pkgver.tar.gz
+source="https://files.pythonhosted.org/packages/source/w/wheel/wheel-$pkgver.tar.gz
 	use-system-packaging.patch
 	"
 builddir="$srcdir"/$_pyname-$pkgver
+
+prepare() {
+	default_prepare
+
+	# py3-pytest-cov not available in main
+	sed -i '/cov-config/d' setup.cfg
+	# we're not macos
+	rm tests/test_macosx_libfile.py
+}
 
 build() {
 	rm -rf src/wheel/vendored
@@ -25,8 +33,8 @@ build() {
 
 check() {
 	python3 -m venv --system-site-packages test-env
-	./test-env/bin/python3 setup.py install
-	./test-env/bin/python3 -m pytest --ignore=tests/test_macosx_libfile.py
+	test-env/bin/python3 setup.py install
+	test-env/bin/python3 -m pytest
 }
 
 package() {
