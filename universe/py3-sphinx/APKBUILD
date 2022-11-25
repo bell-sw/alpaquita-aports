@@ -3,8 +3,8 @@
 # Description:
 
 pkgname=py3-sphinx
-pkgver=4.3.0
-pkgrel=1
+pkgver=5.2.1
+pkgrel=0
 pkgdesc="Python Documentation Generator"
 # checkdepends require 'imagemagick' and 'py3-html5lib' which
 # are in community/, 'imagemagick' itself also needs 'librsvg'
@@ -19,9 +19,9 @@ depends="
 	py3-docutils
 	py3-imagesize
 	py3-jinja2
+	py3-packaging
 	py3-pygments
 	py3-requests
-	py3-setuptools
 	py3-snowballstemmer
 	py3-alabaster
 	py3-sphinxcontrib-applehelp
@@ -31,6 +31,7 @@ depends="
 	py3-sphinxcontrib-serializinghtml
 	py3-sphinxcontrib-qthelp
 	"
+makedepends="py3-gpep517 py3-flit-core py3-installer"
 # imagemagick is for tests/test_ext_imgconverter.py::test_ext_imgconverter
 # which calls the 'convert' binary
 checkdepends="py3-pytest py3-funcsigs py3-pluggy imagemagick py3-html5lib"
@@ -38,7 +39,10 @@ source="$pkgname-$pkgver.tar.gz::https://github.com/sphinx-doc/sphinx/archive/v$
 builddir="$srcdir/sphinx-$pkgver"
 
 build() {
-	python3 setup.py build
+	mkdir dist
+	python3 -m gpep517 build-wheel \
+		--wheel-dir dist \
+		--output-fd 1
 }
 
 check() {
@@ -46,20 +50,10 @@ check() {
 }
 
 package() {
-	python3 setup.py install --prefix=/usr --root="$pkgdir"
-
-	# TODO: The binaries with the -3 postfix should be
-	# considered deprecated and removed in a future release.
-	local path; for path in "$pkgdir"/usr/bin/*; do
-		mv "$path" "$path"-3
-	done
-
-	cd "$pkgdir"/usr/bin
-	local name; for name in *-3; do
-		ln -s -- $name "$pkgdir"/usr/bin/${name%-3}
-	done
+	python3 -m installer -d "$pkgdir" \
+		dist/sphinx-*.whl
 }
 
 sha512sums="
-9d791779a4a6879f9217d26ac9795c63ed5225663096fb4a571fff422442a7ad207a5bc0a7bdc9b164982a77c7085827318d439fce5e5453b62dc28b58ae90eb  py3-sphinx-4.3.0.tar.gz
+bb51a91f7eb9643cf30be732cd0d9d45a90a1358d8379d89ac3ec0a46dcb0724a57ec4d5062375b6a98bfbb5d688d709ca9a1ed65d7825f4402cacf01cc9e034  py3-sphinx-5.2.1.tar.gz
 "
