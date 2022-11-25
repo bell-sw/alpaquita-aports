@@ -4,17 +4,24 @@
 
 pkgname=py3-fonttools
 _pkgname=fonttools
-pkgver=4.33.0
+pkgver=4.38.0
 pkgrel=0
 pkgdesc="Converts OpenType and TrueType fonts to and from XML"
 url="https://github.com/fonttools/fonttools"
 arch="all"
 license="MIT AND OFL-1.1"
-depends="py3-lxml py3-fs cython python3-dev"
-makedepends="py3-setuptools"
-checkdepends="py3-pytest py3-brotli"
+depends="python3"
+makedepends="
+	cython
+	py3-gpep517
+	py3-installer
+	py3-setuptools
+	py3-wheel
+	python3-dev
+	"
+checkdepends="py3-fs py3-pytest py3-pytest-xdist py3-brotli"
 subpackages="$pkgname-doc"
-source="$_pkgname-$pkgver.tar.gz::https://github.com/fonttools/fonttools/archive/$pkgver.tar.gz"
+source="$_pkgname-$pkgver.tar.gz::https://github.com/fonttools/fonttools/archive/refs/tags/$pkgver.tar.gz"
 builddir="$srcdir/$_pkgname-$pkgver"
 
 replaces="py-fonttools" # Backwards compatibility
@@ -27,15 +34,20 @@ prepare() {
 }
 
 build() {
-	python3 setup.py build
+	gpep517 build-wheel \
+		--wheel-dir dist \
+		--output-fd 1
 }
 
 check() {
-	PATH="$PATH:$PWD" PYTHONPATH=$(echo "$PWD"/build/lib*) py.test-3
+	PATH="$PATH:$PWD" \
+	PYTHONPATH=$(echo "$PWD"/build/lib*) \
+	pytest -n4
 }
 
 package() {
-	python3 setup.py install --prefix=/usr --root="$pkgdir"
+	python3 -m installer -d "$pkgdir" \
+		dist/fonttools-$pkgver-*.whl
 }
 
 doc() {
@@ -45,5 +57,5 @@ doc() {
 }
 
 sha512sums="
-147f6d41d1a6b27ebe6973cb91a90384291ad8c7b75b71c3b814908012530066b79f4c39bdd6da9e98614ef61b1cc19803756aba73e4da7ce2e82147390f0023  fonttools-4.33.0.tar.gz
+438694e7a4c19ee63ab504763793c0219d96fdc58095fe55a4f44726e96a3ec8ae63066aa47a341a059c7a2c9893b9bbbdfc8ab4d75c177cbd90986debc31431  fonttools-4.38.0.tar.gz
 "
