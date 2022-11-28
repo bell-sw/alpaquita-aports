@@ -1,23 +1,17 @@
 pkgname=mariadb-connector-c
-pkgver=3.1.13
-pkgrel=2
+pkgver=3.3.2
+pkgrel=0
 pkgdesc="The MariaDB Native Client library (C driver)"
 url="https://mariadb.org/"
 arch="all"
 license="LGPL-2.1-or-later"
-depends_dev="openssl1.1-compat-dev zlib-dev"
-makedepends="$depends_dev cmake"
+depends_dev="openssl-dev>3 zlib-dev"
+makedepends="$depends_dev cmake samurai"
 options="!check" # no testsuite
 replaces="mariadb-client-libs"
 subpackages="$pkgname-dev"
 source="https://mirror.vpsfree.cz/mariadb/connector-c-$pkgver/mariadb-connector-c-$pkgver-src.tar.gz"
 builddir="$srcdir/mariadb-connector-c-$pkgver-src"
-
-prepare() {
-	default_prepare
-	# Patch source to fix error in how the .cmake file was written
-	sed -e 's|END()|ENDIF()|' -i cmake/ConnectorName.cmake
-}
 
 build() {
 	if [ "$CBUILD" != "$CHOST" ]; then
@@ -25,11 +19,10 @@ build() {
 	fi
 
 	# INSTALL_LIBDIR and INSTALL_INCLUDEDIR are relative to CMAKE_INSTALL_PREFIX.
-	cmake \
-		-DCMAKE_BUILD_TYPE=None \
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DBUILD_SHARED_LIBS=True \
-		-DCMAKE_C_FLAGS="$CFLAGS" \
 		-DINSTALL_LIBDIR=lib \
 		-DINSTALL_INCLUDEDIR=include/mysql \
 		\
@@ -39,14 +32,17 @@ build() {
 		-DWITH_MYSQLCOMPAT=ON \
 		-DWITH_SSL=OPENSSL \
 		$CMAKE_CROSSOPTS
-	make
+	cmake --build build
 }
 
 package() {
-	make DESTDIR="$pkgdir" install
+	DESTDIR="$pkgdir" cmake --install build
 
 	# purge static libs
 	rm "$pkgdir"/usr/lib/*.a
+
+	# Docs conflict with mariadb-doc
+	rm -r "$pkgdir"/usr/man
 
 	# compat symlinks
 	ln -s mariadb_config "$pkgdir"/usr/bin/mysql_config
@@ -60,5 +56,5 @@ dev() {
 }
 
 sha512sums="
-a179a4fa689f681d64f926c1f3abfd3912896ec3e39c15be6a330647ded207aa2f110277dc43b90faffa4386365a72babc96264e29ac436e5d212d8b7cef7c32  mariadb-connector-c-3.1.13-src.tar.gz
+1f9754112ba02b863435840dab8e0954b98c646e6e6d73bbc2f338cd6493824b0f8973bbf80b129631ccafd684e0579743fe81a0e8f1120ed9f18154d9d446b3  mariadb-connector-c-3.3.2-src.tar.gz
 "
