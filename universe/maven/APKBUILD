@@ -4,7 +4,7 @@ _pkgname="$pkgname-${pkgver%%.*}"
 pkgrel=0
 pkgdesc="A Java project management and project comprehension tool."
 url="https://maven.apache.org/"
-arch="noarch !mips64 !riscv64"
+arch="noarch !riscv64"
 license="Apache-2.0"
 options="!check" # No test suite
 depends="java-jdk"
@@ -16,7 +16,7 @@ package() {
 	local destdir="${pkgdir}$m2_home"
 
 	local dir; for dir in bin boot lib; do
-		mkdir -p -m755 "$destdir/$dir"
+		mkdir -p "$destdir/$dir"
 	done
 
 	install -m644 -Dt "$destdir"/bin ./bin/*.conf
@@ -34,7 +34,6 @@ package() {
 	mkdir "$pkgdir"/etc
 	cat > "$pkgdir"/etc/mavenrc <<-EOF
 		M2_HOME="$m2_home"
-		MAVEN_OPTS="\$MAVEN_OPTS -Xmx512m"
 	EOF
 }
 
