@@ -4,14 +4,13 @@
 
 pkgname=libxfont
 pkgver=1.5.4
-pkgrel=1
+pkgrel=2
 pkgdesc="X11 font rasterisation library"
 url="http://xorg.freedesktop.org/"
 arch="all"
 license="custom"
 options="!check"  # No test suite.
 subpackages="$pkgname-dev"
-depends=""
 makedepends="xorgproto libfontenc-dev freetype-dev xtrans zlib-dev util-macros"
 source="https://www.x.org/archive/individual/lib/libXfont-$pkgver.tar.bz2"
 builddir="$srcdir/libXfont-$pkgver"
@@ -21,7 +20,6 @@ builddir="$srcdir/libXfont-$pkgver"
 #     - CVE-2017-16611
 
 build() {
-	cd "$builddir"
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -31,7 +29,6 @@ build() {
 }
 
 package() {
-	cd "$builddir"
 	make DESTDIR="$pkgdir" install
 }
 sha512sums="
