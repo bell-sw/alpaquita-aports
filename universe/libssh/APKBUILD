@@ -1,17 +1,16 @@
 pkgname=libssh
-pkgver=0.9.6
-pkgrel=1
+pkgver=0.10.4
+pkgrel=0
 pkgdesc="Library for accessing ssh client services through C libraries"
 options="!check" # Tests require CLIENT_TESTING enabled which needs socket_wrapper
 url="https://www.libssh.org/"
 arch="all"
 license="LGPL-2.1-or-later BSD-2-Clause"
-depends_dev="openssl1.1-compat-dev zlib-dev"
-makedepends="$depends_dev cmake doxygen"
+depends_dev="openssl-dev>3 zlib-dev"
+makedepends="$depends_dev cmake samurai"
 checkdepends="cmocka-dev"
 subpackages="$pkgname-dev"
-source="https://www.libssh.org/files/${pkgver%.*}/libssh-$pkgver.tar.xz
-	"
+source="https://www.libssh.org/files/${pkgver%.*}/libssh-$pkgver.tar.xz"
 
 # secfixes:
 #   0.9.6-r0:
@@ -26,7 +25,7 @@ source="https://www.libssh.org/files/${pkgver%.*}/libssh-$pkgver.tar.xz
 #     - CVE-2018-10933
 
 build() {
-	cmake -B build \
+	cmake -B build -G Ninja \
 		-DCMAKE_BUILD_TYPE=None \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_INSTALL_LIBDIR=lib \
@@ -45,5 +44,5 @@ package() {
 }
 
 sha512sums="
-4040ec4af937e95be2e41313ef6d4db60b46b8d4dea10c09402398127c1d1ca8843392d207088aeee3c7ef631c6ae7b66861327dcebf78ed3af0723777619fd1  libssh-0.9.6.tar.xz
+01ee52d480201d9886c15e81137c185334b404d1c8e8b743ddf58e95fe8619c8c013616a49807bd1111fde72fa177cd35f3c22b66cbf5d720b5abfacdf7601ed  libssh-0.10.4.tar.xz
 "
