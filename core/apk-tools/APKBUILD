@@ -2,15 +2,15 @@
 # install, upgrade, or delete them.
 
 pkgname=apk-tools
-pkgver=2.12.9
-pkgrel=5
 pkgdesc="Alpaquita Package Keeper (Derivate from Alpine Package Keeper)"
+pkgver=2.12.10
+pkgrel=1
 arch="all"
 url="https://gitlab.alpinelinux.org/alpine/apk-tools"
 license="GPL-2.0-only"
 subpackages="$pkgname-dbg $pkgname-dev $pkgname-doc $pkgname-zsh-completion"
-makedepends_build="openssl lua5.3 lua5.3-lzlib scdoc"
-makedepends_host="zlib-dev openssl1.1-compat-dev linux-headers"
+makedepends_build="openssl>3 lua5.3 lua5.3-lzlib scdoc"
+makedepends_host="zlib-dev openssl-dev>3 linux-headers"
 makedepends="$makedepends_build $makedepends_host"
 _lua="no"
 if [ "$CBUILD" = "$CHOST" ]; then
@@ -22,6 +22,7 @@ if [ "$CBUILD" = "$CHOST" ]; then
 	depends="$depends ca-certificates-bundle"
 fi
 source="https://gitlab.alpinelinux.org/alpine/$pkgname/-/archive/v$pkgver/$pkgname-v$pkgver.tar.gz
+	increase-index-meta-buffer.patch
 	_apk
 	0001-Get-rid-of-separation-of-sbin-lib-and-their-usr-coun.patch
 	0002-Don-t-run-triggers-till-bin-sh-is-available.patch
@@ -59,7 +60,7 @@ package() {
 	make DESTDIR="$pkgdir" LUA="$_lua" install
 	
 	install -d "$pkgdir"/var/lib/apk \
-		"$pkgdir"/var/cache/misc \
+		"$pkgdir"/lib/apk/exec \
 		"$pkgdir"/etc/apk/keys \
 		"$pkgdir"/etc/apk/protected_paths.d
 
@@ -73,8 +74,9 @@ luaapk() {
 }
 
 sha512sums="
-2e299e50c5ca8733f04fad971247146ff4bebb697c3589e4692c9a940ede89432dd9fea48004dc947cb493db1206a336ac0ad1e876b02683183d69b4a127d1c6  apk-tools-v2.12.9.tar.gz
-ba5a35b118ac17ea90e2b4d981e10c29c2c1bb11d5dbec573005b4709dc21e99c808839fa40c8e55cfdb32a0a305e091a46a109e50197fadb4a8ce71b48b0000  _apk
+7be1a659e58ced1c2be3d058127391b92078a3560746149e1b53bf7b877ad5ded755e9a7cf2a68d8cdd49bfaf10afb7dfe361ef8ae9590aede8ce422c85ea389  apk-tools-v2.12.10.tar.gz
+3807fe95357855a8b682a13dc6178db9d0396ed905bee694ef923867b1f79c61801ba4d4240adeb27825bc472006a74a5e7898b4683c548ee826e825710ce3e1  increase-index-meta-buffer.patch
+7870676720f5007eee9482786e02246f8e3474afb90e76c9c83aebe914747a8e007b5d2eed6441933f4922024b3f0664db270f21981ad6c2db877a110b0cd79e  _apk
 30217d6567848dda6abc15afa192417b2a825571451702b48a331c9b5bcff64e97ad37e0d50cf99dbc998cae12df4cebd95f1cbabd9733cbdbf6cb74570cbac5  0001-Get-rid-of-separation-of-sbin-lib-and-their-usr-coun.patch
 8bf515d2af7de4a06d6dd2f82354cb8736b707c78702e23fda1fb679fe6bea05c980692ca238e1d16ea302a6244bbd48ffa45f9009ba25016988e6ae2206f4de  0002-Don-t-run-triggers-till-bin-sh-is-available.patch
 d344c2ec7a7b3b9b1411fa8084d196ca50fe77d2b234dcbd4942a0b6f77b784954f0a7e2c9422ee148775abce95d481652380fa9a7b6c909a121e51ef901251a  0003-add-alternative-packages-support.patch
