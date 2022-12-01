@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.34.2
-pkgrel=1
+pkgrel=2
 _glibcver=2.34
 _patch_ver="glibc-2.34-349-g9f55d2e7c4"
 pkgdesc="GNU C Library"
@@ -18,6 +18,7 @@ source="
 	ld.so.conf
 	locale.gen.in
 	locale-gen
+	ldconfig.trigger.c
 "
 builddir="$srcdir/glibc-$_glibcver"
 options="!libc_musl lib64 ldpath-recursive !check"
@@ -32,6 +33,9 @@ subpackages="
 
 
 build() {
+	${CC:-${CROSS_COMPILE}gcc} ${CPPFLAGS} ${CFLAGS} \
+		${LDFLAGS} "$srcdir"/ldconfig.trigger.c -o ldconfig.trigger
+
 	mkdir glibc-build
 	cd glibc-build
 
@@ -67,11 +71,13 @@ check() {
 }
 
 package() {
+	install -D -m755 ldconfig.trigger $pkgdir/usr/sbin/ldconfig.trigger
+
 	cd glibc-build
 
 	install -dm755 "$pkgdir"/etc
 	install -dm755 "$pkgdir"/usr/lib64
- 
+
 	make DESTDIR="$pkgdir" install
 
 	rm -rf "$pkgdir"/var/db
@@ -141,4 +147,5 @@ f712243350cf98d83870371eabf2531e804cdb6a9c569a74747faac62ca3e25066075899f03d9f48
 73bfefd8a1366f3bc7bbfd3f34b599b49f48278f783eb2837a414eb914ac3ae9995fe4e9fec58b9d1da1eb6ed36ccc889257ffc54031f1731e041dc18e096e6f  ld.so.conf
 47a686c2fda0f32a1e9e975f723ed96ab8125619541cf8711fa80d94428862be77c46d06f5ff17f6a978eb22c9f86929ee9bf79888e6f824beeb023f78512151  locale.gen.in
 7f4e96d99f98da0074e8020efd574b5080b3364ba014e74c3fc262af685180f92a6a08f2681c0ce8b0b78a103cafe753943836943db20fe9064ad5f380b35de0  locale-gen
+519f6d7fd227b2ceeda345bd2ca48146d961655fbff6a3d709d7726f64eef2ceedf55943b1e71b802b79309ef4dfe9b99251a5073a1c9169db3ac6a788b244d5  ldconfig.trigger.c
 "
