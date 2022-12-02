@@ -1,24 +1,43 @@
 pkgname=go
 # go binaries are statically linked, security updates require rebuilds
-pkgver=1.18.6
+pkgver=1.19.2
 pkgrel=0
 pkgdesc="Go programming language compiler"
 url="https://go.dev/"
 arch="all"
 license="BSD-3-Clause"
 depends="binutils gcc musl:musl-dev"
-makedepends="bash"
+makedepends="bash go-bootstrap"
 checkdepends="binutils-gold"
 subpackages="$pkgname-doc"
 source="https://go.dev/dl/go$pkgver.src.tar.gz
-	allow-unshare-to-return-enosys.patch
+	tests-filter-overflow-gid.patch
+	tests-unshare-enosys.patch
+	tests-x86-testsigfwd.patch
+	tests-unset-GCCGO.patch
 	"
 case "$CARCH" in
 	arm*|aarch64) depends="binutils-gold";;
+	riscv64)
+		# Gold does not support RISC-V
+		checkdepends=""
+		;;
 esac
 
+# Go is bootstrapped initially with gcc-go and from that point onward
+# compiled with the previous version of community/go (which is a bit
+# faster then gcc-go on most architectures).
+#
+# See https://lists.alpinelinux.org/~alpine/devel/%3C33KG0XO61I4IL.2Z7RTAZ5J3SY6%408pit.net%3E
+provides="go-bootstrap"
+provider_priority=100 # highest
+
 # secfixes:
-#   1.18.6-r0:
+#   1.19.2-r0:
+#     - CVE-2022-2879
+#     - CVE-2022-2880
+#     - CVE-2022-41715
+#   1.19.1-r0:
 #     - CVE-2022-27664
 #     - CVE-2022-32190
 #   1.18.5-r0:
@@ -27,14 +46,10 @@ esac
 #     - CVE-2022-1705
 #     - CVE-2022-1962
 #     - CVE-2022-28131
-#     - CVE-2022-29804
-#     - CVE-2022-30580
-#     - CVE-2022-30629
 #     - CVE-2022-30630
 #     - CVE-2022-30631
 #     - CVE-2022-30632
 #     - CVE-2022-30633
-#     - CVE-2022-30634
 #     - CVE-2022-30635
 #     - CVE-2022-32148
 #   1.18.1-r0:
@@ -101,33 +116,37 @@ esac
 #   1.9.4-r0:
 #     - CVE-2018-6574
 
-if [ "$CBUILD" = "$CTARGET" ]; then
-	makedepends="go-bootstrap $makedepends"
-	provides="go-bootstrap=$pkgver-r$pkgrel"
-	subpackages="$subpackages"
-else
-	pkgname="go-bootstrap"
-	makedepends="go $makedepends"
-	# Go expect host linker instead of the cross-compiler
-	export CC_FOR_TARGET="$CC"
-	export CC="${HOSTLD:-gcc}"
-	export CXX="${HOSTLD:-g++}"
-	export LD="${HOSTLD:-ld}"
-fi
-
 case "$CTARGET_ARCH" in
-aarch64)export GOARCH="arm64" ;;
-x86_64) export GOARCH="amd64" ;;
-*)      export GOARCH="unsupported";;
+aarch64) export GOARCH="arm64" ;;
+armel)   export GOARCH="arm" GOARM=5 ;;
+armhf)   export GOARCH="arm" GOARM=6 ;;
+armv7)   export GOARCH="arm" GOARM=7 ;;
+s390x)   export GOARCH="s390x" ;;
+x86)     export GOARCH="386" ;;
+x86_64)  export GOARCH="amd64" ;;
+ppc64)   export GOARCH="ppc64" ;;
+ppc64le) export GOARCH="ppc64le" ;;
+riscv64) export GOARCH="riscv64" ;;
+*)       export GOARCH="unsupported";;
 esac
 
 # compile go itself as a PIE on supported arches.
 case "$CARCH" in
-x86_64|aarch64) export GO_LDFLAGS=-buildmode=pie ;;
+x86_64|s390x|aarch64) export GO_LDFLAGS=-buildmode=pie ;;
 esac
 
 prepare() {
 	default_prepare
+
+	# The GitLab CI builds aports in a container. On ppc64le, ASLR
+	# needs to be disabled in order to have the following test case
+	# pass. However, the container doesn't have permissions to
+	# disable ASLR, hence we just disable this test for now.
+	#
+	# See https://github.com/golang/go/issues/49066#issuecomment-1252948861
+	if [ "$CTARGET_ARCH" = "ppc64le" ]; then
+		rm test/fixedbugs/bug513.go
+	fi
 }
 
 builddir="$srcdir"/go
@@ -139,28 +158,48 @@ build() {
 	export GOROOT="$builddir"
 	export GOBIN="$GOROOT"/bin
 	export GOROOT_FINAL=/usr/lib/go
-	local p; for p in /usr/lib/go-bootstrap /usr/lib/go-linux-$GOARCH-bootstrap /usr/lib/go; do
-		if [ -d "$p" ]; then
-			export GOROOT_BOOTSTRAP="$p"
-			break
-		fi
-	done
+
+	# GOROOT_BOOTSTRAP differs depending on bootstrap with gcc-go or go.
+	if command -v gccgo >/dev/null 2>&1; then
+		export GOROOT_BOOTSTRAP=/usr
+	else
+		export GOROOT_BOOTSTRAP=/usr/lib/go
+	fi
+
+	# on 32-bit arches gcc-go runs out-of-memory without limiting
+	# the number of OS threads, needs further investigation. When
+	# go-bootstrap is provided by community/go (i.e. when gccgo
+	# isn't installed) then this is not a problem.
+	if command -v gccgo >/dev/null 2>&1; then
+		case "$CARCH" in
+		armhf|armv7|x86) export GOMAXPROCS=1 ;;
+		esac
+	fi
 
 	./make.bash -v
-
-	# copied from bootstrap.bash to fixup cross-built bootstrap go
-	if [ "$CBUILD" != "$CTARGET" ]; then
-		local gohostos="$(../bin/go env GOHOSTOS)"
-		local gohostarch="$(../bin/go env GOHOSTARCH)"
-		mv ../bin/*_*/* ../bin
-		rmdir ../bin/*_*
-		rm -rf "../pkg/${gohostos}_$gohostarch"* "../pkg/tool/${gohostos}_$gohostarch"*
-		rm -rf ../pkg/bootstrap ../pkg/obj
-	fi
+	unset GOMAXPROCS
 }
 
 check() {
 	cd "$builddir/src"
+	if [ "$CTARGET_ARCH" = "armhf" ]; then
+		export GO_TEST_TIMEOUT_SCALE=2
+	fi
+
+	# Test suite does not pass with ccache, thus remove it form $PATH.
+	export PATH="$(echo "$PATH" | sed 's|/usr/lib/ccache/bin:||g')"
+
+	# Tests which use GCCGO test building shared library and c-archives
+	# using -compiler=gccgo, this does presently not work with musl,
+	# hence disable these tests by setting GCCGO to a bogus value.
+	#
+	# See:
+	#
+	#   • https://github.com/golang/go/issues/13492
+	#   • https://github.com/golang/go/pull/52541
+	#   • https://gitlab.alpinelinux.org/alpine/aports/-/merge_requests/39618
+	export GCCGO=/does/not/exist
+
 	# TODO: cgo_test fails due to https://github.com/golang/go/issues/39857
 	PATH="$builddir/bin:$PATH" ./run.bash -no-rebuild -run='!(^cgo_test$)'
 }
@@ -198,6 +237,9 @@ package() {
 }
 
 sha512sums="
-2af66b09bfe033b413eb7603a73a490319bf49fec0a2e20c40350e60b9ef35250a6dc8544c5fc67bd1ede55e242d056e7749f69ef500a38b1efe4b8f93078de3  go1.18.6.src.tar.gz
-6017caacf77c2911e9e882878fdaa2ed066b76b7e97b2ad776bc33d96b21cabc802966473946642c86a8f985c69adcc5e7ea61684f6d0dbacd468a6aad687229  allow-unshare-to-return-enosys.patch
+72901e5eaf1857b22bf62a82690579aa4bd8b8130f16416313d249600c99e1ae3c1451ac5c53138ce41dd39dd72dcf8d0f3592b98f4239754efcf4f8b0103cb4  go1.19.2.src.tar.gz
+9f656adb00d174aeae3fc09eeeba1931a290e8cf9e1d3f5e0f232dcf121d45dba04210f88afbb3915b0d7e21dad5c165de9307f4b53e33ba718d312153391571  tests-filter-overflow-gid.patch
+6017caacf77c2911e9e882878fdaa2ed066b76b7e97b2ad776bc33d96b21cabc802966473946642c86a8f985c69adcc5e7ea61684f6d0dbacd468a6aad687229  tests-unshare-enosys.patch
+e67b1803e5b0de2a686215b0c37026fda3084058fbc15ef72e4ab6d1f61d90052c99283cbf757a4a7adcf982467361dce9423ad456b9e060f471f86075202601  tests-x86-testsigfwd.patch
+4f3f9dfca1d5b9e8219475aea4b25784c7d9c65ade69e38df4210d8c0115fa62771ff44033bca26b4e53f4efcb350aa9fbbddb69780cdef47000a505ea81a79a  tests-unset-GCCGO.patch
 "
