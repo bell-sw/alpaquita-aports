@@ -64,8 +64,6 @@ source="musl-$commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$commi
 builddir="$srcdir"/$commit
 
 build() {
-	cd "$builddir"
-
 	[ "$BOOTSTRAP" = "nocc" ] && return 0
 
 	export CPPFLAGS="${CPPFLAGS/-Os/-O2}"
@@ -104,8 +102,6 @@ build() {
 }
 
 package() {
-	cd "$builddir"
-
 	case "$CARCH" in
 	aarch64*)	ARCH="aarch64" ;;
 	x86_64)		ARCH="x86_64" ;;
