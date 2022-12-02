@@ -1,6 +1,6 @@
 pkgname=atools
 pkgver=20.2.0
-pkgrel=5
+pkgrel=6
 pkgdesc="Auxilary scripts for abuild"
 url="https://gitlab.alpinelinux.org/Leo/atools"
 arch="all"
@@ -15,6 +15,9 @@ source="$pkgname-$pkgver.tar.gz::https://gitlab.alpinelinux.org/Leo/atools/-/arc
 case "$CLIBC" in
 glibc) options="$options !check"
 esac
+export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
 
 build() {
 	redo build
