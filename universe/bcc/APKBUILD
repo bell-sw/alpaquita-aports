@@ -1,0 +1,108 @@
+pkgname=bcc
+pkgver=0.25.0
+pkgrel=2
+pkgdesc="A toolkit for creating efficient kernel tracing and manipulation programs"
+url="https://github.com/iovisor/bcc/"
+# s390x build fails
+arch="all !s390x"
+license="Apache-2.0"
+_llvmver=15
+makedepends="
+	bison
+	clang-dev
+	cmake
+	elfutils-dev
+	flex-dev
+	iperf
+	libbpf-dev
+	linux-headers
+	llvm$_llvmver-dev
+	llvm$_llvmver-static
+	python3
+	samurai
+	zlib-dev
+	"
+subpackages="
+	$pkgname-static
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-tools
+	py3-$pkgname:_py:noarch
+	"
+source="$pkgname-$pkgver.tar.gz::https://github.com/iovisor/bcc/archive/v$pkgver.tar.gz"
+
+case "$CARCH" in
+	ppc64le | riscv64) ;;
+	*) makedepends="$makedepends luajit-dev"
+	   subpackages="$subpackages $pkgname-lua:_lua"
+	   ;;
+esac
+
+prepare() {
+	rm -rf tests/* && touch tests/CMakeLists.txt
+	rm -rf examples/* && touch examples/CMakeLists.txt
+
+	default_prepare
+
+	sed -i "s|^#!/usr/bin/python$|#!/usr/bin/python3|" \
+		tools/*.py tools/*/*.py
+}
+
+build() {
+	# use libbpf installed uapi headers as we need something
+	# newer than linux-headers provides
+	export CFLAGS="$CFLAGS -I/usr/include/bpf/uapi"
+	export CXXFLAGS="$CXXFLAGS -I/usr/include/bpf/uapi"
+
+	cmake -B build -G Ninja -Wno-dev \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=/usr/lib \
+		-DCMAKE_USE_LIBBPF_PACKAGE=ON \
+		-DENABLE_LLVM_SHARED=ON \
+		-DPYTHON_CMD=python3 \
+		-DREVISION="$pkgver"
+	cmake --build build
+}
+
+check() {
+	PYTHONPATH="$builddir/build/src/python/bcc-python3" \
+		LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$builddir/build/src/cc" \
+		python3 -c "import bcc"
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+doc() {
+	default_doc
+
+	amove usr/share/bcc/man
+	amove usr/share/bcc/tools/doc
+}
+
+tools() {
+	pkgdesc="Command line tools for BPF Compiler Collection (BCC)"
+	depends="py3-$pkgname=$pkgver-r$pkgrel"
+
+	amove usr/share/bcc/tools
+	amove usr/share/bcc/introspection
+}
+
+_py() {
+	pkgdesc="Python3 bindings for BPF Compiler Collection (BCC)"
+	depends="$pkgname=$pkgver-r$pkgrel python3"
+
+	amove usr/lib/python3*
+}
+
+_lua() {
+	pkgdesc="Standalone tool to run BCC tracers written in Lua"
+	depends="$pkgname=$pkgver-r$pkgrel"
+
+	amove usr/bin/bcc-lua
+}
+
+sha512sums="
+9f71f6c21d1f66054985562168d5848352f5029383e9c65c907a6f044258bc23df842cc65db20bfaaf33789e69c9b8e7b606a32dc882cbdf093b71768c8b521d  bcc-0.25.0.tar.gz
+"
