@@ -1,5 +1,4 @@
-modified for Makefile hunk 1 (reallocaray in context)
-From 600b7b26c07a070d0153daa76b3806c1e52c9e00 Mon Sep 17 00:00:00 2001
+From 0b4001f6e07df68194bf0150dc12bac0d53dc897 Mon Sep 17 00:00:00 2001
 From: Andres Freund <andres@anarazel.de>
 Date: Sun, 31 Jul 2022 18:38:33 -0700
 Subject: [PATCH] tools bpftool: Fix compilation error with new binutils
@@ -46,19 +45,19 @@ Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
  2 files changed, 38 insertions(+), 9 deletions(-)
 
 diff --git a/tools/bpf/bpftool/Makefile b/tools/bpf/bpftool/Makefile
-index c6d2c77d02524a..436e671b2657d4 100644
+index 1896ef69b449..e0aa23a9e314 100644
 --- a/tools/bpf/bpftool/Makefile
 +++ b/tools/bpf/bpftool/Makefile
-@@ -93,7 +93,7 @@ INSTALL ?= install
- RM ?= rm -f
+@@ -61,7 +61,7 @@ CLANG ?= clang
+ LLVM_STRIP ?= llvm-strip
  
  FEATURE_USER = .bpftool
 -FEATURE_TESTS = libbfd disassembler-four-args reallocarray zlib libcap \
-+FEATURE_TESTS = libbfd disassembler-four-args reallocaray disassembler-init-styled zlib libcap \
++FEATURE_TESTS = libbfd disassembler-four-args reallocarray disassembler-init-styled zlib libcap \
  	clang-bpf-co-re
  FEATURE_DISPLAY = libbfd disassembler-four-args zlib libcap \
  	clang-bpf-co-re
-@@ -117,6 +117,9 @@ endif
+@@ -85,6 +85,9 @@ endif
  ifeq ($(feature-disassembler-four-args), 1)
  CFLAGS += -DDISASM_FOUR_ARGS_SIGNATURE
  endif
@@ -66,10 +65,10 @@ index c6d2c77d02524a..436e671b2657d4 100644
 +    CFLAGS += -DDISASM_INIT_STYLED
 +endif
  
- LIBS = $(LIBBPF) -lelf -lz
- LIBS_BOOTSTRAP = $(LIBBPF_BOOTSTRAP) -lelf -lz
+ ifeq ($(feature-reallocarray), 0)
+ CFLAGS += -DCOMPAT_NEED_REALLOCARRAY
 diff --git a/tools/bpf/bpftool/jit_disasm.c b/tools/bpf/bpftool/jit_disasm.c
-index 24734f2249d6ec..aaf99a0168c90b 100644
+index 24734f2249d6..aaf99a0168c9 100644
 --- a/tools/bpf/bpftool/jit_disasm.c
 +++ b/tools/bpf/bpftool/jit_disasm.c
 @@ -24,6 +24,7 @@
@@ -148,3 +147,6 @@ index 24734f2249d6ec..aaf99a0168c90b 100644
  
  	/* Update architecture info for offload. */
  	if (arch) {
+-- 
+2.25.1
+
