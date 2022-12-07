@@ -5,7 +5,7 @@
 
 pkgname=p11-kit
 pkgver=0.24.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Utilities for PKCS#11 modules handling"
 url="https://p11-glue.freedesktop.org/"
 arch="all"
@@ -22,13 +22,14 @@ source="https://github.com/p11-glue/p11-kit/releases/download/$pkgver/p11-kit-$p
 
 build() {
 	abuild-meson \
+		-Db_lto=true \
 		-Dtrust_paths=/etc/ssl/certs/ca-certificates.crt \
 		. output
 	meson compile ${JOBS:+-j ${JOBS}} -C output
 }
 
 check() {
-	meson test --no-rebuild -v -C output
+	meson test --no-rebuild --print-errorlogs -C output
 }
 
 package() {
