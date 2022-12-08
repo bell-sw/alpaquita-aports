@@ -5,14 +5,14 @@
 # keyboard maps.
 
 pkgname=kbd
-pkgver=2.4.0
-pkgrel=1
+pkgver=2.5.1
+pkgrel=2
 pkgdesc="Linux keyboard tools"
 url="http://kbd-project.org/"
 arch="all"
 license="GPL-2.0-or-later"
 depends="kbd-misc"
-makedepends="linux-headers linux-pam-dev check-dev ckbcomp xkeyboard-config
+makedepends="linux-headers linux-pam-dev check-dev ckbcomp xkeyboard-config-dev
 	autoconf automake"
 subpackages="$pkgname-bkeymaps::noarch $pkgname-legacy::noarch
 	$pkgname-misc::noarch $pkgname-doc $pkgname-openrc $pkgname-vlock"
@@ -104,10 +104,10 @@ package() {
 	_listxmaps | while read -r variant layout; do
 		if ! test -f "$pkgdir$_xmapdir"/"$layout".map.gz; then
 			echo "Generating keymap $layout..."
-			ckbcomp "$layout" | gzip > "$pkgdir$_xmapdir"/"$layout".map.gz || exit 1
+			ckbcomp "$layout" | gzip > "$pkgdir$_xmapdir"/"$layout".map.gz
 		fi
 		echo "Generating keymap $layout-$variant..."
-		ckbcomp "$layout" "$variant" | gzip > "$pkgdir$_xmapdir"/"$layout"-"$variant".map.gz || exit 1
+		ckbcomp "$layout" "$variant" | gzip > "$pkgdir$_xmapdir"/"$layout"-"$variant".map.gz
 	done
 
 	# Do some fix-ups on X.org keymaps
@@ -173,7 +173,7 @@ misc() {
 }
 
 sha512sums="
-7d63003d5d51c65863417f2f48f5298b6ab29715d477e04948973013809f42e89ce94bfc2ebf9590869e0fcde9fe47b45888f37ab0bbd7e9255d9721d91285b1  kbd-2.4.0.tar.gz
+3d9cd81b100137a802ae2c61616b1e83628789af39b5e421a5038f0308ee777697533061da3e0bfd5036fb2167206e9f0a3074e62c075a5f34cde0a9f6fe895c  kbd-2.5.1.tar.gz
 f27f0b1f42457220ce92404f3f20317890cc2e7ec98f22378ef80a9a6d302d9fdc3f26ed6665d5681c5e7663a7822cb18a0c5d3cfde7c7d8090d0be8b494d44a  loadkeys.initd
 12028796552a5ffed1d5cb19d37fc6a73fb4f2e2bf34d837a81171c7ebee98d6c3f557715bf79706d79ce053b9b2450cd8cf1c4ea045428fb7d8a5915ae3ed78  loadkeys.confd
 c66f6b0d8c8b8d285c740bdbe7130dee272ac01cd5e73b35a58cedf1a77fe8d9e062631b804fb58014d8eb9861c8f28aed07bc022ef31662bcc61b5c85a21752  error.h
