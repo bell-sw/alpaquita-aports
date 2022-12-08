@@ -5,9 +5,9 @@
 
 pkgname=e2fsprogs
 pkgver=1.46.5
-pkgrel=0
+pkgrel=3
 pkgdesc="Ext2/3/4 filesystem management tools"
-url="http://e2fsprogs.sourceforge.net"
+url="https://e2fsprogs.sourceforge.net/"
 arch="all"
 license="GPL-2.0-or-later AND LGPL-2.0-or-later AND BSD-3-Clause AND MIT"
 depends="$pkgname-core $pkgname-extra"
@@ -31,6 +31,7 @@ build() {
 		--prefix=/usr \
 		--mandir=/usr/share/man \
 		--enable-elf-shlibs \
+		--enable-lto \
 		--enable-symlink-install \
 		--disable-fsck \
 		--disable-uuidd \
@@ -69,32 +70,27 @@ core() {
 
 dev() {
 	default_dev
-	mkdir -p "$subpkgdir"/usr/bin
-	mkdir -p "$subpkgdir"/usr/share
-	mv "$pkgdir"/usr/bin/compile_et "$pkgdir"/usr/bin/mk_cmds \
-		"$subpkgdir"/usr/bin/
-	mv "$pkgdir"/usr/share/et "$pkgdir"/usr/share/ss \
-		"$subpkgdir"/usr/share
+
+	amove \
+		usr/bin/compile_et \
+		usr/bin/mk_cmds \
+		usr/share/et \
+		usr/share/ss
 }
 
 libcom_err() {
 	pkgdesc="Common error description library"
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/libcom_err* "$subpkgdir"/usr/lib/
+
+	amove usr/lib/libcom_err*
 }
 
 extra() {
-	depends="$pkgname-core"
+	depends="$pkgname=$pkgver-r$pkgrel"
 	pkgdesc="Ext2/3/4 filesystem extra utilities"
-	mkdir -p "$subpkgdir"
-	mv "$pkgdir"/usr "$subpkgdir"/
-}
 
-static() {
-	depends=""
-	pkgdesc="$pkgdesc (static libraries)"
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/*.a "$subpkgdir"/usr/lib
+	mkdir -p "$subpkgdir"
+	amove usr
+	rmdir "$pkgdir"/lib || true
 }
 
 sha512sums="
