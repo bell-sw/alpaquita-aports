@@ -6,7 +6,7 @@
 
 pkgname=cyrus-sasl
 pkgver=2.1.28
-pkgrel=0
+pkgrel=2
 pkgdesc="Cyrus Simple Authentication Service Layer (SASL)"
 url="https://www.cyrusimap.org/sasl/"
 arch="all"
@@ -25,11 +25,12 @@ subpackages="
 	$pkgname-crammd5:_plugin
 	$pkgname-digestmd5:_plugin
 	$pkgname-login:_plugin
+	$pkgname-sql:_plugin
 	"
 # use heimdal to avoid circular dep: cyrus-sasl -> krb5 -> openldap -> cyrus-sasl
 makedepends="
 	gdbm-dev
-	openssl1.1-compat-dev
+	openssl-dev>3
 	heimdal-dev
 	py3-sphinx
 	sqlite-dev
@@ -69,7 +70,6 @@ build() {
 		--mandir=/usr/share/man \
 		--enable-static \
 		--enable-shared \
-		--disable-java \
 		--with-plugindir=/usr/lib/sasl2 \
 		--with-configdir=/etc/sasl2 \
 		--with-dbpath=/etc/sasl2/sasldb2 \
@@ -81,7 +81,11 @@ build() {
 		--with-saslauthd=/run/saslauthd \
 		--without-pwcheck \
 		--with-devrandom=/dev/urandom \
-		--with-sqlite \
+		--enable-sql \
+		--without-mysql \
+		--without-pgsql \
+		--without-sqlite \
+		--with-sqlite3=/usr/lib \
 		--enable-anon \
 		--enable-cram \
 		--enable-digest \
