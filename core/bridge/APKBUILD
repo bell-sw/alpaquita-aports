@@ -5,7 +5,7 @@
 
 pkgname=bridge
 pkgver=1.5
-pkgrel=4
+pkgrel=5
 pkgdesc="Network bridge interfaces configuration scripts"
 url="https://wiki.alpinelinux.org/wiki/Bridge"
 arch="noarch"
@@ -15,8 +15,15 @@ options="!check"
 
 builddir="$srcdir"
 
+# secfixes:
+#   0:
+#     - CVE-2021-42533
+#     - CVE-2021-42719
+#     - CVE-2021-42720
+#     - CVE-2021-42722
+#     - CVE-2021-42725
+
 package() {
-	cd "$builddir"
 	install -Dm755 "$srcdir"/bridge.pre-up \
 		"$pkgdir"/etc/network/if-pre-up.d/bridge
 	install -d "$pkgdir"/etc/network/if-post-down.d
