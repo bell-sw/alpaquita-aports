@@ -3,16 +3,16 @@
 # Description:
 
 pkgname=xkeyboard-config
-pkgver=2.35.1
+pkgver=2.37
 pkgrel=0
 pkgdesc="X keyboard configuration files"
 url="https://github.com/freedesktop/xkeyboard-config"
 arch="noarch"
 license="MIT"
-subpackages="$pkgname-doc"
-makedepends="meson perl libxslt"
-source="$pkgname-$pkgver.tar.gz::https://github.com/freedesktop/xkeyboard-config/archive/refs/tags/xkeyboard-config-$pkgver.tar.gz
-	"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-lang"
+depends_dev="$pkgname"
+makedepends="gettext meson perl libxslt"
+source="$pkgname-$pkgver.tar.gz::https://github.com/freedesktop/xkeyboard-config/archive/refs/tags/xkeyboard-config-$pkgver.tar.gz"
 builddir="$srcdir"/xkeyboard-config-xkeyboard-config-$pkgver
 
 build() {
@@ -21,12 +21,13 @@ build() {
 }
 
 check() {
-	meson test --no-rebuild -v -C output
+	meson test --no-rebuild --print-errorlogs -C output
 }
 
 package() {
 	DESTDIR="$pkgdir" meson install --no-rebuild -C output
 }
+
 sha512sums="
-2016e126dd807c07cdec045089a83b5b8c2e6eac8255a80c4e5976a0defc7ad55144186457a3109765f3bfb775270296d980366fee3826ee0e3bcd957e60aa5b  xkeyboard-config-2.35.1.tar.gz
+2eaf0e6e60d4225897e13b1055278f46c37461c9e0e0064a41764dcf674ea3c9ac10186aa960ea41fe1c756b4654b0f3876f62fd961c786068df9ef89c60b907  xkeyboard-config-2.37.tar.gz
 "
