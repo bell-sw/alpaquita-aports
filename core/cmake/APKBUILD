@@ -29,7 +29,11 @@ makedepends="
 	xz-dev
 	zlib-dev
 	"
-checkdepends="file musl-utils"
+checkdepends="file"
+case "$CLIBC" in
+musl)
+	checkdepends="$checkdepends musl-utils"
+esac
 subpackages="
 	$pkgname-doc
 	$pkgname-bash-completion
