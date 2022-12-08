@@ -5,16 +5,15 @@
 
 pkgname=grub
 pkgver=2.06
-pkgrel=7
+pkgrel=8
 # Security patches backported from Debian version:
-_debian_ver=2.06-3
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
 arch="all !s390x"
 license="GPL-3.0-or-later"
 depends="dracut"
 triggers="grub.trigger=/boot"
-makedepends="bison flex linux-headers xz-dev lvm2-dev fuse-dev
+makedepends="bison flex linux-headers xz-dev lvm2-dev fuse-dev squashfs-tools
 	automake autoconf libtool python3 freetype-dev unifont gettext-dev"
 install="$pkgname.post-upgrade"
 # strip handled by grub Makefiles, abuild strip breaks xen pv-grub
@@ -89,10 +88,30 @@ source="https://ftp.gnu.org/gnu/grub/grub-$pkgver.tar.xz
 	0091-fs-btrfs-Fix-more-ASAN-and-SEGV-issues-found-with-fu.patch
 	0092-fs-btrfs-Fix-more-fuzz-issues-related-to-chunks.patch
 
+	0101-video-readers-Add-artificial-limit-to-image-dimensio.patch
+	0102-font-Reject-glyphs-exceeds-font-max_glyph_width-or-f.patch
+	0103-font-Fix-size-overflow-in-grub_font_get_glyph_intern.patch
+	0104-font-Fix-several-integer-overflows-in-grub_font_cons.patch
+	0105-font-Remove-grub_font_dup_glyph.patch
+	0106-font-Fix-integer-overflow-in-ensure_comb_space.patch
+	0107-font-Fix-integer-overflow-in-BMP-index.patch
+	0108-font-Fix-integer-underflow-in-binary-search-of-char-.patch
+	0109-kern-efi-sb-Enforce-verification-of-font-files.patch
+	0110-fbutil-Fix-integer-overflow.patch
+	0111-font-Fix-an-integer-underflow-in-blit_comb.patch
+	0112-font-Harden-grub_font_blit_glyph-and-grub_font_blit_.patch
+	0113-font-Assign-null_font-to-glyphs-in-ascii_font_glyph.patch
+	0114-normal-charset-Fix-an-integer-overflow-in-grub_unico.patch
+	0115-kern-file-Fix-error-handling-in-grub_file_open.patch
+	0116-font-Try-opening-fonts-from-the-bundled-memdisk.patch
+
 	sbat.alpaquita.csv
 	"
 
 # secfixes:
+#   2.06-r8:
+#     - CVE-2022-3775
+#     - CVE-2022-2601
 #   2.06-r7:
 #     - CVE-2022-28736
 #     - CVE-2022-28735
@@ -263,8 +282,8 @@ efi() {
 
 	local _cd_modules="\
 		all_video cat configfile disk echo efi_gop fat gzio \
-		help iso9660 linux ls normal part_gpt part_msdos \
-		search search_label test true \
+		help iso9660 linux ls memdisk normal part_gpt part_msdos \
+		search search_label squash4 test true \
 		"
 
 	case "$CARCH" in
@@ -305,29 +324,41 @@ efi() {
 	_grub_gen_earlyconf > "$builddir"/grub_early.cfg
 
 	sed -e "s,@PKGVER@,$pkgver,g" -e "s,@PKGREL@,$pkgrel," \
-		-e "s,@DEBVER@,$_debian_ver,g" \
 		< "$srcdir"/sbat.alpaquita.csv > "$builddir"/sbat.alpaquita.csv
+
+	# create memdisk with fonts
+	local grub_dir=$(mktemp -d)
+	local grub_memdisk=$(mktemp)
+
+	mkdir -p $grub_dir/fonts
+	cp "$pkgdir"/usr/share/grub/unicode.pf2 $grub_dir/fonts
+	mksquashfs $grub_dir $grub_memdisk -noappend
 
 	# Create unified grub efi with .sbat section for signing
 	# For cd/iso image boot
 	"$srcdir"/build-efi/grub-mkimage \
 		--directory="$subpkgdir/usr/lib/grub/$_format" \
 		--config="$builddir/grub_early.cfg" \
-		--prefix="/boot/grub" \
 		--output="$_install_dir/gcd$_efi" \
 		--format="$_format" \
 		--compression="xz" \
 		--sbat="$builddir/sbat.alpaquita.csv" \
+		--memdisk=$grub_memdisk \
+		--prefix="/boot/grub" \
 		$_cd_modules
 
 	# For normal boot
 	"$srcdir"/build-efi/grub-mkimage \
 		--directory="$subpkgdir/usr/lib/grub/$_format" \
-		--prefix="/EFI/alpaquita" \
 		--output="$_install_dir/grub$_efi" \
 		--format="$_format" \
 		--sbat="$builddir/sbat.alpaquita.csv" \
+		--memdisk=$grub_memdisk \
+		--prefix="/EFI/alpaquita" \
 		$_modules
+
+	rm -r $grub_dir
+	rm "$grub_memdisk"
 }
 
 xenhost() {
@@ -428,5 +459,21 @@ de1a85c843bf5e743352c9838764092446ab38ba68aa7bf355902b613cd8c4d1aa70b0bedb41db3f
 237ac1f0f11ee081abbbb6b1cc2ad11609a82ba7f768fa1f2fa2f856638d127e3c6071bb444bafdf4312b7d9a74986cb99479c8546765610959ad907da14f111  0090-fs-btrfs-Fix-several-fuzz-issues-with-invalid-dir-it.patch
 32ccf37e8ecd7539c6057110c206b560141509df0400a56d54b24d93211e9aab7aa526b02f0db56314f56076ae9f797c9a4dffc48576207097bf2215b225916e  0091-fs-btrfs-Fix-more-ASAN-and-SEGV-issues-found-with-fu.patch
 e3854fde89bfb6d89f5565897f7ef7f2f47a003270eff6d9a4a98b4c3890efdb62799ed329af156626faaad04f02024d7438834611dbd7e08b72bbd3d1627d01  0092-fs-btrfs-Fix-more-fuzz-issues-related-to-chunks.patch
-48d84bbfe210d224b12ac7ecc878972192df84e2375592e6762141991f3002d91b7c4e5b0634af1668320932229e400ad941b700941f9f37f9d81f1e3595438f  sbat.alpaquita.csv
+bea128d0765c919d6e1ff1ca486e0e251838071c62245e81ea6b7ad93ff967c4c47c8154822d2bbfc344f3fbabfb67bea000cc5da37a6d45157d99ff995f24cd  0101-video-readers-Add-artificial-limit-to-image-dimensio.patch
+22911e606e0fe0dc31ad7ea6ff657e2e1778cd7a5689a09a579bebf1765bda90ae5ac442b9f80013bc6b36caf3f301d3c7ab4a65444687fcf4f7c5337b4a60ec  0102-font-Reject-glyphs-exceeds-font-max_glyph_width-or-f.patch
+7aa259062044bc328be60a807eadf2e9840d0867697808989420233bdcbc0411cc59b7e1d92eb60fd6357c1cc46ba85785e1d5b551297a58863c1cf5981521da  0103-font-Fix-size-overflow-in-grub_font_get_glyph_intern.patch
+758926a9784361da2426574ae9d94aace9f87ce140f221ede6fb5db85ed3126689135e16c6414f9c3e66a50e91349e4ac1ea2d04cfe9a6c17b702838aa589ea9  0104-font-Fix-several-integer-overflows-in-grub_font_cons.patch
+f39842feb0ad5299de7051e0286a38575169d37d8057a999eca7dfaf9c107f0ab2b795524e648ca882c7a368be5813c12abacae50f6d08df10abcb51cfd56b96  0105-font-Remove-grub_font_dup_glyph.patch
+11a48e99fea90a4f59e6d302ba999b4402fdacdb0c47c8dcd731bd9601090aabeb8a3a74f9ef1401c732e10a45ea876b5b086c4d237d38c0630d0ca172ceca70  0106-font-Fix-integer-overflow-in-ensure_comb_space.patch
+4a058cd7588547b28a61185fe51072d31297696438172c922a36ddd8307e79c83e7710bca23c1dcbcdd7351fea4c148fe45dbc868be5beebe7ad0838b55492ad  0107-font-Fix-integer-overflow-in-BMP-index.patch
+7c3938bd0153c9b827c5d6dd6eea9aea2f275ffce3d8f2b30de4a154be7421d99f1d702a3fc4149dff33a0df032de14467301fba24fbac002d4c48f7876b4d87  0108-font-Fix-integer-underflow-in-binary-search-of-char-.patch
+e3aff99aca91731d173b2cc65f6d545d8ea69bebe689c1331abc0c87575ef4fbf6fa7e34dacfb50b0b1d245abe640cb77d62c31250bfce429c8990eb817d3066  0109-kern-efi-sb-Enforce-verification-of-font-files.patch
+1e0843878a5935eb1075812fdd27fbfff8aae69c9ae05794335f30dfdc49fafb364afd858494b16fd67eb1b6f55e6588c1b173dd7b0d7d0797a2c7e68594aadb  0110-fbutil-Fix-integer-overflow.patch
+25e438438c78933a481ec211c9f3713b3a0e9b4263f4e3e22994db2ae1ab3b38bae947e013a215d46926eede76a78ee500ad19251825c5b3af5da8f29c7286dc  0111-font-Fix-an-integer-underflow-in-blit_comb.patch
+012fcac5b237f3d68796244d48fefb44622f33a22dd0a47508fb61ed4760a8b83d74b4413649fae35bc80cf5891d9c7d223b4c88f3b467fbef7dd36ada15fbf5  0112-font-Harden-grub_font_blit_glyph-and-grub_font_blit_.patch
+f7288ac315e9f42aef522e333357f7f47f0e11fa7048f26467364c1a9b0c171f9718a178d252acb782fd037a05f2a2a0376c03239f7f4eb26876fc9b644960c9  0113-font-Assign-null_font-to-glyphs-in-ascii_font_glyph.patch
+813e220ded6bb2e2cb254a6fda0507f7ddaf4a5b604fcd8fe604260c8ed5d91f47005b3e1e9b4f4ca0ecbaa286c1f2619fcb87f7cfb25225f799d3478c447e45  0114-normal-charset-Fix-an-integer-overflow-in-grub_unico.patch
+1ff9fa406703778e8aab4c9951b4ef4e2b255aa18b604ee8d57bbb5993cad653c4a189a6d90fb46e1ecf2776bada8b68c30407e1a4e5ba4c4b814bbd5846542e  0115-kern-file-Fix-error-handling-in-grub_file_open.patch
+736cc978c1c453e7df6f6a3e3085be0aafaf78a06ec0e7204ebd031879c0954e7de0cf82a4ab9dd74daaa10674aacd7bf3792c2bf2343006d919d87750a216f0  0116-font-Try-opening-fonts-from-the-bundled-memdisk.patch
+caaffcbe1ea9f604eb2d33bf82aa9ac29f7917f7cb05496a356e35b474ff870e6aa6f86c620f9896251dcd1fbce6788b9c9b59410351fc7fc4b8e7fefcf2ac03  sbat.alpaquita.csv
 "
