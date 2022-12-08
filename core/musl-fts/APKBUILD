@@ -1,0 +1,42 @@
+pkgname=musl-fts
+pkgver=1.2.7
+pkgrel=3
+pkgdesc="Provides the fts(3) functions, which are missing in musl libc"
+url="https://github.com/void-linux/musl-fts/"
+arch="all"
+license="BSD-3-Clause"
+makedepends="automake autoconf libtool"
+subpackages="$pkgname-dev"
+source="$pkgname-$pkgver.tar.gz::https://github.com/void-linux/musl-fts/archive/refs/tags/v$pkgver.tar.gz"
+
+provides="fts=$pkgver-r$pkgrel"
+
+prepare() {
+	default_prepare
+	./bootstrap.sh
+}
+
+build() {
+	CFLAGS=-fPIC ./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	install -Dm644 musl-fts.pc -t "$pkgdir"/usr/lib/pkgconfig/
+}
+
+sha512sums="
+949f73b9406b06bd8712c721b4ec89afcb37d4eaef5666cccf3712242d3a57fc0acf3ca994934e0f57c1e92f40521a9370132a21eb6d1957415a83c76bf20feb  musl-fts-1.2.7.tar.gz
+"
