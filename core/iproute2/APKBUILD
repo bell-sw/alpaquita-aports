@@ -4,10 +4,10 @@
 # the Linux kernel.
 
 pkgname=iproute2
-pkgver=5.17.0
-pkgrel=0
+pkgver=6.0.0
+pkgrel=1
 pkgdesc="IP Routing Utilities"
-url="https://www.linuxfoundation.org/collaborate/workgroups/networking/iproute2"
+url="https://wiki.linuxfoundation.org/networking/iproute2"
 arch="all"
 license="GPL-2.0-or-later"
 install="$pkgname.post-install"
@@ -40,15 +40,6 @@ options="!check"  # requires namespaces support and root
 # secfixes:
 #   5.1.0-r0:
 #     - CVE-2019-20795
-
-prepare() {
-	default_prepare
-
-	sed -i '/^TARGETS=/s: arpd : :' misc/Makefile
-	sed -i 's:/usr/local:/usr:' tc/m_ipt.c include/iptables.h
-	sed -i -e 's:=/share:=/usr/share:' \
-		-e 's:-Werror::' Makefile
-}
 
 build() {
 	make CCOPTS="-D_GNU_SOURCE $CFLAGS" V=1
@@ -99,5 +90,5 @@ rdma() {
 }
 
 sha512sums="
-fcffe96fb4819305ddf5c3764b100bd1d204069cf53a6bd776c2716144f574b4fc17963fc231a83ad253cce6a563814556eeb60b211ba9b0b87330186259b34d  iproute2-5.17.0.tar.xz
+be30362b0df6906aa786f935d5f555b8b86c747fe05314066f4180ab2f7c952ae227b7cf04c15e75d8f99ca17bafb7c8dc0fb1c18f3a9e3222d98716bb449f7a  iproute2-6.0.0.tar.xz
 "
