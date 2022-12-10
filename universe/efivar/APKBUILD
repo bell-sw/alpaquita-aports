@@ -9,16 +9,13 @@ makedepends="popt-dev linux-headers bsd-compat-headers mandoc"
 subpackages="$pkgname-dev $pkgname-doc $pkgname-libs"
 source="https://github.com/rhboot/efivar/releases/download/$pkgver/efivar-$pkgver.tar.bz2
 	0001-efisecdb-replace-on_exit-with-portable-atexit.patch
-"
-builddir="$srcdir/efivar-$pkgver"
+	"
 
 build() {
-	cd "$builddir"
 	libdir="/usr/lib" make
 }
 
 package() {
-	cd "$builddir"
 	libdir="/usr/lib" make DESTDIR="$pkgdir" install
 }
 
