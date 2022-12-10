@@ -2,7 +2,7 @@
 
 pkgname=libssh2
 pkgver=1.10.0
-pkgrel=4
+pkgrel=5
 pkgdesc="library for accessing ssh1/ssh2 protocol servers"
 url="https://libssh2.org/"
 arch="all"
@@ -33,7 +33,6 @@ options="!check"
 
 
 build() {
-	cd "$builddir"
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -49,12 +48,10 @@ build() {
 }
 
 check() {
-	cd "$builddir"
 	make check
 }
 
 package() {
-	cd "$builddir"
 	make DESTDIR="$pkgdir" install
 }
 
