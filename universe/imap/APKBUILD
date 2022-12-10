@@ -3,7 +3,7 @@
 # build it shared
 pkgname=imap
 pkgver=2007f
-pkgrel=16
+pkgrel=17
 pkgdesc="An IMAP/POP server"
 url="http://www.washington.edu/imap"
 arch="all"
@@ -34,7 +34,7 @@ prepare() {
 
 build() {
 	export GCCCFLAGS="$CFLAGS"
-	yes "y" | make slx SPECIALAUTHENTICATORS=ssl SSLTYPE=unix \
+	yes "y" | make -j1 slx SPECIALAUTHENTICATORS=ssl SSLTYPE=unix \
 		EXTRACFLAGS="$CFLAGS -fPIC" \
 		EXTRALDFLAGS="$LDFLAGS"
 }
