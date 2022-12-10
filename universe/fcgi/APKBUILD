@@ -1,7 +1,7 @@
 pkgname=fcgi
 _pkgname=fcgi2
 pkgver=2.4.2
-pkgrel=1
+pkgrel=2
 pkgdesc="FAST CGI(fcgi) is a language independent, high performant extension to CGI"
 url="https://github.com/FastCGI-Archives/fcgi2"
 arch="all"
@@ -14,7 +14,6 @@ source="$_pkgname-$pkgver.tar.gz::https://github.com/FastCGI-Archives/fcgi2/arch
 builddir="$srcdir/$_pkgname-$pkgver"
 
 build() {
-	cd $builddir
 	export LIBS="-lm"
 	./autogen.sh
 	./configure \
@@ -29,7 +28,6 @@ build() {
 }
 
 package() {
-	cd $builddir
 	make DESTDIR="$pkgdir" install
 }
 
