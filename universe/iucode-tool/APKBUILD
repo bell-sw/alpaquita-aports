@@ -1,6 +1,6 @@
 pkgname=iucode-tool
 pkgver=2.3.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Manipulate microcode update collections for Intel x86-64"
 url="https://gitlab.com/iucode-tool/iucode-tool"
 arch="x86_64"
@@ -11,7 +11,6 @@ source="https://gitlab.com/iucode-tool/iucode-tool/-/archive/v$pkgver/iucode-too
 builddir="$srcdir/iucode-tool-v$pkgver"
 
 build() {
-	cd "$builddir"
 	./autogen.sh
 	./configure \
 		--build=$CBUILD \
@@ -24,12 +23,10 @@ build() {
 }
 
 check() {
-	cd "$builddir"
 	make check
 }
 
 package() {
-	cd "$builddir"
 	make install DESTDIR="$pkgdir"
 }
 
