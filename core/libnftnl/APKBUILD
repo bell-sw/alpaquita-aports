@@ -13,7 +13,6 @@ subpackages="$pkgname-dev"
 source="https://netfilter.org/projects/libnftnl/files/libnftnl-$pkgver.tar.bz2"
 
 build() {
-	cd "$builddir"
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -26,12 +25,11 @@ build() {
 }
 
 check() {
-	cd "$builddir"/tests
+	cd tests
 	make check
 }
 
 package() {
-	cd "$builddir"
 	make DESTDIR="$pkgdir" install
 }
 
