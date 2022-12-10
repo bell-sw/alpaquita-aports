@@ -3,7 +3,7 @@
 
 pkgname=m4
 pkgver=1.4.19
-pkgrel=3
+pkgrel=4
 pkgdesc="GNU macro processor"
 url="https://www.gnu.org/software/m4"
 depends=
@@ -19,7 +19,6 @@ source="https://ftp.gnu.org/gnu/m4/$pkgname-$pkgver.tar.gz
 	"
 
 build() {
-	cd "$builddir"
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -28,12 +27,10 @@ build() {
 }
 
 check() {
-	cd "$builddir"
 	make check
 }
 
 package() {
-	cd "$builddir"
 	make install DESTDIR="$pkgdir"
 	rm -rf "$pkgdir"/usr/lib/charset.alias
 	rmdir -p "$pkgdir"/usr/lib 2>/dev/null || true
