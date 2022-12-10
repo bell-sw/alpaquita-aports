@@ -23,8 +23,6 @@ builddir="$srcdir/lua-$pkgver"
 prepare() {
 	default_prepare
 
-	cd "$builddir"
-
 	# we want packages to find our things
 	sed -i 's:/usr/local:/usr:' etc/lua.pc
 
@@ -44,8 +42,6 @@ prepare() {
 }
 
 build() {
-	cd "$builddir"
-
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -60,13 +56,10 @@ build() {
 }
 
 check() {
-	cd "$builddir"
 	make test
 }
 
 package() {
-	cd "$builddir"
-
 	make V=$pkgver \
 		INSTALL_TOP="$pkgdir/usr" \
 		INSTALL_INC="$pkgdir/usr/include" \
