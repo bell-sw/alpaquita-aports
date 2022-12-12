@@ -1,0 +1,31 @@
+pkgname=py3-botocore
+# Verify required version from py3-boto3 on this package before upgrading
+pkgver=1.21.49
+pkgrel=1
+pkgdesc="The low-level, core functionality of Boto3"
+url="https://github.com/boto/botocore"
+arch="noarch"
+license="Apache-2.0"
+depends="py3-dateutil<3.0 py3-docutils py3-jmespath<1.0.0 py3-urllib3<1.27"
+makedepends="py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/b/botocore/botocore-$pkgver.tar.gz"
+builddir="$srcdir/botocore-$pkgver"
+
+replaces=py-botocore # Backwards compatibility
+provides=py-botocore=$pkgver-r$pkgrel # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py check
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+4a85a0bef518b57942b57fe01b10c588c3cceb1d8c7fa14e4bdc2e0c53fd3bf5b19947659870ce4af57bdabc4036d9a8c15b53530b7ec312e33b5bb91a784781  botocore-1.21.49.tar.gz
+"
