@@ -5,13 +5,13 @@
 
 pkgname=libsodium
 pkgver=1.0.18
-pkgrel=0
+pkgrel=2
 pkgdesc="NaCL-based library for encryption"
 url="https://github.com/jedisct1/libsodium"
 arch="all"
 license="ISC"
 subpackages="$pkgname-static $pkgname-dev"
-source="https://download.libsodium.org/$pkgname/releases/$pkgname-$pkgver.tar.gz"
+source="https://github.com/jedisct1/libsodium/releases/download/$pkgver-RELEASE/libsodium-$pkgver.tar.gz"
 
 build() {
 	./configure \
@@ -23,13 +23,6 @@ build() {
 
 check() {
 	make check
-}
-
-static() {
-	pkgdesc="libsodium static libraries"
-
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/*.a "$subpkgdir"/usr/lib/
 }
 
 package() {
