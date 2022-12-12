@@ -4,7 +4,7 @@
 # netlink interfaces.
 
 pkgname=libnl3
-pkgver=3.5.0
+pkgver=3.7.0
 pkgrel=0
 pkgdesc="Library for netlink sockets apps"
 url="http://www.infradead.org/~tgr/libnl/"
@@ -13,6 +13,12 @@ license="LGPL-2.1-or-later"
 makedepends="linux-headers flex bison libtool autoconf automake"
 checkdepends="check-dev"
 subpackages="$pkgname-dev $pkgname-doc $pkgname-cli"
+# XXX: Since 3.6.0, the tests modify the process namespace.
+# Many of these operations are not allowed by our CI sandbox.
+# The tests should pass locally.
+#
+# See: https://github.com/thom311/libnl/commit/9102872ac24c71f5ac48b6a1f09115c872b5793b
+options="!check"
 source="https://github.com/thom311/libnl/releases/download/libnl${pkgver//./_}/libnl-$pkgver.tar.gz
 	musl:libnl3-musl.patch
 	"
@@ -58,6 +64,6 @@ cli() {
 }
 
 sha512sums="
-9c94c09bac34297493b3ea482713d7c0865d2839b5042e5c7d1ed008e2402ab63df35a18e272f40b2cce27d0c31dc733fe7e4b2d376e7ca847a2b0d5e90de50c  libnl-3.5.0.tar.gz
+80fbbc079299c90afd2a5eda62e4d4f98bf4ef23958c3ce5101f4ed4d81d783af733213bb3bab15f218555d8460bc2394898f909f4ac024fc27281faec86a041  libnl-3.7.0.tar.gz
 2b9b569c00b9e29930a83e88264e9cb63a4991bd89a04f2fc4b4c468a2a73309d9463f0b9e4a945e614c0f831a68fc99c5768a0f2214a0dde00785215e24e1dc  libnl3-musl.patch
 "
