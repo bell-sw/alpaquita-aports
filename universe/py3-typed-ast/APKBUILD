@@ -1,0 +1,34 @@
+pkgname=py3-typed-ast
+_pkgname=typed_ast
+pkgver=1.5.4
+pkgrel=0
+pkgdesc="Fork of the Python ast module with type comment support"
+url="https://github.com/python/typed_ast"
+arch="all"
+license="Apache-2.0"
+depends="python3"
+makedepends="py3-setuptools python3-dev"
+checkdepends="py3-pytest"
+source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz"
+builddir="$srcdir/"$_pkgname-$pkgver
+
+# two (2) tests fail on s390x, disable
+case "$CARCH" in
+s390x) options="$options !check" ;;
+esac
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	PYTHONPATH=$(echo build/lib*) pytest -v
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+1ff27316d8e07219ad5b3744c167b7a7dfebb992f8ebc4623bf510f8b5d2b939cc9f659428e3228a42cdec0e63215cca973458aa914f2efdc59d5f33c150e153  typed_ast-1.5.4.tar.gz
+"
