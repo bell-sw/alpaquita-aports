@@ -4,7 +4,7 @@
 
 pkgname=util-linux
 pkgver=2.38.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Linux utilities"
 url="https://git.kernel.org/cgit/utils/util-linux/util-linux.git"
 arch="all"
@@ -139,7 +139,14 @@ build() {
 		# 20 kiB in total for util-linux-*, versus 196 kiB (libskarnet.so).
 		# TODO: Find a better way (libutmps.so w/o dependency on libskarnet.so)?
 		export UTMPX_CFLAGS=$(pkg-config --cflags --static utmps)
-		export UTMPX_LIBS=$(pkg-config --libs --static utmps)
+		# Clearly specify we want to link with utmps statically in
+		# Alpaquita. For more information, see:
+		#
+		# 	../../core/busybox/APKBUILD
+		#
+		# Prepend each linker flag with '-Wl,', otherwise libtool will
+		# mangle the order of linker options.
+		export UTMPX_LIBS="-Wl,-Bstatic $(pkg-config --libs --static utmps | sed 's/-/-Wl,-/g') -Wl,-Bdynamic"
 	fi
 	# --disable-chfn-chsh - chfn and chsh are provided by shadow package
 	./configure \
