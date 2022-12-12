@@ -6,7 +6,7 @@
 
 pkgname=dropbear
 pkgver=2022.82
-pkgrel=2
+pkgrel=3
 pkgdesc="small SSH 2 client/server programs"
 url="https://matt.ucc.asn.au/dropbear/dropbear.html"
 arch="all"
@@ -35,8 +35,13 @@ source="https://matt.ucc.asn.au/dropbear/releases/dropbear-$pkgver.tar.bz2
 _progs="dropbear dropbearkey dbclient dropbearconvert scp"
 
 build() {
+	# Clearly specify we want to link with utmps statically in Alpaquita.
+	# For more information, see:
+	#
+	# 	../../core/busybox/APKBUILD
+	#
 	CFLAGS="$CFLAGS $(pkg-config --cflags --static utmps)" \
-	LIBS="$LDLIBS $(pkg-config --libs --static utmps)" \
+	LIBS="$LDLIBS -Wl,-Bstatic $(pkg-config --libs --static utmps) -Wl,-Bdynamic" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
