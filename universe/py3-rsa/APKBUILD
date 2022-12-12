@@ -1,0 +1,33 @@
+pkgname=py3-rsa
+_pkgname=rsa
+pkgver=4.9
+pkgrel=0
+pkgdesc="Pure-Python3 RSA implementation"
+url="https://stuvel.eu/rsa"
+arch="noarch"
+license="Apache-2.0"
+depends="python3 py3-asn1"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest py3-mock py3-mypy"
+source="https://files.pythonhosted.org/packages/source/r/rsa/rsa-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+options="!check" # no tests in pypi tarball
+
+replaces="py-rsa" # Backwards compatibility
+provides="py-rsa=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 -m pytest
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+85f359cc448a42f267f425fcf761597eeeab942523de49284b01d6ea2bcca8bddf0fac26926b487ae91c15889a7c4897a33ee00de859f28fe9cca19ef98c3f19  rsa-4.9.tar.gz
+"
