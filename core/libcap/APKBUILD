@@ -4,7 +4,7 @@
 # capabilities.
 
 pkgname=libcap
-pkgver=2.64
+pkgver=2.66
 pkgrel=0
 pkgdesc="POSIX 1003.1e capabilities"
 arch="all"
@@ -14,7 +14,7 @@ depends_dev="linux-headers"
 makedepends_build="linux-headers perl bash"
 makedepends_host="$depends_dev"
 makedepends="$makedepends_build $makedepends_host"
-subpackages="$pkgname-doc $pkgname-static $pkgname-dev"
+subpackages="$pkgname-doc $pkgname-static $pkgname-dev $pkgname-utils libcap2"
 source="https://kernel.org/pub/linux/libs/security/linux-privs/libcap2/libcap-$pkgver.tar.xz"
 
 build() {
@@ -23,16 +23,28 @@ build() {
 }
 
 check() {
-	make test
+	make GOLANG=no test
 }
 
 package() {
-	make lib=lib prefix=/usr RAISE_SETFCAP=no GOLANG=no DESTDIR="$pkgdir" \
+	# backwards compatibility for things that depended on 'libcap'
+	depends="libcap2=$pkgver-r$pkgrel $pkgname-utils=$pkgver-r$pkgrel"
+
+	make lib=lib prefix=/usr GOLANG=no DESTDIR="$pkgdir" \
 		install
-	# Fix perms
-	chmod -v 0755 "$pkgdir"/usr/lib/libcap.so.$pkgver
+}
+
+utils() {
+	pkgdesc="$pkgdesc (utils)"
+
+	amove usr/sbin
+}
+
+libcap2() {
+	replaces="$pkgname<2.64-r1"
+	default_libs
 }
 
 sha512sums="
-3c5cf478cef249585ee1a0dfd75c6b41b0daf4e1ecb59dce894eac5523841aa79ca499be4161f73193dd8e7363edcd51063f3e281930cee939ebd50983eecbaf  libcap-2.64.tar.xz
+ac005b622f6e065f30ce282a5c87240e7b9da75366ee537aa4835bc501b44bc242c10a4ba4dc070e2415fc7f635d1c3c4e45fbeeaf962cf7973dda82bf6377f0  libcap-2.66.tar.xz
 "
