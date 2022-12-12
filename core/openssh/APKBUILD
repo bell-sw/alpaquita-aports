@@ -6,7 +6,7 @@
 pkgname=openssh
 pkgver=9.1_p1
 _myver=${pkgver%_*}${pkgver#*_}
-pkgrel=0
+pkgrel=1
 pkgdesc="OpenBSD SSH implementation"
 url="https://www.openssh.com/portable.html"
 arch="all"
@@ -92,7 +92,12 @@ _do_configure() {
 	local _extra_cflags="" _extra_libs=""
 	if [ -z "$BOOTSTRAP" ]; then
 		_extra_cflags="$(pkg-config --cflags --static utmps)"
-		_extra_libs="$(pkg-config --libs --static utmps)"
+		# Clearly specify we want to link with utmps statically in
+		# Alpaquita. For more information, see:
+		#
+		# 	../../core/busybox/APKBUILD
+		#
+		_extra_libs="-Wl,-Bstatic $(pkg-config --libs --static utmps) -Wl,-Bdynamic"
 	fi
 
 	./configure \
