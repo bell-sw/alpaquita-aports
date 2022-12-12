@@ -1,0 +1,32 @@
+pkgname=py3-s3transfer
+_pkgname=s3transfer
+pkgver=0.5.1
+pkgrel=0
+pkgdesc="Amazon S3 Transfer Manager for Python"
+url="https://github.com/boto/s3transfer"
+arch="noarch"
+license="Apache-2.0"
+depends="py3-botocore<2.0.0"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest py3-pytest-mock"
+source="$_pkgname-$pkgver.tar.gz::https://github.com/boto/$_pkgname/archive/$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces=py-s3transfer # Backwards compatibility
+provides=py-s3transfer=$pkgver-r$pkgrel # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	pytest tests/unit tests/functional
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+104402c787f03654a69325b1e8fa0f8c097db67e2f1239211358cf343ba2eed7a4d3b9e0c58e847d6cd440d99947b1ad8d981621ae67eb6ae669d8938bd01ee6  s3transfer-0.5.1.tar.gz
+"
