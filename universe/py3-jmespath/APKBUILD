@@ -1,0 +1,29 @@
+pkgname=py3-jmespath
+pkgver=0.10.0
+pkgrel=2
+pkgdesc="JMESPath is a query language for JSON"
+url="https://jmespath.org"
+arch="noarch"
+license="MIT"
+depends="python3"
+makedepends="py3-setuptools"
+checkdepends="py3-nose"
+source="https://files.pythonhosted.org/packages/source/j/jmespath/jmespath-$pkgver.tar.gz"
+builddir="$srcdir/jmespath-$pkgver"
+
+replaces=py-jmespath # Backwards compatibility
+provides=py-jmespath=$pkgver-r$pkgrel # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	nosetests -v
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="9e229b5809d2dd74eb7dbf518953f848175743fb0ee91ffc901777be2f4809cc0c4f4ba40890746533e344f64e900ec189d6a8c847c864fa47fbf67e5106a7bc  jmespath-0.10.0.tar.gz"
