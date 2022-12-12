@@ -1,0 +1,84 @@
+pkgname=aws-cli
+pkgver=1.25.97
+pkgrel=0
+pkgdesc="Universal Command Line Interface for Amazon Web Services"
+url="https://github.com/aws/aws-cli"
+arch="noarch"
+license="Apache-2.0"
+depends="
+	groff
+	py3-botocore
+	py3-colorama
+	py3-docutils
+	py3-jmespath
+	py3-rsa
+	py3-s3transfer
+	py3-yaml
+	python3
+	"
+makedepends="python3-dev py3-setuptools"
+subpackages="
+	$pkgname-doc
+	$pkgname-zsh-completion:zshcomp
+	$pkgname-bash-completion:bashcomp
+	$pkgname-completer
+	"
+source="aws-cli-$pkgver.tar.gz::https://github.com/aws/aws-cli/archive/$pkgver.tar.gz"
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py check
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+	rm "$pkgdir"/usr/bin/aws.cmd 
+}
+
+bashcomp() {
+	depends="$pkgname-completer"
+	pkgdesc="$pkgdesc (bash completions)"
+	install_if="$pkgname=$pkgver-r$pkgrel bash-completion"
+	mkdir -p "$subpkgdir"/usr/share/bash-completion/completions
+	mv "$pkgdir"/usr/bin/aws_bash_completer \
+		"$subpkgdir"/usr/share/bash-completion/completions
+}
+
+zshcomp() {
+	depends="$pkgname-completer"
+	pkgdesc="$pkgdesc (zsh completions)"
+	install_if="$pkgname=$pkgver-r$pkgrel zsh"
+	mkdir -p "$subpkgdir"/usr/share/zsh/site-functions
+	mv "$pkgdir"/usr/bin/aws_zsh_completer.sh \
+		"$subpkgdir"/usr/share/zsh/site-functions
+}
+
+completer() {
+	depends=""
+	pkgdesc="$pkgdesc (completions helper)"
+	cd "$pkgdir"
+	for i in \
+		usr/bin/aws_completer \
+		usr/lib/python*/site-packages/awscli/completer.py \
+		usr/lib/python*/site-packages/awscli/__pycache__/completer.cpython-*.pyc \
+		; do
+		install -D "$i" "$subpkgdir/$i"
+		rm "$i"
+	done
+}
+
+doc() {
+	default_doc
+	local path
+	path="$(python3 -c 'import sys;print(sys.path[-1])')/awscli"
+	mkdir -p "$subpkgdir/$path"
+	mv "$pkgdir/$path/examples" "$pkgdir/$path/topics" \
+		"$subpkgdir/$path/"
+}
+
+sha512sums="
+a27dab95240036158d2dc331a3b1768e7c705b52cb1fcf7f5d0bbc3f40bed62838565493c463e22cf2b249981b0fca255ce65d64b7cfa45df24621cb788171e7  aws-cli-1.25.97.tar.gz
+"
