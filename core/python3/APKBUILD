@@ -96,10 +96,11 @@ prepare() {
 }
 
 build() {
-	# we want -O2 here for more speed for such a large interpreter.
-	export CFLAGS="$CFLAGS -O2"
-	export CXXFLAGS="$CXXFLAGS -O2"
-	export CPPFLAGS="$CPPFLAGS -O2"
+	# -Os overwrites --enable-optimizations
+	export CFLAGS="${CFLAGS/-Os/}"
+	export CPPFLAGS="${CPPFLAGS/-Os/}"
+	export CXXFLAGS="${CXXFLAGS/-Os/}"
+	export LDFLAGS=''
 
 	# Include bluez headers. Python only needs bluetooth/bluetoot.h and doesn't
 	# link against bluez. Depending on bluez-dev introduces a circular dep:
