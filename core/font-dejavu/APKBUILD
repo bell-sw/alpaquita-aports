@@ -1,7 +1,7 @@
 # Description: contains DejaVu fonts based on Vera fonts but provides much
 # more characters.
 
-pkgname=ttf-dejavu
+pkgname=font-dejavu
 pkgver=2.37
 pkgrel=3
 pkgdesc="Font family based on the Bitstream Vera Fonts with a wider range of characters"
@@ -22,6 +22,11 @@ source="https://downloads.sourceforge.net/project/dejavu/dejavu/$pkgver/dejavu-f
 	45-dejavu.conf
 	90-tt-dejavu.conf
 	"
+builddir="$srcdir"
+
+# backwards compat (<3.17)
+provides="ttf-dejavu=$pkgver-r$pkgrel"
+replaces="ttf-dejavu"
 
 package() {
 	mkdir -p "$pkgdir"/usr/share/fonts
@@ -29,43 +34,51 @@ package() {
 
 _core() {
 	depends="fontconfig encodings mkfontscale"
+	# backwards compat (<3.17)
+	provides="ttf-dejavu-core=$pkgver-r$pkgrel"
+	replaces="ttf-dejavu-core"
 
-	mkdir -p "$subpkgdir"/usr/share/fonts/$subpkgname \
-		"$subpkgdir"/etc/fonts/conf.avail \
+	mkdir -p "$subpkgdir"/usr/share/fonts/dejavu-core \
 		"$subpkgdir"/etc/fonts/conf.d
 
 	for f in DejaVuSans DejaVuSansMono DejaVuSerif ; do
 		mv "$srcdir"/dejavu-fonts-ttf-$pkgver/ttf/$f.ttf \
 			"$srcdir"/dejavu-fonts-ttf-$pkgver/ttf/$f-Bold.ttf \
-			"$subpkgdir"/usr/share/fonts/$subpkgname
+			"$subpkgdir"/usr/share/fonts/dejavu-core
 	done
 
-	install -m644 "$srcdir"/dejavu-fonts-ttf-$pkgver/fontconfig/*.conf \
+	install -Dm644 \
+		"$srcdir"/dejavu-fonts-ttf-$pkgver/fontconfig/*.conf \
 		"$srcdir"/dejavu-lgc-fonts-ttf-$pkgver/fontconfig/*.conf \
-		"$subpkgdir"/etc/fonts/conf.avail
+		-t "$subpkgdir"/etc/fonts/conf.avail
 
 	cd "$subpkgdir"/etc/fonts/conf.d
+	local j
 	for j in "$srcdir"/*.conf; do
-		install -m644 "$j" "$subpkgdir"/etc/fonts/conf.avail/
+		install -Dm644 "$j" -t "$subpkgdir"/etc/fonts/conf.avail/
 		ln -sf /etc/fonts/conf.avail/${j##*/}
 	done
 
 	install -D -m644 "$srcdir"/dejavu-fonts-ttf-$pkgver/LICENSE \
-		"$subpkgdir"/usr/share/licenses/$subpkgname/copyright
+		"$subpkgdir"/usr/share/licenses/dejavu-core/copyright
 }
 
 _extra() {
 	depends="$pkgname-core"
 	pkgdesc="$pkgdesc (extra variants)"
+	# backwards compat (<3.17)
+	provides="ttf-dejavu-extra=$pkgver-r$pkgrel"
+	replaces="ttf-dejavu-extra"
 	
-	mkdir -p "$subpkgdir"/usr/share/fonts/$subpkgname
+	mkdir -p "$subpkgdir"/usr/share/fonts/dejavu-extra
 
-	install -m644 "$srcdir"/dejavu-fonts-ttf-$pkgver/ttf/*.ttf \
+	install -Dm644 \
+		"$srcdir"/dejavu-fonts-ttf-$pkgver/ttf/*.ttf \
 		"$srcdir"/dejavu-lgc-fonts-ttf-$pkgver/ttf/*.ttf \
-		"$subpkgdir"/usr/share/fonts/$subpkgname
+		-t "$subpkgdir"/usr/share/fonts/dejavu-extra
 
 	install -D -m644 "$srcdir"/dejavu-lgc-fonts-ttf-$pkgver/LICENSE \
-		"$subpkgdir"/usr/share/licenses/$subpkgname/copyright
+		"$subpkgdir"/usr/share/licenses/dejavu-extra/copyright
 }
 
 
