@@ -1,4 +1,4 @@
-From ad5b14f56868c6ab6fd55c0869e7ad7efd98bf09 Mon Sep 17 00:00:00 2001
+From b30848b34b58d248894ddce4ac4560f922f90f8b Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 1 Mar 2022 16:59:59 +0300
 Subject: [PATCH] new 'alternative' variable
@@ -26,10 +26,10 @@ index c3dd6a7..20c947b 100644
  	Specifies subpackages or split packages built with this
  	package. Typically, this will include _$pkgname-dev_ for development
 diff --git a/abuild.in b/abuild.in
-index ca51e52..e668ebd 100644
+index 1052a58..2ff7ce6 100755
 --- a/abuild.in
 +++ b/abuild.in
-@@ -225,6 +225,11 @@ default_sanitycheck() {
+@@ -256,6 +256,11 @@ default_sanitycheck() {
  		die "provider_priority must be a number"
  	fi
  
@@ -38,10 +38,10 @@ index ca51e52..e668ebd 100644
 +		die "alternative must be a number: 0 or 1"
 +	fi
 +
- 	# check so no package names starts with -
- 	for i in $pkgname $subpackages; do
- 		case $i in
-@@ -1145,6 +1150,10 @@ prepare_metafiles() {
+ 	# check pkgname and subpkgnames
+ 	for i in "$pkgname" $subpackages; do
+ 		verify_pkgname "${i%%:*}" || die "${i%%:*} is not a valid package name"
+@@ -1192,6 +1197,10 @@ prepare_metafiles() {
  		echo "provider_priority = $provider_priority" >> "$pkginfo"
  	fi
  
@@ -49,9 +49,9 @@ index ca51e52..e668ebd 100644
 +		echo "alternative = $alternative" >> "$pkginfo"
 +	fi
 +
- 	echo "license = $license" >> "$pkginfo"
+ 	echo "license = $(echo $license)" >> "$pkginfo"
  	for i in $replaces; do
  		echo "replaces = $i" >> "$pkginfo"
 -- 
-2.25.1
+2.36.2
 

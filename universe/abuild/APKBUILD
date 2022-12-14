@@ -1,32 +1,20 @@
 pkgname=abuild
-pkgver=3.9.0
+pkgver=3.10.0_rc1
 _ver=${pkgver%_git*}
-pkgrel=19
+pkgrel=2
 pkgdesc="Script to build Alpaquita Packages (Alpine compatible)"
 url="https://git.alpinelinux.org/cgit/abuild/"
 arch="all"
 license="GPL-2.0-only"
-depends="
-	fakeroot
-	scanelf
-	openssl
-	apk-tools
-	libc-utils
-	attr
-	tar
-	pkgconf
-	patch
-	lzip
-	annobin
-	"
-
+depends="fakeroot scanelf openssl>3 apk-tools>=2.0.7-r1 libc-utils
+	attr tar pkgconf patch lzip annobin"
 if [ "$CBUILD" = "$CHOST" ]; then
 	depends="$depends curl"
 fi
 makedepends_build="pkgconfig scdoc"
-makedepends_host="openssl1.1-compat-dev zlib-dev"
+makedepends_host="openssl-dev>3 zlib-dev"
 makedepends="$makedepends_host $makedepends_build"
-checkdepends="bats"
+checkdepends="kyua git"
 install="$pkgname.pre-install $pkgname.pre-upgrade"
 subpackages="
 	apkbuild-cpan:cpan:noarch
@@ -38,20 +26,22 @@ subpackages="
 options="suid"
 pkggroups="abuild"
 source="https://gitlab.alpinelinux.org/alpine/abuild/-/archive/$pkgver/abuild-$pkgver.tar.gz
-	0001-Add-BellSoft-Alpaquita-Linux-naming-customizations.patch
-	0002-add-sign_kernel_modules-helper.patch
-	0003-Added-support-for-glibc-toolchains.patch
-	0004-handle-libc-tags-in-depends-makedepends.patch
-	0005-support-getting-maintainer-name-from-env-variable.patch
-	0006-new-alternative-variable.patch
-	0007-fix-busybox-path.patch
-	0008-Don-t-add-bin-sh-dependency-for-glibc-bin.trigger.patch
-	0009-fix-reproducibility-test-and-skip-locking-test.patch
-	0010-add-common-gcc-optimization-flags-for-builds.patch
-	0011-abuild.conf-enable-stack-protector-strong-and-_FORTI.patch
-	0012-abuild-warn-if-bin-sbin-or-lib-is-found.patch
-	0013-create-common-vendor-variables.patch
-	0014-add-a-new-step-to-sign-files-with-sign_impl-command.patch
+	0001-make-increase-test-timeout.patch
+	0001-abuild-fix-amove-corner-cases.patch
+
+	0100-Add-BellSoft-Alpaquita-Linux-naming-customizations.patch
+	0101-add-sign_kernel_modules-helper.patch
+	0102-Added-support-for-glibc-toolchains.patch
+	0103-handle-libc-tags-in-depends-makedepends.patch
+	0104-support-getting-maintainer-name-from-env-variable.patch
+	0105-new-alternative-variable.patch
+	0106-fix-busybox-path.patch
+	0107-Don-t-add-bin-sh-dependency-for-glibc-bin.trigger.patch
+	0108-add-common-gcc-optimization-flags-for-builds.patch
+	0109-abuild.conf-enable-stack-protector-strong-and-_FORTI.patch
+	0110-abuild-warn-if-bin-sbin-or-lib-is-found.patch
+	0111-create-common-vendor-variables.patch
+	0112-add-a-new-step-to-sign-files-with-sign_impl-command.patch
 	"
 builddir="$srcdir"/abuild-$pkgver
 
@@ -104,24 +94,25 @@ pypi() {
 
 _rootbld() {
 	pkgdesc="Build packages in chroot"
-	depends="abuild bubblewrap gettext git"
+	depends="abuild bubblewrap cmd:envsubst git"
 	mkdir -p "$subpkgdir"
 }
 
 sha512sums="
-a3075b18d4a085ca796d1c2df703c3e7c80e682623175eb0822479f3a6d96ffba571f283bdec8ae3db832e296f9e58bdd0f58097b86b503a91fbb40148084a68  abuild-3.9.0.tar.gz
-fd015eb8aa847d502bba63c719707a5f1f0929a231a6dd236cced8c8df2a0e4cc104bf6d45dee9e61eaad8873afde36b89b465d1d749ac2ae1902f97afbeda24  0001-Add-BellSoft-Alpaquita-Linux-naming-customizations.patch
-466a329547c06583302b51d1849fa447216eb8bf09fc46971edb8d8153574b46a322b4cd056c35ac6883800c9c3df3313318e07d907e492eb22a8949070f2546  0002-add-sign_kernel_modules-helper.patch
-a7ec47f7661c0f156e72516ef3edeb3e8971f00acef84a90ac40d3bf3a23a5c148a5edfa99cf77341f4cc5f79d95fd4503555aae4fa1bc3cf4a6409ceaddfcdc  0003-Added-support-for-glibc-toolchains.patch
-1593d0f31d6ff8d10ad3776a68939d95c59cbc8ab8ac6609fda626e48a4fe1bac980688ef677927966494eb28dc6a3bdddbfb4be8fca4e2e3719716e83e3f6b1  0004-handle-libc-tags-in-depends-makedepends.patch
-cd4842d905cc82028bd1e9e303ac7c955733ca5dde6dc07e1dd5d2cc1b6fd9654054fdd3a29ed4a6047a2a18002e15c81ae2986b41592a0ea3a1575a0387bb92  0005-support-getting-maintainer-name-from-env-variable.patch
-c96fcacff59bd38cb336f0ce5c749fac0ee0dfc02c1df8fa8a6deb976165884285aca85ed83fb1e1c3bf56db844439eb5b986d38654859dd7d95c91255e694fd  0006-new-alternative-variable.patch
-a6eb4fbfeeecf19df4def5495f4d6c11b95b3cc1e7f6fb1ea8068532816f2e9653b302043f24fab3d15c5cd7a98f95a6597e94a4c234b101c39a567d91aa9937  0007-fix-busybox-path.patch
-543a22b3ee691e3507ed624b14cc9580e4f0cf093cb9670e81722f4c16f7faba8e05d9ac638001dc6ba9389d2203902b888fc4f9f6545b998b076543d5d29ca4  0008-Don-t-add-bin-sh-dependency-for-glibc-bin.trigger.patch
-f34860ef388f1f15268e4d75f95044e127caa7a73600422303848f575ce81cfb8fb3855dcc280665fa4607761d317ea833107b4eaf5663c52aa86b0d9df3c3ce  0009-fix-reproducibility-test-and-skip-locking-test.patch
-776b6b7c66ee0ab56bcecf57032e32a2d6a9ef3ec7f1997c91f5ee771b82d78104e376a07778a5ccb0aa002870a314597694a656b90a13dc4c233cf816892aae  0010-add-common-gcc-optimization-flags-for-builds.patch
-83ee6d42a6c7dc73322c0782e849a8d26214544a7503d4dd7b2757a757dcdc9d1ba64864400cdd118454f910624a441328b9aa27e72d1ee8aae9a48894386a52  0011-abuild.conf-enable-stack-protector-strong-and-_FORTI.patch
-9b91f1a756509434ee81747fe64c0717d35711e29db7c4675fd06578ab005744faf7ef0f846a1e9a8f04a7d3336da2c4697263e4a4adad3c95431a115baedc6f  0012-abuild-warn-if-bin-sbin-or-lib-is-found.patch
-c88f31e0d539d1ccb7e009c3fba8dd1ca3f7a1bc1dbe2a23306fc0afaf72d96a7936dbd3194d1875ea32e9c249388cae4aaf6bd36af5e1f6a55d4cb70bf0d36b  0013-create-common-vendor-variables.patch
-af347418d0a5f8d6f87e1bac3c795062b36067acea3bd556e6012740f56e90e62960750a7165e126d95abe6d68e8ef756f7c6277a866c3fd5096c06c86322291  0014-add-a-new-step-to-sign-files-with-sign_impl-command.patch
+8dccc843cc6b3f53642bb2849d00cc00a283763f2b915c01600b0542ce16a96b2e265498b59ceff250a1c7be22c4a5aeb0cb0926c7498668ded897c64b83b9c0  abuild-3.10.0_rc1.tar.gz
+605e17e99ba24388e278de3a378bf717f6061930a73197bbf5d3462b281fccc242262a7582d0c7106fcf92daa2166e4bc341d3a784868906527e493adfb9bf5f  0001-make-increase-test-timeout.patch
+c979b3f926a4bd5aabe3996473151156f4573040c37a99aa4bf9042743952c46c08286581753c372196ce9da651971879a9e31eed124e65393dab71c96494df9  0001-abuild-fix-amove-corner-cases.patch
+37f28ed740cfafc4b20e641eac556085218225e09a2a7157565e983a125a2a76d7b1a7674745116ceb9b795d8bceebde43a987bbc5c853239c31940d0d471355  0100-Add-BellSoft-Alpaquita-Linux-naming-customizations.patch
+4e83b3da20595cda45064f9d2a5661992737668467181d04cf7cf4e4aff70022669caa1bdacd3a864866d4cf2cf12f6f3511a5208bc49745026fdc1024775e69  0101-add-sign_kernel_modules-helper.patch
+4f4708837ccdf998f075b108524ff63d5c372ede392d1758d68a0cdd28d6f7df99eaed624579a08699eaba8234510d6dd56b810b8df144d26af6f74de00c1daa  0102-Added-support-for-glibc-toolchains.patch
+260cae68327bacff90d05a0e9236148859e7cd33dd37c5434d3fd6e78ebfa198ef2c2e8b012f86d393f146bf1e137e0ba7691466f3732454ee2c8cee30c814b8  0103-handle-libc-tags-in-depends-makedepends.patch
+451695a60d620103e39c0e501ec2f4a1976e0348cce31f9cc67f2298b69b49c157386e7329a8d9999961b68996dbb56785fafa063c9c2daa7acde48f2553d97c  0104-support-getting-maintainer-name-from-env-variable.patch
+129f47003a21c0f2b368a68d011e8e86c48dbc1a15136ee0aad92c862837dc0fe948bad20bcd94955039a2918fbc5de1c6a58ba68678ee72e6b7cfaf2e871ac6  0105-new-alternative-variable.patch
+c22e173ab015c0826e58737fc081162c55535e5c24ffb24537e528af0a69a36262cd567f71bcffd3770b6016059240feb0bece3589f16e8992725bbcbd7797d9  0106-fix-busybox-path.patch
+020edd1633df0581d5fcf3c18296732d1e4d50f80f504ea63c6129b0340b3ed0d274c7f9d0da4c331435789bcdfd0b59de5631062e8eeb7f40a92085cf09847d  0107-Don-t-add-bin-sh-dependency-for-glibc-bin.trigger.patch
+558897e2c4cef933a0f783cdd316e8cfebaca5fc86811556f8232d2399f0c0390ccb26abf9f7e318b815b534433fd63840d1078e45ac3d14fd49770a0025a762  0108-add-common-gcc-optimization-flags-for-builds.patch
+24949b3ad7c5a933e85d08b9b0849fa032f62ae427a6a5faa4b07842a7c94fb3c2c225e9e0d373c3314a42d17cf6ef06c28f02faaa4fece0fec6034386dc4f5a  0109-abuild.conf-enable-stack-protector-strong-and-_FORTI.patch
+56d04fbeec96b54e5384861342f51f8c554e2fcf6d79a7572d3dbc8d9ff276260ac01ebf08a27a0fa1246c5274d6ded40b53eb069fb205deb45a9553c9cadae5  0110-abuild-warn-if-bin-sbin-or-lib-is-found.patch
+dacdb9e23991c0caf3f121da2acebdd0dcd8d201d161452cdf3bc0a35b1f17d74f8d7f9c2556e226a30684ddf172ce6adf34d674c08b9a9b707e97309f1c7d32  0111-create-common-vendor-variables.patch
+6a4c2c9a628cc7f839c000a27f821655eda83b843e77a4f50a50440e4e27a08fbc92436c904ec2d85c417b3391dbfd29bd2ad5b816cab463f95426fe90a66118  0112-add-a-new-step-to-sign-files-with-sign_impl-command.patch
 "
