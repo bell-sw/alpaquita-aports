@@ -4,7 +4,7 @@
 
 pkgname=xtrans
 pkgver=1.4.0
-pkgrel=1
+pkgrel=2
 pkgdesc="X transport library"
 url="http://xorg.freedesktop.org/"
 arch="noarch"
@@ -13,7 +13,6 @@ makedepends="util-macros xmlto"
 source="https://www.x.org/releases/individual/lib/$pkgname-$pkgver.tar.bz2"
 
 build() {
-	cd "$builddir"
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -22,12 +21,10 @@ build() {
 }
 
 check() {
-	cd "$builddir"
 	make check
 }
 
 package() {
-	cd "$builddir"
 	make DESTDIR="$pkgdir" install
 
 	mkdir -p "$pkgdir"/usr/lib
