@@ -1,25 +1,22 @@
 # Maintainer: BellSoft <info@bell-sw.com>
 pkgname=font-misc-misc
 pkgver=1.1.2
-pkgrel=1
+pkgrel=3
 pkgdesc="X.org misc font"
 url="http://xorg.freedesktop.org/"
 arch="noarch"
 license="custom"
 options="!check"  # No test suite.
-depends="encodings font-alias mkfontscale mkfontdir fontconfig util-macros"
+depends="encodings font-alias mkfontscale fontconfig util-macros"
 makedepends="font-util-dev bdftopcf"
-install=
 source="https://www.x.org/releases/individual/font/$pkgname-$pkgver.tar.bz2"
 
 prepare() {
-	cd "$builddir"
 	update_config_sub
 	default_prepare
 }
 
 build() {
-	cd "$_builddir"
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -29,13 +26,12 @@ build() {
 }
 
 package() {
-	cd "$builddir"
 	make -j1 \
 		DESTDIR="$pkgdir" \
 		MKFONTDIR=: \
 		MKFONTSCALE=: \
 		FCCACHE=: \
-		install || return 1
+		install
 	mkdir -p "$pkgdir"/usr/share/licenses/"$pkgname"
 	install -m644 COPYING "$pkgdir"/usr/share/licenses/"$pkgname"/copyright
 }
