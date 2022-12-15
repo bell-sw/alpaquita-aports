@@ -1,25 +1,22 @@
 # Maintainer: BellSoft <info@bell-sw.com>
 pkgname=font-sony-misc
 pkgver=1.0.3
-pkgrel=1
+pkgrel=3
 pkgdesc="X.org Sony misc fonts"
 url="http://xorg.freedesktop.org/"
 arch="noarch"
 license="MIT"
-options="!check"  # No test suite
-depends="encodings font-alias mkfontscale mkfontdir fontconfig"
+options="!check"  # Cannot test a font.
+depends="encodings font-alias mkfontscale fontconfig"
 makedepends="font-util-dev bdftopcf"
-install=
 source="https://www.x.org/releases/individual/font/$pkgname-$pkgver.tar.bz2"
 
 prepare() {
-	cd "$builddir"
 	update_config_sub
 	default_prepare
 }
 
 build() {
-	cd "$builddir"
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -29,12 +26,11 @@ build() {
 }
 
 package() {
-	cd "$builddir"
 	make -j1 DESTDIR="$pkgdir" \
 		MKFONTDIR=: \
 		MKFONTSCALE=: \
 		FCCACHE=: \
-		install || return 1
+		install
 	mkdir -p "$pkgdir"/usr/share/licenses/"$pkgname"
 	install -m644 COPYING "$pkgdir"/usr/share/licenses/"$pkgname"/copyright
 }
