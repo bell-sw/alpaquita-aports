@@ -1,40 +1,35 @@
 # Maintainer: BellSoft <info@bell-sw.com>
 pkgname=font-misc-cyrillic
 pkgver=1.0.3
-pkgrel=0
+pkgrel=2
 pkgdesc="X.org misc cyrillic fonts"
 url="http://xorg.freedesktop.org/"
 arch="noarch"
 license="custom"
-depends="encodings font-alias mkfontscale mkfontdir fontconfig"
+depends="encodings font-alias mkfontscale fontconfig"
 makedepends="font-util-dev bdftopcf"
-install=
 source="https://www.x.org/releases/individual/font/$pkgname-$pkgver.tar.bz2"
 
 prepare() {
-	cd "$srcdir"/$pkgname-$pkgver
-	update_config_sub || return 1
+	update_config_sub
 }
 
 build() {
-	cd "$srcdir"/$pkgname-$pkgver
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
 		--prefix=/usr \
 		--with-mapfiles=/usr/share/fonts/util \
-		--with-fontdir=/usr/share/fonts/cyrillic \
-		|| return 1
-	make || return 1
+		--with-fontdir=/usr/share/fonts/cyrillic
+	make
 }
 
 package() {
-	cd "$srcdir"/$pkgname-$pkgver
 	make -j1 DESTDIR="$pkgdir" \
 		MKFONTDIR=: \
 		MKFONTSCALE=: \
 		FCCACHE=: \
-		install || return 1
+		install
 	mkdir -p "$pkgdir"/usr/share/licenses/"$pkgname"
 	install -m644 COPYING "$pkgdir"/usr/share/licenses/"$pkgname"/copyright
 }
