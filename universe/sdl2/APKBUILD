@@ -1,5 +1,5 @@
 pkgname=sdl2
-pkgver=2.0.22
+pkgver=2.24.1
 pkgrel=0
 pkgdesc="development library designed to provide low level access to audio, keyboard, mouse, joystick and graphics"
 url="https://www.libsdl.org"
@@ -20,7 +20,6 @@ makedepends="
 	libxrender-dev
 	libxscrnsaver-dev
 	libusb-dev
-	pipewire-dev
 	pulseaudio-dev
 	samurai
 	sndio-dev
@@ -28,12 +27,10 @@ makedepends="
 	wayland-protocols
 	$depends_dev
 	"
-subpackages="$pkgname-dev $pkgname-dbg"
-source="
-	https://www.libsdl.org/release/SDL2-$pkgver.tar.gz
-	directfb-cflags.patch
+subpackages="$pkgname-dbg $pkgname-doc $pkgname-dev"
+source="https://www.libsdl.org/release/SDL2-$pkgver.tar.gz
+	directfb-cmake.patch
 	"
-options="!check" # No good way to run the available tests
 builddir="$srcdir/SDL2-$pkgver"
 
 # secfixes:
@@ -51,18 +48,30 @@ builddir="$srcdir/SDL2-$pkgver"
 #     - CVE-2019-7637
 #     - CVE-2019-7638
 
+case "$CARCH" in
+s390x)
+	_pipewire=OFF
+	;;
+*)
+	makedepends="$makedepends pipewire-dev"
+	_pipewire=ON
+	;;
+esac
+
 build() {
 	# NOTE: Please do not remove the -DSDL_DIRECTFB=ON flag.
 	# Some apps, used for booting Alpine derivatives, require this to function!
 	if [ "$CBUILD" != "$CHOST" ]; then
 		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
 	fi
+	GIT_DIR=. \
 	cmake -B build -G Ninja \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_INSTALL_LIBDIR=lib \
 		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DBUILD_SHARED_LIBS=True \
-		-DSDL_TEST=OFF \
+		-DSDL_TEST=ON \
+		-DSDL_TESTS="$(want_check && echo ON || echo OFF)" \
 		-DSDL_ALSA=ON \
 		-DSDL_JACK=ON \
 		-DSDL_CLOCK_GETTIME=ON \
@@ -73,14 +82,17 @@ build() {
 		-DSDL_X11=ON \
 		-DSDL_DIRECTFB=ON \
 		-DSDL_WAYLAND=ON \
-		-DCMAKE_C_FLAGS="$CFLAGS" \
 		-DSDL_STATIC=ON \
 		-DSDL_SHARED=ON \
-		-DSDL_PIPEWIRE_SHARED=ON \
+		-DSDL_PIPEWIRE_SHARED=$_pipewire \
 		-DSDL_PULSEAUDIO_SHARED=ON \
 		-DSDL_SNDIO_SHARED=ON \
-		"$CMAKE_CROSSOPTS"
+		$CMAKE_CROSSOPTS
 	ninja -C build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
 }
 
 package() {
@@ -97,6 +109,6 @@ dev() {
 }
 
 sha512sums="
-ca4b690433cd4d9d73b797da98666317128e7e817ab60e874a49d94791ea41e8a6b4fc43649593120daa0702190c0f8a6ed326c908d87375c8da9f369d994f6a  SDL2-2.0.22.tar.gz
-eed5537eaedec6cc2f44d6961d883a07249f2572d8d29015060ec083bc1622645db24bb8771976e86c5afca6d989a1a7b21dd44b2f519799eddd5a196ebdf018  directfb-cflags.patch
+2af719bdbdd923ddd3845fe7fcaa9dd9e2b6db7bb47d59dbcd726e97291b1c232c8a2a95dbee9033142f00d53c7cf23248067846cfe5441b1a3bc7bf9eb93b9e  SDL2-2.24.1.tar.gz
+e024c41720f13514efd97f1ac80d018cc429190087554179fd3a8dd4ae2fe3e3cdfc9ee46f367246a1c5cfec984f096a5daf4829fe8e1796d5924e52b52a450c  directfb-cmake.patch
 "
