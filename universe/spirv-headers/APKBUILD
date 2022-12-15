@@ -1,31 +1,29 @@
 pkgname=spirv-headers
 _pkgname=SPIRV-Headers
-pkgver=1.5.3
-pkgrel=1
+pkgver=1.3.231.0
+pkgrel=0
 pkgdesc="Machine-readable files for the SPIR-V Registry"
 options="!check" # No testsuite
 url="https://github.com/KhronosGroup/SPIRV-Headers"
 arch="noarch"
 license="GPL-3.0-or-later"
 makedepends="cmake samurai"
-source="$pkgname-$pkgver.tar.gz::https://github.com/KhronosGroup/SPIRV-Headers/archive/$pkgver.tar.gz"
-builddir="$srcdir/$_pkgname-$pkgver"
+source="$pkgname-$pkgver.tar.gz::https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/sdk-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-sdk-$pkgver"
 
 build() {
-	cmake \
-		-GNinja \
+	cmake -B build -G Ninja \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DBUILD_SHARED_LIBS=True \
-		-DCMAKE_BUILD_TYPE=None \
-		-DCMAKE_INSTALL_LIBDIR=lib \
-		$CMAKE_CROSSOPTS .
-	ninja
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
 }
 
 package() {
-	DESTDIR="$pkgdir" ninja install
+	DESTDIR="$pkgdir" cmake --install build
 }
 
 sha512sums="
-f678cd66c61bfdff4650cf3e14ab9dfd2fe11566f0ac7c50148be412f4d217c55b71541e92a31d8b5ea51748048539ad7b2645f7d54abc146045fd4a8c06b5b1  spirv-headers-1.5.3.tar.gz
+723a358110a7620ffc0d0695d3d83e0a4874899587563f608a10cc8bcbe434e99dedb19c52bda8f60ccde275ea4c87fede15e3841780419a6530ce270a8e296a  spirv-headers-1.3.231.0.tar.gz
 "
