@@ -1,5 +1,6 @@
 pkgname=vulkan-loader
-pkgver=1.3.206
+_pkgname=Vulkan-Loader
+pkgver=1.3.231.0
 pkgrel=0
 arch="all"
 url="https://www.khronos.org/vulkan"
@@ -11,16 +12,18 @@ makedepends="$depends_dev
 	libx11-dev
 	libxrandr-dev
 	python3
+	samurai
 	wayland-dev
 	"
-source="https://github.com/khronosgroup/vulkan-loader/archive/v$pkgver/vulkan-loader-v$pkgver.tar.gz"
-subpackages="$pkgname-dev $pkgname-dbg"
+source="https://github.com/khronosgroup/vulkan-loader/archive/refs/tags/sdk-$pkgver/vulkan-loader-sdk-$pkgver.tar.gz"
+subpackages="$pkgname-dbg $pkgname-dev"
+builddir="$srcdir/$_pkgname-sdk-$pkgver"
 options="!check" # No tests
-builddir="$srcdir/Vulkan-Loader-$pkgver"
 
 build() {
-	cmake -B build \
-		-DCMAKE_BUILD_TYPE=None \
+	CXXFLAGS="$CXXFLAGS -flto=auto" \
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_INSTALL_LIBDIR=lib \
 		-DCMAKE_INSTALL_SYSCONFDIR=/etc \
@@ -35,5 +38,5 @@ package() {
 }
 
 sha512sums="
-d89b16cbe162e41f9f88f3a9893b4c93b2822f43963787e7efb0a8fe122ea8cd3fb48b4aa6f8d9a733446e86bbc184dc03ace8878a9b91425b329a1045b3726b  vulkan-loader-v1.3.206.tar.gz
+d6d87e88372558758e5da6258d592c45499c13bbc8c3e2b0712d98e035ff001f26a3102d7d07404b563b8de6a4d7fd296005d729c569d0d10ad3999c98333423  vulkan-loader-sdk-1.3.231.0.tar.gz
 "
