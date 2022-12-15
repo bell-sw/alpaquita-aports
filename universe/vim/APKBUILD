@@ -1,7 +1,7 @@
 # Description:
 
 pkgname=vim
-pkgver=8.2.5000
+pkgver=9.0.0792
 pkgrel=0
 pkgdesc="Improved vi-style text editor"
 url="https://www.vim.org/"
@@ -9,12 +9,60 @@ arch="all"
 license="Vim"
 options="!check"  # some tests are failing
 depends="xxd"
-makedepends="ncurses-dev lua5.4-dev python3-dev"
+makedepends="
+	lua5.4-dev
+	ncurses-dev
+	python3-dev
+	ruby-dev
+	"
 subpackages="$pkgname-doc ${pkgname}diff::noarch $pkgname-tutor xxd"
-source="$pkgname-$pkgver.tar.gz::https://github.com/vim/vim/archive/v$pkgver.tar.gz
+source="$pkgname-$pkgver.tar.gz::https://github.com/vim/vim/archive/refs/tags/v$pkgver.tar.gz
 	vimrc
 	"
+
 # secfixes:
+#   9.0.0636-r0:
+#     - CVE-2022-3352
+#   9.0.0598-r0:
+#     - CVE-2022-3234
+#     - CVE-2022-3235
+#     - CVE-2022-3256
+#     - CVE-2022-3278
+#   9.0.0437-r0:
+#     - CVE-2022-3134
+#   9.0.0369-r0:
+#     - CVE-2022-2980
+#     - CVE-2022-2982
+#     - CVE-2022-3016
+#     - CVE-2022-3037
+#     - CVE-2022-3099
+#   9.0.0270-r0:
+#     - CVE-2022-2923
+#     - CVE-2022-2946
+#   9.0.0224-r0:
+#     - CVE-2022-2816
+#     - CVE-2022-2817
+#     - CVE-2022-2819
+#   9.0.0050-r0:
+#     - CVE-2022-2264
+#     - CVE-2022-2284
+#     - CVE-2022-2285
+#     - CVE-2022-2286
+#     - CVE-2022-2287
+#     - CVE-2022-2288
+#     - CVE-2022-2289
+#     - CVE-2022-2304
+#   8.2.5170-r0:
+#     - CVE-2022-2124
+#     - CVE-2022-2125
+#     - CVE-2022-2126
+#     - CVE-2022-2129
+#   8.2.5055-r0:
+#     - CVE-2022-1851
+#     - CVE-2022-1886
+#     - CVE-2022-1898
+#   8.2.5000-r0:
+#     - CVE-2022-1796
 #   8.2.4969-r0:
 #     - CVE-2022-1619
 #     - CVE-2022-1620
@@ -93,14 +141,17 @@ prepare() {
 }
 
 build() {
+	export CFLAGS="$CFLAGS -flto=auto"
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
 		--prefix=/usr \
-		--enable-luainterp \
+		--enable-luainterp=dynamic \
 		--enable-python3interp=dynamic \
+		--enable-rubyinterp=dynamic \
 		--without-x \
 		--disable-nls \
+		--enable-acl \
 		--enable-multibyte \
 		--enable-gui=no \
 		--with-lua-prefix=/usr/lua5.4 \
@@ -133,11 +184,12 @@ tutor() {
 	pkgdesc="vim tutor and tutor files"
 	depends="vim"
 	options="!tracedeps"
+	local _v=$(echo ${pkgver%.*} | tr -d '.')
 
 	install -d "$subpkgdir"/usr/bin
-	install -d "$subpkgdir"/usr/share/vim/vim82/tutor
+	install -d "$subpkgdir"/usr/share/vim/vim$_v/tutor
 	mv "$pkgdir"/usr/bin/vimtutor "$subpkgdir"/usr/bin
-	mv "$pkgdir"/usr/share/vim/vim82/tutor "$subpkgdir"/usr/share/vim/vim82/
+	mv "$pkgdir"/usr/share/vim/vim$_v/tutor "$subpkgdir"/usr/share/vim/vim$_v/
 }
 
 xxd() {
@@ -150,6 +202,6 @@ xxd() {
 }
 
 sha512sums="
-e914e498409c8aaf6ae505c89b65cff685de03cbfd5b078bee2ac84c57f99e5e2728dc8a4cb309cc7dd9fa8469cd67e6432ae9e5048be8008da09853560fa3e5  vim-8.2.5000.tar.gz
+aee138c659a57d91eddd3b4569580f11b48763a3c188a55e4fef77e125dfb2a06e0b6a5bbf435b6d2f0c2196f1655b6958bac1b58ee60e6acc3020a82ac24d66  vim-9.0.0792.tar.gz
 9ed58e38fe9d72f934eb507b27c18590c33c648eb7ca2639a9afdcaa1c2c4e0873a4e4252d2b6cc28127d1ded227a1e8ac338c93958526f98a3b66dbdf6afcc8  vimrc
 "
