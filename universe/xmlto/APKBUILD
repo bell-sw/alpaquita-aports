@@ -4,7 +4,7 @@
 
 pkgname=xmlto
 pkgver=0.0.28
-pkgrel=2
+pkgrel=3
 pkgdesc="Convert xml to many other formats"
 url="https://pagure.io/xmlto/"
 arch="all"
@@ -14,7 +14,6 @@ subpackages="$pkgname-doc"
 source="https://releases.pagure.org/xmlto/xmlto-$pkgver.tar.bz2"
 
 build() {
-	cd "$builddir"
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -24,12 +23,10 @@ build() {
 }
 
 check() {
-	cd "$builddir"
 	make check
 }
 
 package() {
-	cd "$builddir"
 	make -j1 DESTDIR="$pkgdir" install
 }
 
