@@ -1,35 +1,22 @@
 # Maintainer: BellSoft <info@bell-sw.com>
 pkgname=font-misc-ethiopic
 pkgver=1.0.4
-pkgrel=0
+pkgrel=2
 pkgdesc="X.org misc ethiopic fonts"
 url="https://xorg.freedesktop.org/"
 arch="noarch"
 license="MIT"
-depends="encodings font-alias mkfontscale mkfontdir fontconfig"
+depends="encodings font-alias mkfontscale fontconfig"
 makedepends="font-util-dev bdftopcf"
 source="https://www.x.org/releases/individual/font/$pkgname-$pkgver.tar.bz2"
 
-build() {
-	./configure \
-		--build=$CBUILD \
-		--host=$CHOST \
-		--prefix=/usr \
-		--sysconfdir=/etc \
-		--mandir=/usr/share/man \
-		--localstatedir=/var \
-		--with-fontrootdir=/usr/share/fonts
-	make
-}
-
 package() {
-	make DESTDIR="$pkgdir" \
-		FCCACHE=: \
-		MKFONTDIR=: \
-		MKFONTSCALE=: \
-		install || return 1
+	install -Dm644 GohaTibebZemen.otf \
+		-t "$pkgdir"/usr/share/fonts/misc-ethiopic
 	mkdir -p "$pkgdir"/usr/share/licenses/"$pkgname"
 	install -m644 COPYING "$pkgdir"/usr/share/licenses/"$pkgname"/copyright
 }
 
-sha512sums="4fed9ff3782746898c56dac199e9ca89356f4967779937049b9ff4ffad202317c023859f92d44b371dfa5485d5368ccad648e64b12cde0ed21f7d4aee5affcd5  font-misc-ethiopic-1.0.4.tar.bz2"
+sha512sums="
+4fed9ff3782746898c56dac199e9ca89356f4967779937049b9ff4ffad202317c023859f92d44b371dfa5485d5368ccad648e64b12cde0ed21f7d4aee5affcd5  font-misc-ethiopic-1.0.4.tar.bz2
+"
