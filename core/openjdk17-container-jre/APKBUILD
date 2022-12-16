@@ -1,0 +1,49 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME is a build of OpenJDK verified by the OpenJDK
+# Technology Compatibility Kit test suite to be compliant with the Java SE
+# specifications.
+
+_java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_java_ver=17.0.5+8
+_java_maj_ver=17
+_java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK ${_java_maj_ver} Container JRE (Server VM)"
+
+pkgname=${_java_pkg_name}${_java_maj_ver}-container-jre
+pkgver=${_java_ver/+/_p}
+pkgrel=0
+pkgdesc="$_java_name"
+url="$VENDOR_URL"
+license="GPL-2.0 WITH Classpath-Exception-2.0"
+arch="x86_64"
+options="!strip !tracedeps"
+depends="java-common zlib"
+makedepends="liberica${_java_maj_ver}-lite-jdk-all~${pkgver}"
+provides="openjdk${_java_maj_ver}-container-jre=${pkgver}-r${pkgrel}"
+
+builddir="$srcdir"/${pkgname}-${pkgver}
+
+_java_home=/usr/lib/jvm/"$pkgname"
+_java_jdk_home="/usr/lib/jvm/liberica${_java_maj_ver}-lite"
+
+build() {
+	"${_java_jdk_home}/bin/jlink" \
+    	--add-modules "$(cat modules | tr '\n' ',')" \
+    	--compress=0 \
+    	--no-header-files \
+    	--no-man-pages \
+    	--strip-debug \
+    	--module-path "${_java_jdk_home}/jmods" \
+    	--vm=server \
+    	--release-info "${_java_jdk_home}/release" \
+    	--output "${builddir}/${_java_home}"
+	install -D -m 644 "${_java_jdk_home}/readme.txt" "${builddir}/${_java_home}"
+}
+
+check() {
+	"${_java_jdk_home}/bin/javac" "${startdir}/HelloJava.java" -d "$builddir"
+	"${builddir}/${_java_home}/bin/java" -cp "$builddir" HelloJava
+}
+
+package() {
+	install -d -m 755 "${pkgdir}/${_java_home}"
+	cp -aR "${builddir}/${_java_home}"/* "${pkgdir}/${_java_home}/"
+}
