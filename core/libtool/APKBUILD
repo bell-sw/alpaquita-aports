@@ -19,8 +19,6 @@ checkdepends="gawk autoconf automake gzip"
 subpackages="libltdl-static libltdl $pkgname-doc"
 options="libtool"
 
-builddir="$srcdir"/$pkgname-$pkgver
-
 prepare() {
 	default_prepare
 
@@ -32,7 +30,6 @@ prepare() {
 }
 
 build() {
-	cd "$builddir"
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -47,7 +44,6 @@ check() {
 }
 
 package() {
-	cd "$builddir"
 	make DESTDIR="$pkgdir" install
 }
 
