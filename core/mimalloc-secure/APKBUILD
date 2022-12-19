@@ -1,6 +1,6 @@
 # Maintainer: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 pkgname=mimalloc-secure
-pkgver=1.7.3
+pkgver=1.7.7
 pkgrel=0
 pkgdesc="mimalloc is a general purpose allocator with guard pages, encrypted free lists"
 url="https://github.com/microsoft/mimalloc"
@@ -18,7 +18,7 @@ build() {
 	cd "$_builddir"
 
 	cmake . \
-		-DCMAKE_INSTALL_PREFIX="$pkgdir" \
+		-DCMAKE_INSTALL_PREFIX="$pkgdir/usr" \
 		-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON \
 		-DMI_SECURE=ON
 
@@ -29,15 +29,15 @@ package() {
 	cd "$_builddir"
 	make install
 
-	mkdir -p "$pkgdir"/bin/
-	cat > "$pkgdir"/bin/mimalloc-secure.sh << EOF
+	mkdir -p "$pkgdir"/usr/bin/
+	cat > "$pkgdir"/usr/bin/mimalloc-secure.sh << EOF
 #!/bin/sh
 
 LD_PRELOAD=/lib/libmimalloc-secure.so.1.7
 export LD_PRELOAD
 exec "\$@"
 EOF
-	chmod 0755 "$pkgdir"/bin/mimalloc-secure.sh
+	chmod 0755 "$pkgdir"/usr/bin/mimalloc-secure.sh
 }
 
 check() {
@@ -48,10 +48,6 @@ check() {
 dev() {
 	default_dev
 	replaces="mimalloc-dev"
-
-	mkdir -p "$subpkgdir"/usr/share/
-	mv "$pkgdir"/share/mimalloc-* "$subpkgdir"/usr/share/
-	rm -rf "$pkgdir"/share/
 }
 
 global() {
@@ -66,6 +62,6 @@ global() {
 }
 
 sha512sums="
-e5a17b98d77a27d2a544869c2e0302a7e3bf77b5b494b2ee8ddc7af18bf9da152fea41702a8a17eb7e128238259fba6f96fa5bac549f5927453dc9a0bc06d013  mimalloc-secure-1.7.3.tar.gz
+c04966215233fa60c7019121ac6e55cf346f390dbc583834f637c3e6ee40a436f45b8d764d0d9e90b7d5f1fe6b0e50d46e16db397e1fd9d753fb9faba13d3d4d  mimalloc-secure-1.7.7.tar.gz
 237d11c69c74402a78d0fb67914144653e5215170bb8047726d35d895b6edab603189d611b2b24cf783cc93fe5f6a25bae28f659d20d44054d182faeb07bbf7c  malloc.sh
 "
