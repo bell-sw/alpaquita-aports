@@ -1,0 +1,14 @@
+For some reason, get-python-config.py may fail if sys.executable is under /bin
+which is a symbolic link to /usr/bin.
+
+--- a/bindings/python/get-python-config.py
++++ b/bindings/python/get-python-config.py
+@@ -43,7 +43,7 @@
+                 raise
+     elif args.variable_name == "LLDB_PYTHON_EXE_RELATIVE_PATH":
+         tried = list()
+-        exe = sys.executable
++        exe = os.path.realpath(sys.executable)
+         prefix = os.path.realpath(sys.prefix)
+         while True:
+             try:
