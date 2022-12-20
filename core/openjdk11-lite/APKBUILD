@@ -9,13 +9,13 @@ _java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 11 Lite"
 
 pkgname=${_java_pkg_name}11-lite
 pkgver=${_java_ver/+/_p}
-pkgrel=0
+pkgrel=1
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
 arch="x86_64"
 options="!strip !tracedeps ldpath-recursive"
-depends="$pkgname-jdk=$pkgver-r$pkgrel"
+depends="$pkgname-jdk=$pkgver-r$pkgrel zlib"
 makedepends="
 	alsa-lib-dev
 	automake
@@ -129,6 +129,7 @@ build() {
 		--with-extra-ldflags=-fno-asynchronous-unwind-tables \
 		--disable-warnings-as-errors \
 		--enable-linktime-gc \
+		--with-zlib=system \
 		--with-boot-jdk=/usr/lib/jvm/${_java_pkg_name}11
 	MAKEFLAGS='' make product-bundles
 }
