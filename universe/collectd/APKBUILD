@@ -1,6 +1,6 @@
 pkgname=collectd
 pkgver=5.12.0
-pkgrel=11
+pkgrel=12
 pkgdesc="The system statistics collection daemon"
 url="https://collectd.org/"
 arch="all"
@@ -13,19 +13,12 @@ makedepends="
 	chrpath
 	curl-dev
 	eudev-dev
-	gpsd-dev
 	hiredis-dev
-	i2c-tools-dev
 	iptables-dev
 	jansson-dev
 	libatasmart-dev
-	libdbi-dev
 	libgcrypt-dev
-	libmemcached-dev
-	libmicrohttpd-dev
 	libmnl-dev
-	libmodbus-dev
-	libnotify-dev
 	liboping-dev
 	libpcap-dev
 	libpq-dev
@@ -40,13 +33,11 @@ makedepends="
 	openipmi-dev
 	openldap-dev
 	openssl-dev>3
-	owfs-dev
 	perl-dev
 	python3-dev
 	rabbitmq-c-dev
 	riemann-c-client-dev
 	rrdtool-dev
-	varnish-dev
 	yajl-dev
 	zlib-dev
 	"
@@ -85,20 +76,16 @@ _plugins="
 	apache
 	apcups
 	ascent
-	barometer
 	battery
 	bind
-	capabilities
 	ceph
 	chrony
 	connectivity
 	curl:curl*
-	dbi
 	disk
 	dns
 	email
 	exec
-	gps
 	hddtemp
 	infiniband
 	ipmi
@@ -108,17 +95,13 @@ _plugins="
 	madwifi
 	mbmon
 	mcelog
-	memcachec
 	memcached
-	modbus
 	mqtt
 	multimeter
 	mysql
 	network
 	nginx
-	notify_desktop
 	olsrd
-	onewire
 	openldap
 	openvpn
 	ovs:ovs_*
@@ -138,7 +121,6 @@ _plugins="
 	sysevent
 	teamspeak2
 	ted
-	varnish
 	vserver
 	wireless
 	write_http
@@ -195,23 +177,31 @@ build() {
 		--disable-amqp1 \
 		--disable-apple_sensors \
 		--disable-aquaero \
+		--disable-barometer \
+		--disable-capabilities \
+		--disable-dbi \
 		--disable-dcpmm \
 		--disable-dpdkevents \
 		--disable-dpdkstat \
 		--disable-dpdk_telemetry \
 		--disable-gmond \
+		--disable-gps \
 		--disable-gpu_nvidia \
 		--disable-grpc \
 		--disable-intel_pmu \
 		--disable-intel_rdt \
 		--disable-ipstats \
 		--disable-lpar \
+		--disable-memcachec \
 		--disable-mic \
+		--disable-modbus \
 		--disable-netapp \
 		--disable-netlink \
 		--disable-netstat_udp \
+		--disable-notify_desktop \
 		--disable-notify_email \
 		--disable-nut \
+		--disable-onewire \
 		--disable-oracle \
 		--disable-pf \
 		--disable-redfish \
@@ -220,6 +210,7 @@ build() {
 		--disable-slurm \
 		--disable-tape \
 		--disable-tokyotyrant \
+		--disable-varnish \
 		--disable-write_mongodb \
 		--disable-write_prometheus \
 		--disable-xencpu \
