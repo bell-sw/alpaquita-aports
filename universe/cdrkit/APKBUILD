@@ -1,41 +1,42 @@
 pkgname=cdrkit
 pkgver=1.1.11
-pkgrel=3
+pkgrel=4
 pkgdesc="Suite of programs for CD/DVD recording, ISO image creation, and audio CD extraction"
 url="http://cdrkit.org/"
 arch="all"
 options="!check"  # No test suite.
 license="GPL-2.0-only"
 depends="file bzip2"
-makedepends="cmake libcap-dev bzip2-dev zlib-dev"
+makedepends="cmake libcap-dev bzip2-dev samurai zlib-dev"
 subpackages="$pkgname-doc"
 source="https://dev.alpinelinux.org/archive/cdrkit/cdrkit-$pkgver.tar.gz
 	gcc10.patch"
 
 prepare() {
-	cd "$builddir"
 	# disable rcmd, it is security risk and not implemented in musl
 	sed -i include/xconfig.h.in -e "s/#define HAVE_RCMD 1/#undef HAVE_RCMD/g"
 	default_prepare
 }
 
 build() {
-	cd "$builddir"
-	case "$CLIBC" in
-	musl) export CFLAGS="$CFLAGS -D__THROW=''" ;;
-	esac
-	make
+	export CFLAGS="$CFLAGS -D__THROW=''"
+
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_BUILD_TYPE=None
+	cmake --build build
 }
 
 package() {
-	cd "$builddir"
-	make PREFIX="$pkgdir/usr" install
+	DESTDIR="$pkgdir" cmake --install build
+
 	cd "$pkgdir/usr/bin"
 	ln -s wodim cdrecord
 	ln -s readom readcd
 	ln -s genisoimage mkisofs
 	ln -s genisoimage mkhybrid
 	ln -s icedax cdda2wav
+
 	cd "$pkgdir/usr/share/man/man1"
 	ln -s wodim.1 cdrecord.1
 	ln -s readom.1 readcd.1
