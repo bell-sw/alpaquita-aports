@@ -9,7 +9,7 @@ _java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 11"
 
 pkgname=${_java_pkg_name}11
 pkgver=${_java_ver/+/_p}
-pkgrel=0
+pkgrel=1
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
@@ -19,6 +19,7 @@ depends="
 	$pkgname-jmods=$pkgver-r$pkgrel
 	$pkgname-doc=$pkgver-r$pkgrel
 	$pkgname-jdk=$pkgver-r$pkgrel
+	zlib
 	"
 makedepends="
 	alsa-lib-dev
@@ -113,6 +114,7 @@ build() {
 		--with-extra-cxxflags="$_cflags" \
 		--with-extra-ldflags=$LDFLAGS \
 		--disable-warnings-as-errors \
+		--with-zlib=system \
 		--with-boot-jdk=/usr/lib/jvm/$pkgname
 	MAKEFLAGS='' make product-bundles
 }
