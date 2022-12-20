@@ -16,7 +16,7 @@ license="GPL-2.0 WITH Classpath-Exception-2.0"
 arch="x86_64"
 options="!strip !tracedeps ldpath-recursive"
 annocheck_skip="libsyslookup.so"
-depends="$pkgname-jdk=$pkgver-r$pkgrel"
+depends="$pkgname-jdk=$pkgver-r$pkgrel zlib"
 makedepends="
 	alsa-lib-dev
 	automake
@@ -117,6 +117,7 @@ build() {
 		--with-extra-ldflags=-fno-asynchronous-unwind-tables \
 		--disable-warnings-as-errors \
 		--enable-linktime-gc \
+		--with-zlib=system \
 		--with-boot-jdk=/usr/lib/jvm/${_java_pkg_name}17
 	MAKEFLAGS='' make product-bundles
 }
