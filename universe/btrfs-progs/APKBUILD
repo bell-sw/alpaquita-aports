@@ -1,5 +1,5 @@
 pkgname=btrfs-progs
-pkgver=5.17
+pkgver=6.0
 pkgrel=0
 pkgdesc="BTRFS filesystem utilities"
 url="https://btrfs.wiki.kernel.org"
@@ -10,33 +10,28 @@ makedepends="$depends_dev
 	acl-dev
 	asciidoc
 	attr-dev
-	autoconf
-	automake
 	e2fsprogs-dev
-	libtool
+	eudev-dev
 	lzo-dev
 	py3-setuptools
+	py3-sphinx
 	python3-dev
 	util-linux-dev
 	xmlto
 	zlib-dev
 	zstd-dev
-	eudev-dev
-	py3-sphinx"
-subpackages="$pkgname-doc
+	"
+subpackages="
+	$pkgname-doc
 	$pkgname-static
 	$pkgname-dev
 	$pkgname-bash-completion
 	py3-$pkgname:py3
 	$pkgname-libs
-	$pkgname-extra"
+	$pkgname-extra
+	"
 source="https://www.kernel.org/pub/linux/kernel/people/kdave/btrfs-progs/btrfs-progs-v$pkgver.tar.xz"
 builddir="$srcdir/$pkgname-v$pkgver"
-
-prepare() {
-	default_prepare
-	./autogen.sh
-}
 
 build() {
 	./configure \
@@ -74,18 +69,16 @@ py3() {
 	provides="py-btrfs-progs=$pkgver-r$pkgrel"  # for backward compatibility
 	replaces="py-btrfs-progs"  # for backward compatibility
 
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/python* "$subpkgdir"/usr/lib/
+	amove usr/lib/python*
 }
 
 extra() {
 	depends="$pkgname"
 	pkgdesc="BTRFS filesystem extra utilities"
 
-	mkdir -p "$subpkgdir"
 	amove usr/sbin
 }
 
 sha512sums="
-4c2bfafe0fcae47f01bad41910c2e2b3d48a12b88ca1891a9ea63ac1e65699c2e22f481492c7dd11fbea546647ab78718ab9b6997bb257fc29d1482fde9b08d1  btrfs-progs-v5.17.tar.xz
+3ec532c7c96783da11d1c77619bfef87d9d52bf2f6df7bd89c200157052936a2bfd6c961c7e3519e7a12ec611e7b17fb4d6c3f192086bb1b4ebbf87c22cfe24a  btrfs-progs-v6.0.tar.xz
 "
