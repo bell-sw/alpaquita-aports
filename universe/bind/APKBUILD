@@ -1,5 +1,5 @@
 pkgname=bind
-pkgver=9.16.33
+pkgver=9.18.8
 _ver=${pkgver%_p*}
 _p=${pkgver#*_p}
 _major=${pkgver%%.*}
@@ -9,6 +9,7 @@ pkgdesc="The ISC DNS server"
 url="https://www.isc.org/"
 arch="all"
 license="MPL-2.0"
+options="!check" # requires bind server
 pkgusers="named"
 pkggroups="named"
 depends="dns-root-hints bind-tools"
@@ -16,23 +17,19 @@ depends_dev="$pkgname $pkgname-plugins $pkgname-tools"
 _depends_plugins="$pkgname"
 _root_keys_upstream="dnssec-root"
 _depends_root_keys="$_root_keys_upstream"
-_py3deps="py3-ply python3"
 makedepends="
 	bash
-	bsd-compat-headers
 	fstrm-dev
-	json-c-dev
 	krb5-dev
 	libcap-dev
 	libuv-dev
 	libxml2-dev
 	linux-headers
+	nghttp2-dev
 	openldap-dev
-	openssl1.1-compat-dev
+	openssl-dev>3
 	perl
 	protobuf-c-dev
-	$_py3deps
-	python3-dev
 	$_depends_root_keys
 	"
 install="$pkgname.pre-install $pkgname.post-install"
@@ -43,15 +40,12 @@ subpackages="
 	$pkgname-libs
 	$pkgname-openrc
 	$pkgname-${_root_keys_upstream}:root_keys:noarch
-	py3-$pkgname:_py3
 	$pkgname-dnssec-tools:_dnssec_tools
 	$pkgname-plugins
 	$pkgname-tools
 	"
 source="
 	https://downloads.isc.org/isc/bind$_major/$_ver/bind-$_ver.tar.xz
-	bind.plugindir.patch
-	bind.so_bsdcompat.patch
 	named.initd
 	named.confd
 	named.conf.authoritative
@@ -61,7 +55,7 @@ source="
 	"
 
 # secfixes:
-#   9.16.33-r0:
+#   9.18.7-r0:
 #     - CVE-2022-2795
 #     - CVE-2022-2881
 #     - CVE-2022-2906
@@ -136,7 +130,6 @@ prepare() {
 			-e 's:/etc/rndc.key:/etc/bind/rndc.key:g' \
 			"$i"
 	done
-	update_config_sub
 }
 
 build() {
@@ -151,28 +144,19 @@ build() {
 		--localstatedir=/var \
 		--mandir=/usr/share/man \
 		--infodir=/usr/share/info \
-		--with-dlopen=yes \
-		--with-dlz-filesystem=yes \
-		--with-dlz-ldap=yes \
-		--with-dlz-stub=yes \
-		--with-gssapi=/usr \
-		--with-libjson \
-		--with-libtool \
+		--with-gssapi=yes \
 		--with-libxml2 \
-		--with-openssl=/usr \
-		--with-python=python3 \
+		--with-openssl=yes \
 		--enable-dnstap \
 		--enable-largefile \
 		--enable-linux-caps \
 		--enable-shared \
-		--enable-static \
-		--disable-isc-spnego \
-		--disable-backtrace
+		--disable-static
 	make
 }
 
 check() {
-	./bin/named/named -V
+	make test
 }
 
 package() {
@@ -204,21 +188,13 @@ package() {
 	ln -s named.ca root.cache
 }
 
-_py3() {
-	pkgdesc="A module allowing rndc commands to be sent from Python programs"
-	depends="$_py3deps"
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/python3* "$subpkgdir"/usr/lib/
-}
-
 _dnssec_tools() {
 	pkgdesc="Utilities for DNSSEC keys and DNS zone files management"
-	depends="py3-$pkgname=$pkgver-r$pkgrel"
-	mkdir -p "$subpkgdir"/usr/sbin
+	mkdir -p "$subpkgdir"/usr/bin
 	mv  \
-		"$pkgdir"/usr/sbin/nsec3hash \
-		"$pkgdir"/usr/sbin/dnssec* \
-		"$subpkgdir"/usr/sbin/
+		"$pkgdir"/usr/bin/nsec3hash \
+		"$pkgdir"/usr/bin/dnssec* \
+		"$subpkgdir"/usr/bin/
 }
 
 
@@ -234,14 +210,18 @@ tools() {
 	pkgdesc="The ISC DNS tools"
 	depends="$depends_tools"
 
-	mkdir -p "$subpkgdir"/usr
-	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+	mkdir -p "$subpkgdir"/usr/bin
+	for i in "$pkgdir"/usr/bin/*; do
+		case "${i##*/}" in
+			named-checkconf) ;;
+			*) mv "$i" "$subpkgdir"/usr/bin ;;
+		esac
+	done
 
 	mkdir -p "$subpkgdir"/usr/sbin
 	for i in "$pkgdir"/usr/sbin/*; do
-		file "$i" | grep 'Python script' >/dev/null 2>&1 && continue || :
 		case "${i##*/}" in
-			named|named-checkconf|rndc) ;;
+			named|rndc) ;;
 			*) mv "$i" "$subpkgdir"/usr/sbin ;;
 		esac
 	done
@@ -286,10 +266,8 @@ _gpgfingerprints="
 	"
 
 sha512sums="
-43fd2cea52dfd1115a4cca83830ab5b93208be401cdbbdff2bbf204b8f0d99fb434ad3156d3a21649488cc904ae09f145feba97b9b6918b0cf063ff5e2b10af5  bind-9.16.33.tar.xz
-2b32d1e7f62cd1e01bb4fdd92d15460bc14761b933d5acc463a91f5ecd4773d7477c757c5dd2738e8e433693592cf3f623ffc142241861c91848f01aa84640d6  bind.plugindir.patch
-7167dccdb2833643dfdb92994373d2cc087e52ba23b51bd68bd322ff9aca6744f01fa9d8a4b9cd8c4ce471755a85c03ec956ec0d8a1d4fae02124ddbed6841f6  bind.so_bsdcompat.patch
-53db80f7ee4902f42fb1d0bc959242bcb6f20d95256bda99ce2c206af8b4703c7f72bb26d026c633f70451b84a37c3946b210951e34dd5d6620b181cd0183de4  named.initd
+ea6cad5276269a320fa1e666544888ed88b9d058ecab56c82aebff24e841a4ad221ce9c1209b1258884d71f7c03eed4d1c6a7e1922780073644344bc939a0e89  bind-9.18.8.tar.xz
+3d1d3e954aaee5e125f6b6f3cb660b51fc91d803df4cad43c47dbe97f19789cef20b5ca2834624668f0d761a5b81ac72db8959745d6eb293ca1154a1b390a007  named.initd
 127bdcc0b5079961f0951344bc3fad547450c81aee2149eac8c41a8c0c973ea0ffe3f956684c6fcb735a29c43d2ff48c153b6a71a0f15757819a72c492488ddf  named.confd
 d2f61d02d7829af51faf14fbe2bafe8bc90087e6b6697c6275a269ebbddcaa14a234fff5c41da793e945e8ff1de3de0858a40334e0d24289eab98df4bb721ac5  named.conf.authoritative
 3aba9763cfaf0880a89fd01202f41406b465547296ce91373eb999ea7719040bc1ac4e47b0de025a8060f693d3d88774a20d09a43fa7ac6aa43989b58b5ee8fe  named.conf.recursive
