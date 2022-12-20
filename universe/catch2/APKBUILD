@@ -1,6 +1,6 @@
 pkgname=catch2
 pkgver=2.13.9
-pkgrel=0
+pkgrel=1
 arch="all"
 url="https://github.com/catchorg/Catch2"
 pkgdesc="A modern, C++-native, header-only, test framework for unit-tests"
@@ -8,13 +8,14 @@ license="BSL-1.0"
 makedepends="
 	cmake
 	python3
+	samurai
 	"
 source="https://github.com/catchorg/Catch2/archive/v$pkgver/catch2-v$pkgver.tar.gz"
 subpackages="$pkgname-doc"
 builddir="$srcdir/Catch2-$pkgver"
 
 build() {
-	cmake -B build \
+	cmake -B build -G Ninja \
 		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_INSTALL_LIBDIR=lib \
