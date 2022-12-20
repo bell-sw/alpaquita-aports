@@ -1,5 +1,5 @@
 pkgname=abseil-cpp
-pkgver=20211102.0
+pkgver=20220623.1
 pkgrel=1
 pkgdesc="Abseil Common Libraries (C++) "
 url="https://abseil.io/"
@@ -9,19 +9,20 @@ makedepends="
 	cmake
 	gtest-dev
 	linux-headers
+	samurai
 	"
 subpackages="$pkgname-dev"
 source="https://github.com/abseil/abseil-cpp/archive/$pkgver/abseil-cpp-$pkgver.tar.gz
 	"
 
 build() {
-	cmake -B build \
+	cmake -B build -G Ninja \
 		-DCMAKE_CXX_STANDARD=17 \
 		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_INSTALL_LIBDIR=lib \
 		-DBUILD_SHARED_LIBS=ON \
-		-DBUILD_TESTING=ON \
+		-DABSL_BUILD_TESTING=ON \
 		-DABSL_USE_EXTERNAL_GOOGLETEST=ON \
 		-DABSL_PROPAGATE_CXX_STD=ON \
 		-DABSL_FIND_GOOGLETEST=ON
@@ -31,7 +32,7 @@ build() {
 # disable broken tests
 check() {
 	CTEST_OUTPUT_ON_FAILURE=TRUE ctest --test-dir build -E "absl_str_format_convert_test|absl_mutex_test\
-|absl_notification_test|absl_per_thread_sem_test|absl_sysinfo_test|absl_random_beta_distribution_test"
+|absl_notification_test|absl_per_thread_sem_test|absl_sysinfo_test|absl_random_beta_distribution_test|absl_cord_rep_btree_navigator_test"
 }
 
 package() {
@@ -39,5 +40,5 @@ package() {
 }
 
 sha512sums="
-fed68aa434c02ec6faa9d1c81f1ad35b60ec024b44957e2e0ac31e6075e385c06a3e1b616afeb4bb7c2413191fd7827d82e1f9f0796b52ed21fb2c41dd9031cf  abseil-cpp-20211102.0.tar.gz
+ab4fccd9a2bfa0c5ad4b56c8e8f8b7ec7a8eca8b6cc6959802acadd1da785e1feb078c6ac621808cd699c82717a9e637dc426d94b70a8db7f2a807059d41cbc2  abseil-cpp-20220623.1.tar.gz
 "
