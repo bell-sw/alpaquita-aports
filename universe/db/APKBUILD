@@ -4,29 +4,23 @@
 
 pkgname=db
 pkgver=5.3.28
-_ver=${pkgver}
-pkgrel=1
+pkgrel=2
 pkgdesc="The Berkeley DB embedded database system"
 url="https://www.oracle.com/technology/software/products/berkeley-db/index.html"
 arch="all"
 license="custom"
 options="!check"  # "check target not available"
-depends=
-makedepends=
 subpackages="$pkgname-dev $pkgname-doc $pkgname-utils $pkgname-c++:cxx"
 source="https://download.oracle.com/berkeley-db/db-$pkgver.tar.gz
 	atomic.patch
 	"
 
-builddir="$srcdir/db-$_ver"
 prepare() {
-	cd "$builddir"
 	default_prepare
 	update_config_sub
 }
 
 build () {
-	cd "$builddir"
 	cd build_unix
 	../dist/configure \
 		--build=$CBUILD \
@@ -41,13 +35,12 @@ build () {
 }
 
 package() {
-	cd "$builddir"/build_unix
-	make DESTDIR="$pkgdir" install
+	make -C build_unix DESTDIR="$pkgdir" install
 
 	mkdir -p "$pkgdir"/usr/share/doc
 	mv "$pkgdir"/usr/docs "$pkgdir"/usr/share/doc/$pkgname
 
-	install -D -m644 "$srcdir"/db-$_ver/LICENSE \
+	install -Dm644 LICENSE \
 		"$pkgdir"/usr/share/licenses/$pkgname/LICENSE
 }
 
