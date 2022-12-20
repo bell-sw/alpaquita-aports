@@ -4,7 +4,7 @@
 
 pkgname=bc
 pkgver=1.07.1
-pkgrel=1
+pkgrel=2
 pkgdesc="An arbitrary precision numeric processing language (calculator)"
 url="https://www.gnu.org/software/bc/bc.html"
 arch="all"
@@ -12,10 +12,8 @@ license="GPL-2.0-or-later"
 makedepends="ed flex bison readline-dev texinfo"
 subpackages="$pkgname-doc"
 source="https://ftp.gnu.org/gnu/$pkgname/$pkgname-$pkgver.tar.gz"
-builddir="$srcdir/$pkgname-$pkgver"
 
 build() {
-	cd "$builddir"
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -28,12 +26,10 @@ build() {
 }
 
 check() {
-	cd "$builddir"
 	make check
 }
 
 package() {
-	cd "$builddir"
 	make DESTDIR="$pkgdir" install
 }
 
