@@ -1,0 +1,77 @@
+From 2ad0e5ead27e2dc1f25b18f3972898695737d4c0 Mon Sep 17 00:00:00 2001
+From: Zhen Lei <thunder.leizhen@huawei.com>
+Date: Wed, 2 Nov 2022 16:49:17 +0800
+Subject: [PATCH] kallsyms: Add helper kallsyms_on_each_match_symbol()
+
+[ Upstream commit 4dc533e0f2c04174e1ae4aa98e7cffc1c04b9998 ]
+
+Function kallsyms_on_each_symbol() traverses all symbols and submits each
+symbol to the hook 'fn' for judgment and processing. For some cases, the
+hook actually only handles the matched symbol, such as livepatch.
+
+Because all symbols are currently sorted by name, all the symbols with the
+same name are clustered together. Function kallsyms_lookup_names() gets
+the start and end positions of the set corresponding to the specified
+name. So we can easily and quickly traverse all the matches.
+
+The test results are as follows (twice): (x86)
+kallsyms_on_each_match_symbol:     7454,     7984
+kallsyms_on_each_symbol      : 11733809, 11785803
+
+kallsyms_on_each_match_symbol() consumes only 0.066% of
+kallsyms_on_each_symbol()'s time. In other words, 1523x better
+performance.
+
+Signed-off-by: Zhen Lei <thunder.leizhen@huawei.com>
+Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
+Signed-off-by: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+---
+ include/linux/kallsyms.h |  2 ++
+ kernel/kallsyms.c        | 18 ++++++++++++++++++
+ 2 files changed, 20 insertions(+)
+
+diff --git a/include/linux/kallsyms.h b/include/linux/kallsyms.h
+index 481273f0c72d..d3e1303a87fc 100644
+--- a/include/linux/kallsyms.h
++++ b/include/linux/kallsyms.h
+@@ -79,6 +79,8 @@ unsigned long kallsyms_lookup_name(const char *name);
+ int kallsyms_on_each_symbol(int (*fn)(void *, const char *, struct module *,
+ 				      unsigned long),
+ 			    void *data);
++int kallsyms_on_each_match_symbol(int (*fn)(void *, unsigned long),
++				  const char *name, void *data);
+ 
+ extern int kallsyms_lookup_size_offset(unsigned long addr,
+ 				  unsigned long *symbolsize,
+diff --git a/kernel/kallsyms.c b/kernel/kallsyms.c
+index 10c7e112c75c..f1f6835e689d 100644
+--- a/kernel/kallsyms.c
++++ b/kernel/kallsyms.c
+@@ -301,6 +301,24 @@ int kallsyms_on_each_symbol(int (*fn)(void *, const char *, struct module *,
+ 	return module_kallsyms_on_each_symbol(fn, data);
+ }
+ 
++int kallsyms_on_each_match_symbol(int (*fn)(void *, unsigned long),
++				  const char *name, void *data)
++{
++	int ret;
++	unsigned int i, start, end;
++
++	ret = kallsyms_lookup_names(name, &start, &end);
++	if (ret)
++		return 0;
++
++	for (i = start; !ret && i <= end; i++) {
++		ret = fn(data, kallsyms_sym_address(get_symbol_seq(i)));
++		cond_resched();
++	}
++
++	return ret;
++}
++
+ static unsigned long get_symbol_pos(unsigned long addr,
+ 				    unsigned long *symbolsize,
+ 				    unsigned long *offset)
+-- 
+2.25.1
+
