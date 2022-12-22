@@ -1,0 +1,17 @@
+In Alpaquita, the spawn method will be actually invoked more than 1 time. See:
+
+  ../../core/python3/0100-AVX2-and-AVX512-support.patch
+
+--- a/tests/scanner/test_ccompiler.py
++++ b/tests/scanner/test_ccompiler.py
+@@ -90,8 +90,8 @@
+                 # Don't actually do anything.
+                 cc.compiler.dry_run = True
+                 cc.compile(pkg_config_cflags, cpp_includes, [source], init_sections)
+-        self.assertEqual(1, spawn.call_count)
+-        args, kwargs = spawn.call_args
++        self.assertGreaterEqual(spawn.call_count, 1)
++        args, kwargs = spawn.call_args_list[0]
+         return args[0]
+ 
+     def preprocess_args(self, environ={}, compiler_name=None,
