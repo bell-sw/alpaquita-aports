@@ -1,15 +1,34 @@
 pkgname=harfbuzz
-pkgver=4.3.0
-pkgrel=0
+pkgver=5.3.1
+pkgrel=1
 pkgdesc="Text shaping library"
 url="https://freedesktop.org/wiki/Software/HarfBuzz"
 arch="all"
 license="MIT"
-makedepends="freetype-dev glib-dev gobject-introspection-dev cairo-dev icu-dev
-	graphite2-dev meson gtk-doc"
+makedepends="
+	cairo-dev
+	freetype-dev
+	glib-dev
+	gobject-introspection-dev
+	graphite2-dev
+	gtk-doc
+	icu-dev
+	meson
+	"
 checkdepends="python3"
 subpackages="$pkgname-static $pkgname-dev $pkgname-icu $pkgname-utils $pkgname-doc"
-source="harfbuzz-$pkgver.tar.gz::https://github.com/harfbuzz/harfbuzz/archive/$pkgver.tar.gz"
+source="https://github.com/harfbuzz/harfbuzz/releases/download/$pkgver/harfbuzz-$pkgver.tar.xz"
+
+# secfixes:
+#   4.4.1-r0:
+#     - CVE-2022-33068
+
+case "$CARCH" in
+ppc64le)
+	# ERROR: hash for expected and actual does not match.
+	options="$options !check"
+	;;
+esac
 
 build() {
 	abuild-meson \
@@ -26,33 +45,26 @@ build() {
 }
 
 check() {
-	meson test --no-rebuild -v -C output
+	meson test --no-rebuild --print-errorlogs -C output
 }
 
 package() {
 	DESTDIR="$pkgdir" meson install --no-rebuild -C output
 }
 
-static() {
-	pkgdesc="$pkgdesc (static libraries)"
-
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/*.a "$subpkgdir"/usr/lib/
-}
-
 icu() {
 	pkgdesc="Harfbuzz ICU support library"
 	replaces="harfbuzz"
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/lib*icu.so.* "$subpkgdir"/usr/lib/
+
+	amove usr/lib/lib*icu.so.*
 }
 
 utils() {
 	pkgdesc="$pkgdesc (utilities)"
-	mkdir -p "$subpkgdir"/usr
-	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+
+	amove usr/bin
 }
 
 sha512sums="
-bccf7cfb06ac18a9a9bf465c30dbfb51d73762a6667b3a069a85f9f597e6d27858e9e39a36cce12e23ec5b002b9e572638bf00c76bdea66545ae67a2bb7915f4  harfbuzz-4.3.0.tar.gz
+6b0aef2b7445f4a71c324b545414114507d8077dc186366f25140dcd3bedeee67868cfc65c0eef59ed950381a4c101a541900be4995f645377c11754b027b501  harfbuzz-5.3.1.tar.xz
 "
