@@ -1,38 +1,39 @@
 pkgname=nuspell
-pkgver=5.1.0
+pkgver=5.1.2
 pkgrel=1
 pkgdesc="Free and open source C++ spell checking library"
 url="https://nuspell.github.io/"
 arch="all"
 license="LGPL-3.0-or-later"
-makedepends="cmake icu-dev ronn catch2"
-checkdepends="icu-data-full"
-subpackages="$pkgname-dev $pkgname-doc"
+makedepends="cmake icu-dev ronn samurai"
+checkdepends="catch2 icu-data-full"
+subpackages="$pkgname-dev $pkgname-libs $pkgname-doc"
 source="https://github.com/nuspell/nuspell/archive/v$pkgver/nuspell-$pkgver.tar.gz"
 
 build() {
 	if [ "$CBUILD" != "$CHOST" ]; then
 		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
 	fi
-	cmake \
+
+	CXXFLAGS="$CXXFLAGS -flto=auto" \
+	cmake -B build -G Ninja \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_INSTALL_LIBDIR=lib \
 		-DBUILD_SHARED_LIBS=True \
 		-DCMAKE_BUILD_TYPE=None \
-		-DCMAKE_CXX_FLAGS="$CXXFLAGS" \
-		-DCMAKE_C_FLAGS="$CFLAGS" \
-		$CMAKE_CROSSOPTS .
-	make
+		-DBUILD_TESTING="$(want_check && echo ON || echo OFF)" \
+		$CMAKE_CROSSOPTS
+	cmake --build build
 }
 
 check() {
-	CTEST_OUTPUT_ON_FAILURE=TRUE ctest
+	CTEST_OUTPUT_ON_FAILURE=TRUE ctest --test-dir build
 }
 
 package() {
-	make DESTDIR="$pkgdir" install
+	DESTDIR="$pkgdir" cmake --install build
 }
 
 sha512sums="
-08ce776d224c66ba4bdd8cb22943741f30e8e5ba03396bfef1db598321c9b0f8814dacffcb52287b3b669426c7b08e2c1a40323341a9ff9768a7187002e1d77a  nuspell-5.1.0.tar.gz
+138212ae5340836f0bc85d9d5327dc43ffdb1481ca72678b4619938b86c4c8e7c156eec1446f459636460a9015cd476031ad53d0979325e637ed97c19e2f87c8  nuspell-5.1.2.tar.gz
 "
