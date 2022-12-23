@@ -1,13 +1,23 @@
 pkgname=gradle
 pkgver=7.5.1
-pkgrel=0
+pkgrel=3
 pkgdesc="Build tool with a focus on build automation and support for multi-language development"
 url="https://gradle.org/"
 arch="noarch !mips64 !riscv64"
 options="!check"
 license="Apache-2.0"
-depends="java-jdk"
 source="https://services.gradle.org/distributions/gradle-$pkgver-bin.zip"
+
+# largest supported version in community
+case "$CARCH" in
+ppc64le|s390x|arm*|x86)
+	depends="openjdk8"
+	;;
+*)
+	depends="openjdk17-jdk"
+	;;
+esac
+
 
 # secfixes:
 #   7.4.2-r0:
