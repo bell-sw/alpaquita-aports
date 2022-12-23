@@ -1,28 +1,21 @@
 pkgname=gtk+2.0
 pkgver=2.24.33
-pkgrel=3
+pkgrel=7
 pkgdesc="The GTK+ Toolkit (v2)"
 url="https://www.gtk.org/"
 install="$pkgname.post-install $pkgname.post-upgrade $pkgname.post-deinstall"
-triggers="gtk-update-icon-cache.trigger=/usr/share/icons/*"
 arch="all"
 options="!check"  # Requires xvfb, resulting in eventual circular dependency
 license="LGPL-2.0-or-later"
 subpackages="
-	gtk-update-icon-cache:icon_cache
 	$pkgname-dbg
 	$pkgname-dev
 	$pkgname-doc
 	$pkgname-lang
 	"
 depends="shared-mime-info gtk-update-icon-cache"
-
-replaces="gtk+"
-replaces_dev="gtk+-dev"
-replaces_doc="gtk+-doc"
-
 depends_dev="
-	atk-dev
+	at-spi2-core-dev
 	cairo-dev
 	intltool
 	libxdamage-dev
@@ -47,9 +40,10 @@ makedepends="
 	libxcursor-dev
 	libxext-dev
 	libxfixes-dev
-	libxrandr-dev
 	libxi-dev
-	zlib-dev"
+	libxrandr-dev
+	zlib-dev
+	"
 source="https://download.gnome.org/sources/gtk+/${pkgver%.*}/gtk+-$pkgver.tar.xz
 	xid-collision-debug.patch
 	gtk2-fixdso.patch
@@ -66,6 +60,7 @@ prepare() {
 }
 
 build() {
+	CFLAGS="$CFLAGS -flto=auto" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -85,25 +80,18 @@ build() {
 
 package() {
 	make DESTDIR="$pkgdir" install
+
+	# use gtk-update-icon-cache from gtk+3.0
+	rm -f "$pkgdir"/usr/bin/gtk-update-icon-cache
+	rm -f "$pkgdir"/usr/share/man/man1/gtk-update-icon-cache.1
 }
 
 dev() {
-	mkdir -p "$subpkgdir"/usr/bin "$subpkgdir"/usr/share/
-	mv "$pkgdir"/usr/share/gtk-2.0 "$subpkgdir"/usr/share/
+	amove usr/share/gtk-2.0
 	default_dev
-	replaces="gtk+2.0"
-	mv "$pkgdir"/usr/bin/gtk-builder-convert \
-		"$pkgdir"/usr/bin/gtk-demo \
-		"$subpkgdir"/usr/bin
-}
-
-icon_cache() {
-	depends="hicolor-icon-theme"
-	replaces="gtk4.0" # gtk4-update-icon-cache
-
-	# provide gtk4 symlink too
-	amove usr/bin/gtk-update-icon-cache
-	ln -s gtk-update-icon-cache "$subpkgdir"/usr/bin/gtk4-update-icon-cache
+	amove \
+		usr/bin/gtk-builder-convert \
+		usr/bin/gtk-demo
 }
 
 sha512sums="
