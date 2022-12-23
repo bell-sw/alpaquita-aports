@@ -1,6 +1,6 @@
 pkgname=qemu
-pkgver=7.0.0
-pkgrel=0
+pkgver=7.1.0
+pkgrel=4
 pkgdesc="QEMU is a generic machine emulator and virtualizer"
 url="https://qemu.org/"
 arch="all"
@@ -10,6 +10,7 @@ makedepends="
 	bash
 	alsa-lib-dev
 	bison
+	capstone-dev
 	curl-dev
 	flex
 	glib-dev
@@ -23,6 +24,7 @@ makedepends="
 	libnfs-dev
 	libpng-dev
 	libseccomp-dev
+	libslirp-dev
 	libssh-dev
 	liburing-dev
 	libusb-dev
@@ -49,7 +51,6 @@ makedepends="
 	zlib-dev
 	zlib-static
 	zstd-dev
-	zstd-static
 	"
 pkggroups="qemu"
 install="$pkgname.pre-install $pkgname.post-install $pkgname.pre-upgrade"
@@ -87,6 +88,7 @@ _subsystems="
 	hexagon
 	hppa
 	i386
+	loongarch64
 	m68k
 	microblaze
 	microblazeel
@@ -116,6 +118,7 @@ _subsystems="
 	system-cris
 	system-hppa
 	system-i386
+	system-loongarch64
 	system-m68k
 	system-microblaze
 	system-microblazeel
@@ -191,18 +194,27 @@ source="https://wiki.qemu-project.org/download/qemu-$pkgver.tar.xz
 	MAP_SYNC-fix.patch
 	fix-sockios-header.patch
 	guest-agent-shutdown.patch
-	glibc:statx_stx_mnt_id.patch
 	musl:musl-initialise-msghdr.patch
+	fix-liburing.patch
 
 	CVE-2021-20255.patch
+	CVE-2022-2962.patch
+	CVE-2022-3165.patch
 
 	$pkgname-guest-agent.confd
 	$pkgname-guest-agent.initd
 	80-kvm.rules
 	bridge.conf
+
+	glibc:0100-statx_stx_mnt_id.patch
 	"
 
 # secfixes:
+#   7.1.0-r4:
+#     - CVE-2022-2962
+#     - CVE-2022-3165
+#   7.0.0-r0:
+#     - CVE-2021-4158
 #   6.1.0-r0:
 #     - CVE-2020-35503
 #     - CVE-2021-3507
@@ -285,7 +297,17 @@ source="https://wiki.qemu-project.org/download/qemu-$pkgver.tar.xz
 #     - CVE-2017-5931
 
 _compile_common() {
-	CFLAGS="${CFLAGS/-Os/-O2}" "$builddir"/configure \
+	case "$CARCH" in
+	riscv64)
+		# binutils bug for lto
+		export CFLAGS="${CFLAGS/-Os/-O2}"
+		;;
+	*)
+		export CFLAGS="${CFLAGS/-Os/-O2} -flto=auto"
+		;;
+	esac
+
+	"$builddir"/configure \
 		--prefix=/usr \
 		--localstatedir=/var \
 		--sysconfdir=/etc \
@@ -312,30 +334,31 @@ build() {
 		--enable-linux-user \
 		--disable-system \
 		--static \
+		--disable-brlapi \
+		--disable-cap-ng \
+		--disable-capstone \
+		--disable-curl \
+		--disable-curses \
 		--disable-docs \
-		--disable-sdl \
+		--disable-gcrypt \
+		--disable-gnutls \
 		--disable-gtk \
-		--disable-spice \
-		--disable-tools \
 		--disable-guest-agent \
 		--disable-guest-agent-msi \
-		--disable-curses \
-		--disable-curl \
-		--disable-gnutls \
-		--disable-gcrypt \
-		--disable-nettle \
-		--disable-cap-ng \
-		--disable-brlapi \
-		--disable-mpath \
 		--disable-libnfs \
+		--disable-mpath \
+		--disable-nettle \
 		--disable-numa \
-		--disable-capstone
+		--disable-sdl \
+		--disable-spice \
+		--disable-tools
 
 	cd "$builddir"/build
 	_compile_common \
 		--disable-linux-user \
 		--audio-drv-list=oss,alsa,sdl,pa \
 		--enable-cap-ng \
+		--enable-capstone \
 		--enable-curl \
 		--enable-curses \
 		--enable-docs \
@@ -359,9 +382,7 @@ build() {
 		--enable-virtfs \
 		--enable-vnc \
 		--enable-vnc-jpeg \
-		--enable-vnc-png \
-		--enable-zstd \
-		--tls-priority=@QEMU,SYSTEM
+		--enable-zstd
 }
 
 check() {
@@ -541,17 +562,20 @@ _all_modules() {
 }
 
 sha512sums="
-44ecd10c018a3763e1bc87d1d35b98890d0d5636acd69fe9b5cadf5024d5af6a31684d60cbe1c3370e02986434c1fb0ad99224e0e6f6fe7eda169992508157b1  qemu-7.0.0.tar.xz
-98db5e23397cfad4a7210f9f7e1c5fa5c48f065785439521c5b39325c429f2dc367c40925adff6aa8677b3192a1a98a30e93d5b9c879df523deb019c40edd9d9  0006-linux-user-signal.c-define-__SIGRTMIN-MAX-for-non-GN.patch
-4b1e26ba4d53f9f762cbd5cea8ef6f8062d827ae3ae07bc36c5b0c0be4e94fc1856ad2477e8e791b074b8a25d51ed6d0ddd75e605e54600e5dd0799143793ce4  xattr_size_max.patch
-d7de79ea74e36702cac4a59e472564a55f0a663be7e63c3755e32b4b5dfbc04b390ee79f09f43f6ae706ee2aec9e005eade3c0fd4a202db60d11f436874a17d7  MAP_SYNC-fix.patch
-39590476a4ebd7c1e79a4f0451b24c75b1817a2a83abaa1f71bb60b225d772152f0af8f3e51ff65645e378c536ffa6ff551dade52884d03a14b7c6a19c5c97d4  fix-sockios-header.patch
-d6b81846cefd46b8fd1fb04450d4898f97dc77d11e049fb1bc8e2553bbb88c8325151d0e4bec70cc6820a5863c1d1749b99100b4747d91182856c3ca1946cb28  guest-agent-shutdown.patch
-5c33e9624f11929f57d93074a6f13012d35835b9f8d857188247fa2de8d8b6fe2f06272adf19c30eb3cda270089e92f683cb93d7928b09f4188c11dfde429628  statx_stx_mnt_id.patch
-7387fb02371268072291c80c54a2785030a55aeb697c5e84a1c7a0179c42059338a70f384602a508d2189d63f35a2ca3591109dcc9ab8bc1ccfcc9dd7e89d0a5  musl-initialise-msghdr.patch
-e9389a6e3b2c3b59f66ea13eb7a3515e87341a68ca14afeb1ddd0084717bf4a13f5f58dc41dadbf0f2faf8fe1ae94ba7d1469c41539c79e45fa1624c6081e904  CVE-2021-20255.patch
+c60c5ff8ec99b7552e485768908920658fdd8035ff7a6fa370fb6881957dc8b7e5f18ff1a8f49bd6aa22909ede2a7c084986d8244f12074ccd33ebe40a0c411f  qemu-7.1.0.tar.xz
+b392f229e631d149d28eb952dcd507d9e5b6975cbba123fd3dab10860fa1936d5035d8e266926652acc1d7cde6874c440beccd33d729bf346769d2c138ebbc01  0006-linux-user-signal.c-define-__SIGRTMIN-MAX-for-non-GN.patch
+2c6b3b22877674f870958bb0c74ad85c814f01c98fb123142b1ce77d89adf5c08626e6eade7f627090a53b48f5cebe2a535547804345648cff91dd66f90c2d5b  xattr_size_max.patch
+7672a3518050f275219920f2cb088f6991ac810dba077856129d779fdf45a3e8c0302c8ca4aa58c0c38e44af80f56404006b3f250e4921fb364cd6fe7149e6ea  MAP_SYNC-fix.patch
+54d26c3c44730fbd2a155431558fba6a1a3f25d8c057a8e5b8b0d802cb2b6c8a12545a16069fff1b9888a15d6cb087e9750d5e2c310dfc1a3fc756509d3d963e  fix-sockios-header.patch
+8eed250bea980a35f4f50365e904f56aa4751aeeb2ba9a6bbc6ad27ab9842cf3c773e48be058d9456278d1cc4006e5e80e368cbcb429ccb28a25df92b11477d7  guest-agent-shutdown.patch
+7a6340df8aa28811af20cd23b98ba95fc8072d4d4d3a2d497604386396892cf26716d0755821e47d02c8eded203133d7dde100537c117e2a047179e4f93883cf  musl-initialise-msghdr.patch
+87275178be9ba2a75922277cb4287db3ab9cbd1232f3bf4aacafe9ec02ab65167c3e577f1d0dd4fe3701628e0b2c0f7a1ab7ae4a90cda11ca6bdab3d7ae87806  fix-liburing.patch
+25778c29c1f2bf40572125a7b39a01227e3165ed555add44de72a714e4b9d5a91b1504f69d0df55b4e178035813d4c3eca5be048d9afa5e3647d13df3e2f5a30  CVE-2021-20255.patch
+396fffded43e0824503db280ffc93f959e0f347198fc636e87bf05efa2dd2e97b3154b77ce2fa7e0c91d83684c5ea990dd98e598e117db3d27edcd8139f6454a  CVE-2022-2962.patch
+1fa6da45abea14d45754659d458918d136e2aa60d16aebdcd5dd5113f3bd2d47fab2890bf930dd2b0fe98f25108982c00210c03962feefd417b8f0a8db1c830e  CVE-2022-3165.patch
 d90c034cae3f9097466854ed1a9f32ab4b02089fcdf7320e8f4da13b2b1ff65067233f48809911485e4431d7ec1a22448b934121bc9522a2dc489009e87e2b1f  qemu-guest-agent.confd
 714436d809451e81cbb5aa2d8208ec0fa3fcd0aa9fb8a7d95509f58712841675fd6d528235dced7f8e1a92fdef1a0c2053c8e19e653432cc0b5888526bb3186b  qemu-guest-agent.initd
 9b7a89b20fcf737832cb7b4d5dc7d8301dd88169cbe5339eda69fbb51c2e537d8cb9ec7cf37600899e734209e63410d50d0821bce97e401421db39c294d97be2  80-kvm.rules
 749efa2e764006555b4fd3a8e2f6d1118ad2ea4d45acf99104a41a93cfe66dc9685f72027c17d8211e5716246c2a52322c962cf4b73b27541b69393cd57f53bb  bridge.conf
+5c33e9624f11929f57d93074a6f13012d35835b9f8d857188247fa2de8d8b6fe2f06272adf19c30eb3cda270089e92f683cb93d7928b09f4188c11dfde429628  0100-statx_stx_mnt_id.patch
 "
