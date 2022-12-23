@@ -1,11 +1,26 @@
 pkgname=grpc
-pkgver=1.46.3
+pkgver=1.50.1
 pkgrel=0
-pkgdesc="The C based gRPC (C++, Python, Ruby, Objective-C, PHP, C#)"
+pkgdesc="The C based gRPC"
 url="https://grpc.io/"
 arch="all"
-license="Apache-2.0"
-depends="protobuf"
+# BSD-3-Clause: third_party/upb, third_party/address_sorting
+# MIT: third_party/upb/third_party/utf8_range
+license="Apache-2.0 AND BSD-3-Clause AND MIT"
+depends="ca-certificates"
+depends_dev="
+	$pkgname-cpp=$pkgver-r$pkgrel
+	$pkgname-plugins=$pkgver-r$pkgrel
+	"
+_pythondepends="
+	cython
+	python3-dev
+	py3-setuptools
+	"
+_rubydepends="
+	$pkgname=$pkgver-r$pkgrel
+	ruby-google-protobuf>=3.19
+	"
 makedepends="
 	abseil-cpp-dev
 	autoconf
@@ -14,23 +29,38 @@ makedepends="
 	c-ares-dev
 	chrpath
 	cmake
-	musl:libexecinfo-dev
 	libstdc++
 	libtool
 	linux-headers
-	openssl1.1-compat-dev
+	openssl-dev>3
 	protobuf-dev
 	re2-dev
+	ruby-dev
 	samurai
 	yaml-dev
+	xxhash-dev
 	zlib-dev
+	$_pythondepends
+	$_rubydepends
 	"
 checkdepends="coreutils python3 py3-six"
-subpackages="$pkgname-dev $pkgname-doc"
+subpackages="
+	$pkgname-dev
+	$pkgname-cpp
+	$pkgname-plugins
+	$pkgname-doc
+	py3-grpcio:grpcio
+	ruby-grpc:_ruby
+	"
 _googletest_rev=0e402173c97aea7a00749e825b194bfede4f2e45
 source="https://github.com/grpc/grpc/archive/v$pkgver/grpc-v$pkgver.tar.gz
 	googletest-$_googletest_rev.tar.gz::https://github.com/google/googletest/archive/$_googletest_rev.tar.gz
 	01-chttp2-maybe-uninitialized.patch
+	ruby-dont-strip-library.patch
+	ruby-fix-protoc-path.patch
+	ruby-use-shared-libs.patch
+	ruby-use-system-certs.patch
+	makefile-use-system-abseil.patch
 	"
 options="!check" # sometimes hang indefinitely on builders
 
@@ -38,16 +68,42 @@ prepare() {
 	rm -r third_party/googletest
 	mv "$srcdir"/googletest-$_googletest_rev third_party/googletest
 
+	# Remove bundled xxhash.
+	# Since grpc sets XXH_INCLUDE_ALL wherever it uses xxhash, it is using xxhash
+	# as a header-only library. This means we can replace it with the system copy
+	# by doing nothing further; xxhash.h is in the system include path and will be
+	# found instead, and there are no linker flags to add. See also
+	# https://github.com/grpc/grpc/issues/25945.
+	rm -rvf third_party/xxhash/*
+
+	# This will be replaced with a symlink to system certs.
+	echo '' > etc/roots.pem
+
 	default_prepare
+
+	# Remove some bundled dependencies from the gem's files list.
+	sed -i \
+		-e '/etc\/roots.pem/d' \
+		-e '/third_party\/abseil/d' \
+		-e '/third_party\/boringssl/d' \
+		-e '/third_party\/cares/d' \
+		-e '/third_party\/re2/d' \
+		-e '/third_party\/xxhash/d' \
+		-e '/third_party\/zlib/d' \
+		grpc.gemspec
+
+	# Remove unused dependency from gemspec - it's not required anyhwere,
+	# it's just Google pushing their crap everywhere...
+	sed -i '/add_dependency.*googleapis-common-protos-types/d' \
+		grpc.gemspec
 }
 
 build() {
-	cmake -B build \
+	cmake -B _build \
 		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_CXX_FLAGS="$CXXFLAGS -w" \
 		-DCMAKE_C_FLAGS="$CFLAGS -w" \
-		-DCMAKE_INSTALL_LIBDIR=lib \
 		-DCMAKE_CXX_STANDARD=17 \
 		-DBUILD_SHARED_LIBS=True \
 		-DgRPC_INSTALL=ON \
@@ -58,16 +114,40 @@ build() {
 		-DgRPC_ABSL_PROVIDER=package \
 		-DgRPC_BENCHMARK_PROVIDER=package \
 		-DgRPC_RE2_PROVIDER=package \
+		-DgRPC_BACKWARDS_COMPATIBILITY_MODE=OFF \
 		-DgRPC_BUILD_TESTS="$(want_check && echo ON || echo OFF)" \
 		-G Ninja
-	cmake --build build
+	cmake --build _build
+
+	GRPC_PYTHON_CFLAGS="-std=c++17" \
+	GRPC_PYTHON_DISABLE_LIBC_COMPATIBILITY=1 \
+	GRPC_PYTHON_BUILD_SYSTEM_CARES=1 \
+	GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1 \
+	GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1 \
+	GRPC_PYTHON_BUILD_SYSTEM_RE2=1 \
+	GRPC_PYTHON_BUILD_SYSTEM_ABSL=1 \
+	python3 setup.py build
+
+	# grpcio-tools
+	cd tools/distrib/python
+	python3 make_grpcio_tools.py
+
+	cd "$builddir"
+	gem build grpc.gemspec
+	TOPDIR="$PWD/_build" gem install \
+		--local \
+		--install-dir _build/ruby \
+		--ignore-dependencies \
+		--no-document \
+		--verbose \
+		grpc-$pkgver.gem
 }
 
 check() {
 	# delete times out in ci or broken for ci tests
-	rm -f build/spinlock_test build/resolve_address_using_ares_resolver_posix_test build/resolve_address_using_native_resolver_posix_test
-	rm -f build/flaky_network_test build/unknown_frame_bad_client_test build/ssl_transport_security_test build/httpscli_test
-	rm -f build/headers_bad_client_test build/httpcli_test
+	rm -f _build/spinlock_test _build/resolve_address_using_ares_resolver_posix_test build/resolve_address_using_native_resolver_posix_test
+	rm -f _build/flaky_network_test _build/unknown_frame_bad_client_test _build/ssl_transport_security_test _build/httpscli_test
+	rm -f _build/headers_bad_client_test _build/httpcli_test
 
 	# start helper
 	./tools/run_tests/start_port_server.py &
@@ -77,27 +157,90 @@ check() {
 }
 
 package() {
-	DESTDIR="$pkgdir" cmake --install build
+	DESTDIR="$pkgdir" cmake --install _build
+
 	cd doc
 	find ./ -type f -print -exec install -Dm644 {} "$pkgdir"/usr/share/doc/grpc/{} \;
 	rm "$pkgdir"/usr/share/doc/grpc/.gitignore
 
-	rm  "$pkgdir"/usr/share/grpc/roots.pem
+	find "$pkgdir" -type f -name roots.pem -exec \
+		sh -c 'rm $0 && ln -s /etc/ssl/certs/ca-certificates.crt $0' "{}" \;
+}
+
+cpp() {
+	pkgdesc="C++ language bindings for gRPC"
+	depends="$pkgname=$pkgver-r$pkgrel"
+
+	amove usr/lib/libgrpc++*.so.*
+	amove usr/lib/libgrpc_plugin_support.so.*
+	amove usr/lib/libgrpcpp*.so.*
+}
+
+plugins() {
+	pkgdesc="Protocol buffers compiler plugins for gRPC"
+	depends="$pkgname-cpp=$pkgver-r$pkgrel protobuf"
+
+	amove usr/bin/grpc_*_plugin
 }
 
 cli() {
 	pkgdesc="gRPC command line tool"
 
-	install -Dm644 -t "$subpkgdir"/usr/lib "$builddir"/build/libgrpc++_test_config.so.$pkgver
-	install -Dm755 -t "$subpkgdir"/usr/bin "$builddir"/build/grpc_cli
+	install -Dm644 -t "$subpkgdir"/usr/lib "$builddir"/_build/libgrpc++_test_config.so.$pkgver
+	install -Dm755 -t "$subpkgdir"/usr/bin "$builddir"/_build/grpc_cli
 
 	# Fix "Has /home/... in rpath"
 	chrpath -d "$subpkgdir"/usr/lib/libgrpc++_test_config.so.$pkgver
 	chrpath -d "$subpkgdir"/usr/bin/grpc_cli
 }
 
+grpcio() {
+	pkgdesc="gRPC Python HTTP/2-based RPC framework"
+	depends="py3-six"
+	cd "$builddir"
+	python3 setup.py install --skip-build --prefix=/usr --root="$subpkgdir"
+}
+
+_ruby() {
+	pkgdesc="Send RPCs from Ruby using GRPC"
+	depends="$_rubydepends"
+
+	local gemdir="$subpkgdir/$(ruby -e 'puts Gem.default_dir')"
+
+	cd "$builddir"/_build/ruby
+
+	mkdir -p "$gemdir"
+	cp -r extensions gems specifications "$gemdir"/
+
+	# Remove unnecessary files and rubbish...
+	cd "$gemdir"/extensions/*/*/grpc-$pkgver
+	rm gem_make.out mkmf.log || true
+
+	cd "$gemdir"/gems/grpc-$pkgver
+	rm -rf .yardopts \
+		Makefile \
+		include/ \
+		src/core/ \
+		third_party/
+
+	cd src/ruby
+	rm -rf bin/ \
+		ext/ \
+		lib/grpc/*.so \
+		pb/generate_proto_ruby.sh \
+		pb/README.md \
+		pb/src/ \
+		pb/test/ \
+		spec/
+}
+
 sha512sums="
-e80322b65c6f8d64dc91bce9f612119191e8d329cac2fbc5da6dad9a2a7ccaa7a501470ed483e555c3ba596e8aff796fbda2747f09e9c4329aed3de4d9b6b666  grpc-v1.46.3.tar.gz
+7c90ec9fd073980218f69eda704dbfb526dbd2f7f864135bdc6bd064789d1d8889127a253493196e617b0b90dddf1204ca9344c5e585ab0f0ca5c2a2a0a22ef1  grpc-v1.50.1.tar.gz
 5c5eaf6ff9f3c1bca025b7ef0234ba97232ba85b43e6354a92f49b7208f5c47581ebaf18bf58618498e5d264f2620c2b6676e81bb0f7df77112b96ba271ececf  googletest-0e402173c97aea7a00749e825b194bfede4f2e45.tar.gz
 7fa146ce86ddd4f160bb1ca9ff01cb7aca6b2b8c9aa50e4fa6b84504b9117b104be0d1e31ccb452d846549dfe1e9012ceccfcdc1f2357ed567621d71fb8b08c5  01-chttp2-maybe-uninitialized.patch
+b32b23578fa868a389a2db693e2de1a24ee33a7aaeeeb8f410c0d87b25727cd94c5af41f5e668dfcad6c516667989900999230a3e9b16abe2f8de75c44aa67a1  ruby-dont-strip-library.patch
+4ea72d2acd8bee9c9022a4412aa0af0477faca7b0810d14decb3ad5d4da044247f51189512323bfee855b9b260a7f82b812310391451e5d8ee718297800d7a73  ruby-fix-protoc-path.patch
+160781d7eb54c36926e9feb5f42796d1f1ce3a34a080904768ccef174a7954650a7e98976581208bec724d8d5921639996f1d0db6dcc77dd9086d1201c35df74  ruby-use-shared-libs.patch
+631af4b9ac29c1ebabb2c88394ea2993e36cec1beda38195e1587dbd9d3c8c9eef75a17d2326d3cd2e682de551401216075ba08fdc501c098b8092d718ded381  ruby-use-system-certs.patch
+89e260934da83eb45fa6b73884cba1b1c30f99c0eb883a726e2d36ee4788246f4c6fa1b201077038af956bcb58e625f83bedba4f186c711785ec240373ce4fc5  makefile-use-system-abseil.patch
 "
