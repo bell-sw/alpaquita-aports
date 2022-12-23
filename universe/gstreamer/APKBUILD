@@ -1,5 +1,5 @@
 pkgname=gstreamer
-pkgver=1.20.3
+pkgver=1.20.4
 pkgrel=0
 pkgdesc="GStreamer streaming media framework"
 url="https://gstreamer.freedesktop.org"
@@ -13,6 +13,7 @@ makedepends="$depends_dev
 	glib-dev
 	gobject-introspection-dev
 	libcap-dev
+	libcap-utils
 	meson
 	perl
 	"
@@ -32,6 +33,7 @@ options="!check"  # FIXME: two tests fail
 
 build() {
 	abuild-meson \
+		-Db_lto=true \
 		-Dintrospection=enabled \
 		-Dbash-completion=disabled \
 		-Dptp-helper-permissions=capabilities \
@@ -42,7 +44,7 @@ build() {
 }
 
 check() {
-	meson test --no-rebuild -v -C output
+	meson test --no-rebuild --print-errorlogs -C output
 }
 
 package() {
@@ -76,5 +78,5 @@ tools() {
 }
 
 sha512sums="
-e93f9fbf2d7a839dcbe2030ed16dd53eb250741db7c2f1cea396c23e4fabf9a0caff6be4babf7c10aec4b56dc8319a970b1b0bfa6eea2e36aed3e6e1265d9278  gstreamer-1.20.3.tar.xz
+33ba08e67b21a3e2e5dc5caeeae66e561b9d64ae863331a209e711f60a652ba38635e8bb963336e73b9afd5cf38e17139fbf933ca621d040f0d6e22a18ba7ad8  gstreamer-1.20.4.tar.xz
 "
