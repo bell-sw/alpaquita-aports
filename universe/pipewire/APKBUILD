@@ -1,6 +1,6 @@
 pkgname=pipewire
 pkgver=0.3.59
-pkgrel=3
+pkgrel=4
 pkgdesc="Multimedia processing graphs"
 url="https://pipewire.org/"
 arch="all"
@@ -19,7 +19,6 @@ makedepends="
 	gst-plugins-base-dev
 	gstreamer-dev
 	jack-dev
-	libcamera-dev
 	libfreeaptx-dev
 	libusb-dev
 	libx11-dev
@@ -28,7 +27,6 @@ makedepends="
 	pulseaudio-dev
 	py3-docutils
 	readline-dev
-	roc-toolkit-dev
 	sbc-dev
 	vulkan-loader-dev
 	webrtc-audio-processing-dev
@@ -72,8 +70,8 @@ build() {
 		-Dsystemd=disabled \
 		-Dvulkan=enabled \
 		-Dsdl2=disabled \
-		-Dlibcamera=enabled \
-		-Droc=enabled \
+		-Dlibcamera=disabled \
+		-Droc=disabled \
 		-Dsession-managers=[] \
 		. output
 	meson compile ${JOBS:+-j ${JOBS}} -C output
