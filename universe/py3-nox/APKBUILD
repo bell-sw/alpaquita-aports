@@ -1,0 +1,42 @@
+pkgname=py3-nox
+pkgver=2022.8.7
+pkgrel=0
+pkgdesc="Flexible test automation for Python"
+url="https://nox.thea.codes/"
+arch="noarch"
+license="Apache-2.0"
+depends="
+	py3-argcomplete
+	py3-colorlog
+	py3-packaging
+	py3-py
+	py3-setuptools
+	py3-virtualenv
+	py3-wheel
+	python3
+	"
+makedepends="py3-build py3-installer"
+checkdepends="py3-pytest py3-tox"
+source="https://github.com/theacodes/nox/archive/$pkgver/py3-nox-$pkgver.tar.gz"
+builddir="$srcdir/nox-$pkgver"
+
+build() {
+	python3 -m build --skip-dependency-check --no-isolation --wheel .
+}
+
+check() {
+	python3 -m venv --system-site-packages test-env
+	test-env/bin/python3 -m pip install --no-deps \
+		"$builddir"/dist/nox-$pkgver-py3-none-any.whl
+	# all tox_to_nox tests have python2.7 hardcoded
+	test-env/bin/python3 -m pytest --ignore=tests/test_tox_to_nox.py
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" --compile-bytecode 0 \
+		dist/nox-$pkgver-py3-none-any.whl
+}
+
+sha512sums="
+53a66964a99fff6f9f72ebe3dafc6fb52188f0af7f7c4fab1eaa5f35e8c641532477636303050d059825a505492e718cb915a2d6d9a9062bec4d6a0c85931205  py3-nox-2022.8.7.tar.gz
+"
