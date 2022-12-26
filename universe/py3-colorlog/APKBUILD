@@ -1,0 +1,33 @@
+pkgname=py3-colorlog
+_pyname=colorlog
+pkgver=6.7.0
+pkgrel=0
+pkgdesc="formatter for use with Python's logging module"
+url="https://github.com/borntyping/python-colorlog"
+arch="noarch"
+license="MIT"
+depends="python3"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest"
+source="https://files.pythonhosted.org/packages/source/c/$_pyname/$_pyname-$pkgver.tar.gz"
+builddir="$srcdir"/$_pyname-$pkgver
+
+replaces="py-colorlog" # Backwards compatibility
+provides="py-colorlog=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	cd "$builddir"/colorlog/tests
+	PYTHONPATH="$builddir"/build/lib pytest
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+19b3c04beb8ac26d3db69f78bc1e7db40288c95ba7edc7c1d2495d592262dea9a1bf91e42dce0e575341eb2a572f0050866970f23d3be8c5adae518c4115787d  colorlog-6.7.0.tar.gz
+"
