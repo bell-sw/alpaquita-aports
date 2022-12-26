@@ -1,0 +1,33 @@
+pkgname=py3-setuptools-rust
+pkgver=1.5.2
+pkgrel=0
+pkgdesc="Setuptools plugin for rust support"
+url="https://github.com/PyO3/setuptools-rust"
+arch="noarch"
+license="MIT"
+depends="py3-semantic-version py3-typing-extensions rust cargo"
+makedepends="py3-setuptools py3-wheel py3-setuptools_scm"
+checkdepends="py3-pytest py3-nox python3-dev libffi-dev"
+source="$pkgname-$pkgver.tar.gz::https://github.com/PyO3/setuptools-rust/archive/refs/tags/v$pkgver.tar.gz
+	distutils.patch"
+builddir="$srcdir/setuptools-rust-$pkgver"
+options="net" # check needs network access, no easy patch
+
+export SETUPTOOLS_SCM_PRETEND_VERSION=$pkgver
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	nox -s test-examples
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+e80d1296fd09c24b644d821e981261153ff19ae62d978fc8ee81c78e440d215f9d1e91e33d758effb94fcb64985937445940f2e2f032ad1b8c2aa39be79cf19d  py3-setuptools-rust-1.5.2.tar.gz
+0eb3b8c259f5d6b870ce470ab441f4963b9d181027366ec135c73deda90f803457a022dff8b84c39786fda51cbbdb1497f8bab4c8eb7ce27e188d16a413cd9e2  distutils.patch
+"
