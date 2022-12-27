@@ -1,6 +1,6 @@
 pkgname=pipewire
-pkgver=0.3.51
-pkgrel=1
+pkgver=0.3.59
+pkgrel=3
 pkgdesc="Multimedia processing graphs"
 url="https://pipewire.org/"
 arch="all"
@@ -19,6 +19,7 @@ makedepends="
 	gst-plugins-base-dev
 	gstreamer-dev
 	jack-dev
+	libcamera-dev
 	libfreeaptx-dev
 	libusb-dev
 	libx11-dev
@@ -27,12 +28,14 @@ makedepends="
 	pulseaudio-dev
 	py3-docutils
 	readline-dev
+	roc-toolkit-dev
 	sbc-dev
 	vulkan-loader-dev
 	webrtc-audio-processing-dev
 	xmltoman
 	"
 subpackages="
+	$pkgname-dbg
 	$pkgname-dev
 	$pkgname-doc
 	$pkgname-alsa
@@ -53,12 +56,12 @@ source="https://gitlab.freedesktop.org/PipeWire/pipewire/-/archive/$pkgver/pipew
 	pipewire.desktop
 	pipewire-launcher.sh
 	0001-Revert-pulse-tunnel-use-format-channels-and-rate-pro.patch
-	0002-spa-support-loop-handle-cancellation-better.patch
-	0003-pipewire-jack-use-jack_client_close-to-free-client-i.patch
+	$pkgname-filter-train-crash.patch::https://gitlab.freedesktop.org/pipewire/pipewire/-/commit/94a64268613adac8ef6f3e6c1f04468220540d00.patch
 	"
 
 build() {
 	abuild-meson \
+		-Db_lto=true \
 		-Dlibjack-path=/usr/lib \
 		-Dlibv4l2-path=/usr/lib \
 		-Ddocs=disabled \
@@ -69,13 +72,15 @@ build() {
 		-Dsystemd=disabled \
 		-Dvulkan=enabled \
 		-Dsdl2=disabled \
+		-Dlibcamera=enabled \
+		-Droc=enabled \
 		-Dsession-managers=[] \
 		. output
 	meson compile ${JOBS:+-j ${JOBS}} -C output
 }
 
 check() {
-	meson test --no-rebuild -v -C output
+	meson test --no-rebuild --print-errorlogs -C output
 }
 
 package() {
@@ -93,21 +98,26 @@ dev() {
 
 alsa() {
 	pkgdesc="ALSA support for pipewire"
+	provides="pulseaudio-alsa=$pkgver-r$pkgrel"
+	provider_priority=1
 	replaces="$pkgname"  # for backward compatibility
 
 	amove usr/lib/alsa-lib
 	amove usr/share/alsa/alsa.conf.d
 
-	cd "$subpkgdir"
-
-	mkdir -p etc/alsa/conf.d
-	cp usr/share/alsa/alsa.conf.d/* etc/alsa/conf.d
+	mkdir -p "$subpkgdir"/etc/alsa/conf.d
+	cp -r \
+		"$subpkgdir"/usr/share/alsa/alsa.conf.d/*.conf \
+		"$subpkgdir"/etc/alsa/conf.d/
 }
 
 pulse() {
 	pkgdesc="Pulseaudio support for pipewire"
-	depends="pipewire-session-manager"
-	provides="pulseaudio=$pkgver-r$pkgrel pulseaudio-bluez=$pkgver-r$pkgrel pulseaudio-alsa=$pkgver-r$pkgrel"
+	depends="
+		pipewire-session-manager
+		pulseaudio-utils
+		"
+	provides="pulseaudio=$pkgver-r$pkgrel pulseaudio-bluez=$pkgver-r$pkgrel"
 	provider_priority=1
 
 	amove usr/bin/pipewire-pulse
@@ -184,10 +194,9 @@ spa_tools() {
 }
 
 sha512sums="
-a762fd260b4b14ad9ef142be11ab1c22268da6726e2179559ffb254f0ce7daf7a502779e33c64313a9c6a9fc1bd15150b76be04ec81aa27c35dbb4333cecdb4a  pipewire-0.3.51.tar.gz
+1183dc083553ece1f9157898f437996b88dc7d13ba69aa43886f5339f330130404274ceb08ac8ec05a5ccb84dfca56b524a1d4b3fb07e28a41741c5c3333eda0  pipewire-0.3.59.tar.gz
 d5d8bc64e42715aa94296e3e26e740142bff7f638c7eb4fecc0301e46d55636d889bdc0c0399c1eb523271b20f7c48cc03f6ce3c072e0e8576c821ed1ea0e3dd  pipewire.desktop
-be2bd1520fae27ccca6af4c98e8ebe63541260af55eb085839235a8441a7bce434ba8bf23a5d1ca8b5f361229f5482d5b63504b9a5cbbe9d39bc051207cd7dac  pipewire-launcher.sh
+e46939b8f903fe6b7421cd42d0746e669402d76afe3326401c186fefeb725e3c126a00ba9f315067d2535991134a24afd855752d757e9e52c20191b5d388f99b  pipewire-launcher.sh
 5a84a255794cd260476f93b154a32a84efc925c1f6ecc64efe659d89eb81bb3090438e2b3c4000a8ab68d8c72bca453e13297719a95f1e4457f43e43acec8bfa  0001-Revert-pulse-tunnel-use-format-channels-and-rate-pro.patch
-fe64b4f7e65a1319948fd4449070aacf97011ad276df59c0408c1a9cc3ad93a5d1d2cddb3ac5f4fe89187d93fc6bb9248c77421df3ddfa18a59a0237739138bc  0002-spa-support-loop-handle-cancellation-better.patch
-9f2e8b665e2a73984aaf8e191d1d1b4f503c5511d1ec6c8bcf589fc5d932a33030f6abfaf0fd0a00b9bd04f0e7e9e43264b84b9800bb59f0bd818687a49bae0d  0003-pipewire-jack-use-jack_client_close-to-free-client-i.patch
+2e51b3ff1ff1af67b373246fcbed3cb1db93ded349dba5ccc3eaf526c679da0c05475f0c727b2628f350ff9d2283f0f63489f29b83ff61168cd755f67a7d7d0e  pipewire-filter-train-crash.patch
 "
