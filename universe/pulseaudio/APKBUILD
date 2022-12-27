@@ -1,6 +1,6 @@
 pkgname=pulseaudio
-pkgver=15.0
-pkgrel=3
+pkgver=16.1
+pkgrel=5
 pkgdesc="featureful, general-purpose sound server"
 provider_priority=10
 url="https://www.freedesktop.org/wiki/Software/PulseAudio/"
@@ -27,7 +27,7 @@ makedepends="
 	sbc-dev
 	fftw-dev
 	jack-dev
-	openssl1.1-compat-dev
+	openssl-dev>3
 	speexdsp-dev
 	eudev-dev
 	libcap-dev
@@ -45,7 +45,6 @@ subpackages="
 	$pkgname-dev
 	$pkgname-doc
 	$pkgname-bluez
-	libpulse:_libpulse
 	libpulse-mainloop-glib:_libpulse_mainloop_glib
 	$pkgname-alsa
 	$pkgname-utils
@@ -55,6 +54,7 @@ subpackages="
 	$pkgname-bash-completion
 	$pkgname-zsh-completion
 	$pkgname-lang
+	libpulse:_libpulse
 	"
 # Excluded this subpackage as not needed in our release
 #       $pkgname-equalizer
@@ -62,11 +62,10 @@ subpackages="
 install="pulseaudio.post-install"
 source="https://freedesktop.org/software/pulseaudio/releases/pulseaudio-$pkgver.tar.xz
 	musl:link-libintl.patch
+	remove-once-test.patch
 	$pkgname.initd
 	$pkgname.confd
 	"
-
-options="$options !check" # once-test fails, all others pass
 
 makedepends="$makedepends webrtc-audio-processing-dev"
 
@@ -79,9 +78,10 @@ prepare() {
 
 build() {
 	abuild-meson \
+		-Db_lto=true \
 		-Dgcov=false \
 		-Dman=true \
-		-Dtests=true \
+		-Dtests="$(want_check && echo true || echo false)" \
 		-Dsystem_user=pulse \
 		-Dsystem_group=pulse \
 		-Ddatabase=tdb \
@@ -110,12 +110,14 @@ build() {
 		-Dgstreamer=enabled \
 		-Dwebrtc-aec=enabled \
 		-Ddoxygen=false \
+		-Dstream-restore-clear-old-devices=true \
 		. output
 	meson compile ${JOBS:+-j ${JOBS}} -C output
 }
 
 check() {
-	meson test --no-rebuild -v -C output
+	XDG_RUNTIME_DIR="$(mktemp -d)" \
+	meson test --no-rebuild --print-errorlogs -C output
 }
 
 package() {
@@ -150,7 +152,7 @@ _libpulse() {
 	pkgdesc="Pulseaudio libraries"
 	replaces="$pkgname-libs"
 
-	amove usr/lib/pulseaudio/*
+	amove usr/lib/pulseaudio/libpulse*
 	amove usr/lib/libpulse.so.0*
 	amove usr/lib/libpulse-simple.so.0*
 	amove etc/pulse/client.conf
@@ -167,10 +169,8 @@ bluez() {
 	install_if="$pkgname=$pkgver-r$pkgrel bluez"
 	provider_priority=10  # highest (other provider is pipewire-pulse)
 
-	mkdir -p "$subpkgdir"/usr/lib/pulse-$pkgver/modules
-	mv "$pkgdir"/usr/lib/pulse-$pkgver/modules/*bluez*.so \
-		"$pkgdir"/usr/lib/pulse-$pkgver/modules/*bluetooth*.so \
-		"$subpkgdir"/usr/lib/pulse-$pkgver/modules/
+	amove usr/lib/pulseaudio/modules/*bluez*.so
+	amove usr/lib/pulseaudio/modules/*bluetooth*.so
 }
 
 alsa() {
@@ -178,28 +178,29 @@ alsa() {
 	install_if="$pkgname=$pkgver-r$pkgrel alsa-lib"
 	provider_priority=10  # highest (other provider is pipewire-pulse)
 
-	amove usr/lib/pulse-$pkgver/modules/*alsa*.so
+	amove usr/lib/pulseaudio/modules/*alsa*.so
 }
 
 utils() {
 	pkgdesc="Pulseaudio utilities"
 
 	amove usr/bin/pa*
+	amove usr/bin/start-pulseaudio-x11
 }
 
 jack() {
 	pkgdesc="Pulseaudio JACK support"
 
-	amove usr/lib/pulse-$pkgver/modules/*jack*.so
+	amove usr/lib/pulseaudio/modules/*jack*.so
 }
 
 zeroconf() {
 	pkgdesc="Pulseaudio Zeroconf support"
 	depends="avahi"
 
-	amove usr/lib/pulse-$pkgver/modules/*avahi*.so
-	amove usr/lib/pulse-$pkgver/modules/*zeroconf*.so
-	amove usr/lib/pulse-$pkgver/modules/*raop*.so
+	amove usr/lib/pulseaudio/modules/*avahi*.so
+	amove usr/lib/pulseaudio/modules/*zeroconf*.so
+	amove usr/lib/pulseaudio/modules/*raop*.so
 }
 
 equalizer() {
@@ -207,12 +208,13 @@ equalizer() {
 	depends="pulseaudio=$pkgver-r$pkgrel py3-qt5 py3-dbus"
 
 	amove usr/bin/qpaeq
-	amove usr/lib/pulse-$pkgver/modules/module-equalizer-sink.so
+	amove usr/lib/pulseaudio/modules/module-equalizer-sink.so
 }
 
 sha512sums="
-352ef20384c76c631c0faa73b08e2318902a433712e0c086a5ac7a0ae58873c8d4be8f35879bdec71a93b19ae8e2ba073cacac4d56215bcf58375a0cd9d88833  pulseaudio-15.0.tar.xz
+33b0b4292f05e0882f3ec822cf5720414bb34c523d80fe287b9740d6be219787c562e8024c9b0d9e2ee010771ca72c7ae4f27df1bbef9c9cb6bb6a23cbcc412f  pulseaudio-16.1.tar.xz
 2c31c5bc592e748248215f8f62f85687cfec230b05f65441e6dafa5fa77d4967e97636209b2011a4501ed1337ecd880b264baa175586fc85183a980846cb8146  link-libintl.patch
-3817b19ad9bccaf001c50e7b5c9d4f9db350e6fdeecf5f3a8d5a2b6f6aea8f83e7e976d9968dc1390de07580959e86633b8094c414d3511f052ede0501652f77  pulseaudio.initd
+c1223cf42538d91f31dbcb1a167537a1d3b6e8a3bf1b454cdebf95c25ca6f3b444848e9d546f092988851f71fe2c9dd9c4a781a58795e2f57d98563963a4630a  remove-once-test.patch
+b219a110a5194188960ebc12c46f99a03ca75acd3095a42fb2a49465061410cde73fb8dbf9903c40f9e611f1cbc7a900efb880a4945dbeebd6c5401d0940297c  pulseaudio.initd
 75b54581591519d63a3362b155c0f9b0501a60763ab394693a456c44d0216138cf3a40bdd0f7442028663bc045e9ffee286f8f8eaf2ee3bb17379b43615fee0e  pulseaudio.confd
 "
