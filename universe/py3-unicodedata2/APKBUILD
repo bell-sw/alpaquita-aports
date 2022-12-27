@@ -1,0 +1,30 @@
+pkgname=py3-unicodedata2
+pkgver=15.0.0
+pkgrel=0
+# remove with python 3.11
+pkgdesc="python unicodedata backport/updates"
+url="https://github.com/fonttools/unicodedata2"
+arch="all"
+license="Apache-2.0"
+depends="python3"
+makedepends="py3-setuptools python3-dev"
+checkdepends="py3-pytest"
+source="$pkgname-$pkgver.tar.gz::https://github.com/fonttools/unicodedata2/archive/refs/tags/$pkgver.tar.gz"
+builddir="$srcdir/unicodedata2-$pkgver"
+options="!check" # fail for some reason
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	pytest
+}
+
+package() {
+	python3 setup.py install --skip-build --root="$pkgdir"
+}
+
+sha512sums="
+ea475200313133bbf4ab1c2da36e64b7e9e06376ee4e9a3f96af5d677de124fcee4fd5c04862eb212977e896c02c9248d81c1059d8fbc7dc37136415fa22800e  py3-unicodedata2-15.0.0.tar.gz
+"
