@@ -1,0 +1,27 @@
+On glibc systems, a bazel process keeps running as a server in the background
+and blocks a build job in our CI.  At the same time, invocation of bazel
+doesn't make much sense because it fails as follows:
+
+  ERROR: no such target '//:protoc_lib': target 'protoc_lib' not declared in package '' defined by /ws/workspace/alpaquita-build-package/aports/universe/grpc/src/grpc-1.50.1/BUILD
+
+On musl systems, bazel even can't start:
+
+  ../../tools/bazel: line 85: /ws/workspace/alpaquita-build-package/aports/universe/grpc/src/grpc-1.50.1/tools/bazel-5.3.0-linux-x86_64: cannot execute: required file not found
+
+This is because a bazel executable is pre-built and requires glibc.  It's
+downloaded from https://storage.googleapis.com during the build process.
+
+So looks like we can safely omit invoking it.
+
+--- a/tools/distrib/python/make_grpcio_tools.py
++++ b/tools/distrib/python/make_grpcio_tools.py
+@@ -161,6 +161,9 @@
+                     os.path.join(target_dir, relative_file))
+                 shutil.copyfile(source_file, target_file)
+ 
++    print('Omit invoking "bazel query" to gather the protobuf dependencies since it fails anyway.')
++    return
++
+     try:
+         print('Invoking "bazel query" to gather the protobuf dependencies.')
+         protoc_lib_deps_content = get_deps()
