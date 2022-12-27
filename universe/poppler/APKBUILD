@@ -1,5 +1,5 @@
 pkgname=poppler
-pkgver=22.05.0
+pkgver=22.10.0
 pkgrel=0
 pkgdesc="PDF rendering library based on xpdf 3.0"
 url="https://poppler.freedesktop.org/"
@@ -9,14 +9,23 @@ options="!check" # Requires dl of testfiles and only checks qt5 libs
 [ "$CARCH" = "riscv64" ] && options="$options textrels"
 license="GPL-2.0-or-later"
 depends_dev="cairo-dev glib-dev"
-makedepends="$depends_dev cmake fontconfig-dev
-	gobject-introspection-dev lcms2-dev libjpeg-turbo-dev
-	libpng-dev libxml2-dev openjpeg-dev openjpeg-tools
-	samurai tiff-dev zlib-dev"
-subpackages="$pkgname-dev $pkgname-doc $pkgname-glib $pkgname-utils"
-source="https://poppler.freedesktop.org/poppler-$pkgver.tar.xz
-	dont-enforce-build-type.patch
+makedepends="
+	$depends_dev
+	cmake
+	fontconfig-dev
+	gobject-introspection-dev
+	lcms2-dev
+	libjpeg-turbo-dev
+	libpng-dev
+	libxml2-dev
+	openjpeg-dev
+	openjpeg-tools
+	samurai
+	tiff-dev
+	zlib-dev
 	"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-glib $pkgname-utils"
+source="https://poppler.freedesktop.org/poppler-$pkgver.tar.xz"
 
 # secfixes:
 #   0.80.0-r0:
@@ -44,14 +53,16 @@ build() {
 		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
 	fi
 	cmake -B build -G Ninja \
-		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_INSTALL_LIBDIR=lib \
 		-DENABLE_UNSTABLE_API_ABI_HEADERS=ON \
-		-DBUILD_QT5_TESTS=OFF \
+		-DBUILD_QT5_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DBUILD_QT6_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DBUILD_GTK_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DBUILD_CPP_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DBUILD_MANUAL_TESTS="$(want_check && echo ON || echo OFF)" \
 		-DENABLE_QT5=OFF \
-		-DCMAKE_CXX_FLAGS="$CXXFLAGS" \
-		-DCMAKE_C_FLAGS="$CFLAGS" \
 		-DENABLE_BOOST=OFF \
 		$CMAKE_CROSSOPTS
 	cmake --build build
@@ -63,32 +74,29 @@ check() {
 }
 
 package() {
-	DESTDIR="$pkgdir" cmake --build build --target install
+	DESTDIR="$pkgdir" cmake --install build
 }
 
 utils() {
 	pkgdesc="Poppler's xpdf-workalike command line utilities"
-	install -d "$subpkgdir"/usr
-	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+
+	amove usr/bin
 }
 
 glib() {
 	pkgdesc="Glib wrapper for poppler"
 	replaces="poppler-gtk"
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/libpoppler-glib.so.* \
-		"$pkgdir"/usr/lib/girepository* \
-		"$subpkgdir"/usr/lib/
+
+	amove usr/lib/libpoppler-glib.so.*
+	amove usr/lib/girepository*
 }
 
 _cpp() {
 	pkgdesc="Pure C++ wrapper for poppler"
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/libpoppler-cpp.so.* \
-		"$subpkgdir"/usr/lib/
+
+	amove usr/lib/libpoppler-cpp.so.*
 }
 
 sha512sums="
-629098793050f7a901c2a2cf1efcad83c58d26164cf94f4aa3985465f016a8875c62be4fb8ab8005ca00ef061402962e6d6c14eb611ce29f2d71d3ae83f24737  poppler-22.05.0.tar.xz
-b4141912e73e9a0baaf7b69d0901db24b4aba854c6aff8e01389ac760e4d23606ff29c37626747f24184f1bfc97e25d53a0f99b24eef7661ac9805ea3311802a  dont-enforce-build-type.patch
+9f80a08ae7c6c41c2ae9a2f3d2fbd8b65e430f290d2603aaa6df39d1d69f4418f76584c3f20733fb38731e4a57a8b04f55cf0f9753dd8a43be7b6d18f609f116  poppler-22.10.0.tar.xz
 "
