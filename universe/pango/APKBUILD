@@ -1,15 +1,25 @@
 pkgname=pango
-pkgver=1.50.7
+pkgver=1.50.11
 pkgrel=0
 pkgdesc="library for layout and rendering of text"
 url="https://www.pango.org/"
 arch="all"
 license="LGPL-2.1-or-later"
 depends_dev="pango-tools=$pkgver-r$pkgrel"
-makedepends="meson cairo-dev expat-dev gobject-introspection-dev help2man
-	fontconfig-dev glib-dev harfbuzz-dev libxft-dev fribidi-dev
-	gtk-doc"
-checkdepends="ttf-dejavu ttf-cantarell ttf-droid ttf-tlwg"
+makedepends="
+	cairo-dev
+	expat-dev
+	fontconfig-dev
+	fribidi-dev
+	glib-dev
+	gobject-introspection-dev
+	gtk-doc
+	harfbuzz-dev
+	help2man
+	libxft-dev
+	meson
+	"
+checkdepends="font-dejavu font-cantarell font-droid font-tlwg"
 install="$pkgname.pre-deinstall"
 triggers="$pkgname.trigger=/usr/lib/pango/*/modules"
 subpackages="$pkgname-dbg $pkgname-dev $pkgname-doc $pkgname-tools"
@@ -23,6 +33,7 @@ source="https://download.gnome.org/sources/pango/${pkgver%.*}/pango-$pkgver.tar.
 
 build() {
 	abuild-meson \
+		-Db_lto=true \
 		-Dintrospection=enabled \
 		-Dgtk_doc=false \
 		build
@@ -30,7 +41,7 @@ build() {
 }
 
 check() {
-	meson test --no-rebuild -v -C build
+	meson test --no-rebuild --print-errorlogs -C build
 }
 
 package() {
@@ -39,11 +50,11 @@ package() {
 
 tools() {
 	pkgdesc="$pkgdesc (tools)"
-	mkdir -p "$subpkgdir"/usr/bin
-	mv "$pkgdir"/usr/bin/* "$subpkgdir"/usr/bin
+
+	amove usr/bin
 }
 
 sha512sums="
-4d754ed753fc34074c2a8751459406af7eb1eccb227c6158287f7e2921614d918cae47d078d4a2b4c098b641e40274e81bf1ec6b6a1b147efd550626665767d3  pango-1.50.7.tar.xz
-3623ef34e08427c70b4f2f89eefe13258646a935c450d9ad703c30018343aef245749e6a3708f299fd696d9f1ec0eeab116131e51918fc1765f61545202aaab0  disable-broken-test.patch
+00d08477b8bff62cfa298d2871d3e58bc0411ea6a36330743b49533e6065ce5c3ae511246c299800b542ca446f31f2fb342f41c1183069946adccd13adb14ef8  pango-1.50.11.tar.xz
+d497526df4734f63e2502526335b547e6360c3508dd27f899d9588894715f0eb1e4c2f1958610ed432a8ed6570b4c1e5ca5c1309bc6867dec8b9fdfeb715c938  disable-broken-test.patch
 "
