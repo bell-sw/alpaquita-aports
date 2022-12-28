@@ -25,11 +25,7 @@ pkgver=8.1.12
 pkgrel=0
 _apiver=20210902
 _suffix=${pkgname#php}
-# Is this package the default (latest) PHP version?
-_default_php="yes"
 provides="$pkgname-cli php-cli php"  # for backward compatibility
-# priority of community/php8 is 50
-provider_priority=100
 pkgdesc="The PHP$_suffix language runtime engine"
 url="https://www.php.net/"
 arch="all"
@@ -105,6 +101,9 @@ source="https://php.net/distributions/$_pkgreal-$pkgver.tar.xz
 	fix-fpm-deps.patch
 	"
 builddir="$srcdir/$_pkgreal-$pkgver"
+
+# ffi.so: rpath '/usr/lib/../lib'
+annocheck_skip="ffi.so"
 
 _libdir="/usr/lib/$pkgname"
 _extension_dir="$_libdir/modules"
@@ -390,9 +389,7 @@ package() {
 	find "$pkgdir" -name '.*' -print0 | xargs -0 rm -rf
 	rmdir "$pkgdir"/var/run
 
-	if [ "$_default_php" = yes ]; then
-		ln -s php$_suffix "$pkgdir"/usr/bin/php
-	fi
+	ln -s php$_suffix "$pkgdir"/usr/bin/php
 }
 
 dev() {
@@ -408,10 +405,8 @@ dev() {
 
 	_mv ./$_libdir/build "$subpkgdir"/$_libdir/
 
-	if [ "$_default_php" = yes ]; then
-		ln -s phpize$_suffix "$subpkgdir"/usr/bin/phpize
-		ln -s php-config$_suffix "$subpkgdir"/usr/bin/php-config
-	fi
+	ln -s phpize$_suffix "$subpkgdir"/usr/bin/phpize
+	ln -s php-config$_suffix "$subpkgdir"/usr/bin/php-config
 }
 
 doc() {
@@ -443,9 +438,7 @@ phpdbg() {
 
 	amove usr/bin/phpdbg$_suffix
 
-	if [ "$_default_php" = yes ]; then
-		ln -s phpdbg$_suffix "$subpkgdir"/usr/bin/phpdbg
-	fi
+	ln -s phpdbg$_suffix "$subpkgdir"/usr/bin/phpdbg
 }
 
 embed() {
@@ -462,9 +455,7 @@ litespeed() {
 	mkdir -p "$subpkgdir"/usr/bin
 	mv "$pkgdir"/usr/bin/lsphp$_suffix "$subpkgdir"/usr/bin
 
-	if [ "$_default_php" = yes ]; then
-		ln -s lsphp$_suffix "$subpkgdir"/usr/bin/lsphp
-	fi
+	ln -s lsphp$_suffix "$subpkgdir"/usr/bin/lsphp
 }
 
 cgi() {
@@ -473,9 +464,7 @@ cgi() {
 
 	_mv "$pkgdir"/usr/bin/php-cgi$_suffix "$subpkgdir"/usr/bin/
 
-	if [ "$_default_php" = yes ]; then
-		ln -s php-cgi$_suffix "$subpkgdir"/usr/bin/php-cgi
-	fi
+	ln -s php-cgi$_suffix "$subpkgdir"/usr/bin/php-cgi
 }
 
 fpm() {
@@ -513,9 +502,7 @@ pear() {
 	mkdir -p "$subpkgdir"/usr/bin
 	local file; for file in pecl pear peardev; do
 		mv usr/bin/$file "$subpkgdir"/usr/bin/$file$_suffix
-		if [ "$_default_php" = yes ]; then
-			ln -s $file$_suffix "$subpkgdir"/usr/bin/$file
-		fi
+		ln -s $file$_suffix "$subpkgdir"/usr/bin/$file
 	done
 
 	_mv etc/$pkgname/pear.conf "$subpkgdir"/etc/$pkgname/
@@ -545,10 +532,8 @@ phar() {
 	rm usr/bin/phar$_suffix
 	ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar$_suffix
 
-	if [ "$_default_php" = yes ]; then
-		ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar.phar
-		ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar
-	fi
+	ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar.phar
+	ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar
 }
 
 _extension() {
@@ -617,7 +602,7 @@ _extensions_by_load_order() {
 	for name in $_extensions; do
 		list="$list $(_extension_load_order $name);$name"
 	done
-	printf '%s\n' $list | sort -t ';' -k 1 | sed -E 's/\d+;//'
+	printf '%s\n' $list | sort -t ';' -k 1 | cut -f2 -d';'
 }
 
 _mv() {
@@ -631,7 +616,7 @@ sha512sums="
 7dc9f55b12998355a6a6b5cf277285058e66928215f8d0109448d06fb696a74c674f83d18a81bf03f4f0bee06e77979e9a4ee5c81c7fdebff91447f8e697cc69  php81-fpm.initd
 98bb27864f1ece80fef18cb286885c8c18de8f9d1076507b6a24df07e33aa400623b90401375e7ebe55d9ff802069d281642ec7d3a58ef8727121aabe7643241  php81-fpm.logrotate
 2e3b22b4adbc81c6120757095c89e56642f3e8bf7724af2926f2667759ef082cdcff416334aad87f704a61fcb5b2c11830f17759ac771a3dd4e47d9bc5c7cf72  php81-module.conf
-7323465bf3d3b7e37ce10ddfade8e853c0726605c9866b995ee7c1c5a2a4d6da678f2def764b6926ba8b0c195e987db7dbbd21c05c0e0f43b8326c87abf72c1a  disabled-tests.list
+a36915594c2d3e88dc9f83f2820c23f53957a29efa977a6ef88df0bfb393267a495fb68b6957c3fa14949604f0a106b449fd2fe8707192c6e747eaa5210659e3  disabled-tests.list
 ec206639d076ddac6c2d1db697a5428ed3be979157db39417af7fbe6ab837e8dc00315ae0e55aea4f92f45ca5827c88cc4933099fad9c962f029ca81bef779d7  install-pear.patch
 e88ad17895742b74019912ad45c90af74817d75d7e1f71bd3d4a180b5f710a25d3c73c7410394f415eee0f428a8c5a0ea3702009ef9d2bffdebdd5da748f8b9b  includedir.patch
 8db38c523a8e0ed64298661d328372ea33ba0a56d23c023299ad94ee43a6db8c49393efcb679e74bbb936383dcacebdfb440bbacdf74068d78d071dd3f795101  sharedir.patch
