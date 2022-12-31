@@ -1,25 +1,27 @@
 pkgname=perl-sub-name
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
 _pkgreal=Sub-Name
 pkgver=0.26
-pkgrel=4
-pkgdesc="(re)name a sub"
+pkgrel=5
+pkgdesc="(Re)name a sub"
 url="https://metacpan.org/release/Sub-Name/"
 arch="all"
-license="GPL PerlArtistic"
-makedepends="perl-dev perl-devel-checkbin"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+makedepends="perl-dev"
 subpackages="$pkgname-doc"
-source="https://cpan.metacpan.org/authors/id/E/ET/ETHER/$_pkgreal-$pkgver.tar.gz"
-
+source="https://cpan.metacpan.org/authors/id/E/ET/ETHER/Sub-Name-$pkgver.tar.gz"
 builddir="$srcdir/$_pkgreal-$pkgver"
-
-prepare() {
-	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
-	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
-}
 
 build() {
 	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
-	make && make test
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
 }
 
 package() {
