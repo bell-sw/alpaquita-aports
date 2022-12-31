@@ -1,29 +1,26 @@
 pkgname=perl-extutils-installpaths
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
 _pkgreal=ExtUtils-InstallPaths
 pkgver=0.012
-pkgrel=2
+pkgrel=3
 pkgdesc="Build.PL install path logic made easy"
 url="https://metacpan.org/release/ExtUtils-InstallPaths/"
 arch="noarch"
 license="GPL-1.0-or-later OR Artistic-1.0-Perl"
 depends="perl perl-extutils-config"
+makedepends="perl-dev"
 subpackages="$pkgname-doc"
-source="https://cpan.metacpan.org/authors/id/L/LE/LEONT/$_pkgreal-$pkgver.tar.gz"
-
+source="https://cpan.metacpan.org/authors/id/L/LE/LEONT/ExtUtils-InstallPaths-$pkgver.tar.gz"
 builddir="$srcdir/$_pkgreal-$pkgver"
-
-prepare() {
-	default_prepare
-	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
-	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
-}
 
 build() {
 	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
 	make
 }
 
 check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
 	make test
 }
 
