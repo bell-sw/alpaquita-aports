@@ -1,26 +1,26 @@
 pkgname=perl-test-fatal
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
 _pkgreal=Test-Fatal
 pkgver=0.016
-pkgrel=3
+pkgrel=4
 pkgdesc="incredibly simple helpers for testing code with exceptions"
 url="https://metacpan.org/release/Test-Fatal/"
 arch="noarch"
 license="GPL-1.0-or-later OR Artistic-1.0-Perl"
 depends="perl perl-try-tiny"
+makedepends="perl-dev"
 subpackages="$pkgname-doc"
-source="https://cpan.metacpan.org/authors/id/R/RJ/RJBS/$_pkgreal-$pkgver.tar.gz"
+source="https://cpan.metacpan.org/authors/id/R/RJ/RJBS/Test-Fatal-$pkgver.tar.gz"
 builddir="$srcdir/$_pkgreal-$pkgver"
 
-prepare() {
-	default_prepare
-	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
-}
-
 build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
 	make
 }
 
 check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
 	make test
 }
 
