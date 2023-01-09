@@ -2,15 +2,12 @@ _pkgname=postgresql
 pkgver=15.1
 pkgrel=0
 _majorver=${pkgver%%[_.]*}
-# Should this aport provide libpq* and libecpg*? true/false
-# Exactly one postgresql aport must be the default one!
-_default_ver=true
 pkgname=$_pkgname$_majorver
 pkgdesc="A sophisticated object-relational DBMS, version $_majorver"
 url="https://www.postgresql.org/"
 arch="all"
 license="PostgreSQL"
-_llvmver=14
+_llvmver=15
 depends="$pkgname-client postgresql-common tzdata"
 depends_dev="
 	libpq-dev
@@ -47,7 +44,7 @@ install="$pkgname.post-install $pkgname.pre-deinstall"
 provider_priority=$_majorver
 provides="postgresql"
 replaces="postgresql"  # for backward compatibility
-$_default_ver && subpackages="
+subpackages="
 	libpq
 	libpq-dev:libpq_dev
 	libecpg
@@ -79,10 +76,9 @@ source="https://ftp.postgresql.org/pub/source/v$pkgver/postgresql-$pkgver.tar.bz
 	make-split-headers.patch
 	jit-datalayout-mismatch-on-s390x-and-x86.patch
 	pg_config-add-major-version.patch
-	dont-use-locale-a-on-musl.patch
-	icu-collations-hack.patch
+	musl:dont-use-locale-a-on-musl.patch
+	musl:icu-collations-hack.patch
 	libpgport-pkglibdir.patch.txt
-	external-libpq.patch.txt
 
 	pltcl_create_tables.sql
 	"
@@ -185,12 +181,7 @@ _client_cmds="
 prepare() {
 	default_prepare
 
-	if $_default_ver; then
-		cp -rl "$builddir" "$builddir-ifaces"
-	else
-		msg 'external-libpq.patch'
-		patch -p1 < "$srcdir"/external-libpq.patch.txt
-	fi
+	cp -rl "$builddir" "$builddir-ifaces"
 	# Note: This must be applied after clonning $builddir-ifaces.
 	patch -p1 < "$srcdir"/libpgport-pkglibdir.patch.txt
 }
@@ -204,14 +195,12 @@ build() {
 	_configure --with-ldap
 	make world
 
-	if $_default_ver; then
-		cd "$builddir-ifaces"
+	cd "$builddir-ifaces"
 
-		_configure --without-ldap
-		local dir; for dir in include common port interfaces bin/pg_config; do
-			make -C src/$dir
-		done
-	fi
+	_configure --without-ldap
+	local dir; for dir in include common port interfaces bin/pg_config; do
+		make -C src/$dir
+	done
 }
 
 _configure() {
@@ -259,15 +248,13 @@ check() {
 package() {
 	make DESTDIR="$pkgdir" install install-docs
 
-	if $_default_ver; then
-		cd "$builddir-ifaces"
+	cd "$builddir-ifaces"
 
-		# Override libpq and libecpg files with the build without LDAP support.
-		local dir; for dir in common port interfaces bin/pg_config; do
-			make -C src/$dir DESTDIR="$pkgdir" bindir=/usr/bin install
-		done
-		make -C src/include DESTDIR="$pkgdir" install-interfaces
-	fi
+	# Override libpq and libecpg files with the build without LDAP support.
+	local dir; for dir in common port interfaces bin/pg_config; do
+		make -C src/$dir DESTDIR="$pkgdir" bindir=/usr/bin install
+	done
+	make -C src/include DESTDIR="$pkgdir" install-interfaces
 
 	cd "$pkgdir"
 
@@ -291,6 +278,9 @@ package() {
 	# These commands are symlinked to /usr/bin by pg_versions script after
 	# installation.
 	provides="$provides $(echo "$server_cmds" | sed 's/^/cmd:&/')"
+
+	install -D -m644 "$srcdir"/$_pkgname-$pkgver/COPYRIGHT \
+		"$pkgdir"/usr/share/licenses/"$pkgname"/copyright
 }
 
 libpq() {
@@ -536,6 +526,5 @@ c24986becfd73546a062612335e53b4da34829e42a0c30e85ed7481924f13b1fd0a0e5079d680905
 b0688d66fdd7d612c24d9aa69bdd80d30787d2d6409b4524c79b41797144fc743213460e6de9c536bfb72da089f92cf89731f15137b1407fd04ca97fd393bfd2  dont-use-locale-a-on-musl.patch
 a98e5ecdd421f68f11b55bf07bf60280cf80508f89c5d21a084c7e7aa3be0a22c88b8e2ce611a13dd5c11efdd052eb9018271b549040c30663b9fd9b7c4fc611  icu-collations-hack.patch
 f8ed2b7b96fd22cd87c982151e659d82bcae10033a97f403f7847fce6daa8fc580e998cfb3813af9cb59a12f0c6bcc276397c28b1fc48321eed8c7ba5f3f92ed  libpgport-pkglibdir.patch.txt
-6078defb3da67e7df96665cc130d32b69eebfcaf49d92eef368ea8eea8bb311fab56064c104bc97f53da9cd925301bef696b506af33e0b66d65bc6cd41ec7499  external-libpq.patch.txt
 5c9bfd9e295dcf678298bf0aa974347a7c311d6e7c2aa76a6920fcb751d01fd1ab77abbec11f3c672f927ad9deaa88e04e370c0b5cd1b60087554c474b748731  pltcl_create_tables.sql
 "
