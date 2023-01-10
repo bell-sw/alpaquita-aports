@@ -5,7 +5,7 @@
 
 pkgname=grub
 pkgver=2.06
-pkgrel=8
+pkgrel=9
 # Security patches backported from Debian version:
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
@@ -250,10 +250,17 @@ package() {
 
 	mkdir -p "$pkgdir"/etc/default/
 	cat >"$pkgdir"/etc/default/grub <<-EOF
-	GRUB_DISTRIBUTOR="Alpaquita"
-	GRUB_TIMEOUT=2
-	GRUB_DISABLE_SUBMENU=y
-	GRUB_DISABLE_RECOVERY=true
+		GRUB_TIMEOUT=0
+		GRUB_TIMEOUT_STYLE=hidden
+		GRUB_DISABLE_SUBMENU=y
+		GRUB_DISABLE_RECOVERY=true
+		GRUB_CMDLINE_LINUX_DEFAULT="quiet"
+		GRUB_DEFAULT=saved
+
+		# Note that Alpaquita doesn't have os-prober installed by default,
+		# therefore /etc/grub.d/30_os-prober is no-op. In order to use it,
+		# you need to install the os-prober package.
+		GRUB_DISABLE_OS_PROBER=false
 	EOF
 
 	mkdir -p "$pkgdir"/usr/share/bash-completion
