@@ -7,13 +7,20 @@
 
 pkgname=curl
 pkgver=8.1.0
-pkgrel=0
+pkgrel=1
 pkgdesc="Command line tool for data transfer with URL syntax"
 url="https://curl.se/"
 arch="all"
 license="curl"
 depends="ca-certificates"
-depends_dev="libidn2-dev openssl-dev>3 nghttp2-dev zlib-dev brotli-dev"
+depends_dev="
+	brotli-dev
+	c-ares-dev
+	libidn2-dev
+	nghttp2-dev
+	openssl-dev>3
+	zlib-dev
+	"
 checkdepends="nghttp2 python3"
 makedepends_host="$depends_dev"
 makedepends_build="groff perl"
@@ -167,6 +174,7 @@ build() {
 		--build=$CBUILD \
 		--host=$CHOST \
 		--prefix=/usr \
+		--enable-ares \
 		--enable-ipv6 \
 		--enable-unix-sockets \
 		--enable-static \
