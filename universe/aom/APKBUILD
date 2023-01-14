@@ -1,6 +1,6 @@
 pkgname=aom
 pkgver=3.5.0
-pkgrel=0
+pkgrel=1
 pkgdesc="Alliance for Open Media (AOM) AV1 codec SDK"
 url="https://aomedia.org/"
 arch="all"
@@ -9,7 +9,9 @@ options="!check" # tests run for 5+ hours
 makedepends="cmake perl python3 yasm samurai"
 subpackages="$pkgname-dev $pkgname-doc $pkgname-libs"
 source="$pkgname-$pkgver.tar.gz::https://github.com/jbeich/aom/archive/refs/tags/v$pkgver.tar.gz
-	fix-stack-size-e53da0b.patch"
+	fix-stack-size-e53da0b.patch
+	posix-implicit.patch
+	"
 
 case "$CARCH" in
 	ppc64le) makedepends="$makedepends linux-headers" ;;
@@ -57,4 +59,5 @@ package() {
 sha512sums="
 f6df1fee64bed51d49adf7f13325219ce41abb4d80179882a7fe0e301f59e440917696b7d66d3a3b88504b9ea4dacdac0887b905d77aea546f1fda5c968de568  aom-3.5.0.tar.gz
 573a6c9cd1e9c71a0612f750fb1b69ee65ab86364d3aa78ef51b8fb20633c69b97026d0685dedeabb51f31d0dab7c651d1fe5c72e0dc9f14b8ed2704584934a9  fix-stack-size-e53da0b.patch
+30cc17c38219e81f92f1f034786d5d4096a0e657c86dfe581f84d18fc201a0e34bd331e98271f92c07e5dc49740e164a983b3316fc57599b98aea2615f7cf107  posix-implicit.patch
 "
