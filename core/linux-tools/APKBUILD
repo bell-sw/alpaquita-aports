@@ -1,5 +1,5 @@
 pkgname=linux-tools
-pkgver=5.10.164
+pkgver=6.1.6
 _kernver=${pkgver%.*}
 pkgrel=0
 pkgdesc="Linux kernel tools meta package"
@@ -23,16 +23,11 @@ subpackages="perf perf-bash-completion:perf_bashcomp:noarch
 	$pkgname-usbip
 	$pkgname-usbip-openrc
 	bpftool bpftool-bash-completion:bpftool_bashcomp:noarch"
-source="https://kernel.org/pub/linux/kernel/v5.x/linux-$_kernver.tar.xz
-	https://kernel.org/pub/linux/kernel/v5.x/patch-$pkgver.xz
-	musl:tmon-musl-includes.patch
+
+source="https://kernel.org/pub/linux/kernel/v6.x/linux-$_kernver.tar.xz
+	https://kernel.org/pub/linux/kernel/v6.x/patch-$pkgver.xz
 	musl:cpupower-libs.patch
-	bpftool-nftw.patch
-	bpftool-include-fcntl.h.patch
-	disasm-init-style-feature-test-binutils-2.39.patch
-	dis-asm-compat-binutils-2.39.patch
-	perf-binutils-2.39.patch
-	bpftool-binutils-2.39.patch
+	dt_lnk.patch
 	cpupower.initd
 	cpupower.confd
 	usbip.initd
@@ -74,7 +69,7 @@ build() {
 	_make_tools perf cpupower gpio iio spi tmon bpf/bpftool
 	( cd tools/usb/usbip ;
 	./autogen.sh
-	sed -i 's,-Wall -Werror -Wextra,-fcommon,' configure.ac ;
+	sed -i 's,-Wall -Werror -Wextra,,' configure.ac ;
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -203,9 +198,9 @@ tmon() {
 }
 
 bpftool() {
-       pkgdesc="Linux kernel bpf manipulation tool"
-       mkdir -p "$subpkgdir"/usr/sbin
-       mv "$pkgdir"/usr/sbin/bpftool "$subpkgdir"/usr/sbin/
+	pkgdesc="Linux kernel bpf manipulation tool"
+	mkdir -p "$subpkgdir"/usr/sbin
+	mv "$pkgdir"/usr/sbin/bpftool "$subpkgdir"/usr/sbin/
 }
 
 bpftool_bashcomp() {
@@ -216,18 +211,11 @@ bpftool_bashcomp() {
 		"$subpkgdir"/usr/share/bash-completion/completions/
 }
 
-
 sha512sums="
-95bc137d0cf9148da6a9d1f1a878698dc27b40f68e22c597544010a6c591ce1b256f083489d3ff45ff77753289b535135590194d88ef9f007d0ddab3d74de70e  linux-5.10.tar.xz
-6af7cda5bd929214a5269f6ab36d0fa08210b71d1dd3fc450bee1f60a38c0037751524e8a45a356e266ce75df54fad57e913884d0be3524e5db01b3a8ee78fce  patch-5.10.164.xz
-15d6d80e9ed2cdea3bb09574f1cf524007b088699204cfc9d326edd9cf461a38300cfafd82dae4a5a78a179944ef10f51ed7d51c3a8aeb8c08e7c6754d9e123b  tmon-musl-includes.patch
+6ed2a73c2699d0810e54753715635736fc370288ad5ce95c594f2379959b0e418665cd71bc512a0273fe226fe90074d8b10d14c209080a6466498417a4fdda68  linux-6.1.tar.xz
+e4ad2541e2f4975ca206195f4410c05029091a98f647dd734bca157fcf57829ba13b0021c3dff8b457bea026ac97aa0d5ea4ab6a4aa63e8ca0dfb5fa457f907a  patch-6.1.6.xz
 a46e3a84b00a39a356618831d0ddfb7f0d10f0a3799d1307ba2cc832e73c01f8d637a4e801a6dd25025f6f13155c6ad8b836422ff72d365e51063ac0bf907f52  cpupower-libs.patch
-b2e91d3ce8154a5515bb6f41c02ea73d74f1e3cf4e05c7d902e820803658fa1a2e3d4d6654c35661d95e4f24f923ba84723e9ffdf85583fa3db187f9c51e480f  bpftool-nftw.patch
-13201d1915413091a5974c1a3c1d70bc79f02923357b0a37ac8fcf8baf52f90a152b046b0b69ebc8558e49ca1be89a2d370a7aa4fe6d2821d9e79c2a9dc2bfd4  bpftool-include-fcntl.h.patch
-bc18c590a9587e5aac1b0782633d0f59ac5f061d2eac29e4eed8698cd05ce3c880b6f9fb24f08361eaa3862aea717ded15cdf47112fea2ac970d92df96aa195a  disasm-init-style-feature-test-binutils-2.39.patch
-2085d40a5507550f096644bb24a3ab686394e64d84906ccad2a45654803611cd667d86c5f87791dccf2650889668c34f44d3bc3b0987e15c18462beeb4e95f8b  dis-asm-compat-binutils-2.39.patch
-3a8b00164d09903b29b46adae58fe61d345d2d40daa139d8d5341475b70b0df4ff60c4ec166ac8fcbe5ef11b5c265d61947a0909b9222bf45363106c7c1f02a3  perf-binutils-2.39.patch
-38be3270f85b405c9ae37df77ab5849758bde61b391a6756d4a26446da6459dab390c391b0b8cd6f4ec72faf65c4fc8d278c71b27d25f4ac9af60ba049bbc9a3  bpftool-binutils-2.39.patch
+0657b461659e79c1926379aab30e7b7ab2d59eaf3e686f1dce468b79eb1320c188c14a0507361660abd2553bccffa9e149fa5b6e4d770d10c99bf5dafd2e05ee  dt_lnk.patch
 63dbd06c8ac8920a1e958cf856d214e248ab2a29adc6acb6674301feb4004e69aed1e05caaf381fc716361276914ecf9c34192d1dc8d4b8ac7ca92e92734f320  cpupower.initd
 63cd12a4d8782198c71662e9205e346e064b65bae5e3e175b5bc43bdf7ec6ddf675b60349750afe3c37c8a925f9ae9a93530671821342581bd282a69e0773b8c  cpupower.confd
 1f80c95500c0a4d79e7cdd21598827cf9710d72911ade3dd88f045740249cbb43cf3be584e4acbdcbd3171b094fae8ac9a49102d08ec490d9734ee9a275af88e  usbip.initd
