@@ -1,0 +1,88 @@
+# HG changeset patch
+# User Miro Hrončok <miro@hroncok.cz>
+# Date 1657894297 -7200
+#      Fri Jul 15 16:11:37 2022 +0200
+# Branch python3.11.0b4
+# Node ID 8d4fe22ad26676b939e595ca6222cb04e1ebdb88
+# Parent  b7c08bd87610fe7cabf04d56fd878c32dfd575fb
+Adjust tests for a last minute Python 3.11 change in the traceback format
+
+See https://github.com/python/cpython/issues/93883
+and https://github.com/python/cpython/pull/93994
+
+diff -r b7c08bd87610 -r 8d4fe22ad266 c/test_c.py
+--- a/c/test_c.py	Mon Jul 11 18:32:10 2022 +0000
++++ b/c/test_c.py	Fri Jul 15 16:11:37 2022 +0200
+@@ -1342,11 +1342,11 @@
+     except ImportError:
+         import io as cStringIO    # Python 3
+     import linecache
+-    def matches(istr, ipattern, ipattern38, ipattern311):
++    def matches(istr, ipattern, ipattern38, ipattern311=None):
+         if sys.version_info >= (3, 8):
+             ipattern = ipattern38
+         if sys.version_info >= (3, 11):
+-            ipattern = ipattern311
++            ipattern = ipattern311 or ipattern38
+         str, pattern = istr, ipattern
+         while '$' in pattern:
+             i = pattern.index('$')
+@@ -1400,16 +1400,6 @@
+   File "$", line $, in check_value
+     $
+ ValueError: 42
+-""", """\
+-Exception ignored from cffi callback <function$Zcb1 at 0x$>:
+-Traceback (most recent call last):
+-  File "$", line $, in Zcb1
+-    $
+-    $
+-  File "$", line $, in check_value
+-    $
+-    $
+-ValueError: 42
+ """)
+         sys.stderr = cStringIO.StringIO()
+         bigvalue = 20000
+@@ -1424,13 +1414,6 @@
+   File "$", line $, in test_callback_exception
+     $
+ OverflowError: integer 60000 does not fit 'short'
+-""", """\
+-Exception ignored from cffi callback <function$Zcb1 at 0x$>, trying to convert the result back to C:
+-Traceback (most recent call last):
+-  File "$", line $, in test_callback_exception
+-    $
+-    $
+-OverflowError: integer 60000 does not fit 'short'
+ """)
+         sys.stderr = cStringIO.StringIO()
+         bigvalue = 20000
+@@ -1479,19 +1462,6 @@
+   File "$", line $, in test_callback_exception
+     $
+ TypeError: $integer$
+-""", """\
+-Exception ignored from cffi callback <function$Zcb1 at 0x$>, trying to convert the result back to C:
+-Traceback (most recent call last):
+-  File "$", line $, in test_callback_exception
+-    $
+-    $
+-OverflowError: integer 60000 does not fit 'short'
+-Exception ignored during handling of the above exception by 'onerror':
+-Traceback (most recent call last):
+-  File "$", line $, in test_callback_exception
+-    $
+-    $
+-TypeError: $integer$
+ """)
+         #
+         sys.stderr = cStringIO.StringIO()
+@@ -1526,7 +1496,6 @@
+ Traceback (most recent call last):
+   File "$", line $, in test_callback_exception
+     $
+-    $
+ OverflowError: integer 60000 does not fit 'short'
+ Exception ignored during handling of the above exception by 'onerror':
+ Traceback (most recent call last):
