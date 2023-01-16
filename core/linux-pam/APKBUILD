@@ -30,6 +30,9 @@ source="
 	"
 builddir="$srcdir"/Linux-PAM-$pkgver
 
+# these had a /etc/pam.d/login
+replaces="util-linux-login shadow-login"
+
 # secfixes:
 #   1.5.1-r0:
 #     - CVE-2020-27780
@@ -38,9 +41,6 @@ prepare() {
 	default_prepare
 	# disable insecure modules
 	sed -e 's/pam_rhosts//g' -i modules/Makefile.am
-
-	# prevent systemd files installation
-	sed -e /service_DATA/d -i modules/pam_namespace/Makefile.am
 
 	autoreconf -vif
 }
@@ -66,18 +66,24 @@ package() {
 	make DESTDIR="$pkgdir" install
 
 	# install our pam.d files
-	mkdir "$pkgdir"/etc/pam.d
 	for i in $source; do
 		case $i in
 		*.pamd)
 			basename=$(echo $i | cut -d. -f1)
-			cp "$srcdir"/$i "$pkgdir"/etc/pam.d/"$basename"
+			install -Dm644 "$srcdir"/$i "$pkgdir"/etc/pam.d/"$basename"
 			;;
 		esac
 	done
 
-	chmod -v 4755 $pkgdir/usr/sbin/unix_chkpwd
-	chgrp shadow $pkgdir/usr/sbin/unix_chkpwd
+	# the "login" provided by util-linux/shadow requires a login pam.d
+	install -Dm644 "$srcdir"/system-local-login.pamd \
+		"$pkgdir"/etc/pam.d/login
+
+	chgrp shadow "$pkgdir"/usr/sbin/unix_chkpwd \
+		&& chmod g+s "$pkgdir"/usr/sbin/unix_chkpwd
+
+	# we don't ship systemd
+	rm -r "$pkgdir"/usr/lib/systemd
 }
 
 sha512sums="
