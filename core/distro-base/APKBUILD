@@ -1,13 +1,13 @@
-pkgname=alpaquita-base
+pkgname=distro-base
 pkgver=22
-pkgrel=6
+pkgrel=7
 pkgdesc="Meta package for minimal BellSoft Alpaquita base"
 url="https://bell-sw.com/"
 arch="noarch"
 license="MIT"
 depends="
-	alpaquita-baselayout
-	alpaquita-release
+	distro-baselayout
+	distro-release
 	apk-tools
 	busybox
 	busybox-openrc
@@ -19,8 +19,9 @@ depends="
 makedepends=""
 install=""
 subpackages=""
-subpackages="alpaquita-release:release"
+subpackages="distro-release:release"
 replaces="alpaquita-baselayout"
+provides="alpaquita-base=$pkgver-r$pkgrel"
 source=""
 options="!check"
 
@@ -33,8 +34,9 @@ package() {
 }
 
 release() {
-	depends="alpaquita-keys"
+	depends="distro-keys"
 	pkgdesc="Alpaquita release data"
+	provides="alpaquita-release=$pkgver-r$pkgrel"
 
 	mkdir -p "$subpkgdir"/etc
 	# create /etc/alpaquita-release
