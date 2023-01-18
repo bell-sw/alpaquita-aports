@@ -93,16 +93,16 @@ index 7fefae4..39522d2 100755
 +
 +	sed 's#@ftype@#dir#' APKBUILD.in >APKBUILD
 +	atf_check -s exit:0 \
-+		-e match:"$(printf "$msg_fmt" bin{,})" \
-+		-e match:"$(printf "$msg_fmt" sbin{,})" \
-+		-e match:"$(printf "$msg_fmt" lib{,})" \
++		-e match:"$(printf "$msg_fmt" bin bin)" \
++		-e match:"$(printf "$msg_fmt" sbin sbin)" \
++		-e match:"$(printf "$msg_fmt" lib lib)" \
 +		abuild all
 +
 +	sed 's#@ftype@#link#' APKBUILD.in >APKBUILD
 +	atf_check -s exit:0 \
-+		-e not-match:"$(printf "$msg_fmt" bin{,})" \
-+		-e not-match:"$(printf "$msg_fmt" sbin{,})" \
-+		-e not-match:"$(printf "$msg_fmt" lib{,})" \
++		-e not-match:"$(printf "$msg_fmt" bin bin)" \
++		-e not-match:"$(printf "$msg_fmt" sbin sbin)" \
++		-e not-match:"$(printf "$msg_fmt" lib lib)" \
 +		abuild cleanpkg all
 +}
 -- 
