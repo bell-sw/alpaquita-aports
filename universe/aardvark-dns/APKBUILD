@@ -1,0 +1,24 @@
+pkgname=aardvark-dns
+pkgver=1.3.0
+pkgrel=0
+pkgdesc="Authoritative DNS server for A/AAAA container records"
+url="https://github.com/containers/aardvark-dns"
+license="Apache-2.0"
+# s390x fails to build due to nix crate
+# riscv64 fails to build due to nix crate
+arch="all !s390x !riscv64"
+makedepends="cargo"
+source="https://github.com/containers/aardvark-dns/archive/v$pkgver/aardvark-dns-$pkgver.tar.gz"
+options="net !check" # no test suite
+
+build() {
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" PREFIX=/usr install
+}
+
+sha512sums="
+55190abd5ddd862d834f24fe50749cdcc55334d219036c2ae03992f7b029dcab674a051d4842c1de83043aae664f7afb6b83dac76fc78606fb87f557553f05d3  aardvark-dns-1.3.0.tar.gz
+"
