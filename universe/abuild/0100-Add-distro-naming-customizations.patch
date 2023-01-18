@@ -1,29 +1,29 @@
-From 32dd17e1b9b852ef9a7d0d5033843ef6d7d7a9f2 Mon Sep 17 00:00:00 2001
+From 6f7df0058cc5a2cae95affab44aefb5d66b7fcf2 Mon Sep 17 00:00:00 2001
 From: Stanislav Kholmanskikh <stanislav.kholmanskikh@bell-sw.com>
-Date: Fri, 24 Sep 2021 15:57:27 +0300
-Subject: [PATCH] Add BellSoft Alpaquita Linux naming customizations
+Date: Wed, 18 Jan 2023 10:20:25 +0300
+Subject: [PATCH] Add distro naming customizations
 
 ---
  abuild.in       | 2 +-
  buildlab.in     | 6 +++---
- functions.sh.in | 3 ++-
- 3 files changed, 6 insertions(+), 5 deletions(-)
+ functions.sh.in | 2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index ac17067..3a14d7b 100755
+index d013ab1..a9409bc 100755
 --- a/abuild.in
 +++ b/abuild.in
-@@ -2454,7 +2454,7 @@ rootbld() {
+@@ -2450,7 +2450,7 @@ rootbld() {
  		--arch $CBUILD_ARCH \
  		--root "$BUILD_ROOT" \
  		--cache-dir /etc/apk/cache \
 -		abuild alpine-base build-base git $hostdeps $builddeps \
-+		abuild alpaquita-base build-base git $hostdeps $builddeps \
++		abuild distro-base build-base git $hostdeps $builddeps \
  		${USE_CCACHE:+ccache}
  
  	local bwrap_opts=""
 diff --git a/buildlab.in b/buildlab.in
-index 9c8edc9..c2c06b1 100644
+index 9c8edc9..a04e381 100644
 --- a/buildlab.in
 +++ b/buildlab.in
 @@ -128,7 +128,7 @@ prepare_chroot() {
@@ -31,7 +31,7 @@ index 9c8edc9..c2c06b1 100644
  	fi
  
 -	echo "alpine-base" > "$path"/etc/apk/world
-+	echo "alpaquita-base" > "$path"/etc/apk/world
++	echo "distro-base" > "$path"/etc/apk/world
  	mkdir -p "$path"/lib/apk/db
  	mkdir -p "$path"/var/lock
  	mkdir -p "$path"/var/cache/apk
@@ -40,27 +40,26 @@ index 9c8edc9..c2c06b1 100644
  	apk --arch $buildarch --root $path --repositories "$path"/etc/apk/repositories update
  
 -	msg "Installing alpine-base..."
-+	msg "Installing alpaquita-base..."
++	msg "Installing distro-base..."
  
 -	apk --arch $buildarch --root $path --repositories "$path"/etc/apk/repositories add --initdb alpine-base
-+	apk --arch $buildarch --root $path --repositories "$path"/etc/apk/repositories add --initdb alpaquita-base
++	apk --arch $buildarch --root $path --repositories "$path"/etc/apk/repositories add --initdb distro-base
  
  	msg "Installing abuild..."
  
 diff --git a/functions.sh.in b/functions.sh.in
-index 898381e..e097302 100644
+index 898381e..3306532 100644
 --- a/functions.sh.in
 +++ b/functions.sh.in
-@@ -113,7 +113,8 @@ readconfig() {
+@@ -113,7 +113,7 @@ readconfig() {
  		if [ -n "$gitbase" ]; then
  			case $($GIT remote get-url origin 2>/dev/null || true) in
  			# '.git' for SSH URLs, and no suffix for HTTPS URLs
 -			*/aports|*/aports.git) APORTSDIR=$gitbase ;;
-+			# BellSoft keeps it in alpaquita-aports, not in aports
 +			*/*aports|*/*aports.git) APORTSDIR=$gitbase ;;
  			*) APORTSDIR= ;;
  			esac
  		else
 -- 
-2.36.2
+2.39.0
 
