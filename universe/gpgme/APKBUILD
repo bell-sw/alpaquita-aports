@@ -1,0 +1,84 @@
+pkgname=gpgme
+pkgver=1.18.0
+pkgrel=0
+pkgdesc="gnupg made easy"
+url="https://www.gnupg.org/related_software/gpgme/"
+arch="all"
+license="LGPL-2.1-or-later GPL-3.0-or-later"
+# NOTE: gpgme needs at least gpg or gpgsm, but most programs use only gpg.
+# Some packages depending on gpgme need more GnuPG components (e.g.
+# gnupg-dirmngr); these must be explicitly defined in the package's depends
+# (not here!).
+depends="gpg gpg-agent gpgsm"
+checkdepends="gnupg"
+makedepends="python3-dev py3-setuptools py3-wheel swig libgpg-error-dev libassuan-dev qt5-qtbase-dev"
+install="$pkgname.post-upgrade gpgmepp.post-upgrade qgpgme.post-upgrade"
+subpackages="
+	$pkgname-dev
+	$pkgname-doc
+	gpgmepp
+	py3-gpgme:py3
+	q$pkgname
+	$pkgname-lisp:lisp:noarch
+	"
+source="https://www.gnupg.org/ftp/gcrypt/gpgme/gpgme-$pkgver.tar.bz2
+	0003-python310.patch
+	"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--enable-languages="cl cpp python qt" \
+		--enable-static
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	local eggdir="$(echo "$pkgdir"/usr/lib/python3*/site-packages/gpg-$pkgver-*.egg)"
+	mv "$eggdir"/gpg "$pkgdir"/usr/lib/python3*/site-packages/
+	mv "$eggdir"/EGG-INFO "${eggdir/-linux*/.egg-info}"
+	rm -r "$eggdir"
+}
+
+check() {
+	make check
+}
+
+lisp() {
+	pkgdesc="Common Lisp bindings for GPGME"
+	depends="$depends $pkgname=$pkgver-r$pkgrel"
+
+	amove usr/share
+}
+
+gpgmepp() {
+	pkgdesc="C++ bindings for GPGME"
+
+	amove usr/lib/libgpgmepp.so.*
+}
+
+py3() {
+	pkgdesc="Python 3 bindings for $pkgname"
+	depends="$depends $pkgname=$pkgver-r$pkgrel python3"
+
+	amove usr/lib/python3*
+}
+
+qgpgme() {
+	pkgdesc="Qt bindings for GPGME"
+
+	amove usr/lib/libqgpgme.so*
+}
+
+sha512sums="
+c0cb0b337d017793a15dd477a7f5eaef24587fcda3d67676bf746bb342398d04792c51abe3c26ae496e799c769ce667d4196d91d86e8a690d02c6718c8f6b4ac  gpgme-1.18.0.tar.bz2
+d62367b69f31b507f0bbdfd6778a1491892f0ec26f8345a2186af78b8123e6d4e9687a90b0425a8cd5fb074e62d24f849d121c58b004ae68bed4e8260f7d5c6b  0003-python310.patch
+"
