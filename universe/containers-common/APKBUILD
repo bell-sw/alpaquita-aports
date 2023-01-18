@@ -1,0 +1,103 @@
+pkgname=containers-common
+pkgver=0.50.1
+pkgrel=0
+pkgdesc="Configuration files for container tools"
+url="https://github.com/containers/common"
+license="Apache-2.0"
+arch="noarch"
+options="!check" # no test suite
+makedepends="go-md2man"
+subpackages="$pkgname-doc"
+# Pick the exact versions of common/storage/image vendored in podman.
+# Ideally, they should be the same in skopeo and buildah.
+# Check them with the list_vendors function. 
+_common_ver=$pkgver
+_storage_ver=1.43.0
+_image_ver=5.23.0
+_podman_ver=4.3.0
+_skopeo_ver=1.10.0
+_buildah_ver=1.28.0
+source="https://github.com/containers/common/archive/v$_common_ver/common-$_common_ver.tar.gz
+	https://github.com/containers/storage/archive/v$_storage_ver/storage-$_storage_ver.tar.gz
+	https://github.com/containers/image/archive/v$_image_ver/image-$_image_ver.tar.gz
+	https://github.com/containers/podman/archive/v$_podman_ver/podman-$_podman_ver.tar.gz
+	https://github.com/containers/skopeo/archive/v$_skopeo_ver/skopeo-$_skopeo_ver.tar.gz
+	https://github.com/containers/buildah/archive/v$_buildah_ver/buildah-$_buildah_ver.tar.gz
+	"
+
+list_vendors() {
+	unpack
+
+	for tool in podman-$_podman_ver skopeo-$_skopeo_ver buildah-$_buildah_ver
+	do
+		cd "$srcdir"/$tool
+		msg $tool
+		grep github.com/containers/common go.mod
+		grep github.com/containers/storage go.mod
+		grep github.com/containers/image go.mod
+	done
+}
+
+prepare() {
+	default_prepare
+
+	# fix go-md2man path in containers/storage
+	sed -E 's/(GOMD2MAN =).*/\1 go-md2man/' -i "$srcdir"/storage-$_storage_ver/docs/Makefile
+
+	# set default storage driver
+	sed -E 's/(driver =) ""/\1 "overlay"/' -i "$srcdir"/storage-$_storage_ver/storage.conf
+
+	# set unqualified-search-registries
+	sed -E 's/# (unqualified-search-registries =).*/\1 ["docker.io"]/' -i "$srcdir"/image-$_image_ver/registries.conf
+}
+
+build() {
+	cd "$srcdir"/common-$_common_ver
+	make -C docs
+
+	cd "$srcdir"/storage-$_storage_ver
+	make -C docs
+
+	cd "$srcdir"/image-$_image_ver
+	make docs
+}
+
+package() {
+	install -d "$pkgdir"/etc/containers/certs.d
+	install -d "$pkgdir"/etc/containers/oci/hooks.d
+	install -d "$pkgdir"/var/lib/containers/sigstore
+
+	cd "$srcdir"/common-$_common_ver
+	install -Dm644 pkg/config/containers.conf "$pkgdir"/etc/containers/containers.conf
+	install -Dm644 pkg/config/containers.conf "$pkgdir"/usr/share/containers/containers.conf
+	install -Dm644 pkg/seccomp/seccomp.json "$pkgdir"/etc/containers/seccomp.json
+	install -Dm644 pkg/seccomp/seccomp.json "$pkgdir"/usr/share/containers/seccomp.json
+	make -C docs install PREFIX=/usr DESTDIR="$pkgdir"
+
+	cd "$srcdir"/storage-$_storage_ver
+	install -Dm644 storage.conf "$pkgdir"/etc/containers/storage.conf
+	install -Dm644 storage.conf "$pkgdir"/usr/share/containers/storage.conf
+	make -C docs install DESTDIR="$pkgdir"
+
+	cd "$srcdir"/image-$_image_ver
+	install -Dm644 registries.conf "$pkgdir"/etc/containers/registries.conf
+	make install DESTDIR="$pkgdir"
+
+	cd "$srcdir"/skopeo-$_skopeo_ver
+	install -Dm644 default-policy.json "$pkgdir"/etc/containers/policy.json
+	install -Dm644 default.yaml "$pkgdir"/etc/containers/registries.d/default.yaml
+}
+
+doc() {
+	default_doc
+	pkgdesc="Man pages for container tools"
+}
+
+sha512sums="
+33af155650ac1b1a728a1c52d8056ac2fcac39c44ab050515149bb76e81b488f45673f13d642a963dd7594dc743c98053c95669605a64e058e1f4fba05a68889  common-0.50.1.tar.gz
+7e479086a75ebf0b9ba1bfd3824bbb3f15a337e967aa0f69ac762d93515f49813a5245b7c835765d7a0b6c1fc6baa5041e152e6036f264242d7307c8e72810bb  storage-1.43.0.tar.gz
+4e35b4494607414308dc86c854a03a2af5580d02c0e2aa984e06e20c303fcd865c7344dda72e48d08120a8d4fdb28ce76a937507ec99a16cc428d37bd12303d7  image-5.23.0.tar.gz
+b5b70e83a67ccfea149cb7df87a452d51fbb5e87ab3d1c6b4f623ba0f8f8a25442cee6ae8b8d31ea844f08c3ea4962e865ddb90e61c185dfad29d3b23aa8338f  podman-4.3.0.tar.gz
+0d64e7f12a0d10c81074a04b6c74ed6e7213f598013f1ba672c4c696e9dad5827f41f41bb817263bf8606cd051b8e24e7eab65b95d73d8a1c8bbb3eaeb9defdb  skopeo-1.10.0.tar.gz
+f5e82a22648fa0d0ba7f5dcf3b97a2ec1182f31d3e03cd2624e01fe76fcdddf0a5605c59816eeef6401d151864b6b6be493c144b83f5667ab3947eea902f0086  buildah-1.28.0.tar.gz
+"
