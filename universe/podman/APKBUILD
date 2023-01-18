@@ -1,0 +1,130 @@
+pkgname=podman
+pkgver=4.3.1
+pkgrel=0
+pkgdesc="Simple management tool for pods, containers and images"
+url="https://podman.io/"
+license="Apache-2.0"
+# s390x blocked by aardvark-dns and netavark
+# riscv64 blocked by aardvark-dns and netavark
+arch="all !s390x !riscv64"
+options="!check" # tests require root privileges
+depends="
+	conmon
+	crun
+	iptables
+	ip6tables
+	slirp4netns
+	shadow-subids
+	containers-common
+	netavark
+	aardvark-dns
+	catatonit
+	"
+makedepends="
+	go
+	gpgme-dev
+	libseccomp-dev
+	libassuan-dev
+	go-md2man
+	btrfs-progs-dev
+	bash
+	"
+subpackages="
+	$pkgname-doc
+	$pkgname-openrc
+	$pkgname-bash-completion
+	$pkgname-fish-completion
+	$pkgname-zsh-completion
+	$pkgname-remote:remote
+	$pkgname-docker:docker:noarch
+	$pkgname-docker-doc:docker_doc:noarch
+	"
+source="https://github.com/containers/podman/archive/v$pkgver/podman-$pkgver.tar.gz
+	no-systemd.patch
+
+	podman.initd
+	podman.confd
+	"
+
+# secfixes:
+#   4.3.0-r0:
+#     - CVE-2022-2989
+#   4.0.3-r0:
+#     - CVE-2022-27649
+#   3.4.4-r0:
+#     - CVE-2021-4024
+#     - CVE-2021-41190
+#   3.2.3-r0:
+#     - CVE-2021-3602
+#   3.0.0-r0:
+#     - CVE-2021-20199
+#   2.0.5-r0:
+#     - CVE-2020-14370
+#   1.8.1-r0:
+#     - CVE-2020-1726
+
+export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
+
+build() {
+	export BUILDTAGS="exclude_graphdriver_devicemapper seccomp apparmor"
+	make podman podman-remote rootlessport docs
+}
+
+package() {
+	make install.bin install.remote install.man install.completions \
+		PREFIX=/usr DESTDIR="$pkgdir"
+
+	install -Dm755 "$srcdir"/$pkgname.initd "$pkgdir"/etc/init.d/$pkgname
+	install -Dm644 "$srcdir"/$pkgname.confd "$pkgdir"/etc/conf.d/$pkgname
+
+	mv "$pkgdir"/usr/share/fish/vendor_completions.d "$pkgdir"/usr/share/fish/completions
+
+	# remove systemd files
+	rm -r "$pkgdir"/usr/lib/tmpfiles.d
+}
+
+remote() {
+	pkgdesc="Remote CLI for Podman"
+	amove usr/bin/podman-remote
+}
+
+docker() {
+	pkgdesc="Emulate Docker CLI using Podman"
+	depends="podman"
+	provides="docker"
+
+	cd "$builddir"
+
+	install -d "$subpkgdir"/usr/bin
+	make PREFIX=/usr DESTDIR="$subpkgdir" install.docker
+
+	# Remove man pages
+	rm -rf "$subpkgdir"/usr/share
+
+	# Remove systemd files
+	rm -rf "$subpkgdir"/usr/lib
+}
+
+docker_doc() {
+	pkgdesc="Emulate Docker CLI using Podman (documentation)"
+	depends="$pkgname-doc"
+	install_if="docs $pkgname-docker=$pkgver-r$pkgrel"
+
+	# make target install.docker nor docker-docs are of any use,
+	# so lets create the symlinks manually:
+	cd "$builddir"/docs/build/man
+
+	mkdir -p "$subpkgdir"/usr/share/man/man1
+	for i in podman*.1; do
+		ln -s $i.gz "$subpkgdir"/usr/share/man/man1/${i/podman/docker}.gz
+	done
+}
+
+sha512sums="
+907dafc6481cbcb7a9b6771c3682a88d6c3b055050c0a180f9ceb985c1a3826318056b62dd6d2859a2a23eba7aad4bf26404327d5479bde98658745fa7d88efa  podman-4.3.1.tar.gz
+366af180cd83d5ceccb131304f1bf4227a84dca512b86c826ea6ebdb34216483fd090582ebb832917ee0f281ac84c787620b58cb48367b49c1b82720925e9c5b  no-systemd.patch
+72e91da5c2144c190f4f1a98b5b1f32cbaee50ef53d4c0a2a255a514b79d76cf71a1eca9470d4ad0a5f51ee65df68b1711fd7c5b90a416916715c607275af484  podman.initd
+ec6e6d3f72d0ab6c90a30b2cca5152c0d0f1e402ae671289263d7bf3b5141de9d67c3593f20b6075cedd214b7fb1506e69ff7b4f9691b43b391389343ab9b9b1  podman.confd
+"
