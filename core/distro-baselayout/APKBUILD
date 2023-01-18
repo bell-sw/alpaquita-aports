@@ -1,11 +1,11 @@
 pkgname=distro-baselayout
 pkgver=3.4.0
 pkgrel=1
-pkgdesc="Alpaquita base dir structure and init scripts"
-url="https://bell-sw.com/"
+pkgdesc="$VENDOR_DISTRO_NAME base dir structure and init scripts"
+url="$VENDOR_URL"
 arch="all"
 license="GPL-2.0-only"
-provides="alpaquita-baselayout=$pkgver-r$pkgrel"
+provides="$VENDOR_DISTRO-baselayout=$pkgver-r$pkgrel"
 pkggroups="shadow"
 options="!check !fhs lib64"
 depends="$pkgname-data=${pkgver}-r${pkgrel}"
@@ -49,7 +49,7 @@ build() {
 
 data() {
 	replaces="$pkgname"
-	provides="alpaquita-baselayout-data=$pkgver-r$pkgrel"
+	provides="$VENDOR_DISTRO-baselayout-data=$pkgver-r$pkgrel"
 	depends=
 
 	amove etc/fstab
@@ -158,13 +158,13 @@ package() {
 		/bin/ash
 	EOF
 	cat > "$pkgdir"/etc/motd <<-EOF
-		Welcome to BellSoft Alpaquita Linux!
+		Welcome to $VENDOR_NAME $VENDOR_DISTRO_NAME Linux!
 
 	EOF
 	cat > "$pkgdir"/etc/sysctl.conf <<-EOF
 		# content of this file will override /etc/sysctl.d/*
 	EOF
-	cat > "$pkgdir"/usr/lib/sysctl.d/00-alpaquita.conf <<-EOF
+	cat > "$pkgdir/usr/lib/sysctl.d/00-${VENDOR_DISTRO}.conf" <<-EOF
 
 		# Decrease the amount of swap
 		vm.swappiness = 10
