@@ -1,0 +1,38 @@
+pkgname=buildah
+pkgver=1.28.0
+pkgrel=1
+pkgdesc="tool that facilitates building OCI container images"
+url="https://github.com/containers/buildah"
+license="Apache-2.0"
+arch="all"
+depends="crun shadow-subids fuse-overlayfs slirp4netns containers-common"
+makedepends="go go-md2man lvm2-dev gpgme-dev libseccomp-dev btrfs-progs-dev bash"
+subpackages="$pkgname-doc"
+options="!check" # tests require root privileges
+source="https://github.com/containers/buildah/archive/v$pkgver/buildah-$pkgver.tar.gz"
+
+# secfixes:
+#   1.28.0-r0:
+#     - CVE-2022-2990
+#   1.21.3-r0:
+#     - CVE-2021-3602
+#   1.19.4-r0:
+#     - CVE-2021-20206
+#   1.14.4-r0:
+#     - CVE-2020-10696
+
+export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
+
+build() {
+	GIT_COMMIT="$pkgver" make
+}
+
+package() {
+	GIT_COMMIT="$pkgver" make install PREFIX=/usr DESTDIR="$pkgdir"
+}
+
+sha512sums="
+f5e82a22648fa0d0ba7f5dcf3b97a2ec1182f31d3e03cd2624e01fe76fcdddf0a5605c59816eeef6401d151864b6b6be493c144b83f5667ab3947eea902f0086  buildah-1.28.0.tar.gz
+"
