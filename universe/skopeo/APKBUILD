@@ -1,0 +1,64 @@
+pkgname=skopeo
+pkgver=1.10.0
+pkgrel=2
+# set this to the gitrev of the version
+_gitrev=ee60474d5a4d99745aac9855797ad4b26510d786
+pkgdesc="Work with remote images registries - retrieving information, images, signing content"
+url="https://github.com/containers/skopeo"
+license="Apache-2.0"
+arch="all"
+options="net !check" # needs docker
+depends="containers-common"
+makedepends="
+	bash
+	btrfs-progs-dev
+	glib-dev
+	go
+	go-md2man
+	gpgme-dev
+	libselinux-dev
+	linux-headers
+	lvm2-dev
+	ostree-dev
+	"
+subpackages="
+	$pkgname-doc
+	$pkgname-bash-completion
+	$pkgname-fish-completion:_fish:noarch
+	$pkgname-zsh-completion
+	"
+source="https://github.com/containers/skopeo/archive/v$pkgver/skopeo-$pkgver.tar.gz"
+
+# secfixes:
+#   1.5.2-r0:
+#     - CVE-2021-41190
+
+export GOPATH="$srcdir"
+export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
+
+build() {
+	make GIT_COMMIT=$_gitrev all
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" PREFIX=/usr install-docs install-completions
+	install -D -m755 -t "$pkgdir"/usr/bin bin/skopeo
+}
+
+# manual workaround until https://gitlab.alpinelinux.org/alpine/abuild/-/merge_requests/136
+_fish() {
+	pkgdesc="Fish completions for $pkgname"
+	install_if="$pkgname=$pkgver-r$pkgrel fish"
+
+	amove usr/share/fish/vendor_completions.d
+}
+
+sha512sums="
+0d64e7f12a0d10c81074a04b6c74ed6e7213f598013f1ba672c4c696e9dad5827f41f41bb817263bf8606cd051b8e24e7eab65b95d73d8a1c8bbb3eaeb9defdb  skopeo-1.10.0.tar.gz
+"
