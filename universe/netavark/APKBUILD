@@ -1,0 +1,33 @@
+pkgname=netavark
+pkgver=1.3.0
+pkgrel=0
+pkgdesc="Container network stack"
+url="https://github.com/containers/netavark"
+license="Apache-2.0"
+# s390x fails to build due to nix crate
+# riscv64 fails to build due to nix crate
+arch="all !s390x !riscv64"
+makedepends="
+	cargo
+	mandown
+	"
+subpackages="$pkgname-doc"
+source="https://github.com/containers/netavark/archive/v$pkgver/netavark-$pkgver.tar.gz"
+options="net"
+
+build() {
+	make
+	make docs
+}
+
+check() {
+	make unit
+}
+
+package() {
+	make DESTDIR="$pkgdir" PREFIX=/usr install
+}
+
+sha512sums="
+f3fb54060313c9a162d16e64ee061897af42c7f7f36cdc9ddfb5a825486ac43bc4279bd107fa8dc6e31c93b4981d10ea8398f8c5c411cca3cad249334df4931c  netavark-1.3.0.tar.gz
+"
