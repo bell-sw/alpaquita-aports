@@ -1,0 +1,49 @@
+From c4736747b977600d30dec357c54a259dc1dc33f9 Mon Sep 17 00:00:00 2001
+From: "Darrick J. Wong" <djwong@kernel.org>
+Date: Fri, 6 Aug 2021 11:05:44 -0700
+Subject: [PATCH] xfs: drop experimental warnings for bigtime and inobtcount
+
+[ Upstream commit f19ee6bb1a72e7e1ecbd25d99a48513bc6061832 ]
+
+These two features were merged a year ago, userspace tooling have been
+merged, and no serious errors have been reported by the developers.
+Drop the experimental tag to encourage wider testing.
+
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Chandan Babu R <chandanrlinux@gmail.com>
+Reviewed-by: Carlos Maiolino <cmaiolino@redhat.com>
+Reviewed-by: Bill O'Donnell <billodo@redhat.com>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+---
+ fs/xfs/xfs_super.c | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/fs/xfs/xfs_super.c b/fs/xfs/xfs_super.c
+index 434c87cc9fbf..8de098fd91b0 100644
+--- a/fs/xfs/xfs_super.c
++++ b/fs/xfs/xfs_super.c
+@@ -1539,10 +1539,6 @@ xfs_fc_fill_super(
+ 	if (XFS_SB_VERSION_NUM(&mp->m_sb) == XFS_SB_VERSION_5)
+ 		sb->s_flags |= SB_I_VERSION;
+ 
+-	if (xfs_sb_version_hasbigtime(&mp->m_sb))
+-		xfs_warn(mp,
+- "EXPERIMENTAL big timestamp feature in use. Use at your own risk!");
+-
+ 	if (mp->m_flags & XFS_MOUNT_DAX_ALWAYS) {
+ 		bool rtdev_is_dax = false, datadev_is_dax;
+ 
+@@ -1598,10 +1594,6 @@ xfs_fc_fill_super(
+ 		goto out_filestream_unmount;
+ 	}
+ 
+-	if (xfs_sb_version_hasinobtcounts(&mp->m_sb))
+-		xfs_warn(mp,
+- "EXPERIMENTAL inode btree counters feature in use. Use at your own risk!");
+-
+ 	error = xfs_mountfs(mp);
+ 	if (error)
+ 		goto out_filestream_unmount;
+-- 
+2.25.1
+
