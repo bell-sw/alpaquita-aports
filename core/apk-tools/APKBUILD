@@ -2,9 +2,9 @@
 # install, upgrade, or delete them.
 
 pkgname=apk-tools
+pkgver=2.12.11
+pkgrel=0
 pkgdesc="APK Package Manager (Derivative from Alpine Package Keeper)"
-pkgver=2.12.10
-pkgrel=4
 arch="all"
 url="https://gitlab.alpinelinux.org/alpine/apk-tools"
 license="GPL-2.0-only"
@@ -22,16 +22,15 @@ if [ "$CBUILD" = "$CHOST" ]; then
 	depends="$depends ca-certificates-bundle"
 fi
 source="https://gitlab.alpinelinux.org/alpine/apk-tools/-/archive/v$pkgver/apk-tools-v$pkgver.tar.gz
-	increase-index-meta-buffer.patch
 	_apk
 	0001-Get-rid-of-separation-of-sbin-lib-and-their-usr-coun.patch
-	0003-add-alternative-packages-support.patch
-	0004-commit-make-the-installing-of-alternative-packages-s.patch
-	0005-alternative-packages-tests.patch
-	0006-solver-clean-db-when-removing-alternative-pkg.patch
-	0007-support-gradual-downgrade-with-apk-add.patch
-	0008-apk-search-sorted-output.patch
-	0009-reset-sigpipe-handler-to-default-when-running-script.patch
+	0002-add-alternative-packages-support.patch
+	0003-commit-make-the-installing-of-alternative-packages-s.patch
+	0004-alternative-packages-tests.patch
+	0005-solver-clean-db-when-removing-alternative-pkg.patch
+	0006-support-gradual-downgrade-with-apk-add.patch
+	0007-apk-search-sorted-output.patch
+	0008-reset-sigpipe-handler-to-default-when-running-script.patch
 	"
 builddir="$srcdir/$pkgname-v$pkgver"
 
@@ -73,15 +72,14 @@ luaapk() {
 }
 
 sha512sums="
-7be1a659e58ced1c2be3d058127391b92078a3560746149e1b53bf7b877ad5ded755e9a7cf2a68d8cdd49bfaf10afb7dfe361ef8ae9590aede8ce422c85ea389  apk-tools-v2.12.10.tar.gz
-3807fe95357855a8b682a13dc6178db9d0396ed905bee694ef923867b1f79c61801ba4d4240adeb27825bc472006a74a5e7898b4683c548ee826e825710ce3e1  increase-index-meta-buffer.patch
+f3b41ec24992873e0b2854387cfda7037c6348452d0a840a73d1d268320db799069ab6a074b0f0d9c8329e1e0193324ca19c5f96d940534d27ba48ecedf8b02d  apk-tools-v2.12.11.tar.gz
 7870676720f5007eee9482786e02246f8e3474afb90e76c9c83aebe914747a8e007b5d2eed6441933f4922024b3f0664db270f21981ad6c2db877a110b0cd79e  _apk
-30217d6567848dda6abc15afa192417b2a825571451702b48a331c9b5bcff64e97ad37e0d50cf99dbc998cae12df4cebd95f1cbabd9733cbdbf6cb74570cbac5  0001-Get-rid-of-separation-of-sbin-lib-and-their-usr-coun.patch
-d344c2ec7a7b3b9b1411fa8084d196ca50fe77d2b234dcbd4942a0b6f77b784954f0a7e2c9422ee148775abce95d481652380fa9a7b6c909a121e51ef901251a  0003-add-alternative-packages-support.patch
-415f11ba12eb4152c6ca40d12fb4d16f402935acec6291e43a10db77df0f3cd7d281d7d91d67f8dcb4fa7e884fc6206d3468d961ac747b70718e435267350c39  0004-commit-make-the-installing-of-alternative-packages-s.patch
-1f4aca948cadd115bb79b275bc15e5d155af14248a59047aca598d7144fe0681e77092103c32df5009ba4fb6ae2a75987528e02821ad5f901f1dcb2d04307189  0005-alternative-packages-tests.patch
-ac2ea7af2379cfa702fbe9aa2a1698464f54c272dde9f1fd7342ffadcec3ce64f98491e70731c686bc2bccb95061e749e7f1a5dea36c62bba8f8fb5b0d4b4e77  0006-solver-clean-db-when-removing-alternative-pkg.patch
-283a72acd6afd90733fd9f130d4163cd324976b2ea74be059e35a1ac3d2d680e2c6eb3bb1535834d663e2ee3a808036bac36c03670235429ec6f8b7fadf71fa2  0007-support-gradual-downgrade-with-apk-add.patch
-1bce08763762ed6be25fd8c60dec0a1dbc2ffb53251758bba51eb3225c8138b10af6f9e0b810adbf2e3ef361b8a5ba8b542ba7eeabd4c12370e3240ec895c4e5  0008-apk-search-sorted-output.patch
-40182197978ef9d810e0bd9cf43cd281d0d70fe5729c7c243f069118034938e3048835a24fed1799ad3f5c8dce1aa3afb7c3afb55af3b45b93289c2dccdd741a  0009-reset-sigpipe-handler-to-default-when-running-script.patch
+a81ad0f23d1b4ed0484332cf00b894144e1d96761ec119e36507625d75e83d406c8db28d805d24ba859b28b21946bf5a0878874b7c1275bcfa9ed15fc8feeae7  0001-Get-rid-of-separation-of-sbin-lib-and-their-usr-coun.patch
+f2329a7d5c29d16f98e165b85451a2be31935ee79bc6809f2681a1b22b000e10b4573f515be32557aa06db280d8cf81ca522646fe184ed310114c653fbf21873  0002-add-alternative-packages-support.patch
+42cffa54c55d763ef7e714df358f760afda0d429d5c9cb615acac569a9611bbbd9a347bd44382690dc7d4e77ffd93c838d20809edc492d897c7fdfbbeee95077  0003-commit-make-the-installing-of-alternative-packages-s.patch
+d70561e5d71a1503363c65181ad02a7c7cc80fbd6702d33ff9c7b3b1f75c08e32b25ea0a47187aba4a1e5bd121453d5d93b33fc6a1af75917860716d921af5f1  0004-alternative-packages-tests.patch
+a434b9c96c8d65f95e9141adeb5743b0da09ef43ebbd4a80fff9e3f826762be9343d3fac4ed2a3ee45195f50fc7fbfcc07f648c6078c9007e086f2dad494e0cd  0005-solver-clean-db-when-removing-alternative-pkg.patch
+d4b501a9ebff49ea6aa6dfb62986faf6a36a369a90e95ee54d9f98525c3278e5c2806bae36651c4e41e2af39073f040abddf3d08f6b852c5910675b58967b2e3  0006-support-gradual-downgrade-with-apk-add.patch
+be2d7ae6d37a849ba14a328a0e9a2a39c69fbcb1abe345e5de39b48970905359f7ec9f46d52a1a42ba0ac8942538eca4951fd088bf9f8c3179e71ebdb07bed3b  0007-apk-search-sorted-output.patch
+5313f4f6be3c0965efebf05bc63fadb2771e6d89853a1ca0daa6c0240e6bcda5e8553c76c82a7040a5dd913d509eb67977607b94d58bf1e4f0685eac1648fe1c  0008-reset-sigpipe-handler-to-default-when-running-script.patch
 "

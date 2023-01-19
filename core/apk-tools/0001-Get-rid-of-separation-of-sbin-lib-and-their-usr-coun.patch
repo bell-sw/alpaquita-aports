@@ -1,7 +1,7 @@
-From 1fab2eaf96a9f0bccc797e977735e039d4cb675c Mon Sep 17 00:00:00 2001
+From 0a0ca98006701c2eb2aceb0a70904ee856861515 Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
 Date: Mon, 27 Dec 2021 14:10:24 +0000
-Subject: [PATCH 1/3] Get rid of separation of /sbin /lib and their /usr
+Subject: [PATCH] Get rid of separation of /sbin /lib and their /usr
  counterparts.
 
 ---
@@ -10,7 +10,7 @@ Subject: [PATCH 1/3] Get rid of separation of /sbin /lib and their /usr
  2 files changed, 12 insertions(+), 12 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index 9a70d20..108d3e6 100644
+index 23173a6..3b2e0aa 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -12,8 +12,8 @@ export VERSION
@@ -25,10 +25,10 @@ index 9a70d20..108d3e6 100644
  MANDIR		:= /usr/share/man
  DOCDIR		:= /usr/share/doc/apk
 diff --git a/src/database.c b/src/database.c
-index 5f4e5e6..278be7c 100644
+index 7118c64..f75a2fa 100644
 --- a/src/database.c
 +++ b/src/database.c
-@@ -60,16 +60,16 @@ static const char * const apk_world_file = "etc/apk/world";
+@@ -59,16 +59,16 @@ static const char * const apk_world_file = "etc/apk/world";
  static const char * const apk_world_file_tmp = "etc/apk/world.new";
  static const char * const apk_arch_file = "etc/apk/arch";
  
@@ -52,7 +52,7 @@ index 5f4e5e6..278be7c 100644
  
  static struct apk_db_acl *apk_default_acl_dir, *apk_default_acl_file;
  
-@@ -1346,13 +1346,13 @@ static int apk_db_create(struct apk_database *db)
+@@ -1338,13 +1338,13 @@ static int apk_db_create(struct apk_database *db)
  	mknodat(db->root_fd, "dev/console", S_IFCHR | 0600, makedev(5, 1));
  	mkdirat(db->root_fd, "etc", 0755);
  	mkdirat(db->root_fd, "etc/apk", 0755);
@@ -70,5 +70,5 @@ index 5f4e5e6..278be7c 100644
  	fd = openat(db->root_fd, apk_world_file, O_CREAT|O_RDWR|O_TRUNC|O_CLOEXEC, 0644);
  	if (fd < 0)
 -- 
-2.34.1
+2.38.1
 
