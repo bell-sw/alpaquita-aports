@@ -10,7 +10,7 @@ pkgver=${_pkgbase}_git${_pkgsnap}
 [ "$CHOST" != "$CTARGET" ] && _target="-$CTARGET_ARCH" || _target=""
 
 pkgname="$pkgname$_target"
-pkgrel=4
+pkgrel=5
 pkgdesc="The GNU Compiler Collection"
 url="https://gcc.gnu.org"
 arch="all"
@@ -291,7 +291,7 @@ build() {
 	export CXXFLAGS="$CXXFLAGS -O2"
 	export CPPFLAGS="$CPPFLAGS -O2"
 
-	local version="Alpaquita $pkgver-r$pkgrel"
+	local version="$VENDOR_DISTRO_NAME $pkgver-r$pkgrel"
 	local gccconfiguration="
 		--prefix=/usr
 		--mandir=/usr/share/man
@@ -318,7 +318,7 @@ build() {
 		--with-system-zlib
 		--with-linker-hash-style=gnu
 		--enable-gnu-indirect-function=yes
-		--with-bugurl=https://bell-sw.com/support/
+		--with-bugurl='$VENDOR_BUG_REPORT_URL'
 		"
 
 	mkdir -p "$_builddir"
