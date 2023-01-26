@@ -1,7 +1,7 @@
 pkgname=apache2
 _pkgreal=httpd
 pkgver=2.4.54
-pkgrel=1
+pkgrel=2
 pkgdesc="A high performance Unix-based HTTP server"
 url="https://httpd.apache.org/"
 arch="all"
@@ -29,7 +29,7 @@ source="https://dlcdn.apache.org/$_pkgreal/$_pkgreal-$pkgver.tar.bz2
 	apache2.confd
 	apache2.logrotate
 	apache2.initd
-	alpaquita.layout
+	alpine.layout
 	conf/0001-httpd.conf-ServerRoot.patch
 	conf/0002-httpd.conf-ServerTokens.patch
 	conf/0003-httpd.conf-ServerSignature.patch
@@ -142,13 +142,13 @@ prepare() {
 		esac
 	done
 
-	cat "$srcdir/alpaquita.layout" >> config.layout
+	cat "$srcdir/alpine.layout" >> config.layout
 }
 
 build() {
 	./configure \
 		--prefix=/usr \
-		--enable-layout=Alpaquita \
+		--enable-layout=Alpine \
 		--enable-so \
 		--enable-suexec \
 		--with-suexec-caller=apache \
@@ -399,7 +399,7 @@ sha512sums="
 8e62b101f90c67babe864bcb74f711656180b011df3fd4b541dc766b980b72aa409e86debf3559a55be359471c1cad81b8779ef3a55add8d368229fc7e9544fc  apache2.confd
 18e8859c7d99c4483792a5fd20127873aad8fa396cafbdb6f2c4253451ffe7a1093a3859ce719375e0769739c93704c88897bd087c63e1ef585e26dcc1f5dd9b  apache2.logrotate
 81a2d2a297d8049ba1b021b879ec863767149e056d9bdb2ac8acf63572b254935ec96c2e1580eba86639ea56433eec5c41341e4f1501f9072745dccdb3602701  apache2.initd
-64de1eb43e0ab025fa41217f4797d6567636933a2a8f3da8f3548e67b61cb6d91310fce977a3b72dfc3507334c1d6318332e91ac933173990addbbf5aeb963eb  alpaquita.layout
+177c58d049fc4476fd9b9b36b67725145777c84cf81948105c9314cb09312dff6c1931fe21aaa243597abaefded6c6dfd80d83839e45a23950b50de615d73b06  alpine.layout
 361e0a74f6f8f5734f074dc2f2001ff64896ecc81f88ea384b6db7db33b7738eb92b4e16163b356259581a8e7dd86adeac971d36d2584abb781e8f9b8fae6356  0001-httpd.conf-ServerRoot.patch
 40f3b7579c403952ba1efcb8dfd6ffd91c2695a06a2e5530ab5a583946558790fbfa16cad259d273ac1aa7a6335dd79636aa82fd844dc3a60a34c34d90db5e17  0002-httpd.conf-ServerTokens.patch
 ad0c1711bc240f99cd0256d0984ad0142e03c384d30378ccca3e47cdd2596307e64bb19fbd810a56c0e4c0716577d3160bad2ae39783b1358412588bc729c113  0003-httpd.conf-ServerSignature.patch
