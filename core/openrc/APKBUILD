@@ -4,7 +4,7 @@
 pkgname=openrc
 pkgver=0.45.2
 _ver=${pkgver/_git*/}
-pkgrel=5
+pkgrel=6
 pkgdesc="OpenRC dependency-based init system"
 url="https://github.com/OpenRC/openrc"
 arch="all"
@@ -81,7 +81,7 @@ build() {
 		--libexecdir=lib \
 		--bindir=bin \
 		--sbindir=sbin \
-		-Dbranding='"Alpaquita Linux"' \
+		-Dbranding=\""$VENDOR_DISTRO_NAME Linux"\" \
 		. output
 	meson compile -C output
 }
@@ -99,7 +99,7 @@ package() {
 
 	DESTDIR="$pkgdir" meson install --no-rebuild -C output
 
-	# Alpaquita does not use openrc as its init so delete
+	# we do not use openrc as our init so delete
 	# openrc-init & openrc-shutdown to avoid confusion.
 	rm -f "$pkgdir"/usr/sbin/openrc-init "$pkgdir"/usr/sbin/openrc-shutdown
 
