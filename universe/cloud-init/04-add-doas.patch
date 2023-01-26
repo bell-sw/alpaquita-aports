@@ -9,17 +9,7 @@ Add doas support to users_groups module.
 diff -aur a/cloudinit/config/cc_users_groups.py b/cloudinit/config/cc_users_groups.py
 --- a/cloudinit/config/cc_users_groups.py
 +++ b/cloudinit/config/cc_users_groups.py
-@@ -26,6 +26,9 @@
- config keys for an entry in ``users`` are as follows:
- 
-     - ``name``: The user's login name
-+    - ``doas``: Optional. Doas rule to use, list of Doas rules to use or False.
-+      Default: none. An absence of doas key, or a value of none or false
-+      will result in no doas rules being written for the user.
-     - ``expiredate``: Optional. Date on which the user's account will be
-       disabled. Default: none
-     - ``gecos``: Optional. Comment about the user, usually a comma-separated
-@@ -76,14 +79,20 @@
+@@ -55,14 +55,20 @@
      if the cloud-config can be intercepted. SSH authentication is preferred.
  
  .. note::
@@ -40,28 +30,38 @@ diff -aur a/cloudinit/config/cc_users_groups.py b/cloudinit/config/cc_users_grou
 +    ``hashed_passwd``, ``lock_passwd``, ``sudo``, ``ssh_authorized_keys``,
 +    ``ssh_redirect_user``.
  
- **Internal name:** ``cc_users_groups``
- 
-@@ -103,6 +112,7 @@
-         - name: <some_restricted_user>
-           sudo: false
-         - name: <username>
-+          doas: <doas config>
-           expiredate: '<date>'
-           gecos: <comment>
-           groups: <additional groups>
+ The ``user`` key can be used to override the ``default_user`` configuration
+ defined in ``/etc/cloud/cloud.cfg``. The ``user`` value should be a dictionary
+diff -aur a/cloudinit/config/schemas/schema-cloud-config-v1.json b/cloudinit/config/schemas/schema-cloud-config-v1.json
+--- a/cloudinit/config/schemas/schema-cloud-config-v1.json
++++ b/cloudinit/config/schemas/schema-cloud-config-v1.json
+@@ -142,6 +142,14 @@
+           "description": "The user's login name. Required otherwise user creation will be skipped for this user.",
+           "type": "string"
+         },
++        "doas": {
++          "description": "List of Doas rules to use. Absence of a doas value will result in no doas rules added for this user.",
++          "type": "array",
++          "items": {
++            "type": "string"
++          },
++          "minItems": 1
++        },
+         "expiredate": {
+           "default": null,
+           "description": "Optional. Date on which the user's account will be disabled. Default: ``null``",
 diff -aur a/cloudinit/distros/__init__.py b/cloudinit/distros/__init__.py
 --- a/cloudinit/distros/__init__.py
 +++ b/cloudinit/distros/__init__.py
-@@ -71,6 +71,7 @@
- 
+@@ -84,6 +84,7 @@
+     pip_package_name = "python3-pip"
      usr_lib_exec = "/usr/lib"
      hosts_fn = "/etc/hosts"
 +    ci_doas_fn = "/etc/doas.d/cloud-init.conf"
      ci_sudoers_fn = "/etc/sudoers.d/90-cloud-init-users"
      hostname_conf_fn = "/etc/hostname"
      tz_zone_dir = "/usr/share/zoneinfo"
-@@ -570,6 +571,7 @@
+@@ -643,6 +644,7 @@
          * ``plain_text_passwd``
          * ``hashed_passwd``
          * ``lock_passwd``
@@ -69,20 +69,21 @@ diff -aur a/cloudinit/distros/__init__.py b/cloudinit/distros/__init__.py
          * ``sudo``
          * ``ssh_authorized_keys``
          * ``ssh_redirect_user``
-@@ -595,6 +597,10 @@
-         if kwargs.get('lock_passwd', True):
+@@ -668,6 +670,11 @@
+         if kwargs.get("lock_passwd", True):
              self.lock_passwd(name)
  
 +        # Configure doas access
-+        if 'doas' in kwargs and kwargs['doas'] is not False:
-+            self.write_doas_rules(name, kwargs['doas'])
++        if 'doas' in kwargs:
++            if kwargs['doas']:
++                self.write_doas_rules(name, kwargs['doas'])
 +
          # Configure sudo access
-         if 'sudo' in kwargs and kwargs['sudo'] is not False:
-             self.write_sudo_rules(name, kwargs['sudo'])
-@@ -676,6 +682,85 @@
- 
-         return True
+         if "sudo" in kwargs:
+             if kwargs["sudo"]:
+@@ -773,6 +780,85 @@
+         cmd = ["chpasswd"] + (["-e"] if hashed else [])
+         subp.subp(cmd, payload)
  
 +    def ensure_doas_dir(self, path):
 +        # Ensure the directory actually exists
@@ -131,7 +132,7 @@ diff -aur a/cloudinit/distros/__init__.py b/cloudinit/distros/__init__.py
 +                return
 +
 +        lines = [
-+            '',
++            "",
 +            "# User rules for %s" % user,
 +        ]
 +        if isinstance(rules, (list, tuple)):
@@ -152,7 +153,7 @@ diff -aur a/cloudinit/distros/__init__.py b/cloudinit/distros/__init__.py
 +                content,
 +            ]
 +            try:
-+                util.write_file(doas_file, "\n".join(contents), 0o440)
++                util.write_file(doas_file, "\n".join(contents), mode=0o440)
 +            except IOError as e:
 +                util.logexc(LOG, "Failed to write Doas file %s", doas_file)
 +                raise e
@@ -163,24 +164,28 @@ diff -aur a/cloudinit/distros/__init__.py b/cloudinit/distros/__init__.py
 +                util.logexc(LOG, "Failed to append Doas file %s", doas_file)
 +                raise e
 +
-     def ensure_sudo_dir(self, path, sudo_base='/etc/sudoers'):
+     def ensure_sudo_dir(self, path, sudo_base="/etc/sudoers"):
          # Ensure the dir is included and that
          # it actually exists as a directory
 diff -aur a/config/cloud.cfg.tmpl b/config/cloud.cfg.tmpl
 --- a/config/cloud.cfg.tmpl
 +++ b/config/cloud.cfg.tmpl
-@@ -247,10 +247,13 @@
+@@ -277,6 +277,9 @@
       lock_passwd: True
       gecos: {{ variant }} Cloud User
  {% endif %}
 +{% if variant == "alpine" %}
-+     doas: ["permit persist alpine"]
++     doas: ["permit nopass alpine"]
 +{% endif %}
  {% if variant == "suse" %}
       groups: [cdrom, users]
+ {% elif variant == "gentoo" %}
+@@ -284,7 +287,7 @@
+      primary_group: users
+      no_user_group: true
  {% elif variant == "alpine" %}
 -     groups: [adm, sudo]
 +     groups: [adm, sudo, wheel]
  {% elif variant == "arch" %}
       groups: [wheel, users]
- {% else %}
+ {% elif variant == "openmandriva" %}

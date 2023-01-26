@@ -1,0 +1,13 @@
+diff --git a/sysvinit/gentoo/cloud-init-local b/sysvinit/gentoo/cloud-init-local
+index 0f8cf65c..1ad81d76 100755
+--- a/sysvinit/gentoo/cloud-init-local
++++ b/sysvinit/gentoo/cloud-init-local
+@@ -8,6 +8,8 @@ depend() {
+ }
+ 
+ start() {
++  # provide possibility to sneak in a fallback dhclient stub
++  local PATH="$PATH":/usr/lib/cloud-init
+   cloud-init init --local
+   eend 0
+ }

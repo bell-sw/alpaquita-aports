@@ -10,20 +10,20 @@ to Alpine and which have been removed from the Alpine package.
 diff -aur a/config/cloud.cfg.tmpl b/config/cloud.cfg.tmpl
 --- a/config/cloud.cfg.tmpl
 +++ b/config/cloud.cfg.tmpl
-@@ -105,8 +105,10 @@
-  - emit_upstart
-  - snap
+@@ -123,8 +123,10 @@
+  - ubuntu_autoinstall
  {% endif %}
--{% if variant not in ["photon"] %}
-+{% if variant not in ["alpine","photon"] %}
+ {% if variant not in ["photon"] %}
++{% if variant not in ["alpine"] %}
   - ssh-import-id
+-{% if not is_rhel %}
 +{% endif %}
-+{% if variant not in ["photon"] %}
-  - locale
++{% if variant in ["arch", "debian", "ubuntu", "suse"] %}
+  - keyboard
  {% endif %}
-  - set-passwords
-@@ -156,8 +158,10 @@
-  - chef
+  - locale
+@@ -178,8 +180,10 @@
+  - ansible
   - mcollective
   - salt-minion
 +{% if variant not in ["alpine"] %}
