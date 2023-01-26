@@ -1,6 +1,6 @@
 pkgname=polkit
 pkgver=122
-pkgrel=0
+pkgrel=1
 pkgdesc="Application development toolkit for controlling system-wide privileges"
 url="https://www.freedesktop.org/wiki/Software/polkit/"
 arch="all"
@@ -35,7 +35,7 @@ subpackages="
 	$pkgname-elogind-libs:_elogind_libs
 	"
 source="https://gitlab.freedesktop.org/polkit/polkit/-/archive/$pkgver/polkit-$pkgver.tar.bz2
-	alpaquita-polkit.pam
+	alpine-polkit.pam
 	polkit.initd
 	"
 
@@ -82,7 +82,7 @@ package() {
 	rm -rf ./trash
 
 	# Use our own polkit rules, upstream may change them
-	install -m644 "$srcdir"/alpaquita-polkit.pam etc/pam.d/polkit-1
+	install -m644 "$srcdir"/alpine-polkit.pam etc/pam.d/polkit-1
 
 	# See polkit's configure script which tells us what permissions to set
 	chown -R polkitd:polkitd etc/polkit-1/rules.d usr/share/polkit-1/rules.d
@@ -176,6 +176,6 @@ common() {
 
 sha512sums="
 a7c0a951bbcdb09899adbc128296c74fc062441e996f4d6a782b214178f0936137e2fdc489eaa86a00599b988711735a5bd9b5c3b93bdb42fb915db9f9b04e26  polkit-122.tar.bz2
-f5102dc00d390b3a3c957b62e1712db778c7ffb7378f3d8e816c0757c11a308c5d5303e42595b0d6add9839247c773880cd34e56afacc89eb6efaadf9aae7826  alpaquita-polkit.pam
+f5102dc00d390b3a3c957b62e1712db778c7ffb7378f3d8e816c0757c11a308c5d5303e42595b0d6add9839247c773880cd34e56afacc89eb6efaadf9aae7826  alpine-polkit.pam
 251a682da170f8f4eb33ecb27fb1392c8560a17375c2f873ceef0649ca2b0894b68ed7209e1b3716bb2c4c817b57f470d5a326fd26ec1c90615bfd9a1c5be288  polkit.initd
 "
