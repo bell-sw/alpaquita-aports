@@ -1,6 +1,6 @@
 pkgname=libxvmc
 pkgver=1.0.13
-pkgrel=0
+pkgrel=1
 pkgdesc="X11 Video Motion Compensation extension library"
 url="http://xorg.freedesktop.org/"
 arch="all"
@@ -19,13 +19,13 @@ build() {
 		--prefix=/usr \
 		--sysconfdir=/etc \
 		--mandir=/usr/share/man \
-		--localstatedir=/var
+		--localstatedir=/var \
+		--disable-static
 	make
 }
 
 package() {
 	make DESTDIR="$pkgdir" install
-	rm -f "$pkgdir"/usr/lib/*.a
 }
 
 sha512sums="
