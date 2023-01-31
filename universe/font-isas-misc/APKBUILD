@@ -1,13 +1,14 @@
 pkgname=font-isas-misc
 pkgver=1.0.3
-pkgrel=2
-pkgdesc="X.org isas misc font"
+pkgrel=3
+pkgdesc="X.org misc font"
 url="http://xorg.freedesktop.org/"
 arch="noarch"
 license="custom"
 depends="encodings font-alias mkfontscale fontconfig"
 makedepends="font-util-dev bdftopcf"
 source="https://www.x.org/releases/individual/font/font-isas-misc-$pkgver.tar.bz2"
+subpackages="$pkgname-doc"
 
 prepare() {
 	update_config_sub
@@ -29,8 +30,8 @@ package() {
 		MKFONTSCALE=: \
 		FCCACHE=: \
 		install
-	mkdir -p "$pkgdir"/usr/share/licenses/"$pkgname"
-	install -m644 COPYING "$pkgdir"/usr/share/licenses/"$pkgname"/copyright
+
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/$pkgname/COPYING"
 }
 
 sha512sums="be6fb1d2c53550a462d1ab010fa7ac913990e83a22d4580c93b8f1f087aa6caa0e46bc87debca2b13b10e5611bd2fe7f6b4240367fb24f59b37f68ffb0e2586b  font-isas-misc-1.0.3.tar.bz2"
