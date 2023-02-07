@@ -1,8 +1,8 @@
-pkgname=alpaquita-installer
-pkgver=0.7.0
+pkgname=distro-installer
+pkgver=0.7.1
 pkgrel=0
-pkgdesc="Alpaquita Linux Installer"
-url="https://bell-sw.com"
+pkgdesc="$VENDOR_DISTRO_NAME Linux Installer"
+url="$VENDOR_URL"
 arch="noarch"
 license="AGPL-3.0-or-later"
 depends="
@@ -29,13 +29,20 @@ depends="
 	xfsprogs
 "
 makedepends="py3-setuptools"
+builddir="$srcdir/alpaquita-installer-$pkgver"
+provides="$VENDOR_DISTRO-installer=$pkgver-r$pkgrel"
 subpackages="$pkgname-doc"
 source="$pkgname-$pkgver.tar.gz::https://github.com/bell-sw/alpaquita-installer/archive/refs/tags/v$pkgver.tar.gz
-	https://raw.githubusercontent.com/bell-sw/alpaquita-aports/stream/core/alpaquita-keys/info@bell-sw.com-60a2aed7.rsa.pub
-	https://raw.githubusercontent.com/bell-sw/alpaquita-aports/stream/core/alpaquita-keys/info@bell-sw.com-61c66027.rsa.pub
+	https://raw.githubusercontent.com/bell-sw/alpaquita-aports/stream/core/distro-keys/info@bell-sw.com-60a2aed7.rsa.pub
+	https://raw.githubusercontent.com/bell-sw/alpaquita-aports/stream/core/distro-keys/info@bell-sw.com-61c66027.rsa.pub
 	"
 
 build() {
+	local distro_file='alpaquita_installer/app/distro.py'
+	sed -i -E -e "s/^[[:space:]]*(DISTRO)[[:space:]]*=.*/\1='$VENDOR_DISTRO'/" \
+		-e "s/^[[:space:]]*(DISTRO_NAME)[[:space:]]*=.*/\1='$VENDOR_DISTRO_NAME Linux'/" \
+		-e "s,^[[:space:]]*(DISTRO_REPO_BASE_URL)[[:space:]]*=.*,\1='${VENDOR_REPO_BASE_URL%/}'," "$distro_file"
+
 	install -D -m 0644 "$srcdir/info@bell-sw.com-60a2aed7.rsa.pub" -t alpaquita_installer/keys/musl/
 	install -D -m 0644 "$srcdir/info@bell-sw.com-61c66027.rsa.pub" -t alpaquita_installer/keys/glibc/
 	python3 setup.py build
@@ -48,6 +55,9 @@ check() {
 package() {
 	python3 setup.py install --prefix=/usr --root="$pkgdir"
 
+	mv "$pkgdir/usr/bin/alpaquita-installer" "$pkgdir/usr/bin/$pkgname"
+	ln -s "$pkgname" "$pkgdir/usr/bin/$VENDOR_DISTRO-installer"
+
 	mkdir -p "$pkgdir/usr/share/doc/$pkgname"
 	for _doc in *.md; do
 		install -m 0644 $_doc "$pkgdir/usr/share/doc/$pkgname"
@@ -55,7 +65,7 @@ package() {
 }
 
 sha512sums="
-720325741fa61fa18724893eb1cfdbe9928530339a31c8aeb161aac1212f83cca3955564379dbd8169f50fdd4b484d728c25d69d5a12d9f9e4558043ac577b0b  alpaquita-installer-0.7.0.tar.gz
+b726b27c43aa2e4a8e41e2ea49ecf374f279b2fb524cf51de916def01a7031fec6b0a24a57d2e1e3d0821be2927e401903ba6d50bcf4a7ed6382853b431461d9  distro-installer-0.7.1.tar.gz
 a92a9c2860fdd4a33adc9f339a7f6c4ce7217b450b6a2800f5d59d9721c5e7aa141f9ff2638bb9f2a940bff2fe1c3cd8979990bc6b9a03e3cbbda0c82292a1f4  info@bell-sw.com-60a2aed7.rsa.pub
 937cb1a84cef6af5707051036f175d50018feeaca4855638558e172775e7adf5c7d0fde4a9d5b6d4ca3f8de81dfcca9f0f4702d9a9b783eaa78c85a118cb7345  info@bell-sw.com-61c66027.rsa.pub
 "
