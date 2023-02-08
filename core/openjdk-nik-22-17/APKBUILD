@@ -9,7 +9,7 @@ _javaver=17.0.4
 
 pkgname=$_pkgname-$_nikmajor-$_javamajor
 pkgver=22.2.0
-pkgrel=1
+pkgrel=2
 pkgdesc="$VENDOR_JAVA_NAME Native Image Kit $pkgver (Java $_javamajor)"
 url="$VENDOR_URL"
 arch="x86_64"
@@ -91,6 +91,15 @@ builddir="$srcdir"/$_pkgname-$pkgver
 _java_home="/usr/lib/jvm/$pkgname"
 ldpath="$_java_home/lib:$java_home/languages/python/lib-graalpython/lib"
 sonameprefix="$pkgname:"
+
+unpack() {
+	default_unpack
+
+	local curbuilddir=$(readlink -f *-nik-$pkgver)
+	if [ "$curbuilddir" != "$builddir" ]; then
+		mv "$curbuilddir" "$builddir"
+	fi
+}
 
 prepare() {
 	default_prepare
