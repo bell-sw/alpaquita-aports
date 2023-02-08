@@ -11,7 +11,7 @@ _java_name="${VENDOR_NAME} ${VENDOR_JAVA_NAME} JDK 8"
 
 pkgname=${_java_pkg_name}8
 pkgver=${_java_ver/+/_p}
-pkgrel=0
+pkgrel=1
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
@@ -46,7 +46,7 @@ makedepends="
 	sed
 	zip
 	zlib-dev
-	${pkgname}-bootstrap>=8u333
+	openjdk8-bootstrap>=8u333
 	"
 
 subpackages="
@@ -115,6 +115,7 @@ build() {
 	fi
 
 	local _cflags="-fplugin=annobin -fstack-protector-strong -D_FORTIFY_SOURCE=2"
+	local _boot_jdk=$(echo /usr/lib/jvm/java-8-* | awk '{ print $1 }')
 
 	CFLAGS='' CXXFLAGS='' LDFLAGS=''
 	bash ./configure \
@@ -130,7 +131,7 @@ build() {
 		--with-vendor-url=${VENDOR_URL} \
 		--with-vendor-bug-url=${VENDOR_BUG_REPORT_URL} \
 		--with-vendor-vm-bug-url=${VENDOR_BUG_REPORT_URL} \
-		--with-boot-jdk=/usr/lib/jvm/$pkgname
+		--with-boot-jdk=$_boot_jdk
 	MAKEFLAGS='' make images
 }
 

@@ -9,7 +9,7 @@ _java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 17"
 
 pkgname=${_java_pkg_name}17
 pkgver=${_java_ver/+/_p}
-pkgrel=0
+pkgrel=1
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
@@ -43,7 +43,7 @@ makedepends="
 	sed
 	zip
 	zlib-dev
-	$pkgname-bootstrap>=17.0.3
+	openjdk17-bootstrap>=17.0.3
 	"
 subpackages="
 	$pkgname-dbg:_dbg
@@ -95,6 +95,7 @@ build() {
 	fi
 
 	local _cflags="-fplugin=annobin -fstack-protector-strong -D_FORTIFY_SOURCE=2"
+	local _boot_jdk=$(echo /usr/lib/jvm/java-17-* | awk '{ print $1 }')
 
 	CFLAGS='' CXXFLAGS='' LDFLAGS=''
 	bash ./configure \
@@ -116,7 +117,7 @@ build() {
 		--with-extra-ldflags=$LDFLAGS \
 		--disable-warnings-as-errors \
 		--with-zlib=system \
-		--with-boot-jdk=/usr/lib/jvm/$pkgname
+		--with-boot-jdk=$_boot_jdk
 	MAKEFLAGS='' make product-bundles static-libs-bundles
 }
 
