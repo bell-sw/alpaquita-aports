@@ -23,7 +23,7 @@
 pkgname=php81
 _pkgreal=php
 pkgver=8.1.15
-pkgrel=0
+pkgrel=1
 _apiver=20210902
 _suffix=${pkgname#php}
 provides="$pkgname-cli php-cli php"  # for backward compatibility
@@ -445,7 +445,8 @@ embed() {
 	pkgdesc="PHP$_suffix Embedded Library"
 	provides="php-embed"
 
-	_mv "$pkgdir"/usr/lib/libphp*.so "$subpkgdir"/usr/lib/
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libphp.so "$subpkgdir"/usr/lib/libphp$_suffix.so
 }
 
 litespeed() {
