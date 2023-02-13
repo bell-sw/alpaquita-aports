@@ -1,22 +1,22 @@
 From a7e7b8d0e53ce38a13e6a21064c5fa96b1e1a57e Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Fri, 21 Jan 2022 14:21:05 +0300
-Subject: [PATCH] modules.d: add new module alpaquita-iso
+Subject: [PATCH] modules.d: add new module distro-iso
 
 ---
- modules.d/98alpaquita-iso/module-setup.sh  | 25 ++++++++
- modules.d/98alpaquita-iso/mount-tmpfs.sh   | 78 +++++++++++++++++++++++++
- modules.d/98alpaquita-iso/parse-cmdline.sh |  9 +++
+ modules.d/98distro-iso/module-setup.sh  | 25 ++++++++
+ modules.d/98distro-iso/mount-tmpfs.sh   | 78 +++++++++++++++++++++++++
+ modules.d/98distro-iso/parse-cmdline.sh |  9 +++
  3 files changed, 112 insertions(+)
- create mode 100755 modules.d/98alpaquita-iso/module-setup.sh
- create mode 100755 modules.d/98alpaquita-iso/mount-tmpfs.sh
- create mode 100755 modules.d/98alpaquita-iso/parse-cmdline.sh
+ create mode 100755 modules.d/98distro-iso/module-setup.sh
+ create mode 100755 modules.d/98distro-iso/mount-tmpfs.sh
+ create mode 100755 modules.d/98distro-iso/parse-cmdline.sh
 
-diff --git a/modules.d/98alpaquita-iso/module-setup.sh b/modules.d/98alpaquita-iso/module-setup.sh
+diff --git a/modules.d/98distro-iso/module-setup.sh b/modules.d/98distro-iso/module-setup.sh
 new file mode 100755
 index 00000000..ec8c742d
 --- /dev/null
-+++ b/modules.d/98alpaquita-iso/module-setup.sh
++++ b/modules.d/98distro-iso/module-setup.sh
 @@ -0,0 +1,25 @@
 +#!/bin/bash
 +
@@ -43,11 +43,11 @@ index 00000000..ec8c742d
 +
 +    dracut_need_initqueue
 +}
-diff --git a/modules.d/98alpaquita-iso/mount-tmpfs.sh b/modules.d/98alpaquita-iso/mount-tmpfs.sh
+diff --git a/modules.d/98adistro-iso/mount-tmpfs.sh b/modules.d/98distro-iso/mount-tmpfs.sh
 new file mode 100755
 index 00000000..c743ba5e
 --- /dev/null
-+++ b/modules.d/98alpaquita-iso/mount-tmpfs.sh
++++ b/modules.d/98distro-iso/mount-tmpfs.sh
 @@ -0,0 +1,78 @@
 +#!/bin/sh
 +
@@ -74,7 +74,7 @@ index 00000000..c743ba5e
 +media_disk="/media/disk"
 +
 +if [ ! -e "$media_dev" ]; then
-+	warn "Cannot find Alpaquita ISO disk"
++	warn "Cannot find ISO disk"
 +	exit 1
 +fi
 +
@@ -100,8 +100,8 @@ index 00000000..c743ba5e
 +
 +apkflags="--initramfs-diskless-boot --quiet --no-network --clean-protected"
 +
-+apk add $apkflags --root $NEWROOT alpaquita-base alpaquita-keys alpaquita-installer \
-+	busybox alpaquita-baselayout eudev e2fsprogs
++apk add $apkflags --root $NEWROOT distro-base distro-keys distro-installer \
++	busybox distro-baselayout eudev e2fsprogs
 +
 +umount $NEWROOT/sys $NEWROOT/proc $NEWROOT/dev
 +
@@ -127,11 +127,11 @@ index 00000000..c743ba5e
 +else
 +	_rc_add swclock boot
 +fi
-diff --git a/modules.d/98alpaquita-iso/parse-cmdline.sh b/modules.d/98alpaquita-iso/parse-cmdline.sh
+diff --git a/modules.d/98distro-iso/parse-cmdline.sh b/modules.d/98distro-iso/parse-cmdline.sh
 new file mode 100755
 index 00000000..299cf8db
 --- /dev/null
-+++ b/modules.d/98alpaquita-iso/parse-cmdline.sh
++++ b/modules.d/98distro-iso/parse-cmdline.sh
 @@ -0,0 +1,9 @@
 +#!/bin/sh
 +
