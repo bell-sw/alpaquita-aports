@@ -3,7 +3,7 @@ pkgname=linux-${_flavor}
 pkgver=5.10.164
 pkgrel=0
 _kernver=${pkgver%.*}
-pkgdesc="Alpaquita Linux lts kernel"
+pkgdesc="$VENDOR_DISTRO_NAME Linux lts kernel"
 url="https://www.kernel.org"
 depends="dracut"
 _depends_dev="perl gmp-dev elfutils-dev bash flex bison"
@@ -106,7 +106,7 @@ prepare_config()
 	local _cfg_file="$_builddir"/.config
 
 	mkdir -p "$_builddir"
-	echo "-$pkgrel-$_flavor" > "$_builddir"/localversion-alpaquita
+	echo "-$pkgrel-$_flavor" > "$_builddir"/localversion-$VENDOR_DISTRO
 
 	cp "$srcdir"/$_config "$_cfg_file"
 
@@ -144,7 +144,7 @@ build() {
 	for i in $_flavors; do
 		cd "$srcdir"/build-$i.$CARCH
 		make ARCH="$_carch" CC="${CC:-gcc}" \
-			KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-Alpaquita"
+			KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-$VENDOR_DISTRO_NAME"
 	done
 }
 
@@ -248,14 +248,14 @@ _extramods() {
 	local _dir="$subpkgdir"/lib/modules/${_abi_release}/kernel
 
 	depends="$depends linux-${_flavor} linux-firmware-extra-modules-any"
-	pkgdesc="Additional modules for Alpaquita Linux $_flavor kernel"
+	pkgdesc="Additional modules for $VENDOR_DISTRO_NAME Linux $_flavor kernel"
 
 	mkdir -p "$_dir"
 	cp -r "$srcdir"/extra_modules_${_flavor}/* "$_dir"/
 }
 
 _dev() {
-	pkgdesc="Headers and scripts for third-party modules for Alpaquita Linux $_flavor kernel"
+	pkgdesc="Headers and scripts for third-party modules for $VENDOR_DISTRO_NAME Linux $_flavor kernel"
 	depends="$_depends_dev"
 
 	local _flavor=$(echo $subpkgname | sed -E 's/(^linux-|-dev$)//g')
@@ -267,7 +267,7 @@ _dev() {
 	mkdir -p "$_dir"
 
 	cp "$srcdir"/config-$_flavor.${CARCH} "$_dir"/.config
-	echo "-$pkgrel-$_flavor" > "$_dir"/localversion-alpaquita
+	echo "-$pkgrel-$_flavor" > "$_dir"/localversion-$VENDOR_DISTRO
 
 	make -j1 -C "$srcdir"/linux-$_kernver \
 		O="$_dir" \
