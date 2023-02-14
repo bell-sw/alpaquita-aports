@@ -1,4 +1,4 @@
-From 7019130da33237ea8562575c452120490704908b Mon Sep 17 00:00:00 2001
+From f300705e6ebaff8cee7b84a6a0675bd2827c0ccf Mon Sep 17 00:00:00 2001
 From: Zhen Lei <thunder.leizhen@huawei.com>
 Date: Wed, 7 Dec 2022 11:23:04 +0800
 Subject: [PATCH] livepatch: Call klp_match_callback() in klp_find_callback()
@@ -16,16 +16,15 @@ Acked-by: Song Liu <song@kernel.org>
 Reviewed-by: Petr Mladek <pmladek@suse.com>
 Suggested-by: Petr Mladek <pmladek@suse.com>
 Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
-Signed-off-by: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 ---
  kernel/livepatch/core.c | 33 +++++++++++----------------------
  1 file changed, 11 insertions(+), 22 deletions(-)
 
 diff --git a/kernel/livepatch/core.c b/kernel/livepatch/core.c
-index a9e5696d98e1..2e0dc880a76d 100644
+index 50bfc3481a4e..201f0c0482fb 100644
 --- a/kernel/livepatch/core.c
 +++ b/kernel/livepatch/core.c
-@@ -124,20 +124,10 @@ struct klp_find_arg {
+@@ -125,20 +125,10 @@ struct klp_find_arg {
  	unsigned long pos;
  };
  
@@ -47,7 +46,7 @@ index a9e5696d98e1..2e0dc880a76d 100644
  	args->addr = addr;
  	args->count++;
  
-@@ -152,22 +142,21 @@ static int klp_find_callback(void *data, const char *name,
+@@ -153,22 +143,21 @@ static int klp_find_callback(void *data, const char *name,
  	return 0;
  }
  

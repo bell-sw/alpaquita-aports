@@ -1,4 +1,4 @@
-From 638d357beb15645467c67c6f34691ac4adc1e998 Mon Sep 17 00:00:00 2001
+From 258a03e36b0aeed3d7c06ad7e9bffbf54e5af0f7 Mon Sep 17 00:00:00 2001
 From: Zhen Lei <thunder.leizhen@huawei.com>
 Date: Wed, 2 Nov 2022 16:49:16 +0800
 Subject: [PATCH] kallsyms: Reduce the memory occupied by
@@ -13,26 +13,17 @@ index. This can help us save (1 * kallsyms_num_syms) bytes of memory.
 
 Signed-off-by: Zhen Lei <thunder.leizhen@huawei.com>
 Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
-Signed-off-by: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 ---
- kernel/kallsyms.c  | 20 +++++++++++++++-----
- scripts/kallsyms.c |  5 ++++-
- 2 files changed, 19 insertions(+), 6 deletions(-)
+ kernel/kallsyms.c          | 18 ++++++++++++++----
+ kernel/kallsyms_internal.h |  2 +-
+ scripts/kallsyms.c         |  5 ++++-
+ 3 files changed, 19 insertions(+), 6 deletions(-)
 
 diff --git a/kernel/kallsyms.c b/kernel/kallsyms.c
-index 323df4b3204f..10c7e112c75c 100644
+index ba351dfa109b..48f36fd7e10b 100644
 --- a/kernel/kallsyms.c
 +++ b/kernel/kallsyms.c
-@@ -49,7 +49,7 @@ extern const char kallsyms_token_table[] __weak;
- extern const u16 kallsyms_token_index[] __weak;
- 
- extern const unsigned int kallsyms_markers[] __weak;
--extern const unsigned int kallsyms_seqs_of_names[] __weak;
-+extern const u8 kallsyms_seqs_of_names[] __weak;
- 
- /*
-  * Expand a compressed symbol data into the resulting uncompressed string,
-@@ -200,6 +200,16 @@ static int compare_symbol_name(const char *name, char *namebuf)
+@@ -201,6 +201,16 @@ static int compare_symbol_name(const char *name, char *namebuf)
  	return ret;
  }
  
@@ -49,7 +40,7 @@ index 323df4b3204f..10c7e112c75c 100644
  static int kallsyms_lookup_names(const char *name,
  				 unsigned int *start,
  				 unsigned int *end)
-@@ -214,7 +224,7 @@ static int kallsyms_lookup_names(const char *name,
+@@ -215,7 +225,7 @@ static int kallsyms_lookup_names(const char *name,
  
  	while (low <= high) {
  		mid = low + (high - low) / 2;
@@ -58,7 +49,7 @@ index 323df4b3204f..10c7e112c75c 100644
  		off = get_symbol_offset(seq);
  		kallsyms_expand_symbol(off, namebuf, ARRAY_SIZE(namebuf));
  		ret = compare_symbol_name(name, namebuf);
-@@ -231,7 +241,7 @@ static int kallsyms_lookup_names(const char *name,
+@@ -232,7 +242,7 @@ static int kallsyms_lookup_names(const char *name,
  
  	low = mid;
  	while (low) {
@@ -67,7 +58,7 @@ index 323df4b3204f..10c7e112c75c 100644
  		off = get_symbol_offset(seq);
  		kallsyms_expand_symbol(off, namebuf, ARRAY_SIZE(namebuf));
  		if (compare_symbol_name(name, namebuf))
-@@ -243,7 +253,7 @@ static int kallsyms_lookup_names(const char *name,
+@@ -244,7 +254,7 @@ static int kallsyms_lookup_names(const char *name,
  	if (end) {
  		high = mid;
  		while (high < kallsyms_num_syms - 1) {
@@ -76,7 +67,7 @@ index 323df4b3204f..10c7e112c75c 100644
  			off = get_symbol_offset(seq);
  			kallsyms_expand_symbol(off, namebuf, ARRAY_SIZE(namebuf));
  			if (compare_symbol_name(name, namebuf))
-@@ -268,7 +278,7 @@ unsigned long kallsyms_lookup_name(const char *name)
+@@ -269,7 +279,7 @@ unsigned long kallsyms_lookup_name(const char *name)
  
  	ret = kallsyms_lookup_names(name, &i, NULL);
  	if (!ret)
@@ -85,11 +76,23 @@ index 323df4b3204f..10c7e112c75c 100644
  
  	return module_kallsyms_lookup_name(name);
  }
+diff --git a/kernel/kallsyms_internal.h b/kernel/kallsyms_internal.h
+index a04b7a5cb1e3..27fabdcc40f5 100644
+--- a/kernel/kallsyms_internal.h
++++ b/kernel/kallsyms_internal.h
+@@ -26,6 +26,6 @@ extern const char kallsyms_token_table[] __weak;
+ extern const u16 kallsyms_token_index[] __weak;
+ 
+ extern const unsigned int kallsyms_markers[] __weak;
+-extern const unsigned int kallsyms_seqs_of_names[] __weak;
++extern const u8 kallsyms_seqs_of_names[] __weak;
+ 
+ #endif // LINUX_KALLSYMS_INTERNAL_H_
 diff --git a/scripts/kallsyms.c b/scripts/kallsyms.c
-index d70aa19c4775..a6b65e3d8d91 100644
+index dcb744a067e5..1ed1b2ba8945 100644
 --- a/scripts/kallsyms.c
 +++ b/scripts/kallsyms.c
-@@ -520,7 +520,10 @@ static void write_src(void)
+@@ -569,7 +569,10 @@ static void write_src(void)
  	sort_symbols_by_name();
  	output_label("kallsyms_seqs_of_names");
  	for (i = 0; i < table_cnt; i++)

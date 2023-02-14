@@ -1,4 +1,4 @@
-From 918830ff8ca280b5189ad2b4e691533b206adc82 Mon Sep 17 00:00:00 2001
+From 2bd6f632a4438204c0b61a178c06d829be00d3d1 Mon Sep 17 00:00:00 2001
 From: Zhen Lei <thunder.leizhen@huawei.com>
 Date: Wed, 2 Nov 2022 16:49:18 +0800
 Subject: [PATCH] livepatch: Use kallsyms_on_each_match_symbol() to improve
@@ -12,16 +12,15 @@ more than 1500 times.
 
 Signed-off-by: Zhen Lei <thunder.leizhen@huawei.com>
 Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
-Signed-off-by: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 ---
  kernel/livepatch/core.c | 20 +++++++++++++++++++-
  1 file changed, 19 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/livepatch/core.c b/kernel/livepatch/core.c
-index e8bdce6fdd64..a9e5696d98e1 100644
+index 9ada0bc5247b..50bfc3481a4e 100644
 --- a/kernel/livepatch/core.c
 +++ b/kernel/livepatch/core.c
-@@ -152,6 +152,24 @@ static int klp_find_callback(void *data, const char *name,
+@@ -153,6 +153,24 @@ static int klp_find_callback(void *data, const char *name,
  	return 0;
  }
  
@@ -52,9 +51,9 @@ index e8bdce6fdd64..a9e5696d98e1 100644
  	else
 -		kallsyms_on_each_symbol(klp_find_callback, &args);
 +		kallsyms_on_each_match_symbol(klp_match_callback, name, &args);
- 	mutex_unlock(&module_mutex);
  
  	/*
+ 	 * Ensure an address was found. If sympos is 0, ensure symbol is unique;
 -- 
 2.25.1
 

@@ -1,7 +1,7 @@
+From 13453fc590a251068521d9228b36f57e69539616 Mon Sep 17 00:00:00 2001
 From: David Howells <dhowells@redhat.com>
 Date: Mon, 18 Feb 2019 12:45:03 +0000
-Subject: [28/30] efi: Add an EFI_SECURE_BOOT flag to indicate secure boot mode
-Origin: https://git.kernel.org/pub/scm/linux/kernel/git/dhowells/linux-fs.git/commit?id=a5d70c55c603233c192b375f72116a395909da28
+Subject: [PATCH] efi: Add an EFI_SECURE_BOOT flag to indicate secure boot mode
 
 UEFI machines can be booted in Secure Boot mode.  Add an EFI_SECURE_BOOT
 flag that can be passed to efi_enabled() to find out whether secure boot is
@@ -25,13 +25,15 @@ cc: linux-efi@vger.kernel.org
  arch/x86/kernel/setup.c           | 14 +----------
  drivers/firmware/efi/Makefile     |  1 +
  drivers/firmware/efi/secureboot.c | 39 +++++++++++++++++++++++++++++++
- include/linux/efi.h               | 16 ++++++++-----
- 4 files changed, 51 insertions(+), 19 deletions(-)
+ include/linux/efi.h               | 17 ++++++++------
+ 4 files changed, 51 insertions(+), 20 deletions(-)
  create mode 100644 drivers/firmware/efi/secureboot.c
 
+diff --git a/arch/x86/kernel/setup.c b/arch/x86/kernel/setup.c
+index 892609cde4a2..50c2ab2156c7 100644
 --- a/arch/x86/kernel/setup.c
 +++ b/arch/x86/kernel/setup.c
-@@ -1124,19 +1124,7 @@ void __init setup_arch(char **cmdline_p)
+@@ -1205,19 +1205,7 @@ void __init setup_arch(char **cmdline_p)
  	/* Allocate bigger log buffer */
  	setup_log_buf(1);
  
@@ -52,9 +54,11 @@ cc: linux-efi@vger.kernel.org
  
  	reserve_initrd();
  
+diff --git a/drivers/firmware/efi/Makefile b/drivers/firmware/efi/Makefile
+index 8d151e332584..bd29fe4ddbf3 100644
 --- a/drivers/firmware/efi/Makefile
 +++ b/drivers/firmware/efi/Makefile
-@@ -25,6 +25,7 @@ obj-$(CONFIG_EFI_FAKE_MEMMAP)		+= fake_m
+@@ -27,6 +27,7 @@ obj-$(CONFIG_EFI_FAKE_MEMMAP)		+= fake_map.o
  obj-$(CONFIG_EFI_BOOTLOADER_CONTROL)	+= efibc.o
  obj-$(CONFIG_EFI_TEST)			+= test/
  obj-$(CONFIG_EFI_DEV_PATH_PARSER)	+= dev-path-parser.o
@@ -62,6 +66,9 @@ cc: linux-efi@vger.kernel.org
  obj-$(CONFIG_APPLE_PROPERTIES)		+= apple-properties.o
  obj-$(CONFIG_EFI_RCI2_TABLE)		+= rci2-table.o
  obj-$(CONFIG_EFI_EMBEDDED_FIRMWARE)	+= embedded-firmware.o
+diff --git a/drivers/firmware/efi/secureboot.c b/drivers/firmware/efi/secureboot.c
+new file mode 100644
+index 000000000000..b6620669e32b
 --- /dev/null
 +++ b/drivers/firmware/efi/secureboot.c
 @@ -0,0 +1,39 @@
@@ -104,9 +111,11 @@ cc: linux-efi@vger.kernel.org
 +		}
 +	}
 +}
+diff --git a/include/linux/efi.h b/include/linux/efi.h
+index 4e1bfee9675d..ea2af4a319de 100644
 --- a/include/linux/efi.h
 +++ b/include/linux/efi.h
-@@ -776,6 +776,14 @@ extern int __init efi_setup_pcdp_console
+@@ -865,6 +865,14 @@ extern int __init efi_setup_pcdp_console(char *);
  #define EFI_MEM_ATTR		10	/* Did firmware publish an EFI_MEMORY_ATTRIBUTES table? */
  #define EFI_MEM_NO_SOFT_RESERVE	11	/* Is the kernel configured to ignore soft reservations? */
  #define EFI_PRESERVE_BS_REGIONS	12	/* Are EFI boot-services memory segments available? */
@@ -121,23 +130,23 @@ cc: linux-efi@vger.kernel.org
  
  #ifdef CONFIG_EFI
  /*
-@@ -799,6 +807,7 @@ static inline bool efi_rt_services_suppo
- {
+@@ -889,6 +897,7 @@ static inline bool efi_rt_services_supported(unsigned int mask)
  	return (efi.runtime_supported_mask & mask) == mask;
  }
+ extern void efi_find_mirror(void);
 +extern void __init efi_set_secure_boot(enum efi_secureboot_mode mode);
  #else
  static inline bool efi_enabled(int feature)
  {
-@@ -822,6 +831,7 @@ static inline bool efi_rt_services_suppo
- {
- 	return false;
+@@ -908,6 +917,7 @@ static inline bool efi_rt_services_supported(unsigned int mask)
  }
+ 
+ static inline void efi_find_mirror(void) {}
 +static inline void efi_set_secure_boot(enum efi_secureboot_mode mode) {}
  #endif
  
  extern int efi_status_to_err(efi_status_t status);
-@@ -1083,12 +1093,6 @@ static inline bool efi_runtime_disabled(
+@@ -1136,13 +1146,6 @@ static inline bool efi_runtime_disabled(void) { return true; }
  extern void efi_call_virt_check_flags(unsigned long flags, const char *call);
  extern unsigned long efi_call_virt_save_flags(void);
  
@@ -147,6 +156,10 @@ cc: linux-efi@vger.kernel.org
 -	efi_secureboot_mode_disabled,
 -	efi_secureboot_mode_enabled,
 -};
- enum efi_secureboot_mode efi_get_secureboot(void);
- 
- #ifdef CONFIG_RESET_ATTACK_MITIGATION
+-
+ static inline
+ enum efi_secureboot_mode efi_get_secureboot_mode(efi_get_variable_t *get_var)
+ {
+-- 
+2.25.1
+

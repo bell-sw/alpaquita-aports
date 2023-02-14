@@ -1,4 +1,4 @@
-From 2ad0e5ead27e2dc1f25b18f3972898695737d4c0 Mon Sep 17 00:00:00 2001
+From 05d7f953a9b559400301412be937264e7d0331aa Mon Sep 17 00:00:00 2001
 From: Zhen Lei <thunder.leizhen@huawei.com>
 Date: Wed, 2 Nov 2022 16:49:17 +0800
 Subject: [PATCH] kallsyms: Add helper kallsyms_on_each_match_symbol()
@@ -24,31 +24,43 @@ performance.
 
 Signed-off-by: Zhen Lei <thunder.leizhen@huawei.com>
 Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
-Signed-off-by: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 ---
- include/linux/kallsyms.h |  2 ++
+ include/linux/kallsyms.h |  8 ++++++++
  kernel/kallsyms.c        | 18 ++++++++++++++++++
- 2 files changed, 20 insertions(+)
+ 2 files changed, 26 insertions(+)
 
 diff --git a/include/linux/kallsyms.h b/include/linux/kallsyms.h
-index 481273f0c72d..d3e1303a87fc 100644
+index 649faac31ddb..0cd33be7142a 100644
 --- a/include/linux/kallsyms.h
 +++ b/include/linux/kallsyms.h
-@@ -79,6 +79,8 @@ unsigned long kallsyms_lookup_name(const char *name);
+@@ -69,6 +69,8 @@ static inline void *dereference_symbol_descriptor(void *ptr)
  int kallsyms_on_each_symbol(int (*fn)(void *, const char *, struct module *,
  				      unsigned long),
  			    void *data);
 +int kallsyms_on_each_match_symbol(int (*fn)(void *, unsigned long),
 +				  const char *name, void *data);
  
- extern int kallsyms_lookup_size_offset(unsigned long addr,
- 				  unsigned long *symbolsize,
+ /* Lookup the address for a symbol. Returns 0 if not found. */
+ unsigned long kallsyms_lookup_name(const char *name);
+@@ -168,6 +170,12 @@ static inline int kallsyms_on_each_symbol(int (*fn)(void *, const char *, struct
+ {
+ 	return -EOPNOTSUPP;
+ }
++
++static inline int kallsyms_on_each_match_symbol(int (*fn)(void *, unsigned long),
++						const char *name, void *data)
++{
++	return -EOPNOTSUPP;
++}
+ #endif /*CONFIG_KALLSYMS*/
+ 
+ static inline void print_ip_sym(const char *loglvl, unsigned long ip)
 diff --git a/kernel/kallsyms.c b/kernel/kallsyms.c
-index 10c7e112c75c..f1f6835e689d 100644
+index 48f36fd7e10b..0008ada2b135 100644
 --- a/kernel/kallsyms.c
 +++ b/kernel/kallsyms.c
-@@ -301,6 +301,24 @@ int kallsyms_on_each_symbol(int (*fn)(void *, const char *, struct module *,
- 	return module_kallsyms_on_each_symbol(fn, data);
+@@ -307,6 +307,24 @@ int kallsyms_on_each_symbol(int (*fn)(void *, const char *, struct module *,
+ 	return 0;
  }
  
 +int kallsyms_on_each_match_symbol(int (*fn)(void *, unsigned long),

@@ -1,8 +1,8 @@
+From dc853bdbe0d2e4de3fd2936d60f50700e69abed4 Mon Sep 17 00:00:00 2001
 From: Linn Crosetto <linn@hpe.com>
 Date: Tue, 30 Aug 2016 11:54:38 -0600
-Subject: arm64: add kernel config option to lock down when in Secure Boot mode
-Bug-Debian: https://bugs.debian.org/831827
-Forwarded: no
+Subject: [PATCH] arm64: add kernel config option to lock down when in Secure
+ Boot mode
 
 Add a kernel configuration option to lock down the kernel, to restrict
 userspace's ability to modify the running kernel when UEFI Secure Boot is
@@ -32,15 +32,17 @@ Signed-off-by: Linn Crosetto <linn@hpe.com>
 [Salvatore Bonaccorso: Forward-ported to 5.10: f30f242fb131 ("efi: Rename
 arm-init to efi-init common for all arch") renamed arm-init.c to efi-init.c]
 ---
- drivers/firmware/efi/efi-init.c    |    5 ++++-
- drivers/firmware/efi/fdtparams.c   |   12 +++++++++++-
- drivers/firmware/efi/libstub/fdt.c |    6 ++++++
- include/linux/efi.h                |    3 ++-
+ drivers/firmware/efi/efi-init.c    |  5 ++++-
+ drivers/firmware/efi/fdtparams.c   | 12 +++++++++++-
+ drivers/firmware/efi/libstub/fdt.c |  6 ++++++
+ include/linux/efi.h                |  3 ++-
  4 files changed, 23 insertions(+), 3 deletions(-)
 
+diff --git a/drivers/firmware/efi/efi-init.c b/drivers/firmware/efi/efi-init.c
+index 2fd770b499a3..6bb6e9c3860b 100644
 --- a/drivers/firmware/efi/efi-init.c
 +++ b/drivers/firmware/efi/efi-init.c
-@@ -210,9 +210,10 @@ void __init efi_init(void)
+@@ -185,9 +185,10 @@ void __init efi_init(void)
  {
  	struct efi_memory_map_data data;
  	u64 efi_system_table;
@@ -52,15 +54,17 @@ arm-init to efi-init common for all arch") renamed arm-init.c to efi-init.c]
  	if (!efi_system_table)
  		return;
  
-@@ -234,6 +235,8 @@ void __init efi_init(void)
+@@ -209,6 +210,8 @@ void __init efi_init(void)
  		return;
  	}
  
 +	efi_set_secure_boot(secure_boot);
 +
  	reserve_regions();
- 	efi_esrt_init();
- 	efi_mokvar_table_init();
+ 	/*
+ 	 * For memblock manipulation, the cap should come after the memblock_add().
+diff --git a/drivers/firmware/efi/fdtparams.c b/drivers/firmware/efi/fdtparams.c
+index e901f8564ca0..12b8f0b48590 100644
 --- a/drivers/firmware/efi/fdtparams.c
 +++ b/drivers/firmware/efi/fdtparams.c
 @@ -16,6 +16,7 @@ enum {
@@ -71,7 +75,7 @@ arm-init to efi-init common for all arch") renamed arm-init.c to efi-init.c]
  
  	PARAMCOUNT
  };
-@@ -26,6 +27,7 @@ static __initconst const char name[][22]
+@@ -26,6 +27,7 @@ static __initconst const char name[][22] = {
  	[MMSIZE] = "MemMap Size          ",
  	[DCSIZE] = "MemMap Desc. Size    ",
  	[DCVERS] = "MemMap Desc. Version ",
@@ -95,7 +99,7 @@ arm-init to efi-init common for all arch") renamed arm-init.c to efi-init.c]
  		}
  	}
  };
-@@ -62,6 +66,11 @@ static int __init efi_get_fdt_prop(const
+@@ -62,6 +66,11 @@ static int __init efi_get_fdt_prop(const void *fdt, int node, const char *pname,
  	int len;
  	u64 val;
  
@@ -107,7 +111,7 @@ arm-init to efi-init common for all arch") renamed arm-init.c to efi-init.c]
  	prop = fdt_getprop(fdt, node, pname, &len);
  	if (!prop)
  		return 1;
-@@ -79,7 +88,7 @@ static int __init efi_get_fdt_prop(const
+@@ -79,7 +88,7 @@ static int __init efi_get_fdt_prop(const void *fdt, int node, const char *pname,
  	return 0;
  }
  
@@ -116,7 +120,7 @@ arm-init to efi-init common for all arch") renamed arm-init.c to efi-init.c]
  {
  	const void *fdt = initial_boot_params;
  	unsigned long systab;
-@@ -93,6 +102,7 @@ u64 __init efi_get_fdt_params(struct efi
+@@ -93,6 +102,7 @@ u64 __init efi_get_fdt_params(struct efi_memory_map_data *mm)
  		[MMSIZE] = { &mm->size,		sizeof(mm->size) },
  		[DCSIZE] = { &mm->desc_size,	sizeof(mm->desc_size) },
  		[DCVERS] = { &mm->desc_version,	sizeof(mm->desc_version) },
@@ -124,9 +128,11 @@ arm-init to efi-init common for all arch") renamed arm-init.c to efi-init.c]
  	};
  
  	BUILD_BUG_ON(ARRAY_SIZE(target) != ARRAY_SIZE(name));
+diff --git a/drivers/firmware/efi/libstub/fdt.c b/drivers/firmware/efi/libstub/fdt.c
+index 70e9789ff9de..ce8d64d7f549 100644
 --- a/drivers/firmware/efi/libstub/fdt.c
 +++ b/drivers/firmware/efi/libstub/fdt.c
-@@ -148,6 +148,12 @@ static efi_status_t update_fdt(void *ori
+@@ -132,6 +132,12 @@ static efi_status_t update_fdt(void *orig_fdt, unsigned long orig_fdt_size,
  		}
  	}
  
@@ -139,9 +145,11 @@ arm-init to efi-init common for all arch") renamed arm-init.c to efi-init.c]
  	/* Shrink the FDT back to its minimum size: */
  	fdt_pack(fdt);
  
+diff --git a/include/linux/efi.h b/include/linux/efi.h
+index ea2af4a319de..7aa0c749b74a 100644
 --- a/include/linux/efi.h
 +++ b/include/linux/efi.h
-@@ -665,7 +665,8 @@ extern void efi_mem_reserve(phys_addr_t
+@@ -744,7 +744,8 @@ extern void efi_mem_reserve(phys_addr_t addr, u64 size);
  extern int efi_mem_reserve_persistent(phys_addr_t addr, u64 size);
  extern void efi_initialize_iomem_resources(struct resource *code_resource,
  		struct resource *data_resource, struct resource *bss_resource);
@@ -151,3 +159,6 @@ arm-init to efi-init common for all arch") renamed arm-init.c to efi-init.c]
  extern struct kobject *efi_kobj;
  
  extern int efi_reboot_quirk_mode;
+-- 
+2.25.1
+

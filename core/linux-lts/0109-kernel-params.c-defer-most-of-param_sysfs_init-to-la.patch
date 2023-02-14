@@ -1,4 +1,4 @@
-From 6eef767557ccd2d59773aa8da72aa121d8dad50d Mon Sep 17 00:00:00 2001
+From aea45cc2140b9cf6cd51e0edbcccc0c408fec141 Mon Sep 17 00:00:00 2001
 From: Rasmus Villemoes <linux@rasmusvillemoes.dk>
 Date: Wed, 26 Oct 2022 00:13:56 +0200
 Subject: [PATCH] kernel/params.c: defer most of param_sysfs_init() to
@@ -28,10 +28,10 @@ Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
  1 file changed, 19 insertions(+), 2 deletions(-)
 
 diff --git a/kernel/params.c b/kernel/params.c
-index 164d79330849..9a01a32b5760 100644
+index 5b92310425c5..b8b3b0702371 100644
 --- a/kernel/params.c
 +++ b/kernel/params.c
-@@ -938,7 +938,11 @@ struct kobj_type module_ktype = {
+@@ -954,7 +954,11 @@ struct kobj_type module_ktype = {
  };
  
  /*
@@ -44,7 +44,7 @@ index 164d79330849..9a01a32b5760 100644
   */
  static int __init param_sysfs_init(void)
  {
-@@ -950,11 +954,24 @@ static int __init param_sysfs_init(void)
+@@ -966,11 +970,24 @@ static int __init param_sysfs_init(void)
  	}
  	module_sysfs_initialized = 1;
  

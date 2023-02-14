@@ -1,4 +1,4 @@
-From 8c0269599002facbf281855ac90e54ec92b06915 Mon Sep 17 00:00:00 2001
+From ea82e55a2e2d4647654354e075ec94fb7b3b66a6 Mon Sep 17 00:00:00 2001
 From: Zhen Lei <thunder.leizhen@huawei.com>
 Date: Wed, 2 Nov 2022 16:49:14 +0800
 Subject: [PATCH] kallsyms: Improve the performance of kallsyms_lookup_name()
@@ -40,54 +40,20 @@ The average lookup performance of kallsyms_lookup_name() improved 715x.
 
 Signed-off-by: Zhen Lei <thunder.leizhen@huawei.com>
 Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
-Signed-off-by: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 ---
- kernel/kallsyms.c  | 112 +++++++++++++++++++++++++++++++++++++++++----
- scripts/kallsyms.c |  37 +++++++++++++++
- 2 files changed, 141 insertions(+), 8 deletions(-)
+ kernel/kallsyms.c          | 86 +++++++++++++++++++++++++++++++++-----
+ kernel/kallsyms_internal.h |  1 +
+ scripts/kallsyms.c         | 37 ++++++++++++++++
+ 3 files changed, 113 insertions(+), 11 deletions(-)
 
 diff --git a/kernel/kallsyms.c b/kernel/kallsyms.c
-index fe9de067771c..323df4b3204f 100644
+index 60c20f301a6b..ba351dfa109b 100644
 --- a/kernel/kallsyms.c
 +++ b/kernel/kallsyms.c
-@@ -49,6 +49,7 @@ extern const char kallsyms_token_table[] __weak;
- extern const u16 kallsyms_token_index[] __weak;
- 
- extern const unsigned int kallsyms_markers[] __weak;
-+extern const unsigned int kallsyms_seqs_of_names[] __weak;
- 
- /*
-  * Expand a compressed symbol data into the resulting uncompressed string,
-@@ -161,19 +162,114 @@ static unsigned long kallsyms_sym_address(int idx)
- 	return kallsyms_relative_base - 1 - kallsyms_offsets[idx];
+@@ -187,26 +187,90 @@ static bool cleanup_symbol_name(char *s)
+ 	return false;
  }
  
--/* Lookup the address for this symbol. Returns 0 if not found. */
--unsigned long kallsyms_lookup_name(const char *name)
-+static bool cleanup_symbol_name(char *s)
- {
-+	char *res;
-+
-+	if (!IS_ENABLED(CONFIG_LTO_CLANG))
-+		return false;
-+
-+	/*
-+	 * LLVM appends various suffixes for local functions and variables that
-+	 * must be promoted to global scope as part of LTO.  This can break
-+	 * hooking of static functions with kprobes. '.' is not a valid
-+	 * character in an identifier in C. Suffixes observed:
-+	 * - foo.llvm.[0-9a-f]+
-+	 * - foo.[0-9a-f]+
-+	 */
-+	res = strchr(s, '.');
-+	if (res) {
-+		*res = '\0';
-+		return true;
-+	}
-+
-+	return false;
-+}
-+
 +static int compare_symbol_name(const char *name, char *namebuf)
 +{
 +	int ret;
@@ -109,17 +75,11 @@ index fe9de067771c..323df4b3204f 100644
 +	int ret;
 +	int low, mid, high;
 +	unsigned int seq, off;
- 	char namebuf[KSYM_NAME_LEN];
--	unsigned long i;
--	unsigned int off;
- 
--	for (i = 0, off = 0; i < kallsyms_num_syms; i++) {
--		off = kallsyms_expand_symbol(off, namebuf, ARRAY_SIZE(namebuf));
++	char namebuf[KSYM_NAME_LEN];
++
 +	low = 0;
 +	high = kallsyms_num_syms - 1;
- 
--		if (strcmp(namebuf, name) == 0)
--			return kallsyms_sym_address(i);
++
 +	while (low <= high) {
 +		mid = low + (high - low) / 2;
 +		seq = kallsyms_seqs_of_names[mid];
@@ -132,7 +92,7 @@ index fe9de067771c..323df4b3204f 100644
 +			high = mid - 1;
 +		else
 +			break;
- 	}
++	}
 +
 +	if (low > high)
 +		return -ESRCH;
@@ -164,28 +124,50 @@ index fe9de067771c..323df4b3204f 100644
 +	return 0;
 +}
 +
-+/* Lookup the address for this symbol. Returns 0 if not found. */
-+unsigned long kallsyms_lookup_name(const char *name)
-+{
+ /* Lookup the address for this symbol. Returns 0 if not found. */
+ unsigned long kallsyms_lookup_name(const char *name)
+ {
+-	char namebuf[KSYM_NAME_LEN];
+-	unsigned long i;
+-	unsigned int off;
 +	int ret;
 +	unsigned int i;
-+
-+	/* Skip the search for empty string. */
-+	if (!*name)
-+		return 0;
-+
+ 
+ 	/* Skip the search for empty string. */
+ 	if (!*name)
+ 		return 0;
+ 
+-	for (i = 0, off = 0; i < kallsyms_num_syms; i++) {
+-		off = kallsyms_expand_symbol(off, namebuf, ARRAY_SIZE(namebuf));
+-
+-		if (strcmp(namebuf, name) == 0)
+-			return kallsyms_sym_address(i);
 +	ret = kallsyms_lookup_names(name, &i, NULL);
 +	if (!ret)
 +		return kallsyms_sym_address(kallsyms_seqs_of_names[i]);
-+
+ 
+-		if (cleanup_symbol_name(namebuf) && strcmp(namebuf, name) == 0)
+-			return kallsyms_sym_address(i);
+-	}
  	return module_kallsyms_lookup_name(name);
  }
  
+diff --git a/kernel/kallsyms_internal.h b/kernel/kallsyms_internal.h
+index 2d0c6f2f0243..a04b7a5cb1e3 100644
+--- a/kernel/kallsyms_internal.h
++++ b/kernel/kallsyms_internal.h
+@@ -26,5 +26,6 @@ extern const char kallsyms_token_table[] __weak;
+ extern const u16 kallsyms_token_index[] __weak;
+ 
+ extern const unsigned int kallsyms_markers[] __weak;
++extern const unsigned int kallsyms_seqs_of_names[] __weak;
+ 
+ #endif // LINUX_KALLSYMS_INTERNAL_H_
 diff --git a/scripts/kallsyms.c b/scripts/kallsyms.c
-index 54ad86d13784..d70aa19c4775 100644
+index 03fa07ad45d9..dcb744a067e5 100644
 --- a/scripts/kallsyms.c
 +++ b/scripts/kallsyms.c
-@@ -32,6 +32,7 @@
+@@ -49,6 +49,7 @@ _Static_assert(
  struct sym_entry {
  	unsigned long long addr;
  	unsigned int len;
@@ -193,7 +175,7 @@ index 54ad86d13784..d70aa19c4775 100644
  	unsigned int start_pos;
  	unsigned int percpu_absolute;
  	unsigned char sym[];
-@@ -384,6 +385,35 @@ static int symbol_absolute(const struct sym_entry *s)
+@@ -410,6 +411,35 @@ static int symbol_absolute(const struct sym_entry *s)
  	return s->percpu_absolute;
  }
  
@@ -229,15 +211,15 @@ index 54ad86d13784..d70aa19c4775 100644
  static void write_src(void)
  {
  	unsigned int i, k, off;
-@@ -469,6 +499,7 @@ static void write_src(void)
+@@ -495,6 +525,7 @@ static void write_src(void)
  	for (i = 0; i < table_cnt; i++) {
  		if ((i & 0xFF) == 0)
  			markers[i >> 8] = off;
 +		table[i]->seq = i;
  
- 		printf("\t.byte 0x%02x", table[i]->len);
- 		for (k = 0; k < table[i]->len; k++)
-@@ -486,6 +517,12 @@ static void write_src(void)
+ 		/* There cannot be any symbol of length zero. */
+ 		if (table[i]->len == 0) {
+@@ -535,6 +566,12 @@ static void write_src(void)
  
  	free(markers);
  
