@@ -1,0 +1,57 @@
+From f8d74271bc30c9222010daae388e5b9fd77f12a4 Mon Sep 17 00:00:00 2001
+From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
+Date: Tue, 14 Feb 2023 17:35:26 +0300
+Subject: [PATCH] fix arch triplets
+
+---
+ functions.sh.in | 20 ++++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/functions.sh.in b/functions.sh.in
+index 58097bb..d169bb2 100644
+--- a/functions.sh.in
++++ b/functions.sh.in
+@@ -5,8 +5,8 @@ program=${0##*/}
+ 
+ arch_to_hostspec() {
+ 	case "$1" in
+-	aarch64)	echo "aarch64-alpaquita-linux-@libc@" ;;
+-	x86_64)		echo "x86_64-alpaquita-linux-@libc@" ;;
++	aarch64)	echo "aarch64-$VENDOR_DISTRO-linux-@libc@" ;;
++	x86_64)		echo "x86_64-$VENDOR_DISTRO-linux-@libc@" ;;
+ 	*)		echo "unknown" ;;
+ 	esac
+ }
+@@ -127,6 +127,14 @@ readconfig() {
+ 	export BUILDCFLAGS="$CFLAGS"
+ 	export BUILDLDFLAGS="$LDFLAGS"
+ 
++	: ${VENDOR_NAME:="BellSoft"}
++	: ${VENDOR_URL:="https://bell-sw.com/"}
++	: ${VENDOR_BUG_REPORT_URL:="https://bell-sw.com/support/"}
++	: ${VENDOR_REPO_BASE_URL:="https://packages.bell-sw.com/"}
++	: ${VENDOR_DISTRO:="alpaquita"}
++	: ${VENDOR_DISTRO_NAME:="Alpaquita"}
++	: ${VENDOR_JAVA_NAME:="Liberica"}
++
+ 	[ -z "$CBUILD" ] && CBUILD="$(${APK:-apk} --print-arch 2>/dev/null || :)"
+ 	[ -z "$CHOST" ] && CHOST="$CBUILD"
+ 	[ -z "$CTARGET" ] && CTARGET="$CHOST"
+@@ -176,14 +184,6 @@ readconfig() {
+ 		fi
+ 	fi
+ 
+-	: ${VENDOR_NAME:="BellSoft"}
+-	: ${VENDOR_URL:="https://bell-sw.com/"}
+-	: ${VENDOR_BUG_REPORT_URL:="https://bell-sw.com/support/"}
+-	: ${VENDOR_REPO_BASE_URL:="https://packages.bell-sw.com/"}
+-	: ${VENDOR_DISTRO:="alpaquita"}
+-	: ${VENDOR_DISTRO_NAME:="Alpaquita"}
+-	: ${VENDOR_JAVA_NAME:="Liberica"}
+-
+ 	return 0
+ }
+ readconfig
+-- 
+2.38.1
+
