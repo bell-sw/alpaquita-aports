@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.34.2
-pkgrel=3
+pkgrel=4
 _glibcver=2.34
 _patch_ver="glibc-2.34-349-g9f55d2e7c4"
 pkgdesc="GNU C Library"
@@ -29,6 +29,7 @@ subpackages="
 	$pkgname-locales::noarch
 	$pkgname-doc
 	$pkgname-dev
+	$pkgname-dbg
 "
 
 
@@ -41,7 +42,7 @@ build() {
 
 	echo "rootsbindir=/usr/sbin" >> configparms
 
-	CFLAGS="-O3 -pipe"
+	CFLAGS="-O3 -pipe -g"
 	CPPFLAGS="$CFLAGS"
 	LDFLAGS="-Wl,--as-needed,-O2,--sort-common"
 	../configure \
