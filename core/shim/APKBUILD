@@ -1,6 +1,6 @@
 pkgname=shim
 pkgver=15.7
-pkgrel=0
+pkgrel=1
 pkgdesc="shim, a first-stage UEFI bootloader"
 url="https://github.com/rhboot/shim"
 arch="x86_64"
@@ -8,7 +8,7 @@ license="BSD-2-Clause-Patent"
 makedepends="gcc make elfutils-dev xxd dos2unix efivar-dev"
 source="https://github.com/rhboot/shim/releases/download/$pkgver/shim-$pkgver.tar.bz2
 	bellsoft-uefi-ca.der
-	sbat.alpaquita.csv
+	sbat.distro.csv
 "
 builddir="$srcdir/$pkgname-$pkgver"
 subpackages="$pkgname-utils $pkgname-dbg"
@@ -18,9 +18,11 @@ prepare() {
 	default_prepare
 	cp "$srcdir"/bellsoft-uefi-ca.der "$builddir"/
 
-	sed "s,@VERSION@,$pkgver-r$pkgrel," < "$srcdir"/sbat.alpaquita.csv \
-		> "$builddir"/data/sbat.alpaquita.csv
-	msg "Alpaquita .sbat section: $(cat $builddir/data/sbat.alpaquita.csv)"
+	sed -e "s,@VERSION@,$pkgver-r$pkgrel,g" \
+		-e "s,@DISTRO@,$VENDOR_DISTRO,g" -e "s,@DISTRO_NAME@,$VENDOR_DISTRO_NAME,g" \
+		-e "s,@SUPPORT_URL@,$VENDOR_BUG_REPORT_URL,g" \
+		< "$srcdir"/sbat.distro.csv > "$builddir"/data/sbat.distro.csv
+	msg "$VENDOR_DISTRO_NAME .sbat section: $(cat $builddir/data/sbat.distro.csv)"
 }
 
 build() {
@@ -30,7 +32,7 @@ build() {
 package() {
 	make VENDOR_CERT_FILE=bellsoft-uefi-ca.der \
 	     DESTDIR=$pkgdir \
-	     EFIDIR=alpaquita \
+	     EFIDIR="$VENDOR_DISTRO" \
 	     install
 }
 
@@ -38,7 +40,7 @@ utils() {
 	local lib_path="$subpkgdir/usr/lib/shim"
 
 	mkdir -p $lib_path
-	cp "$pkgdir"/boot/efi/EFI/alpaquita/* $lib_path
+	cp "$pkgdir"/boot/efi/EFI/"$VENDOR_DISTRO"/* $lib_path
 	cp "$pkgdir"/boot/efi/EFI/BOOT/* $lib_path
 	cp "$srcdir"/bellsoft-uefi-ca.der $lib_path
 }
@@ -56,5 +58,5 @@ check() {
 sha512sums="
 99a9792be8dd8834ce1f929af341db1fc8ff985b079cebb42a87a770b3672cde573893463c1444c28e30c78207d560c77ad17795dbf19f24795ab3e22d601cec  shim-15.7.tar.bz2
 3da366e25b6acb769375f0cf6031b289b8ed73c740a8b65fe43a05e03439a66d163aa0f916b6a3c825d7c623413d5cbd6edbbddaa71a863b445e7fd66f71422e  bellsoft-uefi-ca.der
-981104ac03e23e0ac0773aefa1ef66334b4275efb8c1f7d486d5af35835f87e321f6133d73e75aa4262e18c3f5d1ad06a944a8b1c7a284f29eb08bc73c145df9  sbat.alpaquita.csv
+287a279bd4c0619c0630295ba7a7d06b23313e7e96a2de48a7d29e1b02a2d4cd3cee503a7a8725df34bbb19bedc97902404f24242133eef79b192a9190c47d1b  sbat.distro.csv
 "
