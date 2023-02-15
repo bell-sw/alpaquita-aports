@@ -3,7 +3,7 @@
 
 pkgname=grub
 pkgver=2.06
-pkgrel=9
+pkgrel=10
 # Security patches backported from Debian version:
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
@@ -42,7 +42,7 @@ done
 source="https://ftp.gnu.org/gnu/grub/grub-$pkgver.tar.xz
 	fix-gcc-no-pie-specs.patch
 	grub-xen-host_grub.cfg
-	alpaquita-mkconfig.patch
+	mkconfig.patch
 	lang-C.UTF-8.patch
 	0001-loader-drop-argv-argument-in-grub_initrd_load.patch
 	0002-efi-add-definition-of-LoadFile2-protocol.patch
@@ -103,7 +103,7 @@ source="https://ftp.gnu.org/gnu/grub/grub-$pkgver.tar.xz
 	0115-kern-file-Fix-error-handling-in-grub_file_open.patch
 	0116-font-Try-opening-fonts-from-the-bundled-memdisk.patch
 
-	sbat.alpaquita.csv
+	sbat.distro.csv
 	"
 
 # secfixes:
@@ -255,8 +255,8 @@ package() {
 		GRUB_CMDLINE_LINUX_DEFAULT="quiet"
 		GRUB_DEFAULT=saved
 
-		# Note that Alpaquita doesn't have os-prober installed by default,
-		# therefore /etc/grub.d/30_os-prober is no-op. In order to use it,
+		# Note that os-prober is not installed by default, therefore
+		# /etc/grub.d/30_os-prober is no-op. In order to use it,
 		# you need to install the os-prober package.
 		GRUB_DISABLE_OS_PROBER=false
 	EOF
@@ -274,7 +274,7 @@ bios() {
 
 _grub_gen_earlyconf() {
 	cat <<- EOF
-	search --no-floppy --set=root --label "alpaquita $CARCH"
+	search --no-floppy --set=root --label "$VENDOR_DISTRO $CARCH"
 	set prefix=(\$root)/boot/grub
 	EOF
 }
@@ -329,7 +329,9 @@ efi() {
 	_grub_gen_earlyconf > "$builddir"/grub_early.cfg
 
 	sed -e "s,@PKGVER@,$pkgver,g" -e "s,@PKGREL@,$pkgrel," \
-		< "$srcdir"/sbat.alpaquita.csv > "$builddir"/sbat.alpaquita.csv
+		-e "s,@DISTRO@,$VENDOR_DISTRO,g" -e "s,@DISTRO_NAME@,$VENDOR_DISTRO_NAME,g" \
+		-e "s,@SUPPORT_URL@,$VENDOR_BUG_REPORT_URL,g" \
+		< "$srcdir"/sbat.distro.csv > "$builddir"/sbat.distro.csv
 
 	# create memdisk with fonts
 	local grub_dir=$(mktemp -d)
@@ -347,7 +349,7 @@ efi() {
 		--output="$_install_dir/gcd$_efi" \
 		--format="$_format" \
 		--compression="xz" \
-		--sbat="$builddir/sbat.alpaquita.csv" \
+		--sbat="$builddir/sbat.distro.csv" \
 		--memdisk=$grub_memdisk \
 		--prefix="/boot/grub" \
 		$_cd_modules
@@ -357,9 +359,9 @@ efi() {
 		--directory="$subpkgdir/usr/lib/grub/$_format" \
 		--output="$_install_dir/grub$_efi" \
 		--format="$_format" \
-		--sbat="$builddir/sbat.alpaquita.csv" \
+		--sbat="$builddir/sbat.distro.csv" \
 		--memdisk=$grub_memdisk \
-		--prefix="/EFI/alpaquita" \
+		--prefix="/EFI/$VENDOR_DISTRO" \
 		$_modules
 
 	rm -r $grub_dir
@@ -422,7 +424,7 @@ sha512sums="
 4f11c648f3078567e53fc0c74d5026fdc6da4be27d188975e79d9a4df817ade0fe5ad2ddd694238a07edc45adfa02943d83c57767dd51548102b375e529e8efe  grub-2.06.tar.xz
 f2a7d9ab6c445f4e402e790db56378cecd6631b5c367451aa6ce5c01cd95b95c83c3dd24d6d4b857f8f42601eba82c855607513eb6ce5b2af6bd6c71f046e288  fix-gcc-no-pie-specs.patch
 4e7394e0fff6772c89683039ccf81099ebbfe4f498e6df408977a1488fd59389b6e19afdbf0860ec271e2b2aea0df7216243dcc8235d1ca3af0e7f4d0a9d60a4  grub-xen-host_grub.cfg
-438d8baf52b9b69dcaaf064a3e8d770991f50ab9262a32ac5cbd9059a2aff8426ebe3c4b8e70a27884fc3fbd1fc3b4e1701cad8c0378902ba29b738e3cb4a90c  alpaquita-mkconfig.patch
+438d8baf52b9b69dcaaf064a3e8d770991f50ab9262a32ac5cbd9059a2aff8426ebe3c4b8e70a27884fc3fbd1fc3b4e1701cad8c0378902ba29b738e3cb4a90c  mkconfig.patch
 f23702741f2a37c83d0cbf16a000a6229dfd433cd583f3254d523ce35b3668c1db2d8a704a75013e74655ec4f9da5db6b630aa92e3ca5cc47df44cc9e41d1806  lang-C.UTF-8.patch
 c0ea8ef9a3d4e511fae97a4b90dc6f407c5b0a81c922924992f3eccd49fad0886f2e06ff21731cc59d42a6ac28272eb859a7ee9f14642ae1ad705f2cd1da1956  0001-loader-drop-argv-argument-in-grub_initrd_load.patch
 708c3e8ca60638b7961aac64fe1eecb21ef9db844b4a21c2d36303c7fcd71173ba13dc0df3c8ae09b4a0a6a4a5b7fb3c41736a9bf6d1ef367c73dcf5bdf17668  0002-efi-add-definition-of-LoadFile2-protocol.patch
@@ -480,5 +482,5 @@ f7288ac315e9f42aef522e333357f7f47f0e11fa7048f26467364c1a9b0c171f9718a178d252acb7
 813e220ded6bb2e2cb254a6fda0507f7ddaf4a5b604fcd8fe604260c8ed5d91f47005b3e1e9b4f4ca0ecbaa286c1f2619fcb87f7cfb25225f799d3478c447e45  0114-normal-charset-Fix-an-integer-overflow-in-grub_unico.patch
 1ff9fa406703778e8aab4c9951b4ef4e2b255aa18b604ee8d57bbb5993cad653c4a189a6d90fb46e1ecf2776bada8b68c30407e1a4e5ba4c4b814bbd5846542e  0115-kern-file-Fix-error-handling-in-grub_file_open.patch
 736cc978c1c453e7df6f6a3e3085be0aafaf78a06ec0e7204ebd031879c0954e7de0cf82a4ab9dd74daaa10674aacd7bf3792c2bf2343006d919d87750a216f0  0116-font-Try-opening-fonts-from-the-bundled-memdisk.patch
-caaffcbe1ea9f604eb2d33bf82aa9ac29f7917f7cb05496a356e35b474ff870e6aa6f86c620f9896251dcd1fbce6788b9c9b59410351fc7fc4b8e7fefcf2ac03  sbat.alpaquita.csv
+3bdefa7effaba59d23110cdd60598bd3cc91cac82792df76adbb98cc0cff17ae3cd0ac1684795ada31651166e9d06bc7be7b0a856e4d0be95828689458dbf37f  sbat.distro.csv
 "
