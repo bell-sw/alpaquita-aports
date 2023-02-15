@@ -1,6 +1,6 @@
 pkgname=shim-signed
 pkgver=15.7
-pkgrel=0
+pkgrel=1
 pkgdesc="shim, a first-stage UEFI bootloader (signed)"
 url="https://github.com/rhboot/shim"
 arch="x86_64"
@@ -11,21 +11,21 @@ install="$pkgname.post-install $pkgname.post-upgrade"
 _efi="boot/efi/EFI"
 sign_list="
 	$_efi/BOOT/mmx64.efi
-	$_efi/alpaquita/mmx64.efi
+	$_efi/$VENDOR_DISTRO/mmx64.efi
 	$_efi/BOOT/fbx64.efi
 "
 
 package() {
 	mkdir -p "$pkgdir"/$_efi/BOOT
-	mkdir -p "$pkgdir"/$_efi/alpaquita
+	mkdir -p "$pkgdir"/$_efi/"$VENDOR_DISTRO"
 
 	cp /usr/lib/shim/mmx64.efi "$pkgdir"/$_efi/BOOT/mmx64.efi
-	cp /usr/lib/shim/mmx64.efi "$pkgdir"/$_efi/alpaquita/mmx64.efi
+	cp /usr/lib/shim/mmx64.efi "$pkgdir"/$_efi/"$VENDOR_DISTRO"/mmx64.efi
 
 	cp /usr/lib/shim/fbx64.efi "$pkgdir"/$_efi/BOOT/fbx64.efi
 
 	cp /usr/lib/shim/shimx64.efi "$pkgdir"/$_efi/BOOT/BOOTX64.EFI
-	cp /usr/lib/shim/shimx64.efi "$pkgdir"/$_efi/alpaquita
+	cp /usr/lib/shim/shimx64.efi "$pkgdir"/$_efi/"$VENDOR_DISTRO"
 
-	cp /usr/lib/shim/BOOTX64.CSV "$pkgdir"/$_efi/alpaquita
+	cp /usr/lib/shim/BOOTX64.CSV "$pkgdir"/$_efi/"$VENDOR_DISTRO"
 }
