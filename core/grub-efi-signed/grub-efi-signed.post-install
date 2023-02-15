@@ -1,6 +1,12 @@
 #!/bin/sh
 
-efi_path="/boot/efi/EFI/alpaquita"
+linux=$(. /etc/os-release; echo "$ID")
+if [ -z "$linux" ]; then
+	echo "Unable to find the OS ID in /etc/os-release"
+	exit 1
+fi
+
+efi_path="/boot/efi/EFI/${linux}"
 
 if [ -e "$efi_path" ]; then
 	boot_uuid="$(grub-probe --target=fs_uuid /boot/grub)"

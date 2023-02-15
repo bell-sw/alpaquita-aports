@@ -1,26 +1,26 @@
 pkgname=grub-efi-signed
 pkgver=2.06
-pkgrel=8
+pkgrel=10
 pkgdesc="Bootloader with support for Linux, Multiboot and more (signed)"
 url="https://www.gnu.org/software/grub/"
 arch="x86_64"
 license="GPL-3.0-or-later"
-depends="grub-efi=2.06-r8"
+depends="grub-efi=2.06-r10"
 makedepends="sbsigntool grub-efi"
 install="$pkgname.post-install"
 options="!strip !check !annobin"
 sign_list="
-	boot/efi/EFI/alpaquita/grubx64.efi
+	boot/efi/EFI/$VENDOR_DISTRO/grubx64.efi
 	usr/lib/grub/${CARCH}-efi/unified/gcdx64.efi.signed
 "
 
 package() {
-	mkdir -p "$pkgdir"/boot/efi/EFI/alpaquita/
+	mkdir -p "$pkgdir"/boot/efi/EFI/"$VENDOR_DISTRO"/
 	mkdir -p "$pkgdir"/usr/lib/grub/${CARCH}-efi/unified/
 	mkdir -p "$pkgdir"/boot/grub
 
 	cp /usr/lib/grub/${CARCH}-efi/unified/grubx64.efi \
-		"$pkgdir"/boot/efi/EFI/alpaquita/grubx64.efi
+		"$pkgdir"/boot/efi/EFI/"$VENDOR_DISTRO"/grubx64.efi
 	cp /usr/lib/grub/${CARCH}-efi/unified/gcdx64.efi \
 		"$pkgdir"/usr/lib/grub/${CARCH}-efi/unified/gcdx64.efi.signed
 }
