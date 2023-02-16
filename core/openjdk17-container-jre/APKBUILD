@@ -9,20 +9,20 @@ _java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK ${_java_maj_ver} Container JRE (S
 
 pkgname=${_java_pkg_name}${_java_maj_ver}-container-jre
 pkgver=${_java_ver/+/_p}
-pkgrel=0
+pkgrel=1
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
 arch="x86_64"
 options="!strip !tracedeps"
 depends="java-common zlib"
-makedepends="liberica${_java_maj_ver}-lite-jdk-all~${pkgver}"
+makedepends="${_java_pkg_name}${_java_maj_ver}-lite-jdk-all~${pkgver}"
 provides="openjdk${_java_maj_ver}-container-jre=${pkgver}-r${pkgrel}"
 
 builddir="$srcdir"/${pkgname}-${pkgver}
 
 _java_home=/usr/lib/jvm/"$pkgname"
-_java_jdk_home="/usr/lib/jvm/liberica${_java_maj_ver}-lite"
+_java_jdk_home="/usr/lib/jvm/${_java_pkg_name}${_java_maj_ver}-lite"
 
 build() {
 	"${_java_jdk_home}/bin/jlink" \
