@@ -3,13 +3,13 @@
 
 pkgname=file
 pkgver=5.44
-pkgrel=0
+pkgrel=1
 pkgdesc="File type recognition tool"
 url="https://www.darwinsys.com/file/"
 arch="all"
 license="BSD-2-Clause"
 makedepends="autoconf libtool automake"
-subpackages="$pkgname-dev $pkgname-doc libmagic"
+subpackages="libmagick-static:default_static $pkgname-dev $pkgname-doc libmagic"
 source="$pkgname-$pkgver.tar.gz::https://github.com/file/file/archive/FILE${pkgver/./_}.tar.gz"
 builddir="$srcdir/$pkgname-FILE${pkgver/./_}"
 
@@ -29,7 +29,8 @@ build() {
 		--build=$CBUILD \
 		--host=$CHOST \
 		--prefix=/usr \
-		--datadir=/usr/share
+		--datadir=/usr/share \
+		--enable-static
 	make
 }
 
