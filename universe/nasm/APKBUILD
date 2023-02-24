@@ -2,7 +2,7 @@
 
 pkgname=nasm
 pkgver=2.16.01
-pkgrel=0
+pkgrel=1
 pkgdesc="80x86 assembler designed for portability and modularity"
 url="https://www.nasm.us"
 arch="all"
@@ -12,8 +12,7 @@ subpackages="$pkgname-doc"
 source="https://www.nasm.us/pub/nasm/releasebuilds/$pkgver/nasm-$pkgver.tar.xz"
 
 build() {
-	export CFLAGS=
-	export CXXFLAGS=
+	CFLAGS="$CFLAGS -O2 -flto=auto" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
