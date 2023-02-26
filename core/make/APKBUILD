@@ -4,7 +4,7 @@
 
 pkgname=make
 pkgver=4.4
-pkgrel=1
+pkgrel=2
 pkgdesc="GNU make utility"
 url="https://www.gnu.org/software/make"
 arch="all"
@@ -14,6 +14,7 @@ source="https://ftp.gnu.org/gnu/make/make-$pkgver.tar.gz
 	0001-src-main.c-main-SV-63307-Handle-SIGPIPE-as-a-fatal-s.patch"
 
 build() {
+	CFLAGS="$CFLAGS -flto=auto" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
