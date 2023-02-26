@@ -1,6 +1,6 @@
 pkgname=dbus-glib
 pkgver=0.112
-pkgrel=2
+pkgrel=3
 pkgdesc="GLib bindings for DBUS"
 options="!check" # FIXME: tests fails
 url="http://www.freedesktop.org/wiki/Software/DBusBindings"
@@ -11,6 +11,7 @@ makedepends="dbus-dev glib-dev gettext-dev expat-dev"
 source="https://dbus.freedesktop.org/releases/dbus-glib/dbus-glib-$pkgver.tar.gz"
 
 build() {
+	CFLAGS="$CFLAGS -flto=auto" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
