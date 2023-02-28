@@ -4,7 +4,7 @@
 
 pkgname=cryptsetup
 pkgver=2.6.1
-pkgrel=1
+pkgrel=2
 pkgdesc="Block devices encryption utility"
 url="https://gitlab.com/cryptsetup/cryptsetup"
 arch="all"
@@ -36,6 +36,7 @@ source="https://www.kernel.org/pub/linux/utils/cryptsetup/v${pkgver%.*}/cryptset
 build() {
 	# Disable support for external tokens since it requires
 	# dlvsym(3) which is a GNU extension and not available in musl.
+	CFLAGS="$CFLAGS -flto=auto" \
 	./configure \
 		--build="$CBUILD" \
 		--host="$CHOST" \
