@@ -1,0 +1,149 @@
+From b484768099a2e3cef112e5436b24a73b8bbb47ce Mon Sep 17 00:00:00 2001
+From: Dennis Tseng <dennis.tseng@suse.com>
+Date: Thu, 24 Nov 2022 13:47:16 +0800
+Subject: [PATCH] Add validation function for Microsoft signing
+
+A validation function is added to post-process-pe.c to verify 3 flags
+required by Microsoft signing right after each EFI file has been built.
+
+Like other functions existing in post-process-pe.c, this function can
+be enabled through the "-m" flag by CLI command. Default is enabled.
+
+The output is something like this:
+./post-process-pe -vv shim.efi
+set_dll_characteristics():358: Updating DLL Characteristics from 0x0000 to 0x0100
+ms_validation():373: NX-Compat-Flag: PASS
+ms_validation():378:   4K-Alignment: PASS
+ms_validation():390: Section-Wr-Exe: PASS
+
+Microsoft is enforcing the validationis for all applications to be signed
+by the Microsoft third-party Unified Extensible Firmware Interface (UEFI)
+Certificate Authority (CA). These validations include:
+
+- Section Alignment of the submitted PE file must be aligned with page size.
+  This must be 4kb.
+- Section Flags must not combine IMAGE_SCN_MEM_WRITE and IMAGE_SCN_MEM_EXECUTE
+  for any given section.
+- DLL Characteristics must include IMAGE_DLLCHARACTERISTICS_NX_COMPAT
+
+Please refer the following for more details:
+https://techcommunity.microsoft.com/t5/hardware-dev-center/new-uefi-ca-memory-mitigation-requirements-for-signing/ba-p/3608714
+
+recover "static" storage modifier.
+recover "set_nx_compat" to false.
+
+Signed-off-by: Dennis Tseng <dennis.tseng@suse.com>
+---
+ post-process-pe.c | 46 ++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 44 insertions(+), 2 deletions(-)
+
+diff --git a/post-process-pe.c b/post-process-pe.c
+index f39fddd..b29eed2 100644
+--- a/post-process-pe.c
++++ b/post-process-pe.c
+@@ -43,6 +43,7 @@ static int verbosity;
+ 	})
+ 
+ static bool set_nx_compat = true;
++static bool set_ms_validation = true;
+ 
+ typedef uint8_t UINT8;
+ typedef uint16_t UINT16;
+@@ -348,8 +349,11 @@ set_dll_characteristics(PE_COFF_LOADER_IMAGE_CONTEXT *ctx)
+ 		newflags = oldflags | EFI_IMAGE_DLLCHARACTERISTICS_NX_COMPAT;
+ 	else
+ 		newflags = oldflags & ~(uint16_t)EFI_IMAGE_DLLCHARACTERISTICS_NX_COMPAT;
+-	if (oldflags == newflags)
++	if (oldflags == newflags) {
++		warnx("Dll Characteristics(0x%04x) indentical to previous one",
++			ctx->PEHdr->Pe32Plus.OptionalHeader.DllCharacteristics);
+ 		return;
++	}	
+ 
+ 	debug(INFO, "Updating DLL Characteristics from 0x%04hx to 0x%04hx\n",
+ 	      oldflags, newflags);
+@@ -360,6 +364,34 @@ set_dll_characteristics(PE_COFF_LOADER_IMAGE_CONTEXT *ctx)
+ 	}
+ }
+ 
++static void
++ms_validation(PE_COFF_LOADER_IMAGE_CONTEXT *ctx)
++{
++	EFI_IMAGE_SECTION_HEADER *Section;
++	int i;
++
++	debug(INFO, "%14s: %s\n","NX-Compat-Flag",
++		EFI_IMAGE_DLLCHARACTERISTICS_NX_COMPAT == 
++		ctx->PEHdr->Pe32.OptionalHeader.DllCharacteristics ?
++		"PASS":"FAIL");
++	
++	debug(INFO, "%14s: %s\n","4K-Alignment",
++		PAGE_SIZE == ctx->PEHdr->Pe32Plus.OptionalHeader.SectionAlignment ?
++		"PASS":"FAIL");
++
++	Section = ctx->FirstSection;
++	//printf("NumberOfSections=%d\n",ctx->NumberOfSections);
++	for (i = 0; i < ctx->NumberOfSections; i++, Section++) {
++		//printf("name=%s, Charact=0x%04x\n",Section->Name,Section->Characteristics);
++		if ((Section->Characteristics & EFI_IMAGE_SCN_MEM_WRITE) &&
++		    (Section->Characteristics & EFI_IMAGE_SCN_MEM_EXECUTE)) {
++		    debug(INFO, "%14s: %s\n","Section-Wr-Exe", "FAIL");
++			return;
++		}
++	}
++	debug(INFO, "%14s: %s\n","Section-Wr-Exe", "PASS");
++}
++
+ static void
+ fix_timestamp(PE_COFF_LOADER_IMAGE_CONTEXT *ctx)
+ {
+@@ -449,6 +481,9 @@ handle_one(char *f)
+ 
+ 	set_dll_characteristics(&ctx);
+ 
++	if (set_ms_validation)
++		ms_validation(&ctx);
++
+ 	fix_timestamp(&ctx);
+ 
+ 	fix_checksum(&ctx, map, sz);
+@@ -483,6 +518,7 @@ static void __attribute__((__noreturn__)) usage(int status)
+ 	fprintf(out, "       -v    Be more verbose\n");
+ 	fprintf(out, "       -N    Disable the NX compatibility flag\n");
+ 	fprintf(out, "       -n    Enable the NX compatibility flag\n");
++	fprintf(out, "       -m    Microsoft validation\n");
+ 	fprintf(out, "       -h    Print this help text and exit\n");
+ 
+ 	exit(status);
+@@ -504,6 +540,9 @@ int main(int argc, char **argv)
+ 		{.name = "enable-nx-compat",
+ 		 .val = 'n',
+ 		},
++		{.name = "ms-validation",
++		 .val = 'm',
++		},
+ 		{.name = "quiet",
+ 		 .val = 'q',
+ 		},
+@@ -514,7 +553,7 @@ int main(int argc, char **argv)
+ 	};
+ 	int longindex = -1;
+ 
+-	while ((i = getopt_long(argc, argv, "hNnqv", options, &longindex)) != -1) {
++	while ((i = getopt_long(argc, argv, "hNnmqv", options, &longindex)) != -1) {
+ 		switch (i) {
+ 		case 'h':
+ 		case '?':
+@@ -526,6 +565,9 @@ int main(int argc, char **argv)
+ 		case 'n':
+ 			set_nx_compat = true;
+ 			break;
++		case 'm':
++			set_ms_validation = true;
++			break;	
+ 		case 'q':
+ 			verbosity = MAX(verbosity - 1, MIN_VERBOSITY);
+ 			break;
+-- 
+2.25.1
+

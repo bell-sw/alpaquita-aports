@@ -1,6 +1,6 @@
 pkgname=shim
 pkgver=15.7
-pkgrel=1
+pkgrel=2
 pkgdesc="shim, a first-stage UEFI bootloader"
 url="https://github.com/rhboot/shim"
 arch="x86_64"
@@ -9,6 +9,9 @@ makedepends="gcc make elfutils-dev xxd dos2unix efivar-dev"
 source="https://github.com/rhboot/shim/releases/download/$pkgver/shim-$pkgver.tar.bz2
 	bellsoft-uefi-ca.der
 	sbat.distro.csv
+	0001-Make-sbat_var.S-parse-right-with-buggy-gcc-binutils.patch
+	0002-Enable-the-NX-compatibility-flag-by-default.patch
+	0003-Add-validation-function-for-Microsoft-signing.patch
 "
 builddir="$srcdir/$pkgname-$pkgver"
 subpackages="$pkgname-utils $pkgname-dbg"
@@ -57,6 +60,9 @@ check() {
 
 sha512sums="
 99a9792be8dd8834ce1f929af341db1fc8ff985b079cebb42a87a770b3672cde573893463c1444c28e30c78207d560c77ad17795dbf19f24795ab3e22d601cec  shim-15.7.tar.bz2
-3da366e25b6acb769375f0cf6031b289b8ed73c740a8b65fe43a05e03439a66d163aa0f916b6a3c825d7c623413d5cbd6edbbddaa71a863b445e7fd66f71422e  bellsoft-uefi-ca.der
+711e3df4aa78b82339aa2a5a9d6b5b4d5a93b157b12ca59c97e58ed2c4f2e09ab1a14476f399e95337ea17b1a40f269d070d5023f4a24a91364b22bbc8cedc13  bellsoft-uefi-ca.der
 287a279bd4c0619c0630295ba7a7d06b23313e7e96a2de48a7d29e1b02a2d4cd3cee503a7a8725df34bbb19bedc97902404f24242133eef79b192a9190c47d1b  sbat.distro.csv
+f1522b6335bf1fa09ecb69a2ef906391a02830a132b036b06cab2670a7c6ac51090116613d99769b89702a6aab144d757da1ea239b9bbf9f7146cd4c4095ac76  0001-Make-sbat_var.S-parse-right-with-buggy-gcc-binutils.patch
+664cca7ab24d029560fab6e0bccb4fed6e7eafe23386c58a0a3063520a59e7a91216c9d36789a23cbeae0edb6ea9866d1e4c13f4192aae49680c7d768f4905bf  0002-Enable-the-NX-compatibility-flag-by-default.patch
+5cf42d99dd9cbf576e06f0adf4abfe256574f55f715b59f524eb2e814e75ff4a501f61e1caeccabab8e8d9d281d20bbe24551b6ec2b3c9215b7e16cae14b4e89  0003-Add-validation-function-for-Microsoft-signing.patch
 "
