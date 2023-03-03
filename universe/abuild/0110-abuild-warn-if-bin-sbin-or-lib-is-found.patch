@@ -16,7 +16,7 @@ index 891b9fa..612923e 100755
  		fi
  	fi
  
-+	# checking for Alpaquita FHS compat
++	# checking for the FHS compat
 +	for i in bin sbin lib; do
 +		if [ -e "$dir/$i" ]; then
 +			# ignore if it is a valid symlink
@@ -40,7 +40,7 @@ index 7fefae4..39522d2 100755
  	abuild_package_size_nonzero \
 -	abuild_amove
 +	abuild_amove \
-+	abuild_alpaquita_invalid_fhs
++	abuild_invalid_fhs
  
  export ABUILD_SHAREDIR=$(atf_get_srcdir)/..
  export ABUILD_CONF=/dev/null
@@ -49,18 +49,18 @@ index 7fefae4..39522d2 100755
  	done
  }
 +
-+abuild_alpaquita_invalid_fhs_body() {
++abuild_invalid_fhs_body() {
 +	init_keys
 +	mkdir invalid-fhs
 +	cd invalid-fhs
 +
 +	cat >APKBUILD.in<<-EOF
-+		# Maintainer: BellSoft <info@bell-sw.com>
-+		pkgname="alpaquita-invalid-fhs"
++		# Maintainer: John Doe <info@example.com>
++		pkgname="invalid-fhs"
 +		pkgver="1.0"
 +		pkgrel=0
 +		pkgdesc="Dummy test package"
-+		url="https://bell-sw.com"
++		url="https://example.com"
 +		arch="noarch"
 +		license="MIT"
 +		prepare() {
