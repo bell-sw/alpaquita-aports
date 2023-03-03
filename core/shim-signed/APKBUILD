@@ -8,12 +8,14 @@ license="BSD-2-Clause-Patent"
 makedepends="sbsigntool shim-utils"
 options="!strip !check !libc_musl"
 install="$pkgname.post-install $pkgname.post-upgrade"
+source="../shim/bellsoft-uefi-ca.pem"
 _efi="boot/efi/EFI"
 sign_list="
 	$_efi/BOOT/mmx64.efi
 	$_efi/$VENDOR_DISTRO/mmx64.efi
 	$_efi/BOOT/fbx64.efi
 "
+sign_verify="bellsoft-uefi-ca.pem"
 
 package() {
 	mkdir -p "$pkgdir"/$_efi/BOOT
@@ -29,3 +31,7 @@ package() {
 
 	cp /usr/lib/shim/BOOTX64.CSV "$pkgdir"/$_efi/"$VENDOR_DISTRO"
 }
+
+sha512sums="
+304d6a2d2c25af142b2cf2222079ebf59b8174f0825840dfc88e60016e5fcfe12973e0a250b4172ff7ea77cdb014cb5fec1a474965fee97478a6dcd0cbe6bdd3  bellsoft-uefi-ca.pem
+"
