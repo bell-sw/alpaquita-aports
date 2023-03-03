@@ -1,6 +1,6 @@
 pkgname=screen
 pkgver=4.9.0
-pkgrel=0
+pkgrel=1
 pkgdesc="Window manager that multiplexes a physical terminal"
 url="https://www.gnu.org/software/screen/"
 arch="all"
@@ -24,8 +24,9 @@ prepare() {
 }
 
 build() {
-	CFLAGS="$CFLAGS -DNONETHACK -DGETUTENT -I/usr/include/utmps" \
-	LIBS="-lutmps -lskarnet" ./configure \
+	CFLAGS="$CFLAGS -DNONETHACK -DGETUTENT -I/usr/include/utmps -flto=auto" \
+	LIBS="-lutmps -lskarnet" \
+	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
 		--prefix=/usr \
