@@ -9,10 +9,12 @@ depends="grub-efi=2.06-r10"
 makedepends="sbsigntool grub-efi"
 install="$pkgname.post-install"
 options="!strip !check !annobin"
+source="../shim/bellsoft-uefi-ca.pem"
 sign_list="
 	boot/efi/EFI/$VENDOR_DISTRO/grubx64.efi
 	usr/lib/grub/${CARCH}-efi/unified/gcdx64.efi.signed
 "
+sign_verify="bellsoft-uefi-ca.pem"
 
 package() {
 	mkdir -p "$pkgdir"/boot/efi/EFI/"$VENDOR_DISTRO"/
@@ -24,3 +26,7 @@ package() {
 	cp /usr/lib/grub/${CARCH}-efi/unified/gcdx64.efi \
 		"$pkgdir"/usr/lib/grub/${CARCH}-efi/unified/gcdx64.efi.signed
 }
+
+sha512sums="
+304d6a2d2c25af142b2cf2222079ebf59b8174f0825840dfc88e60016e5fcfe12973e0a250b4172ff7ea77cdb014cb5fec1a474965fee97478a6dcd0cbe6bdd3  bellsoft-uefi-ca.pem
+"
