@@ -1,19 +1,19 @@
-From bf912b57e057d14d8ad3a3b7bf713b609d1a862c Mon Sep 17 00:00:00 2001
+From a57c7856c38fbfdf5388cc82855d0f321eb5536c Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Fri, 11 Nov 2022 19:16:23 +0300
 Subject: [PATCH] add a new step to sign files with sign_impl command
 
 Packages requiring signing will need to specify a sign_list
-in APKBUILD files.
+and sign_verify in APKBUILD files.
 ---
- abuild.in | 17 +++++++++++++++++
- 1 file changed, 17 insertions(+)
+ abuild.in | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
 
 diff --git a/abuild.in b/abuild.in
-index 79466b2..c229fec 100755
+index 71d6aea..e570d2d 100755
 --- a/abuild.in
 +++ b/abuild.in
-@@ -798,6 +798,22 @@ build() {
+@@ -779,6 +779,28 @@ build() {
  	:
  }
  
@@ -27,16 +27,22 @@ index 79466b2..c229fec 100755
 +
 +	local dir="${subpkgdir:-$pkgdir}"
 +	local f
++	local cert=""
++
++	if [ "$sign_verify" ]; then
++		cert="$srcdir/$sign_verify"
++		[ -f "$cert" ] || die "Failed to find sign_verify file: $cert"
++	fi
 +
 +	for f in $sign_list; do
-+		sign_impl "$dir"/$f
++		sign_impl "$dir"/$f "$cert"
 +	done
 +}
 +
  # generate a simple tar.gz package of pkgdir
  targz() {
  	cd "$pkgdir" || return 1
-@@ -1424,6 +1440,7 @@ archcheck() {
+@@ -1392,6 +1414,7 @@ archcheck() {
  prepare_package() {
  	msg "Preparing ${subpkgname:+sub}package ${subpkgname:-$pkgname}..."
  	stripbin
@@ -45,5 +51,5 @@ index 79466b2..c229fec 100755
  		&& prepare_trace_rpaths \
  		&& prepare_symlinks \
 -- 
-2.36.2
+2.25.1
 
