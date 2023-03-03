@@ -16,6 +16,7 @@ source="https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$_kernver
 	config-lts-debug.x86_64
 	extramods
 	x509.genkey
+	../shim/bellsoft-uefi-ca.pem
 
 	0100-efi-Add-an-EFI_SECURE_BOOT-flag-to-indicate-secure-b.patch
 	0101-efi-Lock-down-the-kernel-if-booted-in-secure-boot-mo.patch
@@ -183,6 +184,7 @@ _package() {
 	local _abi_release=${pkgver}-${pkgrel}-${_buildflavor}
 	export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
 	sign_list="boot/vmlinuz-${_abi_release}"
+	sign_verify="bellsoft-uefi-ca.pem"
 
 	cd "$srcdir"/build-$_buildflavor.$CARCH
 	mkdir -p "$_outdir"/boot "$_outdir"/lib/modules
@@ -306,6 +308,7 @@ a1cc5eaa1c57a4d157b17b855c0826d0969bb31b08fe55a86549961a311367bd95ff9b0a60b5198c
 5dc8ae12fec00fa09f1ab81933ba33ebbbfddd6911543e201c135b9fac157c761d7bee68fb7f36c0f74107ca2d4d79f166bf8d089fc7da477feb553ff16479db  config-lts-debug.x86_64
 30c3f570cda02709a41447169a3bce08ca3bef2c2069b84622b64f64a80432ee93395e6408d8eabce63986271c7ccbac62bcdb50c8d4f85898bf6d3e4c4a9861  extramods
 8ab1221f07d35b710da7e27d6e443ca303e03b69f29a21d2a8fef236a48e0b95b5521cd1e4adb1046d048a37a9d52989e5a5c55647da6f57f1ba7bb69230ce4f  x509.genkey
+304d6a2d2c25af142b2cf2222079ebf59b8174f0825840dfc88e60016e5fcfe12973e0a250b4172ff7ea77cdb014cb5fec1a474965fee97478a6dcd0cbe6bdd3  bellsoft-uefi-ca.pem
 add14619ed3cb4daddd586fe0bb432cb4a2f9ee79ca01c3d37bfa65ea0c830607a31a42e18e97120c330580749483d5b4b4508b69441ac068379654bb267015a  0100-efi-Add-an-EFI_SECURE_BOOT-flag-to-indicate-secure-b.patch
 caf3449ae079cccd2ab675642a5133394c95673e46825ae18dc4b6ad969e8c5cab00497d973e1d2fabe48631256e9dee75a0eb17c15c507b530518f240d4c974  0101-efi-Lock-down-the-kernel-if-booted-in-secure-boot-mo.patch
 a29fed7a7ae878fbb0f72aef44299dca118c73f3f7cd687b8d3e7a3d35b8b26c0c43895506ea3dee4b97ad03d24159476e50fb0847707ef5d8481737c6c78713  0102-mtd-phram-slram-Disable-when-the-kernel-is-locked-do.patch
