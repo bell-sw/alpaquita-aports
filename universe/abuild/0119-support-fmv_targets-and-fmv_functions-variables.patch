@@ -1,0 +1,45 @@
+From ef878e95ca94a74d880eeed821dd0324dfa8ad3f Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Wed, 1 Mar 2023 20:29:17 +0300
+Subject: [PATCH] support fmv_targets and fmv_functions variables
+
+---
+ abuild.in | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/abuild.in b/abuild.in
+index e570d2d..736130d 100755
+--- a/abuild.in
++++ b/abuild.in
+@@ -2964,6 +2964,28 @@ remove_cflags()
+ 	export CPPFLAGS="${CPPFLAGS/$f/}"
+ }
+ 
++setup_fmv()
++{
++	[ "$CARCH" = "x86_64" ] || return
++
++	local i targets functions
++	local cflags="-fopt-info -fplugin=fmv"
++
++	for i in $fmv_targets; do
++		[ "$targets" ] && targets="$targets,$i" || targets="-fplugin-arg-fmv-targets=$i"
++	done
++	for i in $fmv_functions; do
++		[ "$functions" ] && functions="$functions,$i" || functions="-fplugin-arg-fmv-functions=$i"
++	done
++
++	cflags="$cflags $targets $functions"
++	export CFLAGS="$CFLAGS $cflags"
++}
++
++if [ "$fmv_targets" ] && [ "$fmv_functions" ]; then
++	setup_fmv
++fi
++
+ if options_has "!annobin" || [ -n "$ABUILD_DISABLE_ANNOBIN" ] ; then
+ 	remove_cflags "-fplugin=annobin"
+ fi
+-- 
+2.25.1
+
