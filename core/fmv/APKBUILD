@@ -1,0 +1,25 @@
+pkgname=fmv
+pkgver=1.0
+pkgrel=0
+pkgdesc="GCC plugin for adding multi-versioning attributes"
+url="https://bell-sw.com/"
+arch="all"
+license="GPL"
+makedepends="gmp-dev"
+source="https://packages.bell-sw.com/$VENDOR_NAME/distfiles/$pkgname-$pkgver.tar.xz"
+
+build() {
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+check() {
+	make test
+}
+
+sha512sums="
+f2b2bc27a1ea8978d86fc22c158f92de975a6e3c623930d800519fdf53b047bd2da39d565b67acc314796495d50595202501e604ae89a532f558c693361b4c0e  fmv-1.0.tar.xz
+"
