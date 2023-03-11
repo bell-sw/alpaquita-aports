@@ -5,14 +5,24 @@ pkgdesc="A computer display server protocol"
 url="https://wayland.freedesktop.org"
 arch="all"
 license="MIT"
-depends="$pkgname-libs-client $pkgname-libs-cursor $pkgname-libs-egl $pkgname-libs-server"
-depends_dev="libffi-dev expat-dev"
-makedepends="$depends_dev libxml2-dev meson"
-subpackages="$pkgname-dbg $pkgname-dev $pkgname-libs-client:_libs $pkgname-libs-egl:_libs
-	$pkgname-libs-cursor:_libs $pkgname-libs-server:_libs"
-source="https://gitlab.freedesktop.org/wayland/wayland/-/releases/$pkgver/downloads/wayland-$pkgver.tar.xz
-	tests-ignore-debugger.patch
+depends_dev="
+	expat-dev
+	libffi-dev
 	"
+makedepends="
+	$depends_dev
+	libxml2-dev
+	meson
+	"
+subpackages="
+	$pkgname-dbg
+	$pkgname-dev
+	$pkgname-libs-client:_libs
+	$pkgname-libs-egl:_libs
+	$pkgname-libs-cursor:_libs
+	$pkgname-libs-server:_libs
+	"
+source="https://gitlab.freedesktop.org/wayland/wayland/-/releases/$pkgver/downloads/wayland-$pkgver.tar.xz"
 
 build() {
 	abuild-meson \
@@ -29,13 +39,18 @@ check() {
 }
 
 package() {
+	depends="
+		$pkgname-libs-client=$pkgver-r$pkgrel
+		$pkgname-libs-cursor=$pkgver-r$pkgrel
+		$pkgname-libs-egl=$pkgver-r$pkgrel
+		$pkgname-libs-server=$pkgver-r$pkgrel
+		"
 	DESTDIR="$pkgdir" meson install --no-rebuild -C output
 }
 
 dev() {
-	mkdir -p "$subpkgdir"/usr
-	mv "$pkgdir"/usr/bin "$pkgdir"/usr/share \
-		"$subpkgdir"/usr
+	amove usr/share
+	amove usr/bin
 	default_dev
 }
 
@@ -46,11 +61,9 @@ _libs() {
 	case "$name" in
 		egl) replaces="mesa-libwayland-egl";;
 	esac
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/*-$name.so.* "$subpkgdir"/usr/lib
+	amove usr/lib/*-$name.so.*
 }
 
 sha512sums="
 9c525231a7ea3e68d3178230d476285a960d23e38571ac96d885f86c0588c52ef01460bff6833db5adb9456ce8db7b996613611187aac972736748ba91b8fd81  wayland-1.23.0.tar.xz
-0f65a55265e9134ab08cabf67f9d1919c85c4cb6b69129e78bc6c50057cafcaf143007716a0fa73b2eb43d6b605944c320a12a36dbb5f15fcd2f5e770248c480  tests-ignore-debugger.patch
 "
