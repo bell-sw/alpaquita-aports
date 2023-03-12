@@ -2,12 +2,12 @@
 
 pkgname=giflib
 pkgver=5.2.1
-pkgrel=2
+pkgrel=3
 pkgdesc="A library for reading and writing GIF images"
 url="https://sourceforge.net/projects/giflib/"
 arch="all"
 license="MIT"
-subpackages="$pkgname-dev $pkgname-doc $pkgname-utils"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-utils"
 makedepends="xmlto"
 checkdepends="coreutils"
 source="https://downloads.sourceforge.net/sourceforge/giflib/giflib-$pkgver.tar.gz
@@ -29,7 +29,6 @@ check() {
 
 package() {
 	make DESTDIR="$pkgdir" PREFIX=/usr install
-	rm -f "$pkgdir"/usr/lib/*.a
 }
 
 utils() {
