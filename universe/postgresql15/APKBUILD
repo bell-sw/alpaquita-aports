@@ -1,6 +1,6 @@
 _pkgname=postgresql
 pkgver=15.2
-pkgrel=0
+pkgrel=1
 _majorver=${pkgver%%[_.]*}
 pkgname=$_pkgname$_majorver
 pkgdesc="A sophisticated object-relational DBMS, version $_majorver"
@@ -193,6 +193,8 @@ build() {
 	export PYTHON=/usr/bin/python3
 	export CFLAGS="${CFLAGS/-Os/-O2}"
 	export CPPFLAGS="${CPPFLAGS/-Os/-O2}"
+	# older clang versions don't have a 'clang' exe anymore.
+	export CLANG=clang-$_llvmver
 
 	_configure --with-ldap
 	make world
