@@ -3,7 +3,7 @@
 
 pkgname=libxslt
 pkgver=1.1.37
-pkgrel=1
+pkgrel=2
 pkgdesc="XSLT 1.0 processing library"
 url="http://xmlsoft.org/XSLT/"
 arch="all"
@@ -16,7 +16,11 @@ makedepends="
 	libtool
 	libxml2-dev
 	"
-subpackages="$pkgname-dev $pkgname-doc"
+subpackages="
+	$pkgname-static
+	$pkgname-dev
+	$pkgname-doc
+	"
 source="https://download.gnome.org/sources/libxslt/${pkgver%.*}/libxslt-$pkgver.tar.xz"
 
 # secfixes:
@@ -47,7 +51,8 @@ build() {
 		--build=$CBUILD \
 		--host=$CHOST \
 		--prefix=/usr \
-		--with-python=no
+		--with-python=no \
+		--enable-static
 	make
 }
 
