@@ -1,6 +1,6 @@
 pkgname=execline
 pkgver=2.9.2.1
-pkgrel=0
+pkgrel=1
 pkgdesc="A small scripting language, to be used in place of a shell in non-interactive scripts."
 url="http://skarnet.org/software/$pkgname/"
 arch="all"
@@ -15,17 +15,15 @@ build() {
 		--enable-shared \
 		--enable-static \
 		--disable-allstatic \
+		--prefix=/usr \
 		--libdir=/usr/lib \
-		--with-dynlib=/lib \
+		--with-dynlib=/usr/lib \
 		--enable-multicall
 	make
 }
 
 package() {
 	make DESTDIR="$pkgdir" install
-	# Compat symlink for #!/usr/bin/execlineb shebangs, remove if usrmerge
-	mkdir -p "$pkgdir/usr/bin"
-	ln -s ../../bin/execlineb "$pkgdir/usr/bin/execlineb"
 }
 
 doc() {
