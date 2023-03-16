@@ -6,7 +6,7 @@
 
 pkgname=musl-perf
 pkgver=1.2.3
-pkgrel=14
+pkgrel=15
 pkgdesc="the musl c library (libc) implementation (optimized for performance)"
 url="https://musl.libc.org/"
 arch="x86_64"
@@ -39,6 +39,26 @@ source="musl-$commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$commi
 	../musl-default/0006-in-early-stage-ldso-before-__dls2b-call-mprotect-wit.patch
 	../musl-default/0007-fix-mishandling-of-errno-in-getaddrinfo-AI_ADDRCONFI.patch
 	../musl-default/0008-sched-define-CPU_SETSIZE-as-the-number-of-cpus-in-cp.patch
+	../musl-default/0009-fix-fallback-when-ipv6-is-disabled-but-resolv.conf-h.patch
+	../musl-default/0010-dns-fail-if-ipv6-is-disabled-and-resolv.conf-has-onl.patch
+	../musl-default/0011-res_mkquery-error-out-on-consecutive-final-dots-in-n.patch
+	../musl-default/0012-dns-treat-names-rejected-by-res_mkquery-as-nonexiste.patch
+	../musl-default/0013-fix-return-value-of-gethostnbyname-2-_r-on-result-no.patch
+	../musl-default/0014-remove-impossible-error-case-from-gethostbyname2_r.patch
+	../musl-default/0015-fix-error-cases-in-gethostbyaddr_r.patch
+	../musl-default/0016-getaddrinfo-add-EAI_NODATA-error-code-to-distinguish.patch
+	../musl-default/0017-adapt-res_msend-DNS-query-core-for-working-with-mult.patch
+	../musl-default/0018-res_send-use-a-temp-buffer-if-caller-s-buffer-is-und.patch
+	../musl-default/0019-dns-implement-tcp-fallback-in-__res_msend-query-core.patch
+	../musl-default/0020-getaddrinfo-dns-lookup-use-larger-answer-buffer-to-h.patch
+	../musl-default/0021-dns-query-core-detect-udp-truncation-at-recv-time.patch
+	../musl-default/0022-dns-response-handling-ignore-presence-of-wrong-type-.patch
+	../musl-default/0023-dns-response-handling-don-t-treat-too-many-addresses.patch
+	../musl-default/0024-clean-up-dns_parse_callback.patch
+	../musl-default/0025-fix-return-value-of-gethostby-name-2-addr-with-no-re.patch
+	../musl-default/0026-inet_pton-fix-uninitialized-memory-use-for-IPv4-mapp.patch
+	../musl-default/0027-dns-prefer-monotonic-clock-for-timeouts.patch
+	../musl-default/0105-dns-check-length-field-in-tcp-response-message.patch
 
 	0100-ldso-dynlink-add-ifunc-support.patch
 	0101-support-ifunc-in-static-linking.patch
@@ -166,11 +186,31 @@ e492f2d7a03df2e5a14af6bf2d0259b21c5f7644c8d92d73614a8bb156d724acfba7610a70260659
 af641eeef42c79d63066f41c995dd88b6390dfc07596f9c1b05010020c2204256976774726b932f74ae3d310cf373d6e9123efeec0128f12d96f0c1ab1b53048  0006-in-early-stage-ldso-before-__dls2b-call-mprotect-wit.patch
 cf1fbdb259505d7b05a40dfaf461d5405cfcde64be5c2b9490756ca593723a6dbf5f463c23a36ae26518f13e6e8d23680cda9c4853468f6774560c0179461811  0007-fix-mishandling-of-errno-in-getaddrinfo-AI_ADDRCONFI.patch
 3388b9528f7edae416c3661f72a11903f4659fd3fc193f68fe6e24b62ab3d9ed32bf760e25d2068d3e6b5821247f272ddf765b580255735cd84d95f3f3f13ecd  0008-sched-define-CPU_SETSIZE-as-the-number-of-cpus-in-cp.patch
+02716c9c6058a11ee7533026132bcca267299b9dcf37b58ce9903180c03fb7203a8ef3571159983f0cf3335870c4f3e5b057769c6d711f09a6d3b7fd8586f2f6  0009-fix-fallback-when-ipv6-is-disabled-but-resolv.conf-h.patch
+7adda1d91837a2efad2218f128d79da2f35fd69ae77ab2d389560f14cb3373772131ec5e9381b81ecc9655f4c728e453eb94fe753360782ad836ee2ee49c0e1b  0010-dns-fail-if-ipv6-is-disabled-and-resolv.conf-has-onl.patch
+952f3536d1a8b4c0a635340d497d294b4df69bb8eaada51e99ff2aabb532499428e64a74da0ba9f486be7201f85da5292d87bdd0e12f398fa073b566ec98d30c  0011-res_mkquery-error-out-on-consecutive-final-dots-in-n.patch
+43e9c3846046d543ca0e0949abacbb88ceab3e21310b32fb9b5aef0b91f0e999daac35ada34fa3d097941e44e290b892a9c405429e0b2d367b125a56ffbfe36c  0012-dns-treat-names-rejected-by-res_mkquery-as-nonexiste.patch
+2adf388a19857a767e7fd0b34bb3803a5e5bbb98158f1d8c0f53407f233d9376bbcf1cb9a21ab1045d0ca625bab2c3cef727757adc4b8518ff164bd8a8441d75  0013-fix-return-value-of-gethostnbyname-2-_r-on-result-no.patch
+ee92cc739b3cf736b3bf7fb4da799412a67e6e4c5df03ef5ac9482b8e6012913f8b49786714be32492ebb4b6d8e2a632e0b18ff7530f731363e21f3196f714be  0014-remove-impossible-error-case-from-gethostbyname2_r.patch
+f21ac0669074d34355b13c58e0af203dc74e1ec91582c75ceffad70cb5e5abae359f6ca0157405321946782015ab96d78b8fa32ee08ea074cb4861995aca3c95  0015-fix-error-cases-in-gethostbyaddr_r.patch
+56e1b498c14f6c5dbdb3bd52acc85338657fd6dcd9286db595a88b730c1dbc16f9b2ee668a9f69261517dd66b7180fdc7d84bb1b6a7e9e323dd9f8c4d2fbc924  0016-getaddrinfo-add-EAI_NODATA-error-code-to-distinguish.patch
+b7ab3de93cd947bc0dc6248640d85942351513a93baaafee354cc50d428a835c04fb5afa535f8d91dc440a31129a6d2d74b27070f51258924ba86dc959fbc40f  0017-adapt-res_msend-DNS-query-core-for-working-with-mult.patch
+f5d55274580f5ecfef4a0ad37d587e027c4960394812f9d1bef2d4d45de6f44e3dd76cf8036d76797577db7a183b6384ccdc99cdd991d057a498e9908ae999fb  0018-res_send-use-a-temp-buffer-if-caller-s-buffer-is-und.patch
+341ea54c1aef80eb8410a4b63faa3676ca706ba887a3259c4a77b7ace3292cc25e0c2da1b1447e6d66c21664b0efba9dc37832c5847b44f750200979bdf3a626  0019-dns-implement-tcp-fallback-in-__res_msend-query-core.patch
+bcdeaf4b6396738f739c50ccba1b3aacca662aad326f9e01c3cd4f7deb5467e78e1ad232b7c00871ef5e6941b8146a38aab4e891b1da2527459af822e3c6283f  0020-getaddrinfo-dns-lookup-use-larger-answer-buffer-to-h.patch
+e901190a678c38829e42eab8e1cc41c47d4146973ca679f7dee8257fac23ad738b25d203089a5b74abe2ba0332f793e0608a5854bf7d946d67ee21843f0e212e  0021-dns-query-core-detect-udp-truncation-at-recv-time.patch
+7bc7ee53c2d1c09ddabb7c4f2983c9cf39f6d59298938cfa83ad39cb5bb55271ea598775d5f69211d0c3b5065e4de38cdee14ec075e7cb0c0e0834964e8d983f  0022-dns-response-handling-ignore-presence-of-wrong-type-.patch
+2f3282329013c68feb5921a4e9533a37116660f7498821b95a33831c990a17fb892c0fb3644eef00b117af64a47b5863d749355dfad519347cb40d75ea457910  0023-dns-response-handling-don-t-treat-too-many-addresses.patch
+9de1d18992e8a79d57286bf59d1535055d7df7758d6ad9e018e412a787a980bd1da7995eb95a1771ee656cd3392dacba814bf6664ab95ff577d97e3519868ac0  0024-clean-up-dns_parse_callback.patch
+7dfc43b8618d14da77988221bdbaf1dc0c6aabb1c16864bccd4b5629406e5ceedd2f4cdc458efee9b1cec98bffe9932a690706b57e867305ecf4ed3459fe0097  0025-fix-return-value-of-gethostby-name-2-addr-with-no-re.patch
+48ef3ee71975782b5198eb9dadfde1c5903b97c67a8f49e88879263d31a7e5f19720581a05a420537f0b4ef1d4f4b4543485365f1d59b4b616d5ba73bc8b6d37  0026-inet_pton-fix-uninitialized-memory-use-for-IPv4-mapp.patch
+b36b0f566a57974f8cf12c76fa6b2bbd2d62fb52dd412425e86d630f422b27b1f0bce5934f7219d5fe9f73ba5159d17dc128ff00126b45d5cbcf7075db139c49  0027-dns-prefer-monotonic-clock-for-timeouts.patch
 26fa733450c3b9f0e84668c6ae48b218a34de233f9d8cd2cf239648b825c9e9fcad1e91b02802605628be2c971cc64e5c90e7fca5ccbea9f370672cf9c71b3b4  0100-ldso-dynlink-add-ifunc-support.patch
 476fd0214911edbc4e36114c6c2a32ccb3e85d776e2de0427bbfd7ac1aaf46e6b1c3e00bd83cd998380c7db83b2a67ac3e6d840867472131eae69a1ce99d5a86  0101-support-ifunc-in-static-linking.patch
 5ed91362c40f18bf1af4c744a234c828e3c4979ecbc21f8dbf0d8b96c9d7662615163a9ce13372249f5be7472366c6e8f68e6f984c0172d6a22b21e8161cd07c  0102-Makefile-link-glibc-string-lib.patch
 52f89fc89789b06eaaeaf2d6e47f296de8cb0742ccd1c0b41e280e0691ab5f056af23daebf497dfc3b183d05dacc670980f0eaac330e3d6033d05ee07f55b8e2  0103-use-internal-ifunc-symbols-in-libc.patch
 93709be81eb6d13e00e3408651ccd1aa53f28ada09f9a45356d03188afbae486381069321c67a341f18c44afabf7b98c0471da7594d3983fdff7cbe21b9a3265  0104-increase-buffer-size-for-stdio-stream-functions.patch
+96b5d2760edb32c0e8e6fe45fb8b3d5a881c04b23ca18b51715b04c836abd6e382836ec91326a73bcf68d15bd89505f5cf480596a52d1a4b15b31b15bdc21162  0105-dns-check-length-field-in-tcp-response-message.patch
 8ebcde1e07819de208ab89ed0a71fdcc67a5b1cecec5aa19a92bc9f4f3c2708a9ff1528370089de0b71e9ec3b2e08dfa49694db433ac190ba055aa112ae12bde  relr-1.patch
 38b40ebedf57ba05ba14807a55a26261eeca8b6226a90a7aaebaaa31bae0bb7f5b98e0ce3ed727b704b828c9e509a21745f3e089585f8dea7092be164ec9d908  relr-2.patch
 9dc41f682887ef9a7b00253f576d0b738936c20d9bc5a54fa96552a82a2f056f0111936ad9778b96745befd6a660276618b4e05bef3c7f52d8c2a9e6d41e386c  relr-3.patch
