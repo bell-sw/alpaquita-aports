@@ -1,0 +1,32 @@
+From 8d41e10272cc6ed7aaa5625c565012d30ff49b05 Mon Sep 17 00:00:00 2001
+From: "A. Wilcox" <AWilcox@Wilcox-Tech.com>
+Date: Thu, 29 Dec 2022 21:21:32 -0600
+Subject: [PATCH] dns: prefer monotonic clock for timeouts
+
+Before this commit, DNS timeouts always used CLOCK_REALTIME, which
+could produce spurious timeouts or delays if wall time changed for
+whatever reason.
+
+Now we try CLOCK_MONOTONIC and only fall back to CLOCK_REALTIME when
+it is unavailable.
+---
+ src/network/res_msend.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/network/res_msend.c b/src/network/res_msend.c
+index 11c6aa0e..fef7e3a2 100644
+--- a/src/network/res_msend.c
++++ b/src/network/res_msend.c
+@@ -25,7 +25,8 @@ static void cleanup(void *p)
+ static unsigned long mtime()
+ {
+ 	struct timespec ts;
+-	clock_gettime(CLOCK_REALTIME, &ts);
++	if (clock_gettime(CLOCK_MONOTONIC, &ts) < 0 && errno == ENOSYS)
++		clock_gettime(CLOCK_REALTIME, &ts);
+ 	return (unsigned long)ts.tv_sec * 1000
+ 		+ ts.tv_nsec / 1000000;
+ }
+-- 
+2.25.1
+

@@ -1,0 +1,43 @@
+From 6830ead8c5b62f5c4dd1a050e6b6286e1e1c9620 Mon Sep 17 00:00:00 2001
+From: Rich Felker <dalias@aerifal.cx>
+Date: Wed, 24 Aug 2022 20:48:47 -0400
+Subject: [PATCH] fix fallback when ipv6 is disabled but resolv.conf has v6
+ nameserves
+
+apparently this code path was never tested, as it's not usual to have
+v6 nameservers listed on a system without v6 networking support. but
+it was always intended to work.
+
+when reverting to binding a v4 address, also revert the family in the
+sockaddr structure and the socklen for it. otherwise bind will just
+fail due to mismatched family/sockaddr size.
+
+fix dns resolver fallback when v6 nameservers are listed by
+---
+ src/network/res_msend.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/network/res_msend.c b/src/network/res_msend.c
+index 3e018009..105bf598 100644
+--- a/src/network/res_msend.c
++++ b/src/network/res_msend.c
+@@ -68,14 +68,15 @@ int __res_msend_rc(int nqueries, const unsigned char *const *queries,
+ 	}
+ 
+ 	/* Get local address and open/bind a socket */
+-	sa.sin.sin_family = family;
+ 	fd = socket(family, SOCK_DGRAM|SOCK_CLOEXEC|SOCK_NONBLOCK, 0);
+ 
+ 	/* Handle case where system lacks IPv6 support */
+ 	if (fd < 0 && family == AF_INET6 && errno == EAFNOSUPPORT) {
+ 		fd = socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC|SOCK_NONBLOCK, 0);
+ 		family = AF_INET;
++		sl = sizeof sa.sin;
+ 	}
++	sa.sin.sin_family = family;
+ 	if (fd < 0 || bind(fd, (void *)&sa, sl) < 0) {
+ 		if (fd >= 0) close(fd);
+ 		pthread_setcancelstate(cs, 0);
+-- 
+2.25.1
+

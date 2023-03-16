@@ -1,0 +1,73 @@
+From 175fc764b2d8cbfaf654b60cfde683273b369405 Mon Sep 17 00:00:00 2001
+From: Rich Felker <dalias@aerifal.cx>
+Date: Thu, 22 Sep 2022 19:11:48 -0400
+Subject: [PATCH] getaddrinfo dns lookup: use larger answer buffer to handle
+ long CNAMEs
+
+the size of 512 is not sufficient to get at least one address in the
+worst case where the name is at or near max length and resolves to a
+CNAME at or near max length. prior to tcp fallback, there was nothing
+we could do about this case anyway, but now it's fixable.
+
+the new limit 768 is chosen so as to admit roughly the number of
+addresses with a worst-case CNAME as could fit for a worst-case name
+that's not a CNAME in the old 512-byte limit. outside of this
+worst-case, the number of addresses that might be obtained is
+increased.
+
+MAXADDRS (48) was originally chosen as an upper bound on the combined
+number of A and AAAA records that could fit in 512-byte packets (31
+and 17, respectively). it is not increased at this time.
+
+so as to prevent a situation where the A records consume almost all of
+these slots (at 768 bytes, a "best-case" name can fit almost 47 A
+records), the order of parsing is swapped to process AAAA first. this
+ensures roughly half of the slots are available to each address
+family.
+---
+ src/network/lookup_name.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/src/network/lookup_name.c b/src/network/lookup_name.c
+index 37d481f9..4a6999cb 100644
+--- a/src/network/lookup_name.c
++++ b/src/network/lookup_name.c
+@@ -108,6 +108,8 @@ struct dpc_ctx {
+ #define RR_CNAME 5
+ #define RR_AAAA 28
+ 
++#define ABUF_SIZE 768
++
+ static int dns_parse_callback(void *c, int rr, const void *data, int len, const void *packet)
+ {
+ 	char tmp[256];
+@@ -127,7 +129,7 @@ static int dns_parse_callback(void *c, int rr, const void *data, int len, const
+ 		memcpy(ctx->addrs[ctx->cnt++].addr, data, 16);
+ 		break;
+ 	case RR_CNAME:
+-		if (__dn_expand(packet, (const unsigned char *)packet + 512,
++		if (__dn_expand(packet, (const unsigned char *)packet + ABUF_SIZE,
+ 		    data, tmp, sizeof tmp) > 0 && is_valid_hostname(tmp))
+ 			strcpy(ctx->canon, tmp);
+ 		break;
+@@ -137,7 +139,7 @@ static int dns_parse_callback(void *c, int rr, const void *data, int len, const
+ 
+ static int name_from_dns(struct address buf[static MAXADDRS], char canon[static 256], const char *name, int family, const struct resolvconf *conf)
+ {
+-	unsigned char qbuf[2][280], abuf[2][512];
++	unsigned char qbuf[2][280], abuf[2][ABUF_SIZE];
+ 	const unsigned char *qp[2] = { qbuf[0], qbuf[1] };
+ 	unsigned char *ap[2] = { abuf[0], abuf[1] };
+ 	int qlens[2], alens[2];
+@@ -171,7 +173,7 @@ static int name_from_dns(struct address buf[static MAXADDRS], char canon[static
+ 		if ((abuf[i][3] & 15) != 0) return EAI_FAIL;
+ 	}
+ 
+-	for (i=0; i<nq; i++)
++	for (i=nq-1; i>=0; i--)
+ 		__dns_parse(abuf[i], alens[i], dns_parse_callback, &ctx);
+ 
+ 	if (ctx.cnt) return ctx.cnt;
+-- 
+2.25.1
+

@@ -1,0 +1,40 @@
+From bb45723e0f7447f41d2957cc781fd999f9b5d7db Mon Sep 17 00:00:00 2001
+From: Rich Felker <dalias@aerifal.cx>
+Date: Fri, 26 Aug 2022 14:57:52 -0400
+Subject: [PATCH] dns: fail if ipv6 is disabled and resolv.conf has only v6
+ nameserves
+
+if resolv.conf lists no nameservers at all, the default of 127.0.0.1
+is used. however, another "no nameservers" case arises where the
+system has ipv6 support disabled/configured-out and resolv.conf only
+contains v6 nameservers. this caused the resolver to repeat socket
+operations that will necessarily fail (sending to one or more
+wrong-family addresses) while waiting for a timeout.
+
+it would be contrary to configured intent to query 127.0.0.1 in this
+case, but the current behavior is not conducive to diagnosing the
+configuration problem. instead, fail immediately with EAI_SYSTEM and
+errno==EAFNOSUPPORT so that the configuration error is reportable.
+---
+ src/network/res_msend.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/network/res_msend.c b/src/network/res_msend.c
+index 105bf598..9adaea13 100644
+--- a/src/network/res_msend.c
++++ b/src/network/res_msend.c
+@@ -72,6 +72,11 @@ int __res_msend_rc(int nqueries, const unsigned char *const *queries,
+ 
+ 	/* Handle case where system lacks IPv6 support */
+ 	if (fd < 0 && family == AF_INET6 && errno == EAFNOSUPPORT) {
++		for (i=0; i<nns && conf->ns[nns].family == AF_INET6; i++);
++		if (i==nns) {
++			pthread_setcancelstate(cs, 0);
++			return -1;
++		}
+ 		fd = socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC|SOCK_NONBLOCK, 0);
+ 		family = AF_INET;
+ 		sl = sizeof sa.sin;
+-- 
+2.25.1
+

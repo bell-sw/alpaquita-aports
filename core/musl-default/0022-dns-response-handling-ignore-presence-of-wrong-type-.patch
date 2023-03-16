@@ -1,0 +1,88 @@
+From 78ba4e0140259cbefae26547123d070c6779ae2c Mon Sep 17 00:00:00 2001
+From: Rich Felker <dalias@aerifal.cx>
+Date: Wed, 19 Oct 2022 13:15:11 -0400
+Subject: [PATCH] dns response handling: ignore presence of wrong-type RRs
+
+reportedly there is nameserver software with question-rewriting
+"functionality" which gives A answers when AAAA is queried. since we
+made no effort to validate that the answer RR type actually
+corresponds to the question asked, it was possible (depending on
+flags, etc.) for these answers to leak through, which the caller might
+not be prepared for. indeed, our implementation of gethostbyname2_r
+makes an assumption that the resulting addresses are in the family
+requested, and will misinterpret the results if they don't.
+
+commit 45ca5d3fcb6f874bf5ba55d0e9651cef68515395 already noted in
+fixing CVE-2017-15650 that this could happen, but did nothing to
+validate that the RR type of the answer matches the question; it just
+enforced the limit on number of results to preclude overflow.
+
+presently, name_from_dns ignores the return value of __dns_parse, so
+it doesn't really matter whether we return 0 (ignoring the RR) or -1
+(parse-ending error) upon encountering the mismatched RR. if that ever
+changes, though, ignoring irrelevant answer RRs sounds like the
+semantically correct thing to do, so for now let's return 0 from the
+callback when this happens.
+---
+ src/network/lookup_name.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/src/network/lookup_name.c b/src/network/lookup_name.c
+index 4a6999cb..de0fefee 100644
+--- a/src/network/lookup_name.c
++++ b/src/network/lookup_name.c
+@@ -102,6 +102,7 @@ struct dpc_ctx {
+ 	struct address *addrs;
+ 	char *canon;
+ 	int cnt;
++	int rrtype;
+ };
+ 
+ #define RR_A 1
+@@ -117,12 +118,14 @@ static int dns_parse_callback(void *c, int rr, const void *data, int len, const
+ 	if (ctx->cnt >= MAXADDRS) return -1;
+ 	switch (rr) {
+ 	case RR_A:
++		if (rr != ctx->rrtype) return 0;
+ 		if (len != 4) return -1;
+ 		ctx->addrs[ctx->cnt].family = AF_INET;
+ 		ctx->addrs[ctx->cnt].scopeid = 0;
+ 		memcpy(ctx->addrs[ctx->cnt++].addr, data, 4);
+ 		break;
+ 	case RR_AAAA:
++		if (rr != ctx->rrtype) return 0;
+ 		if (len != 16) return -1;
+ 		ctx->addrs[ctx->cnt].family = AF_INET6;
+ 		ctx->addrs[ctx->cnt].scopeid = 0;
+@@ -142,7 +145,7 @@ static int name_from_dns(struct address buf[static MAXADDRS], char canon[static
+ 	unsigned char qbuf[2][280], abuf[2][ABUF_SIZE];
+ 	const unsigned char *qp[2] = { qbuf[0], qbuf[1] };
+ 	unsigned char *ap[2] = { abuf[0], abuf[1] };
+-	int qlens[2], alens[2];
++	int qlens[2], alens[2], qtypes[2];
+ 	int i, nq = 0;
+ 	struct dpc_ctx ctx = { .addrs = buf, .canon = canon };
+ 	static const struct { int af; int rr; } afrr[2] = {
+@@ -156,6 +159,7 @@ static int name_from_dns(struct address buf[static MAXADDRS], char canon[static
+ 				0, 0, 0, qbuf[nq], sizeof *qbuf);
+ 			if (qlens[nq] == -1)
+ 				return 0;
++			qtypes[nq] = afrr[i].rr;
+ 			qbuf[nq][3] = 0; /* don't need AD flag */
+ 			/* Ensure query IDs are distinct. */
+ 			if (nq && qbuf[nq][0] == qbuf[0][0])
+@@ -173,8 +177,10 @@ static int name_from_dns(struct address buf[static MAXADDRS], char canon[static
+ 		if ((abuf[i][3] & 15) != 0) return EAI_FAIL;
+ 	}
+ 
+-	for (i=nq-1; i>=0; i--)
++	for (i=nq-1; i>=0; i--) {
++		ctx.rrtype = qtypes[i];
+ 		__dns_parse(abuf[i], alens[i], dns_parse_callback, &ctx);
++	}
+ 
+ 	if (ctx.cnt) return ctx.cnt;
+ 	return EAI_NODATA;
+-- 
+2.25.1
+

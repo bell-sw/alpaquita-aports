@@ -1,0 +1,171 @@
+From 7fdaf6efa22f65a5f2854aac64d4df6214f8d8e4 Mon Sep 17 00:00:00 2001
+From: Rich Felker <dalias@aerifal.cx>
+Date: Mon, 19 Sep 2022 20:10:10 -0400
+Subject: [PATCH] getaddrinfo: add EAI_NODATA error code to distinguish NODATA
+ vs NxDomain
+
+this was apparently omitted long ago out of a lack of understanding of
+its importance and the fact that POSIX doesn't specify it. despite not
+being officially standardized, however, it turns out that at least
+AIX, glibc, NetBSD, OpenBSD, QNX, and Solaris document and support it.
+
+in certain usage cases, such as implementing a DNS gateway on top of
+the stub resolver interfaces, it's necessary to distinguish the case
+where a name does not exit (NxDomain) from one where it exists but has
+no addresses (or other records) of the requested type (NODATA). in
+fact, even the legacy gethostbyname API had this distinction, which we
+were previously unable to support correctly because the backend lacked
+it.
+
+apart from fixing an important functionality gap, adding this
+distinction helps clarify to users how search domain fallback works
+(falling back in cases corresponding to EAI_NONAME, not in ones
+corresponding to EAI_NODATA), a topic that has been a source of
+ongoing confusion and frustration.
+
+as a result of this change, EAI_NONAME is no longer a valid universal
+error code for getaddrinfo in the case where AI_ADDRCONFIG has
+suppressed use of all address families. in order to return an accurate
+result in this case, getaddrinfo is modified to still perform at least
+one lookup. this will almost surely fail (with a network error, since
+there is no v4 or v6 network to query DNS over) unless a result comes
+from the hosts file or from ip literal parsing, but in case it does
+succeed, the result is replaced by EAI_NODATA.
+
+glibc has a related error code, EAI_ADDRFAMILY, that could be used for
+the AI_ADDRCONFIG case and certain NODATA cases, but distinguishing
+them properly in full generality seems to require additional DNS
+queries that are otherwise not useful. on glibc, it is only used for
+ip literals with mismatching family, not for DNS or hosts file results
+where the name has addresses only in the opposite family. since this
+seems misleading and inconsistent, and since EAI_NODATA already covers
+the semantic case where the "name" exists but doesn't have any
+addresses in the requested family, we do not adopt EAI_ADDRFAMILY at
+this time. this could be changed at some point if desired, but the
+logic for getting all the corner cases with AI_ADDRCONFIG right is
+slightly nontrivial.
+---
+ include/netdb.h                | 1 +
+ src/network/gai_strerror.c     | 2 +-
+ src/network/getaddrinfo.c      | 5 ++++-
+ src/network/gethostbyname2_r.c | 3 +++
+ src/network/lookup_ipliteral.c | 4 ++--
+ src/network/lookup_name.c      | 4 ++--
+ 6 files changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/include/netdb.h b/include/netdb.h
+index d096c781..3af065e2 100644
+--- a/include/netdb.h
++++ b/include/netdb.h
+@@ -44,6 +44,7 @@ struct addrinfo {
+ #define EAI_NONAME     -2
+ #define EAI_AGAIN      -3
+ #define EAI_FAIL       -4
++#define EAI_NODATA     -5
+ #define EAI_FAMILY     -6
+ #define EAI_SOCKTYPE   -7
+ #define EAI_SERVICE    -8
+diff --git a/src/network/gai_strerror.c b/src/network/gai_strerror.c
+index 9596580e..56b71503 100644
+--- a/src/network/gai_strerror.c
++++ b/src/network/gai_strerror.c
+@@ -6,7 +6,7 @@ static const char msgs[] =
+ 	"Name does not resolve\0"
+ 	"Try again\0"
+ 	"Non-recoverable error\0"
+-	"Unknown error\0"
++	"Name has no usable address\0"
+ 	"Unrecognized address family or invalid length\0"
+ 	"Unrecognized socket type\0"
+ 	"Unrecognized service\0"
+diff --git a/src/network/getaddrinfo.c b/src/network/getaddrinfo.c
+index 9df045f6..64ad259a 100644
+--- a/src/network/getaddrinfo.c
++++ b/src/network/getaddrinfo.c
+@@ -16,6 +16,7 @@ int getaddrinfo(const char *restrict host, const char *restrict serv, const stru
+ 	char canon[256], *outcanon;
+ 	int nservs, naddrs, nais, canon_len, i, j, k;
+ 	int family = AF_UNSPEC, flags = 0, proto = 0, socktype = 0;
++	int no_family = 0;
+ 	struct aibuf *out;
+ 
+ 	if (!host && !serv) return EAI_NONAME;
+@@ -82,7 +83,7 @@ int getaddrinfo(const char *restrict host, const char *restrict serv, const stru
+ 			default:
+ 				return EAI_SYSTEM;
+ 			}
+-			if (family == tf[i]) return EAI_NONAME;
++			if (family == tf[i]) no_family = 1;
+ 			family = tf[1-i];
+ 		}
+ 	}
+@@ -93,6 +94,8 @@ int getaddrinfo(const char *restrict host, const char *restrict serv, const stru
+ 	naddrs = __lookup_name(addrs, canon, host, family, flags);
+ 	if (naddrs < 0) return naddrs;
+ 
++	if (no_family) return EAI_NODATA;
++
+ 	nais = nservs * naddrs;
+ 	canon_len = strlen(canon);
+ 	out = calloc(1, nais * sizeof(*out) + canon_len + 1);
+diff --git a/src/network/gethostbyname2_r.c b/src/network/gethostbyname2_r.c
+index c9f3acc4..a5eb67fe 100644
+--- a/src/network/gethostbyname2_r.c
++++ b/src/network/gethostbyname2_r.c
+@@ -23,6 +23,9 @@ int gethostbyname2_r(const char *name, int af,
+ 	case EAI_NONAME:
+ 		*err = HOST_NOT_FOUND;
+ 		return 0;
++	case EAI_NODATA:
++		*err = NO_DATA;
++		return 0;
+ 	case EAI_AGAIN:
+ 		*err = TRY_AGAIN;
+ 		return EAGAIN;
+diff --git a/src/network/lookup_ipliteral.c b/src/network/lookup_ipliteral.c
+index 2fddab73..1e766206 100644
+--- a/src/network/lookup_ipliteral.c
++++ b/src/network/lookup_ipliteral.c
+@@ -15,7 +15,7 @@ int __lookup_ipliteral(struct address buf[static 1], const char *name, int famil
+ 	struct in6_addr a6;
+ 	if (__inet_aton(name, &a4) > 0) {
+ 		if (family == AF_INET6) /* wrong family */
+-			return EAI_NONAME;
++			return EAI_NODATA;
+ 		memcpy(&buf[0].addr, &a4, sizeof a4);
+ 		buf[0].family = AF_INET;
+ 		buf[0].scopeid = 0;
+@@ -34,7 +34,7 @@ int __lookup_ipliteral(struct address buf[static 1], const char *name, int famil
+ 	if (inet_pton(AF_INET6, name, &a6) <= 0)
+ 		return 0;
+ 	if (family == AF_INET) /* wrong family */
+-		return EAI_NONAME;
++		return EAI_NODATA;
+ 
+ 	memcpy(&buf[0].addr, &a6, sizeof a6);
+ 	buf[0].family = AF_INET6;
+diff --git a/src/network/lookup_name.c b/src/network/lookup_name.c
+index bec6ba22..37d481f9 100644
+--- a/src/network/lookup_name.c
++++ b/src/network/lookup_name.c
+@@ -79,7 +79,7 @@ static int name_from_hosts(struct address buf[static MAXADDRS], char canon[stati
+ 		case 0:
+ 			continue;
+ 		default:
+-			badfam = EAI_NONAME;
++			badfam = EAI_NODATA;
+ 			break;
+ 		}
+ 
+@@ -175,7 +175,7 @@ static int name_from_dns(struct address buf[static MAXADDRS], char canon[static
+ 		__dns_parse(abuf[i], alens[i], dns_parse_callback, &ctx);
+ 
+ 	if (ctx.cnt) return ctx.cnt;
+-	return EAI_NONAME;
++	return EAI_NODATA;
+ }
+ 
+ static int name_from_dns_search(struct address buf[static MAXADDRS], char canon[static 256], const char *name, int family)
+-- 
+2.25.1
+

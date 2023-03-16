@@ -1,0 +1,33 @@
+From 867a69df8c5340e26ddf5ca123331120e9ac3a48 Mon Sep 17 00:00:00 2001
+From: Rich Felker <dalias@aerifal.cx>
+Date: Mon, 19 Sep 2022 19:12:09 -0400
+Subject: [PATCH] fix error cases in gethostbyaddr_r
+
+EAI_MEMORY is not possible (but would not provide errno if it were)
+and EAI_FAIL does not provide errno. treat the latter as EBADMSG to
+match how it's handled in gethostbyname2_r (it indicates erroneous or
+failure response from the nameserver).
+---
+ src/network/gethostbyaddr_r.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/network/gethostbyaddr_r.c b/src/network/gethostbyaddr_r.c
+index 0f1e61aa..ceaf3935 100644
+--- a/src/network/gethostbyaddr_r.c
++++ b/src/network/gethostbyaddr_r.c
+@@ -54,9 +54,10 @@ int gethostbyaddr_r(const void *a, socklen_t l, int af,
+ 	case EAI_OVERFLOW:
+ 		return ERANGE;
+ 	default:
+-	case EAI_MEMORY:
+-	case EAI_SYSTEM:
+ 	case EAI_FAIL:
++		*err = NO_RECOVERY;
++		return EBADMSG;
++	case EAI_SYSTEM:
+ 		*err = NO_RECOVERY;
+ 		return errno;
+ 	case 0:
+-- 
+2.25.1
+

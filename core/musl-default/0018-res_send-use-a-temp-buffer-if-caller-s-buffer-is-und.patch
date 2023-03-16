@@ -1,0 +1,47 @@
+From 7ce5ac4875cbee22af563ce4a80606415824aab3 Mon Sep 17 00:00:00 2001
+From: Rich Felker <dalias@aerifal.cx>
+Date: Thu, 22 Sep 2022 12:41:23 -0400
+Subject: [PATCH] res_send: use a temp buffer if caller's buffer is under 512
+ bytes
+
+for extremely small buffer sizes, the DNS query core in __res_msend
+may malfunction completely, being unable to get even the headers to
+determine the response code. but there is also a problem for
+reasonable sizes under 512 bytes: __res_msend is unable to determine
+if the udp answer was truncated at the recv layer, in which case it
+may be incomplete, and res_send is then unable to honor its contract
+to return the length of the full, non-truncated answer.
+
+at present, res_send does not honor that contract anyway when the full
+answer would exceed 512 bytes, since there is no tcp fallback, but
+this change at least makes it consistent in a context where this is
+the only "full answer" to be had.
+---
+ src/network/res_send.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/src/network/res_send.c b/src/network/res_send.c
+index ee4abf1f..9593164d 100644
+--- a/src/network/res_send.c
++++ b/src/network/res_send.c
+@@ -1,8 +1,16 @@
+ #include <resolv.h>
++#include <string.h>
+ 
+ int __res_send(const unsigned char *msg, int msglen, unsigned char *answer, int anslen)
+ {
+-	int r = __res_msend(1, &msg, &msglen, &answer, &anslen, anslen);
++	int r;
++	if (anslen < 512) {
++		unsigned char buf[512];
++		r = __res_send(msg, msglen, buf, sizeof buf);
++		if (r >= 0) memcpy(answer, buf, r < anslen ? r : anslen);
++		return r;
++	}
++	r = __res_msend(1, &msg, &msglen, &answer, &anslen, anslen);
+ 	return r<0 || !anslen ? -1 : anslen;
+ }
+ 
+-- 
+2.25.1
+
