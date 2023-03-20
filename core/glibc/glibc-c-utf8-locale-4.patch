@@ -1,0 +1,734 @@
+commit de82cb0da4b8fa5b3d56c457438d2568c67ab1b1
+Author: Joseph Myers <joseph@codesourcery.com>
+Date:   Tue Oct 12 13:48:39 2021 +0000
+
+    Add TEST_COMPARE_STRING_WIDE to support/check.h
+    
+    I'd like to be able to test narrow and wide string interfaces, with
+    the narrow string tests using TEST_COMPARE_STRING and the wide string
+    tests using something analogous (possibly generated using macros from
+    a common test template for both the narrow and wide string tests where
+    appropriate).
+    
+    Add such a TEST_COMPARE_STRING_WIDE, along with functions
+    support_quote_blob_wide and support_test_compare_string_wide that it
+    builds on.  Those functions are built using macros from common
+    templates shared by the narrow and wide string implementations, though
+    I didn't do that for the tests of test functions.  In
+    support_quote_blob_wide, I chose to use the \x{} delimited escape
+    sequence syntax proposed for C2X in N2785, rather than e.g. trying to
+    generate the end of a string and the start of a new string when
+    ambiguity would result from undelimited \x (when the next character
+    after such an escape sequence is valid hex) or forcing an escape
+    sequence to be used for the next character in the case of such
+    ambiguity.
+    
+    Tested for x86_64.
+
+diff --git a/support/Makefile b/support/Makefile
+index 75bad6715ac3d08c..3c941e1ba9e29aa4 100644
+--- a/support/Makefile
++++ b/support/Makefile
+@@ -70,6 +70,7 @@ libsupport-routines = \
+   support_openpty \
+   support_paths \
+   support_quote_blob \
++  support_quote_blob_wide \
+   support_quote_string \
+   support_record_failure \
+   support_run_diff \
+@@ -83,6 +84,7 @@ libsupport-routines = \
+   support_test_compare_blob \
+   support_test_compare_failure \
+   support_test_compare_string \
++  support_test_compare_string_wide \
+   support_test_main \
+   support_test_verify_impl \
+   support_wait_for_thread_exit \
+@@ -275,11 +277,13 @@ tests = \
+   tst-support-open-dev-null-range \
+   tst-support-process_state \
+   tst-support_quote_blob \
++  tst-support_quote_blob_wide \
+   tst-support_quote_string \
+   tst-support_record_failure \
+   tst-test_compare \
+   tst-test_compare_blob \
+   tst-test_compare_string \
++  tst-test_compare_string_wide \
+   tst-timespec \
+   tst-xreadlink \
+   tst-xsigstack \
+diff --git a/support/check.h b/support/check.h
+index 83662b2d10c8cf58..9b1844352f32513a 100644
+--- a/support/check.h
++++ b/support/check.h
+@@ -20,6 +20,7 @@
+ #define SUPPORT_CHECK_H
+ 
+ #include <sys/cdefs.h>
++#include <stddef.h>
+ 
+ __BEGIN_DECLS
+ 
+@@ -171,11 +172,25 @@ void support_test_compare_blob (const void *left,
+   (support_test_compare_string (left, right, __FILE__, __LINE__, \
+                                 #left, #right))
+ 
++/* Compare the wide strings LEFT and RIGHT and report a test failure
++   if they are different.  Also report failure if one of the arguments
++   is a null pointer and the other is not.  The strings should be
++   reasonably short because on mismatch, both are printed.  */
++#define TEST_COMPARE_STRING_WIDE(left, right)                         \
++  (support_test_compare_string_wide (left, right, __FILE__, __LINE__, \
++				     #left, #right))
++
+ void support_test_compare_string (const char *left, const char *right,
+                                   const char *file, int line,
+                                   const char *left_expr,
+                                   const char *right_expr);
+ 
++void support_test_compare_string_wide (const wchar_t *left,
++				       const wchar_t *right,
++				       const char *file, int line,
++				       const char *left_expr,
++				       const char *right_expr);
++
+ /* Internal function called by the test driver.  */
+ int support_report_failure (int status)
+   __attribute__ ((weak, warn_unused_result));
+diff --git a/support/support.h b/support/support.h
+index c219e0d9d1aef046..29d56c7c891ee34b 100644
+--- a/support/support.h
++++ b/support/support.h
+@@ -73,6 +73,12 @@ void support_write_file_string (const char *path, const char *contents);
+    the result).  */
+ char *support_quote_blob (const void *blob, size_t length);
+ 
++/* Quote the contents of the wide character array starting at BLOB, of
++   LENGTH wide characters, in such a way that the result string can be
++   included in a C wide string literal (in single/double quotes,
++   without putting the quotes into the result).  */
++char *support_quote_blob_wide (const void *blob, size_t length);
++
+ /* Quote the contents of the string, in such a way that the result
+    string can be included in a C literal (in single/double quotes,
+    without putting the quotes into the result).  */
+diff --git a/support/support_quote_blob.c b/support/support_quote_blob.c
+index b5e70125f13eb081..611980c9a2108670 100644
+--- a/support/support_quote_blob.c
++++ b/support/support_quote_blob.c
+@@ -1,4 +1,4 @@
+-/* Quote a blob so that it can be used in C literals.
++/* Quote a narrow string blob so that it can be used in C literals.
+    Copyright (C) 2018-2021 Free Software Foundation, Inc.
+    This file is part of the GNU C Library.
+ 
+@@ -16,68 +16,9 @@
+    License along with the GNU C Library; if not, see
+    <https://www.gnu.org/licenses/>.  */
+ 
+-#include <support/support.h>
+-#include <support/xmemstream.h>
++#define CHAR unsigned char
++#define L_(C) C
++#define SUPPORT_QUOTE_BLOB support_quote_blob
++#define WIDE 0
+ 
+-char *
+-support_quote_blob (const void *blob, size_t length)
+-{
+-  struct xmemstream out;
+-  xopen_memstream (&out);
+-
+-  const unsigned char *p = blob;
+-  for (size_t i = 0; i < length; ++i)
+-    {
+-      unsigned char ch = p[i];
+-
+-      /* Use C backslash escapes for those control characters for
+-         which they are defined.  */
+-      switch (ch)
+-        {
+-          case '\a':
+-            putc_unlocked ('\\', out.out);
+-            putc_unlocked ('a', out.out);
+-            break;
+-          case '\b':
+-            putc_unlocked ('\\', out.out);
+-            putc_unlocked ('b', out.out);
+-            break;
+-          case '\f':
+-            putc_unlocked ('\\', out.out);
+-            putc_unlocked ('f', out.out);
+-            break;
+-          case '\n':
+-            putc_unlocked ('\\', out.out);
+-            putc_unlocked ('n', out.out);
+-            break;
+-          case '\r':
+-            putc_unlocked ('\\', out.out);
+-            putc_unlocked ('r', out.out);
+-            break;
+-          case '\t':
+-            putc_unlocked ('\\', out.out);
+-            putc_unlocked ('t', out.out);
+-            break;
+-          case '\v':
+-            putc_unlocked ('\\', out.out);
+-            putc_unlocked ('v', out.out);
+-            break;
+-          case '\\':
+-          case '\'':
+-          case '\"':
+-            putc_unlocked ('\\', out.out);
+-            putc_unlocked (ch, out.out);
+-            break;
+-        default:
+-          if (ch < ' ' || ch > '~')
+-            /* Use octal sequences because they are fixed width,
+-               unlike hexadecimal sequences.  */
+-            fprintf (out.out, "\\%03o", ch);
+-          else
+-            putc_unlocked (ch, out.out);
+-        }
+-    }
+-
+-  xfclose_memstream (&out);
+-  return out.buffer;
+-}
++#include "support_quote_blob_main.c"
+diff --git a/support/support_quote_blob_main.c b/support/support_quote_blob_main.c
+new file mode 100644
+index 0000000000000000..19ccfad59311bfee
+--- /dev/null
++++ b/support/support_quote_blob_main.c
+@@ -0,0 +1,88 @@
++/* Quote a blob so that it can be used in C literals.
++   Copyright (C) 2018-2021 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#include <support/support.h>
++#include <support/xmemstream.h>
++
++char *
++SUPPORT_QUOTE_BLOB (const void *blob, size_t length)
++{
++  struct xmemstream out;
++  xopen_memstream (&out);
++
++  const CHAR *p = blob;
++  for (size_t i = 0; i < length; ++i)
++    {
++      CHAR ch = p[i];
++
++      /* Use C backslash escapes for those control characters for
++	 which they are defined.  */
++      switch (ch)
++	{
++	case L_('\a'):
++	  putc_unlocked ('\\', out.out);
++	  putc_unlocked ('a', out.out);
++	  break;
++	case L_('\b'):
++	  putc_unlocked ('\\', out.out);
++	  putc_unlocked ('b', out.out);
++	  break;
++	case L_('\f'):
++	  putc_unlocked ('\\', out.out);
++	  putc_unlocked ('f', out.out);
++	  break;
++	case L_('\n'):
++	  putc_unlocked ('\\', out.out);
++	  putc_unlocked ('n', out.out);
++	  break;
++	case L_('\r'):
++	  putc_unlocked ('\\', out.out);
++	  putc_unlocked ('r', out.out);
++	  break;
++	case L_('\t'):
++	  putc_unlocked ('\\', out.out);
++	  putc_unlocked ('t', out.out);
++	  break;
++	case L_('\v'):
++	  putc_unlocked ('\\', out.out);
++	  putc_unlocked ('v', out.out);
++	  break;
++	case L_('\\'):
++	case L_('\''):
++	case L_('\"'):
++	  putc_unlocked ('\\', out.out);
++	  putc_unlocked (ch, out.out);
++	  break;
++	default:
++	  if (ch < L_(' ') || ch > L_('~'))
++	    /* For narrow characters, use octal sequences because they
++	       are fixed width, unlike hexadecimal sequences.  For
++	       wide characters, use N2785 delimited escape
++	       sequences.  */
++	    if (WIDE)
++	      fprintf (out.out, "\\x{%x}", (unsigned int) ch);
++	    else
++	      fprintf (out.out, "\\%03o", (unsigned int) ch);
++	  else
++	    putc_unlocked (ch, out.out);
++	}
++    }
++
++  xfclose_memstream (&out);
++  return out.buffer;
++}
+diff --git a/support/support_quote_blob_wide.c b/support/support_quote_blob_wide.c
+new file mode 100644
+index 0000000000000000..c451ed889c21c626
+--- /dev/null
++++ b/support/support_quote_blob_wide.c
+@@ -0,0 +1,24 @@
++/* Quote a wide string blob so that it can be used in C literals.
++   Copyright (C) 2018-2021 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#define CHAR wchar_t
++#define L_(C) L ## C
++#define SUPPORT_QUOTE_BLOB support_quote_blob_wide
++#define WIDE 1
++
++#include "support_quote_blob_main.c"
+diff --git a/support/support_test_compare_string.c b/support/support_test_compare_string.c
+index cbeaf7b1eeea8ca8..12bafe43d44ae3d7 100644
+--- a/support/support_test_compare_string.c
++++ b/support/support_test_compare_string.c
+@@ -16,76 +16,13 @@
+    License along with the GNU C Library; if not, see
+    <https://www.gnu.org/licenses/>.  */
+ 
+-#include <stdio.h>
+-#include <stdlib.h>
+-#include <string.h>
+-#include <support/check.h>
+-#include <support/support.h>
+-#include <support/xmemstream.h>
+-
+-static void
+-report_length (const char *what, const char *str, size_t length)
+-{
+-  if (str == NULL)
+-    printf ("  %s string: NULL\n", what);
+-  else
+-    printf ("  %s string: %zu bytes\n", what, length);
+-}
+-
+-static void
+-report_string (const char *what, const unsigned char *blob,
+-               size_t length, const char *expr)
+-{
+-  if (length > 0)
+-    {
+-      printf ("  %s (evaluated from %s):\n", what, expr);
+-      char *quoted = support_quote_blob (blob, length);
+-      printf ("      \"%s\"\n", quoted);
+-      free (quoted);
+-
+-      fputs ("     ", stdout);
+-      for (size_t i = 0; i < length; ++i)
+-        printf (" %02X", blob[i]);
+-      putc ('\n', stdout);
+-    }
+-}
+-
+-static size_t
+-string_length_or_zero (const char *str)
+-{
+-  if (str == NULL)
+-    return 0;
+-  else
+-    return strlen (str);
+-}
+-
+-void
+-support_test_compare_string (const char *left, const char *right,
+-                             const char *file, int line,
+-                             const char *left_expr, const char *right_expr)
+-{
+-  /* Two null pointers are accepted.  */
+-  if (left == NULL && right == NULL)
+-    return;
+-
+-  size_t left_length = string_length_or_zero (left);
+-  size_t right_length = string_length_or_zero (right);
+-
+-  if (left_length != right_length || left == NULL || right == NULL
+-      || memcmp (left, right, left_length) != 0)
+-    {
+-      support_record_failure ();
+-      printf ("%s:%d: error: string comparison failed\n", file, line);
+-      if (left_length == right_length && right != NULL && left != NULL)
+-        printf ("  string length: %zu bytes\n", left_length);
+-      else
+-        {
+-          report_length ("left", left, left_length);
+-          report_length ("right", right, right_length);
+-        }
+-      report_string ("left", (const unsigned char *) left,
+-                     left_length, left_expr);
+-      report_string ("right", (const unsigned char *) right,
+-                     right_length, right_expr);
+-    }
+-}
++#define CHAR char
++#define UCHAR unsigned char
++#define LPREFIX ""
++#define STRLEN strlen
++#define MEMCMP memcmp
++#define SUPPORT_QUOTE_BLOB support_quote_blob
++#define SUPPORT_TEST_COMPARE_STRING support_test_compare_string
++#define WIDE 0
++
++#include "support_test_compare_string_main.c"
+diff --git a/support/support_test_compare_string_main.c b/support/support_test_compare_string_main.c
+new file mode 100644
+index 0000000000000000..0edc0ca97d79d71e
+--- /dev/null
++++ b/support/support_test_compare_string_main.c
+@@ -0,0 +1,94 @@
++/* Check two strings for equality.
++   Copyright (C) 2018-2021 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <wchar.h>
++#include <support/check.h>
++#include <support/support.h>
++#include <support/xmemstream.h>
++
++static void
++report_length (const char *what, const CHAR *str, size_t length)
++{
++  if (str == NULL)
++    printf ("  %s string: NULL\n", what);
++  else
++    printf ("  %s string: %zu %s\n", what, length,
++	    WIDE ? "wide characters" : "bytes");
++}
++
++static void
++report_string (const char *what, const UCHAR *blob,
++               size_t length, const char *expr)
++{
++  if (length > 0)
++    {
++      printf ("  %s (evaluated from %s):\n", what, expr);
++      char *quoted = SUPPORT_QUOTE_BLOB (blob, length);
++      printf ("      %s\"%s\"\n", LPREFIX, quoted);
++      free (quoted);
++
++      fputs ("     ", stdout);
++      for (size_t i = 0; i < length; ++i)
++        printf (" %02X", (unsigned int) blob[i]);
++      putc ('\n', stdout);
++    }
++}
++
++static size_t
++string_length_or_zero (const CHAR *str)
++{
++  if (str == NULL)
++    return 0;
++  else
++    return STRLEN (str);
++}
++
++void
++SUPPORT_TEST_COMPARE_STRING (const CHAR *left, const CHAR *right,
++                             const char *file, int line,
++                             const char *left_expr, const char *right_expr)
++{
++  /* Two null pointers are accepted.  */
++  if (left == NULL && right == NULL)
++    return;
++
++  size_t left_length = string_length_or_zero (left);
++  size_t right_length = string_length_or_zero (right);
++
++  if (left_length != right_length || left == NULL || right == NULL
++      || MEMCMP (left, right, left_length) != 0)
++    {
++      support_record_failure ();
++      printf ("%s:%d: error: string comparison failed\n", file, line);
++      if (left_length == right_length && right != NULL && left != NULL)
++        printf ("  string length: %zu %s\n", left_length,
++		WIDE ? "wide characters" : "bytes");
++      else
++        {
++          report_length ("left", left, left_length);
++          report_length ("right", right, right_length);
++        }
++      report_string ("left", (const UCHAR *) left,
++                     left_length, left_expr);
++      report_string ("right", (const UCHAR *) right,
++                     right_length, right_expr);
++    }
++}
+diff --git a/support/support_test_compare_string_wide.c b/support/support_test_compare_string_wide.c
+new file mode 100644
+index 0000000000000000..88b560b142a3c356
+--- /dev/null
++++ b/support/support_test_compare_string_wide.c
+@@ -0,0 +1,28 @@
++/* Check two wide strings for equality.
++   Copyright (C) 2018-2021 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#define CHAR wchar_t
++#define UCHAR wchar_t
++#define LPREFIX "L"
++#define STRLEN wcslen
++#define MEMCMP wmemcmp
++#define SUPPORT_QUOTE_BLOB support_quote_blob_wide
++#define SUPPORT_TEST_COMPARE_STRING support_test_compare_string_wide
++#define WIDE 1
++
++#include "support_test_compare_string_main.c"
+diff --git a/support/tst-support_quote_blob_wide.c b/support/tst-support_quote_blob_wide.c
+new file mode 100644
+index 0000000000000000..ea71a1f7f873b23a
+--- /dev/null
++++ b/support/tst-support_quote_blob_wide.c
+@@ -0,0 +1,66 @@
++/* Test the support_quote_blob_wide function.
++   Copyright (C) 2018-2021 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#include <support/check.h>
++#include <support/support.h>
++#include <string.h>
++#include <stdlib.h>
++
++static int
++do_test (void)
++{
++  /* Check handling of the empty blob, both with and without trailing
++     NUL byte.  */
++  char *p = support_quote_blob_wide (L"", 0);
++  TEST_COMPARE (strlen (p), 0);
++  free (p);
++  p = support_quote_blob_wide (L"X", 0);
++  TEST_COMPARE (strlen (p), 0);
++  free (p);
++
++  /* Check escaping of backslash-escaped characters, and lack of
++     escaping for other shell meta-characters.  */
++  p = support_quote_blob_wide (L"$()*?`@[]{}~\'\"X", 14);
++  TEST_COMPARE (strcmp (p, "$()*?`@[]{}~\\'\\\""), 0);
++  free (p);
++
++  /* Check lack of escaping for letters and digits.  */
++#define LETTERS_AND_DIGTS                       \
++  "abcdefghijklmnopqrstuvwxyz"                  \
++  "ABCDEFGHIJKLMNOPQRSTUVWXYZ"                  \
++  "0123456789"
++#define CONCATX(X, Y) X ## Y
++#define CONCAT(X, Y) CONCATX (X, Y)
++#define WLETTERS_AND_DIGTS CONCAT (L, LETTERS_AND_DIGTS)
++  p = support_quote_blob_wide (WLETTERS_AND_DIGTS "@", 2 * 26 + 10);
++  TEST_COMPARE (strcmp (p, LETTERS_AND_DIGTS), 0);
++  free (p);
++
++  /* Check escaping of control characters and other non-printable
++     characters.  */
++  p = support_quote_blob_wide (L"\r\n\t\a\b\f\v\1\177\200\377"
++			       "\x123\x76543210\xfedcba98\0@", 17);
++  TEST_COMPARE (strcmp (p, "\\r\\n\\t\\a\\b\\f\\v\\x{1}"
++                        "\\x{7f}\\x{80}\\x{ff}\\x{123}\\x{76543210}"
++			"\\x{fedcba98}\\x{0}@\\x{0}"), 0);
++  free (p);
++
++  return 0;
++}
++
++#include <support/test-driver.c>
+diff --git a/support/tst-test_compare_string_wide.c b/support/tst-test_compare_string_wide.c
+new file mode 100644
+index 0000000000000000..548f7dcdc60b82d8
+--- /dev/null
++++ b/support/tst-test_compare_string_wide.c
+@@ -0,0 +1,107 @@
++/* Basic test for the TEST_COMPARE_STRING_WIDE macro.
++   Copyright (C) 2018-2021 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#include <string.h>
++#include <support/check.h>
++#include <support/capture_subprocess.h>
++
++static void
++subprocess (void *closure)
++{
++  /* These tests should fail.  They were chosen to cover differences
++     in length (with the same contents), single-bit mismatches, and
++     mismatching null pointers.  */
++  TEST_COMPARE_STRING_WIDE (L"", NULL);             /* Line 29.  */
++  TEST_COMPARE_STRING_WIDE (L"X", L"");              /* Line 30.  */
++  TEST_COMPARE_STRING_WIDE (NULL, L"X");            /* Line 31.  */
++  TEST_COMPARE_STRING_WIDE (L"abcd", L"abcD");       /* Line 32.  */
++  TEST_COMPARE_STRING_WIDE (L"abcd", NULL);         /* Line 33.  */
++  TEST_COMPARE_STRING_WIDE (NULL, L"abcd");         /* Line 34.  */
++}
++
++/* Same contents, different addresses.  */
++wchar_t buffer_abc_1[] = L"abc";
++wchar_t buffer_abc_2[] = L"abc";
++
++static int
++do_test (void)
++{
++  /* This should succeed.  Even if the pointers and array contents are
++     different, zero-length inputs are not different.  */
++  TEST_COMPARE_STRING_WIDE (NULL, NULL);
++  TEST_COMPARE_STRING_WIDE (L"", L"");
++  TEST_COMPARE_STRING_WIDE (buffer_abc_1, buffer_abc_2);
++  TEST_COMPARE_STRING_WIDE (buffer_abc_1, L"abc");
++
++  struct support_capture_subprocess proc = support_capture_subprocess
++    (&subprocess, NULL);
++
++  /* Discard the reported error.  */
++  support_record_failure_reset ();
++
++  puts ("info: *** subprocess output starts ***");
++  fputs (proc.out.buffer, stdout);
++  puts ("info: *** subprocess output ends ***");
++
++  TEST_VERIFY
++    (strcmp (proc.out.buffer,
++"tst-test_compare_string_wide.c:29: error: string comparison failed\n"
++"  left string: 0 wide characters\n"
++"  right string: NULL\n"
++"tst-test_compare_string_wide.c:30: error: string comparison failed\n"
++"  left string: 1 wide characters\n"
++"  right string: 0 wide characters\n"
++"  left (evaluated from L\"X\"):\n"
++"      L\"X\"\n"
++"      58\n"
++"tst-test_compare_string_wide.c:31: error: string comparison failed\n"
++"  left string: NULL\n"
++"  right string: 1 wide characters\n"
++"  right (evaluated from L\"X\"):\n"
++"      L\"X\"\n"
++"      58\n"
++"tst-test_compare_string_wide.c:32: error: string comparison failed\n"
++"  string length: 4 wide characters\n"
++"  left (evaluated from L\"abcd\"):\n"
++"      L\"abcd\"\n"
++"      61 62 63 64\n"
++"  right (evaluated from L\"abcD\"):\n"
++"      L\"abcD\"\n"
++"      61 62 63 44\n"
++"tst-test_compare_string_wide.c:33: error: string comparison failed\n"
++"  left string: 4 wide characters\n"
++"  right string: NULL\n"
++"  left (evaluated from L\"abcd\"):\n"
++"      L\"abcd\"\n"
++"      61 62 63 64\n"
++"tst-test_compare_string_wide.c:34: error: string comparison failed\n"
++"  left string: NULL\n"
++"  right string: 4 wide characters\n"
++"  right (evaluated from L\"abcd\"):\n"
++"      L\"abcd\"\n"
++"      61 62 63 64\n"
++             ) == 0);
++
++  /* Check that there is no output on standard error.  */
++  support_capture_subprocess_check (&proc, "TEST_COMPARE_STRING_WIDE",
++                                    0, sc_allow_stdout);
++
++  return 0;
++}
++
++#include <support/test-driver.c>

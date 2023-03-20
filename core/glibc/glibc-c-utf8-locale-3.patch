@@ -1,0 +1,65 @@
+commit 1d8e3a2c6636cf0b1b8fa2f869cef6ec10726933
+Author: Carlos O'Donell <carlos@redhat.com>
+Date:   Mon Jan 31 00:34:41 2022 -0500
+
+    localedef: Fix handling of empty mon_decimal_point (Bug 28847)
+    
+    The handling of mon_decimal_point is incorrect when it comes to
+    handling the empty "" value.  The existing parser in monetary_read()
+    will correctly handle setting the non-wide-character value and the
+    wide-character value e.g. STR_ELEM_WC(mon_decimal_point) if they are
+    set in the locale definition.  However, in monetary_finish() we have
+    conflicting TEST_ELEM() which sets a default value (if the locale
+    definition doesn't include one), and subsequent code which looks for
+    mon_decimal_point to be NULL to issue a specific error message and set
+    the defaults. The latter is unused because TEST_ELEM() always sets a
+    default.  The simplest solution is to remove the TEST_ELEM() check,
+    and allow the existing check to look to see if mon_decimal_point is
+    NULL and set an appropriate default.  The final fix is to move the
+    setting of mon_decimal_point_wc so it occurs only when
+    mon_decimal_point is being set to a default, keeping both values
+    consistent. There is no way to tell the difference between
+    mon_decimal_point_wc having been set to the empty string and not
+    having been defined at all, for that distinction we must use
+    mon_decimal_point being NULL or "", and so we must logically set
+    the default together with mon_decimal_point.
+    
+    Lastly, there are more fixes similar to this that could be made to
+    ld-monetary.c, but we avoid that in order to fix just the code
+    required for mon_decimal_point, which impacts the ability for C.UTF-8
+    to set mon_decimal_point to "", since without this fix we end up with
+    an inconsistent setting of mon_decimal_point set to "", but
+    mon_decimal_point_wc set to "." which is incorrect.
+    
+    Tested on x86_64 and i686 without regression.
+    Reviewed-by: Florian Weimer <fweimer@redhat.com>
+
+diff --git a/locale/programs/ld-monetary.c b/locale/programs/ld-monetary.c
+index e1e45a3409123bf4..9b9a55bb4766dfcf 100644
+--- a/locale/programs/ld-monetary.c
++++ b/locale/programs/ld-monetary.c
+@@ -208,7 +208,6 @@ No definition for %s category found"), "LC_MONETARY");
+ 
+   TEST_ELEM (int_curr_symbol, "");
+   TEST_ELEM (currency_symbol, "");
+-  TEST_ELEM (mon_decimal_point, ".");
+   TEST_ELEM (mon_thousands_sep, "");
+   TEST_ELEM (positive_sign, "");
+   TEST_ELEM (negative_sign, "");
+@@ -258,6 +257,7 @@ not correspond to a valid name in ISO 4217 [--no-warnings=intcurrsym]"),
+ 	record_error (0, 0, _("%s: field `%s' not defined"),
+ 		      "LC_MONETARY", "mon_decimal_point");
+       monetary->mon_decimal_point = ".";
++      monetary->mon_decimal_point_wc = L'.';
+     }
+   else if (monetary->mon_decimal_point[0] == '\0' && ! be_quiet && ! nothing)
+     {
+@@ -265,8 +265,6 @@ not correspond to a valid name in ISO 4217 [--no-warnings=intcurrsym]"),
+ %s: value for field `%s' must not be an empty string"),
+ 		    "LC_MONETARY", "mon_decimal_point");
+     }
+-  if (monetary->mon_decimal_point_wc == L'\0')
+-    monetary->mon_decimal_point_wc = L'.';
+ 
+   if (monetary->mon_grouping_len == 0)
+     {

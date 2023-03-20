@@ -20,17 +20,25 @@ source="
 	locale.gen.in
 	locale-gen
 	ldconfig.trigger.c
+	glibc-c-utf8-locale-1.patch
+	glibc-c-utf8-locale-1_2.patch
+	glibc-c-utf8-locale-2.patch
+	glibc-c-utf8-locale-3.patch
+	glibc-c-utf8-locale-4.patch
+	glibc-c-utf8-locale-5.patch
+	glibc-rh2058224-1.patch
+	glibc-rh2058224-2.patch
 "
 builddir="$srcdir/glibc-$_glibcver"
 options="!libc_musl lib64 ldpath-recursive !check"
 triggers="$pkgname-utils.trigger=/usr/lib:/usr/lib64:/usr/local/lib"
 subpackages="
+	$pkgname-dbg
 	$pkgname-nscd
 	$pkgname-utils
 	$pkgname-locales::noarch
 	$pkgname-doc
 	$pkgname-dev
-	$pkgname-dbg
 "
 
 
@@ -136,11 +144,10 @@ utils() {
 	msg "Generating default locale C.UTF-8"
 
 	mkdir -p $subpkgdir/usr/lib/locale
-	$subpkgdir/bin/localedef \
-		-i $builddir/localedata/locales/POSIX \
-		-f $builddir/localedata/charmaps/UTF-8 \
+	I18NPATH=$builddir/localedata \
+	$subpkgdir/bin/localedef -i C -f UTF-8 \
 		--prefix $subpkgdir \
-		C.UTF-8 || true
+		C.UTF-8
 }
 
 sha512sums="
@@ -151,4 +158,12 @@ sha512sums="
 47a686c2fda0f32a1e9e975f723ed96ab8125619541cf8711fa80d94428862be77c46d06f5ff17f6a978eb22c9f86929ee9bf79888e6f824beeb023f78512151  locale.gen.in
 7f4e96d99f98da0074e8020efd574b5080b3364ba014e74c3fc262af685180f92a6a08f2681c0ce8b0b78a103cafe753943836943db20fe9064ad5f380b35de0  locale-gen
 519f6d7fd227b2ceeda345bd2ca48146d961655fbff6a3d709d7726f64eef2ceedf55943b1e71b802b79309ef4dfe9b99251a5073a1c9169db3ac6a788b244d5  ldconfig.trigger.c
+c9b879edc65b6f6ae28f41115833a2d2aea65948cdb05d5970d6f32c9e8e0ac797f3c572dd8fe9479ba7c1e2ed1b484a2c9fdf99bdbbeeebf58598e583e84b29  glibc-c-utf8-locale-1.patch
+f69a4aa9e80ed4ecbd5c8340f434147d02ddfbbd70e2efaa841eee8901022aaf61095597dd088161a290fd203585cf0325896104636fe4db25cfffc5e37fd6a8  glibc-c-utf8-locale-1_2.patch
+2afaa9702c8d4888321f74132def35f157c94c92e300e47fccd50e3c277e61656389e1f6d2f65be914703adf37ebc2e51d3f919bc396175fe87079d0b684af1e  glibc-c-utf8-locale-2.patch
+54156ab43fd00cd6848dab194be40b6fdd30853fad0aaf171d8c30587ed6608b0606ed1172b99a563c58df80082bee8b0a44e68acac31740154855fffc0b867b  glibc-c-utf8-locale-3.patch
+4f78484dab4dda54a9bafa3c77ac65743c8effc08d1f3cc71e31c3edd0e498c3828560b2d42e1d87309407994d26b7015e5de06efbf6d43fcda8126a7f4bf522  glibc-c-utf8-locale-4.patch
+3b7328df46df880f7e22631ef1c99e4c346ca7aa3eff97c1e876c5fd63c51f90b361bba6747b2cc1ce348f8d7df45fffe8afa6eb5d2ccca8ca65a98996d752bc  glibc-c-utf8-locale-5.patch
+c42478fef77de25f0444a21bebdfd085aa5fe90e8142fb402dc6a20d4fe9e325329627311c79bf00964030f5fd3425a3c79791e574980aa84126c9bdf58bd354  glibc-rh2058224-1.patch
+82af918957c6fca84e8163ee830b274b925b949fa16e45cad01c07c9f021c56a80b887a4d454610b5ed0c3c49c882baf39ec9d8daecdebc7fc4292f3a1a8a813  glibc-rh2058224-2.patch
 "

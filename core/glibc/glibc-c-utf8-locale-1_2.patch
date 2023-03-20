@@ -1,0 +1,26 @@
+From b8c6166b1b75036ab3e4127a1c0aacf52ca93651 Mon Sep 17 00:00:00 2001
+From: Florian Weimer <fweimer@redhat.com>
+Date: Mon, 6 Sep 2021 19:43:37 +0200
+Subject: [PATCH] locale: Add missing second argument to _Static_assert in
+ C-collate-seq.c
+
+---
+ locale/C-collate-seq.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/locale/C-collate-seq.c b/locale/C-collate-seq.c
+index 4fb82cb835..40b17f4f90 100644
+--- a/locale/C-collate-seq.c
++++ b/locale/C-collate-seq.c
+@@ -55,7 +55,7 @@ static const char collseqmb[] =
+ 
+ /* This table must be 256 bytes in size. We index bytes into the
+    table to find the collation sequence.  */
+-_Static_assert (sizeof (collseqmb) == 256);
++_Static_assert (sizeof (collseqmb) == 256, "sizeof (collseqmb)");
+ 
+ static const uint32_t collseqwc[] =
+ {
+-- 
+2.25.1
+
