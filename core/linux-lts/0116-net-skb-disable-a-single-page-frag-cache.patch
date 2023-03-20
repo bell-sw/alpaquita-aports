@@ -1,0 +1,27 @@
+From 68809814bf145657bcc5614edc63e39917d5dedb Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Mon, 20 Mar 2023 13:11:14 +0000
+Subject: [PATCH] net: skb: disable a single page frag cache
+
+It causes a regression in startup benchmarks. For the time being,
+use the define instead of the revert to disable it.
+---
+ net/core/skbuff.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/core/skbuff.c b/net/core/skbuff.c
+index 51db260f471f..4e3e8a27ad3f 100644
+--- a/net/core/skbuff.c
++++ b/net/core/skbuff.c
+@@ -136,7 +136,7 @@ static void skb_under_panic(struct sk_buff *skb, unsigned int sz, void *addr)
+ 
+ #if PAGE_SIZE == SZ_4K
+ 
+-#define NAPI_HAS_SMALL_PAGE_FRAG	1
++#define NAPI_HAS_SMALL_PAGE_FRAG	0
+ #define NAPI_SMALL_PAGE_PFMEMALLOC(nc)	((nc).pfmemalloc)
+ 
+ /* specialized page frag allocator using a single order 0 page
+-- 
+2.25.1
+
