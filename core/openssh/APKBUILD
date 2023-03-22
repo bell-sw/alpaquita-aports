@@ -4,13 +4,13 @@
 pkgname=openssh
 pkgver=9.3_p1
 _myver=${pkgver%_*}${pkgver#*_}
-pkgrel=0
+pkgrel=1
 pkgdesc="OpenBSD SSH implementation"
 url="https://www.openssh.com/portable.html"
 arch="all"
 license="BSD"
 options="suid"
-depends="openssh-client openssh-sftp-server openssh-server libcrypto3>=3.1.0"
+depends="openssh-client openssh-sftp-server openssh-server"
 makedepends_build="autoconf automake"
 makedepends_host="
 	linux-headers
@@ -198,7 +198,7 @@ package() {
 
 keygen() {
 	pkgdesc="ssh helper program for generating keys"
-	depends=
+	depends="libcrypto3>=3.1.0"
 
 	amove usr/bin/ssh-keygen
 }
@@ -230,7 +230,7 @@ _client_default() {
 
 _client_common() {
 	pkgdesc="OpenBSD's SSH client common files"
-	depends=""
+	depends="libcrypto3>=3.1.0"
 
 	install -d "$subpkgdir"/usr/lib/ssh \
 		"$subpkgdir"/var/empty
@@ -242,7 +242,7 @@ _client_common() {
 
 keysign() {
 	pkgdesc="ssh helper program for host-based authentication"
-	depends="openssh-client=$pkgver-r$pkgrel"
+	depends="openssh-client=$pkgver-r$pkgrel libcrypto3>=3.1.0"
 
 	amove usr/lib/ssh/ssh-keysign
 }
