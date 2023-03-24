@@ -1,6 +1,6 @@
 pkgname=gdb
 pkgver=13.1
-pkgrel=2
+pkgrel=3
 pkgdesc="The GNU Debugger"
 url="https://www.gnu.org/software/gdb/"
 arch="all"
@@ -25,6 +25,7 @@ options="!check"
 subpackages="$pkgname-dbg $pkgname-doc $pkgname-multiarch"
 source="https://ftp.gnu.org/gnu/gdb/gdb-$pkgver.tar.xz
 	musl:musl-signals.patch
+	$pkgname-rust-crash.patch::https://sourceware.org/git/?p=binutils-gdb.git;a=patch;h=562403d4f5483e0787219fdb88da72c707c8d7f6
 	"
 
 prepare() {
@@ -106,4 +107,5 @@ multiarch() {
 sha512sums="
 e65054ffbc0357eeed4b17e1edc5ef45aa73c9ddf3b1210651e3d859576e27c1d27b266800fe26328eda58857455ccd8632f4000cfc5f63f90854096290187ca  gdb-13.1.tar.xz
 58aacc7cdc119eab729a3c5a5521f6a0db41c6a5bc2d09d6e32cbdd071d85dd1a31b5e6559616f8da1237c5b79ad9e04aab485211e957b4d1ca752c0c5ad660b  musl-signals.patch
+0e8bcf29269f0d3c3ad87d176636359bed6db20ba10b0d3f0c034e025c14b6cb1c87f22c8162288104b7b4fe15beb80a010262592dadaff46f0bf6f44e10cb17  gdb-rust-crash.patch
 "
