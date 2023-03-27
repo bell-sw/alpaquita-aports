@@ -1,28 +1,26 @@
 pkgname=perl-test-mockrandom
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
 _pkgreal=Test-MockRandom
 pkgver=1.01
-pkgrel=3
+pkgrel=4
 pkgdesc="Replaces random number generation with non-random number generation"
 url="https://metacpan.org/release/Test-MockRandom/"
 arch="noarch"
 license="Apache-2.0"
 depends="perl"
+makedepends="perl-dev"
 subpackages="$pkgname-doc"
-source="https://cpan.metacpan.org/authors/id/D/DA/DAGOLDEN/$_pkgreal-$pkgver.tar.gz"
+source="https://cpan.metacpan.org/authors/id/D/DA/DAGOLDEN/Test-MockRandom-$pkgver.tar.gz"
 builddir="$srcdir/$_pkgreal-$pkgver"
-
-prepare() {
-	default_prepare
-	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
-	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
-}
 
 build() {
 	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
 	make
 }
 
 check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
 	make test
 }
 

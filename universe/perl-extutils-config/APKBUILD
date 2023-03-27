@@ -1,32 +1,31 @@
 pkgname=perl-extutils-config
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
 _pkgreal=ExtUtils-Config
 pkgver=0.008
-pkgrel=2
+pkgrel=3
 pkgdesc="A wrapper for perl's configuration"
 url="https://metacpan.org/release/ExtUtils-Config/"
 arch="noarch"
 license="GPL-1.0-or-later OR Artistic-1.0-Perl"
 depends="perl"
+makedepends="perl-dev"
 subpackages="$pkgname-doc"
-source="https://cpan.metacpan.org/authors/id/L/LE/LEONT/$_pkgreal-$pkgver.tar.gz"
-
-_builddir="$srcdir/$_pkgreal-$pkgver"
-
-prepare() {
-	cd "$_builddir"
-	export CFLAGS=`perl -MConfig -E 'say $Config{ccflags}'`
-	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
-}
+source="https://cpan.metacpan.org/authors/id/L/LE/LEONT/ExtUtils-Config-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
 
 build() {
-	cd "$_builddir"
-	export CFLAGS=`perl -MConfig -E 'say $Config{ccflags}'`
-	make && make test
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
 }
 
 package() {
-	cd "$_builddir"
-	make DESTDIR="$pkgdir" install || return 1
+	make DESTDIR="$pkgdir" install
 	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
 }
 

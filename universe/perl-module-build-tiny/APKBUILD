@@ -1,38 +1,30 @@
 pkgname=perl-module-build-tiny
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
 _pkgreal=Module-Build-Tiny
 pkgver=0.039
-pkgrel=2
+pkgrel=3
 pkgdesc="A tiny replacement for Module::Build"
 url="https://metacpan.org/release/Module-Build-Tiny/"
 arch="noarch"
-license="GPL PerlArtistic"
-cpandepends="perl-extutils-installpaths perl-extutils-config perl-extutils-helpers perl-test-harness"
-cpanmakedepends="   "
-depends="$cpandepends"
-makedepends="perl-dev $cpanmakedepends"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-extutils-installpaths perl-extutils-config perl-extutils-helpers"
+makedepends="perl-dev perl-extutils-helpers perl-extutils-config perl-extutils-installpaths perl-module-build"
 subpackages="$pkgname-doc"
-source="https://cpan.metacpan.org/authors/id/L/LE/LEONT/$_pkgreal-$pkgver.tar.gz"
-
-_builddir="$srcdir/$_pkgreal-$pkgver"
-
-prepare() {
-	cd "$_builddir"
-	if [ -e Build.PL ]; then
-		perl Build.PL --installdirs=vendor || return 1
-	else
-		PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor || return 1
-	fi
-}
+source="https://cpan.metacpan.org/authors/id/L/LE/LEONT/Module-Build-Tiny-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
 
 build() {
-	cd "$_builddir"
-	export CFLAGS=`perl -MConfig -E 'say $Config{ccflags}'`
-	./Build && ./Build test
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	perl Build.PL --installdirs=vendor
+	./Build
+}
+
+check() {
+	./Build test
 }
 
 package() {
-	cd "$_builddir"
-	./Build install --destdir="$pkgdir" --create_packlist=0 || return 1
+	./Build install --destdir="$pkgdir"
 	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
 }
 

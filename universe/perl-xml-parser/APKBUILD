@@ -1,36 +1,30 @@
 pkgname=perl-xml-parser
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
 _pkgreal=XML-Parser
 pkgver=2.46
-pkgrel=3
+pkgrel=4
 pkgdesc="A perl module for parsing XML documents"
-url="https://metacpan.org/release/XML-Parser"
+url="https://metacpan.org/release/XML-Parser/"
 arch="all"
 license="GPL-1.0-or-later OR Artistic-1.0-Perl"
-cpandepends="perl-libwww"
-depends="$cpandepends"
+depends="perl perl-libwww"
 makedepends="perl-dev expat-dev"
 subpackages="$pkgname-doc"
 source="https://cpan.metacpan.org/authors/id/T/TO/TODDR/XML-Parser-$pkgver.tar.gz"
-
 builddir="$srcdir/$_pkgreal-$pkgver"
 
-prepare() {
-	cd "$builddir"
-	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
-}
-
 build() {
-	cd "$builddir"
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
 	make
 }
 
 check() {
-	cd "$builddir"
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
 	make test
 }
 
 package() {
-	cd "$builddir"
 	make DESTDIR="$pkgdir" install
 	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
 }
