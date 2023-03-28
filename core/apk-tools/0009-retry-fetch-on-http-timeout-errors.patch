@@ -1,0 +1,86 @@
+From 645dc577e9afe235da5b89eb0ccc99f53e696ca0 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 28 Mar 2023 16:24:27 +0000
+Subject: [PATCH] retry fetch on http timeout errors
+
+Also, reinitialize 'struct url' to avoid any side effects
+as fetchXGet() can change the struct members.
+---
+ libfetch/fetch.h     |  1 +
+ libfetch/http.errors |  4 ++--
+ src/io_url.c         | 11 +++++++++++
+ 3 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/libfetch/fetch.h b/libfetch/fetch.h
+index 0c07c05..e7e8cf9 100644
+--- a/libfetch/fetch.h
++++ b/libfetch/fetch.h
+@@ -96,6 +96,7 @@ struct url_list {
+ #define	FETCH_URL	18
+ #define	FETCH_VERBOSE	19
+ #define	FETCH_UNCHANGED	20
++#define	FETCH_GWTIMEOUT	21
+ 
+ #if defined(__cplusplus)
+ extern "C" {
+diff --git a/libfetch/http.errors b/libfetch/http.errors
+index 004aac2..0915c55 100644
+--- a/libfetch/http.errors
++++ b/libfetch/http.errors
+@@ -27,7 +27,7 @@
+ 405 PROTO	Method Not Allowed
+ 406 PROTO	Not Acceptable
+ 407 AUTH	Proxy Authentication Required
+-408 TIMEOUT	Request Time-out
++408 GWTIMEOUT	Request Time-out
+ 409 EXISTS	Conflict
+ 410 UNAVAIL	Gone
+ 411 PROTO	Length Required
+@@ -41,6 +41,6 @@
+ 501 PROTO	Not Implemented
+ 502 SERVER	Bad Gateway
+ 503 TEMP	Service Unavailable
+-504 TIMEOUT	Gateway Time-out
++504 GWTIMEOUT	Gateway Time-out
+ 505 PROTO	HTTP Version not supported
+ 999 PROTO	Protocol error
+diff --git a/src/io_url.c b/src/io_url.c
+index 3f6a6b6..f98c093 100644
+--- a/src/io_url.c
++++ b/src/io_url.c
+@@ -59,6 +59,7 @@ static int fetch_maperror(int ec)
+ 		[FETCH_UNKNOWN] = -EIO,
+ 		[FETCH_URL] = -EAPKBADURL,
+ 		[FETCH_UNCHANGED] = -EALREADY,
++		[FETCH_GWTIMEOUT] = -ETIMEDOUT,
+ 	};
+ 
+ 	if (ec < 0 || ec >= ARRAY_SIZE(map) || !map[ec]) return -EIO;
+@@ -107,7 +108,9 @@ static struct apk_istream *apk_istream_fetch(const char *url, time_t since)
+ 	struct url *u;
+ 	fetchIO *io = NULL;
+ 	int rc = -EIO;
++	int fetch_attempts = 5;
+ 
++retry:
+ 	u = fetchParseURL(url);
+ 	if (!u) {
+ 		rc = -EAPKBADURL;
+@@ -122,6 +125,14 @@ static struct apk_istream *apk_istream_fetch(const char *url, time_t since)
+ 	u->last_modified = since;
+ 	io = fetchXGet(u, &fis->urlstat, (apk_force & APK_FORCE_REFRESH) ? "Ci" : "i");
+ 	if (!io) {
++		/* We may intermittently receive 408/504 (Request/Gateway-Proxy timeout)
++		 * HTTP errors. So try to fetch again in this particular case.
++		 */
++		if (fetchLastErrCode == FETCH_GWTIMEOUT && fetch_attempts--) {
++			fetchFreeURL(u);
++			free(fis);
++			goto retry;
++		}
+ 		rc = fetch_maperror(fetchLastErrCode);
+ 		goto err;
+ 	}
+-- 
+2.25.1
+
