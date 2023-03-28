@@ -1,0 +1,43 @@
+--- a/test/test.py
++++ b/test/test.py
+@@ -37,8 +37,6 @@
+ 
+ BASH_VERSION = subprocess.check_output(["bash", "-c", "echo $BASH_VERSION"]).decode()
+ BASH_MAJOR_VERSION = int(BASH_VERSION.split(".")[0])
+-FISH_VERSION_STR = subprocess.check_output(["fish", "-c", "echo -n $version"]).decode()
+-FISH_VERSION_TUPLE = tuple(int(x) for x in FISH_VERSION_STR.split("."))
+ 
+ 
+ def setUpModule():
+@@ -1319,6 +1317,7 @@
+         self._test_console_script(package=True, wheel=True)
+ 
+ 
++@unittest.skip("tcsh is not available")
+ class TestTcsh(_TestSh, unittest.TestCase):
+     expected_failures = [
+         "test_unquoted_space",
+@@ -1355,13 +1354,12 @@
+             self.sh.run_command("")
+ 
+ 
++@unittest.skip("tcsh is not available")
+ class TestFish(_TestSh, unittest.TestCase):
+     expected_failures = [
+         "test_parse_special_characters",
+         "test_comp_point",
+     ]
+-    if FISH_VERSION_TUPLE < (3, 1):
+-        expected_failures.extend(["test_special_characters_double_quoted"])
+ 
+     skipped = ["test_single_quotes_in_single_quotes", "test_parse_special_characters_dollar"]
+ 
+@@ -1391,7 +1389,7 @@
+             self.sh.run_command("")
+ 
+ 
+-@unittest.skipIf(FISH_VERSION_TUPLE < (3, 4), "Path completion is fixed in fish 3.4")
++@unittest.skip("fish is not available")
+ class TestFishPathCompletion(unittest.TestCase):
+     def setUp(self):
+         sh = Shell("fish")
