@@ -1,17 +1,3 @@
-From 18224824bf40aa3ae20697c27da54d31c37633d9 Mon Sep 17 00:00:00 2001
-From: Denis Kononenko <denis.kononenko@bell-sw.com>
-Date: Mon, 19 Sep 2022 18:32:06 +0000
-Subject: [PATCH] hotspot speculation log
-
----
- .../api/directives/GraalDirectives.java       |  12 --
- ...tSpotManagedFailedSpeculationListTest.java | 122 ------------------
- .../StandardGraphBuilderPlugins.java          |  29 +----
- .../hotspot/HotSpotOptimizedCallTarget.java   |  42 ------
- .../truffle/runtime/OptimizedCallTarget.java  |   4 +-
- 5 files changed, 9 insertions(+), 200 deletions(-)
- delete mode 100644 compiler/src/org.graalvm.compiler.hotspot.test/src/org/graalvm/compiler/hotspot/test/HotSpotManagedFailedSpeculationListTest.java
-
 diff --git a/compiler/src/org.graalvm.compiler.api.directives/src/org/graalvm/compiler/api/directives/GraalDirectives.java b/compiler/src/org.graalvm.compiler.api.directives/src/org/graalvm/compiler/api/directives/GraalDirectives.java
 index 5c94516ad57..f6143a33d80 100644
 --- a/graal/compiler/src/org.graalvm.compiler.api.directives/src/org/graalvm/compiler/api/directives/GraalDirectives.java
@@ -171,10 +157,10 @@ index 94e04414e14..00000000000
 -    }
 -}
 diff --git a/compiler/src/org.graalvm.compiler.replacements/src/org/graalvm/compiler/replacements/StandardGraphBuilderPlugins.java b/compiler/src/org.graalvm.compiler.replacements/src/org/graalvm/compiler/replacements/StandardGraphBuilderPlugins.java
-index e79d13937fb..5294a02fa7d 100644
+index 41a014feed5..ec1304cceca 100644
 --- a/graal/compiler/src/org.graalvm.compiler.replacements/src/org/graalvm/compiler/replacements/StandardGraphBuilderPlugins.java
 +++ b/graal/compiler/src/org.graalvm.compiler.replacements/src/org/graalvm/compiler/replacements/StandardGraphBuilderPlugins.java
-@@ -1505,37 +1505,24 @@ public class StandardGraphBuilderPlugins {
+@@ -1555,37 +1555,24 @@ public class StandardGraphBuilderPlugins {
          }
  
          @Override
@@ -219,7 +205,7 @@ index e79d13937fb..5294a02fa7d 100644
                  if (b.getGraph().getSpeculationLog().maySpeculate(speculationReason)) {
                      speculation = b.getGraph().getSpeculationLog().speculate(speculationReason);
                  }
-@@ -1550,8 +1537,6 @@ public class StandardGraphBuilderPlugins {
+@@ -1600,8 +1587,6 @@ public class StandardGraphBuilderPlugins {
          r.register(new DeoptimizePlugin(snippetReflection, InvalidateReprofile, TransferToInterpreter, false, "deoptimizeAndInvalidate"));
          r.register(new DeoptimizePlugin(snippetReflection, null, null, null,
                          "deoptimize", DeoptimizationAction.class, DeoptimizationReason.class, boolean.class));
@@ -229,19 +215,10 @@ index e79d13937fb..5294a02fa7d 100644
          r.register(new RequiredInlineOnlyInvocationPlugin("inCompiledCode") {
              @Override
 diff --git a/compiler/src/org.graalvm.compiler.truffle.runtime.hotspot/src/org/graalvm/compiler/truffle/runtime/hotspot/HotSpotOptimizedCallTarget.java b/compiler/src/org.graalvm.compiler.truffle.runtime.hotspot/src/org/graalvm/compiler/truffle/runtime/hotspot/HotSpotOptimizedCallTarget.java
-index 64fea190bfc..60626d050c8 100644
+index aeb73ec89c6..49874c2da08 100644
 --- a/graal/compiler/src/org.graalvm.compiler.truffle.runtime.hotspot/src/org/graalvm/compiler/truffle/runtime/hotspot/HotSpotOptimizedCallTarget.java
 +++ b/graal/compiler/src/org.graalvm.compiler.truffle.runtime.hotspot/src/org/graalvm/compiler/truffle/runtime/hotspot/HotSpotOptimizedCallTarget.java
-@@ -24,8 +24,6 @@
-  */
- package org.graalvm.compiler.truffle.runtime.hotspot;
- 
--import java.lang.reflect.Method;
--
- import org.graalvm.compiler.truffle.common.CompilableTruffleAST;
- import org.graalvm.compiler.truffle.common.OptimizedAssumptionDependency;
- import org.graalvm.compiler.truffle.common.TruffleCompiler;
-@@ -36,7 +34,6 @@ import com.oracle.truffle.api.nodes.RootNode;
+@@ -36,7 +36,6 @@ import com.oracle.truffle.api.nodes.RootNode;
  
  import jdk.vm.ci.code.InstalledCode;
  import jdk.vm.ci.hotspot.HotSpotNmethod;
@@ -249,7 +226,7 @@ index 64fea190bfc..60626d050c8 100644
  import jdk.vm.ci.meta.SpeculationLog;
  
  /**
-@@ -77,21 +74,6 @@ public final class HotSpotOptimizedCallTarget extends OptimizedCallTarget implem
+@@ -77,12 +76,6 @@ public final class HotSpotOptimizedCallTarget extends OptimizedCallTarget implem
          return true;
      }
  
@@ -259,19 +236,23 @@ index 64fea190bfc..60626d050c8 100644
 -     */
 -    private static final Method setSpeculationLog;
 -
--    static {
--        Method method = null;
+     /**
+      * Reflective reference to {@code InstalledCode.invalidate(boolean deoptimize)} so that this
+      * code can be compiled against older JVMCI API.
+@@ -91,12 +84,6 @@ public final class HotSpotOptimizedCallTarget extends OptimizedCallTarget implem
+ 
+     static {
+         Method method = null;
 -        try {
 -            method = HotSpotNmethod.class.getDeclaredMethod("setSpeculationLog", HotSpotSpeculationLog.class);
 -        } catch (NoSuchMethodException e) {
 -        }
 -        setSpeculationLog = method;
--    }
--
-     /**
-      * This method may only be called during compilation, and only by the compiling thread.
-      */
-@@ -115,35 +97,11 @@ public final class HotSpotOptimizedCallTarget extends OptimizedCallTarget implem
+-        method = null;
+         try {
+             method = InstalledCode.class.getDeclaredMethod("invalidate", boolean.class);
+         } catch (NoSuchMethodException e) {
+@@ -131,35 +118,11 @@ public final class HotSpotOptimizedCallTarget extends OptimizedCallTarget implem
              if (nmethod.isDefault()) {
                  throw new IllegalArgumentException("Cannot install a default nmethod for a " + getClass().getSimpleName());
              }
@@ -308,7 +289,7 @@ index 64fea190bfc..60626d050c8 100644
      public CompilableTruffleAST getCompilable() {
          return this;
 diff --git a/compiler/src/org.graalvm.compiler.truffle.runtime/src/org/graalvm/compiler/truffle/runtime/OptimizedCallTarget.java b/compiler/src/org.graalvm.compiler.truffle.runtime/src/org/graalvm/compiler/truffle/runtime/OptimizedCallTarget.java
-index ea9f4b633cd..56558af6620 100644
+index 0f5dda8b0e0..6575ddf3f48 100644
 --- a/graal/compiler/src/org.graalvm.compiler.truffle.runtime/src/org/graalvm/compiler/truffle/runtime/OptimizedCallTarget.java
 +++ b/graal/compiler/src/org.graalvm.compiler.truffle.runtime/src/org/graalvm/compiler/truffle/runtime/OptimizedCallTarget.java
 @@ -302,9 +302,9 @@ public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootC
@@ -323,6 +304,3 @@ index ea9f4b633cd..56558af6620 100644
  
      /**
       * When this call target is inlined, the inlining {@link InstalledCode} registers this
--- 
-2.34.4
-

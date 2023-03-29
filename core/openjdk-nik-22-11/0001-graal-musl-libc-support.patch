@@ -1,12 +1,12 @@
-From aadaa931fa463f4e3b2dba049a7376b0db59b94a Mon Sep 17 00:00:00 2001
+From 07c9415ef13dfc28dd034358de92e9def3141654 Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
-Date: Mon, 19 Sep 2022 18:27:15 +0000
+Date: Mon, 27 Mar 2023 10:25:09 +0000
 Subject: [PATCH] graal musl libc support
 
 ---
- espresso/mx.espresso/suite.py                 | 10 +++++++
+ espresso/mx.espresso/suite.py                 | 29 ++++++++++++++++++
  sdk/mx.sdk/mx_sdk_vm_impl.py                  | 10 ++++++-
- substratevm/mx.substratevm/mx_substratevm.py  |  4 +++
+ substratevm/mx.substratevm/mx_substratevm.py  |  7 ++++-
  .../core/posix/linux/libc/LibCFeature.java    |  4 ++-
  .../svm/core/posix/linux/libc/MuslLibC.java   | 18 +++++++----
  .../svm/hosted/image/CCLinkerInvocation.java  |  4 +++
@@ -20,12 +20,12 @@ Subject: [PATCH] graal musl libc support
  .../component/installer/GenerateCatalog.java  | 25 +++++++++++-----
  .../component/installer/SystemUtils.java      | 10 +++++--
  .../component/installer/ce/WebCatalog.java    |  6 +++-
- 16 files changed, 127 insertions(+), 26 deletions(-)
+ 16 files changed, 148 insertions(+), 27 deletions(-)
 
 diff --git a/espresso/mx.espresso/suite.py b/espresso/mx.espresso/suite.py
-index 1401fe41249..e899fe46845 100644
+index e9e1a1d9e38..b1aacdab6c3 100644
 --- a/graal/espresso/mx.espresso/suite.py
-+++ b/graal/espresso/mx.espresso/suite.py
+--- b/graal/espresso/mx.espresso/suite.py
 @@ -248,6 +248,11 @@ suite = {
                          "ldlibs" : ["-ldl"],
                      },
@@ -50,11 +50,37 @@ index 1401fe41249..e899fe46845 100644
                  "windows": {
                      "<others>": {
                          "cflags": ["-Wall"],
+@@ -393,6 +403,25 @@ suite = {
+                         },
+                     },
+                 },
++                "linux-musl": {
++                    "<others>": {
++                        "layout": {
++                            "./": [
++                                "file:mx.espresso/native-image.properties",
++                                "file:mx.espresso/reflectconfig.json",
++                            ],
++                            "LICENSE_JAVAONTRUFFLE": "file:LICENSE",
++                            "lib/": [
++                                "dependency:espresso:com.oracle.truffle.espresso.eden/<lib:eden>",
++                                "dependency:espresso:com.oracle.truffle.espresso.native/<lib:nespresso>",
++                                # Copy of libjvm.so, accessible by Sulong via the default Truffle file system.
++                                "dependency:espresso:com.oracle.truffle.espresso.mokapot/<lib:jvm>",
++                                "dependency:espresso:POLYGLOT/*",
++                                "dependency:espresso:HOTSWAP/*",
++                            ],
++                        },
++                    },
++                },
+                 "<others>": {
+                     "<others>": {
+                         "layout": {
 diff --git a/sdk/mx.sdk/mx_sdk_vm_impl.py b/sdk/mx.sdk/mx_sdk_vm_impl.py
-index 82cad3a1541..6fe047ac4bc 100644
+index 72c86dfaa32..dc8370cfcb1 100644
 --- a/graal/sdk/mx.sdk/mx_sdk_vm_impl.py
-+++ b/graal/sdk/mx.sdk/mx_sdk_vm_impl.py
-@@ -841,6 +841,7 @@ class BaseGraalVmLayoutDistribution(_with_metaclass(ABCMeta, mx.LayoutDistributi
+--- b/graal/sdk/mx.sdk/mx_sdk_vm_impl.py
+@@ -853,6 +853,7 @@ class BaseGraalVmLayoutDistribution(_with_metaclass(ABCMeta, mx.LayoutDistributi
          _metadata_dict.setdefault('JAVA_VERSION', _src_jdk.version)
          _metadata_dict.setdefault('OS_NAME', get_graalvm_os())
          _metadata_dict.setdefault('OS_ARCH', mx.get_arch())
@@ -62,7 +88,7 @@ index 82cad3a1541..6fe047ac4bc 100644
  
          _metadata_dict['GRAALVM_VERSION'] = _suite.release_version()
          _source = _metadata_dict.get('SOURCE') or ''
-@@ -1303,6 +1304,8 @@ class NativePropertiesBuildTask(mx.ProjectBuildTask):
+@@ -1318,6 +1319,8 @@ class NativePropertiesBuildTask(mx.ProjectBuildTask):
              elif isinstance(image_config, mx_sdk.LauncherConfig):
                  suffix = _exe_suffix
                  project_name_f = GraalVmLauncher.launcher_project_name
@@ -71,7 +97,7 @@ index 82cad3a1541..6fe047ac4bc 100644
              else:
                  raise mx.abort("Unsupported image config type: " + str(type(image_config)))
  
-@@ -2257,8 +2260,13 @@ def _gen_gu_manifest(components, formatter, bundled=False):
+@@ -2273,8 +2276,13 @@ def _gen_gu_manifest(components, formatter, bundled=False):
      manifest["Bundle-Name"] = main_component.name
      manifest["Bundle-Symbolic-Name"] = "org.graalvm." + main_component.installable_id
      manifest["Bundle-Version"] = version
@@ -87,10 +113,21 @@ index 82cad3a1541..6fe047ac4bc 100644
                                                                   java_version=_src_jdk_version,
                                                                   version=version)
 diff --git a/substratevm/mx.substratevm/mx_substratevm.py b/substratevm/mx.substratevm/mx_substratevm.py
-index 74c70ff59ad..d1d41fa4e0c 100644
+index ea2c635d509..05111095065 100644
 --- a/graal/substratevm/mx.substratevm/mx_substratevm.py
-+++ b/graal/substratevm/mx.substratevm/mx_substratevm.py
-@@ -1680,6 +1680,10 @@ class SubstrateCompilerFlagsBuilder(mx.ArchivableProject):
+--- b/graal/substratevm/mx.substratevm/mx_substratevm.py
+@@ -1416,8 +1416,9 @@ class JvmFuncsFallbacksBuildTask(mx.BuildTask):
+ 
+         staticlib_path = ['lib', 'static', mx.get_os() + '-' + mx.get_arch()]
+         if mx.is_linux():
++            libc = mx.get_os_variant()
+             # Assume we are running under glibc by default for now.
+-            staticlib_path = staticlib_path + ['glibc']
++            staticlib_path = staticlib_path + [libc if libc else 'glibc']
+         # Allow older labsjdk versions to work
+         if not exists(join(mx_compiler.jdk.home, *staticlib_path)):
+             staticlib_path = ['lib']
+@@ -1725,6 +1726,10 @@ class SubstrateCompilerFlagsBuilder(mx.ArchivableProject):
              '-Dgraalvm.ForcePolyglotInvalid=true', # use PolyglotInvalid PolyglotImpl fallback (when --tool:truffle is not used)
              '-Dgraalvm.locatorDisabled=true',
          ]
@@ -102,10 +139,10 @@ index 74c70ff59ad..d1d41fa4e0c 100644
              graal_compiler_flags_map[key] = graal_compiler_flags_base + graal_compiler_flags_map[key]
  
 diff --git a/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/libc/LibCFeature.java b/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/libc/LibCFeature.java
-index fd874f2b810..b7e9ceb08ff 100644
+index 14554a23c54..56dcacf2fc3 100644
 --- a/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/libc/LibCFeature.java
-+++ b/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/libc/LibCFeature.java
-@@ -55,7 +55,9 @@ public class LibCFeature implements Feature {
+--- b/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/libc/LibCFeature.java
+@@ -55,7 +55,9 @@ public class LibCFeature implements InternalFeature {
              @Override
              public String getValueOrDefault(UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
                  if (!values.containsKey(this)) {
@@ -117,9 +154,9 @@ index fd874f2b810..b7e9ceb08ff 100644
                  return (String) values.get(this);
              }
 diff --git a/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/libc/MuslLibC.java b/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/libc/MuslLibC.java
-index 743a596eccd..c4d4516b7f8 100644
+index 743a596eccd..64db6f26d92 100644
 --- a/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/libc/MuslLibC.java
-+++ b/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/libc/MuslLibC.java
+--- b/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/libc/MuslLibC.java
 @@ -43,12 +43,14 @@ public class MuslLibC implements LibCBase {
      @Override
      public List<String> getAdditionalQueryCodeCompilerOptions() {
@@ -133,7 +170,7 @@ index 743a596eccd..c4d4516b7f8 100644
      @Override
      public String getTargetCompiler() {
 -        return "x86_64-linux-musl-gcc";
-+        return isCrossCompiling() ? "musl-gcc" : "gcc";
++        return isCrossCompiling() ? "x86_64-linux-musl-gcc" : "gcc";
      }
  
      @Override
@@ -161,10 +198,10 @@ index 743a596eccd..c4d4516b7f8 100644
 +    }
  }
 diff --git a/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/image/CCLinkerInvocation.java b/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/image/CCLinkerInvocation.java
-index 8b539e55652..d4f1898bd34 100644
+index dfe3e3edb59..7c5881c10de 100644
 --- a/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/image/CCLinkerInvocation.java
-+++ b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/image/CCLinkerInvocation.java
-@@ -251,6 +251,10 @@ public abstract class CCLinkerInvocation implements LinkerInvocation {
+--- b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/image/CCLinkerInvocation.java
+@@ -246,6 +246,10 @@ public abstract class CCLinkerInvocation implements LinkerInvocation {
              super(imageKind, nativeLibs, symbols);
              additionalPreOptions.add("-z");
              additionalPreOptions.add("noexecstack");
@@ -178,7 +215,7 @@ index 8b539e55652..d4f1898bd34 100644
 diff --git a/substratevm/src/com.oracle.svm.native.jvm.posix/src/JvmFuncs.c b/substratevm/src/com.oracle.svm.native.jvm.posix/src/JvmFuncs.c
 index 2e6ced8dd59..ad62c918051 100644
 --- a/graal/substratevm/src/com.oracle.svm.native.jvm.posix/src/JvmFuncs.c
-+++ b/graal/substratevm/src/com.oracle.svm.native.jvm.posix/src/JvmFuncs.c
+--- b/graal/substratevm/src/com.oracle.svm.native.jvm.posix/src/JvmFuncs.c
 @@ -201,7 +201,7 @@ JNIEXPORT int JNICALL JVM_Listen(int fd, int count) {
      return listen(fd, count);
  }
@@ -189,23 +226,23 @@ index 2e6ced8dd59..ad62c918051 100644
  }
  
 diff --git a/sulong/mx.sulong/suite.py b/sulong/mx.sulong/suite.py
-index deaeb34b83d..5017e4c78fa 100644
+index 59f84f5ca05..fbb0aa6e36a 100644
 --- a/graal/sulong/mx.sulong/suite.py
-+++ b/graal/sulong/mx.sulong/suite.py
-@@ -845,6 +845,8 @@ suite = {
-         "LIBCXX_INCLUDE_TESTS": "NO",
-         "LIBCXX_ENABLE_STATIC" : "NO",
-         "LIBCXX_ENABLE_EXPERIMENTAL_LIBRARY" : "NO",
-+        # '{{musl}}' is replaced with YES or NO in the CMakeProject.
-+        "LIBCXX_HAS_MUSL_LIBC" : "{{musl}}",
-         "CMAKE_C_COMPILER" : "<path:SULONG_BOOTSTRAP_TOOLCHAIN_NO_HOME>/bin/clang",
-         "CMAKE_CXX_COMPILER" : "<path:SULONG_BOOTSTRAP_TOOLCHAIN_NO_HOME>/bin/clang++",
-         "CMAKE_INSTALL_PREFIX" : "native",
+--- b/graal/sulong/mx.sulong/suite.py
+@@ -907,6 +907,8 @@ suite = {
+               "LIBCXX_INCLUDE_TESTS": "NO",
+               "LIBCXX_ENABLE_STATIC" : "NO",
+               "LIBCXX_ENABLE_EXPERIMENTAL_LIBRARY" : "NO",
++              # '{{musl}}' is replaced with YES or NO in the CMakeProject.
++              "LIBCXX_HAS_MUSL_LIBC" : "{{musl}}",
+               "CMAKE_C_COMPILER" : "<path:SULONG_BOOTSTRAP_TOOLCHAIN_NO_HOME>/bin/<cmd:clang>",
+               "CMAKE_CXX_COMPILER" : "<path:SULONG_BOOTSTRAP_TOOLCHAIN_NO_HOME>/bin/<cmd:clang++>",
+               "CMAKE_INSTALL_PREFIX" : "native",
 diff --git a/truffle/mx.truffle/suite.py b/truffle/mx.truffle/suite.py
-index 68f901df782..9413c4b3d51 100644
+index 9b2f01e8530..6d806760543 100644
 --- a/graal/truffle/mx.truffle/suite.py
-+++ b/graal/truffle/mx.truffle/suite.py
-@@ -783,6 +783,12 @@ suite = {
+--- b/graal/truffle/mx.truffle/suite.py
+@@ -828,6 +828,12 @@ suite = {
              "ldlibs" : ["-ldl"],
            },
          },
@@ -221,7 +258,7 @@ index 68f901df782..9413c4b3d51 100644
 diff --git a/vm/src/org.graalvm.component.installer.test/src/org/graalvm/component/installer/remote/RemoteStorageTest.java b/vm/src/org.graalvm.component.installer.test/src/org/graalvm/component/installer/remote/RemoteStorageTest.java
 index a2bfec30b93..be38510d431 100644
 --- a/graal/vm/src/org.graalvm.component.installer.test/src/org/graalvm/component/installer/remote/RemoteStorageTest.java
-+++ b/graal/vm/src/org.graalvm.component.installer.test/src/org/graalvm/component/installer/remote/RemoteStorageTest.java
+--- b/graal/vm/src/org.graalvm.component.installer.test/src/org/graalvm/component/installer/remote/RemoteStorageTest.java
 @@ -268,8 +268,8 @@ public class RemoteStorageTest extends TestBase {
  
      }
@@ -271,7 +308,7 @@ index a2bfec30b93..be38510d431 100644
 diff --git a/vm/src/org.graalvm.component.installer.test/src/org/graalvm/component/installer/remote/catalogWithDifferentOsArch.properties b/vm/src/org.graalvm.component.installer.test/src/org/graalvm/component/installer/remote/catalogWithDifferentOsArch.properties
 index 9388c6159c7..26c95924064 100644
 --- a/graal/vm/src/org.graalvm.component.installer.test/src/org/graalvm/component/installer/remote/catalogWithDifferentOsArch.properties
-+++ b/graal/vm/src/org.graalvm.component.installer.test/src/org/graalvm/component/installer/remote/catalogWithDifferentOsArch.properties
+--- b/graal/vm/src/org.graalvm.component.installer.test/src/org/graalvm/component/installer/remote/catalogWithDifferentOsArch.properties
 @@ -1,4 +1,5 @@
  org.graalvm.0.33-dev_linux_amd64: GraalVM 0.33-dev linux amd64
 +org.graalvm.0.33-dev_linux_musl_amd64: GraalVM 0.33-dev linux_musl amd64
@@ -325,7 +362,7 @@ index 9388c6159c7..26c95924064 100644
 diff --git a/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/Bundle.properties b/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/Bundle.properties
 index 2b88fedea24..79d99a97f96 100644
 --- a/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/Bundle.properties
-+++ b/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/Bundle.properties
+--- b/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/Bundle.properties
 @@ -90,6 +90,7 @@ REGISTRY_ReadingComponentMetadata=Error reading metadata of component {0}: {1}
  INSTALL_Capability_graalvm_version=GraalVM Version
  INSTALL_Capability_os_arch=Architecture
@@ -337,7 +374,7 @@ index 2b88fedea24..79d99a97f96 100644
 diff --git a/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/CommonConstants.java b/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/CommonConstants.java
 index d8d8450f877..89624217ae2 100644
 --- a/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/CommonConstants.java
-+++ b/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/CommonConstants.java
+--- b/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/CommonConstants.java
 @@ -36,6 +36,7 @@ public class CommonConstants {
      public static final String CAP_GRAALVM_VERSION = "graalvm_version";
      public static final String CAP_OS_ARCH = "os_arch";
@@ -349,7 +386,7 @@ index d8d8450f877..89624217ae2 100644
 diff --git a/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/GenerateCatalog.java b/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/GenerateCatalog.java
 index 3fa87a601ea..d1bdefadad4 100644
 --- a/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/GenerateCatalog.java
-+++ b/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/GenerateCatalog.java
+--- b/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/GenerateCatalog.java
 @@ -67,12 +67,13 @@ public final class GenerateCatalog {
      private String graalVersionName;
      private String forceVersion;
@@ -469,7 +506,7 @@ index 3fa87a601ea..d1bdefadad4 100644
 diff --git a/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/SystemUtils.java b/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/SystemUtils.java
 index 5e17e643523..a1252225f92 100644
 --- a/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/SystemUtils.java
-+++ b/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/SystemUtils.java
+--- b/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/SystemUtils.java
 @@ -715,17 +715,21 @@ public class SystemUtils {
          }
      }
@@ -498,7 +535,7 @@ index 5e17e643523..a1252225f92 100644
 diff --git a/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/ce/WebCatalog.java b/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/ce/WebCatalog.java
 index 4700b8bb5da..d395e2a0210 100644
 --- a/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/ce/WebCatalog.java
-+++ b/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/ce/WebCatalog.java
+--- b/graal/vm/src/org.graalvm.component.installer/src/org/graalvm/component/installer/ce/WebCatalog.java
 @@ -161,7 +161,11 @@ public class WebCatalog implements SoftwareChannel {
          Map<String, String> graalCaps = local.getGraalCapabilities();
  
@@ -513,5 +550,5 @@ index 4700b8bb5da..d395e2a0210 100644
          sb.append(SystemUtils.patternOsArch(graalCaps.get(CommonConstants.CAP_OS_ARCH).toLowerCase()));
  
 -- 
-2.34.4
+2.38.1
 
