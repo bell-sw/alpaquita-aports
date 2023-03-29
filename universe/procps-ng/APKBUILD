@@ -38,14 +38,9 @@ build() {
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
-		--prefix=/ \
-		--bindir=/bin \
-		--sbindir=/sbin \
-		--libdir=/lib \
-		--mandir=/usr/share/man \
+		--prefix=/usr \
 		--sysconfdir=/etc \
 		--docdir=/usr/share/doc/procps \
-		--datarootdir=/usr/share \
 		--disable-static \
 		--disable-w-from \
 		--disable-kill \
@@ -67,23 +62,13 @@ package() {
 		install
 
 	# These binaries are identical.
-	ln -sf pgrep "$pkgdir"/bin/pkill
-
-	# Override BusyBox symlinks
-	mkdir -p "$pkgdir"/usr/bin
-	for i in free pgrep pkill pmap pwdx top uptime; do
-		mv "$pkgdir"/bin/$i "$pkgdir"/usr/bin/$i
-	done
-
-	install -d "$pkgdir"/usr/lib
-	mv "$pkgdir"/include "$pkgdir"/usr/ \
-		&& mv "$pkgdir"/lib/pkgconfig "$pkgdir"/usr/lib/
+	ln -sf pgrep "$pkgdir"/usr/bin/pkill
 }
 
 libproc2() {
 	pkgdesc="Library for monitoring system and processes"
 
-	amove lib
+	amove usr/lib
 }
 
 sha512sums="
