@@ -1,0 +1,58 @@
+Use LTR as a default direction, otherwise test__groupScriptsByTagAndDirection
+fails as follows:
+
+  =================================== FAILURES ===================================
+  ______ KernFeatureWriterTest.test__groupScriptsByTagAndDirection[ufoLib2] ______
+  
+  self = <tests.featureWriters.kernFeatureWriter_test.KernFeatureWriterTest object at 0x7faf452b2990>
+  FontClass = <function FontClass.<locals>.ctor at 0x7faf45118360>
+  
+      def test__groupScriptsByTagAndDirection(self, FontClass):
+          font = FontClass()
+          font.features.text = dedent(
+              """
+              languagesystem DFLT dflt;
+              languagesystem latn dflt;
+              languagesystem latn TRK;
+              languagesystem arab dflt;
+              languagesystem arab URD;
+              languagesystem deva dflt;
+              languagesystem dev2 dflt;
+              languagesystem math dflt;
+              """
+          )
+  
+          feaFile = parseLayoutFeatures(font)
+          scripts = ast.getScriptLanguageSystems(feaFile)
+  >       scriptGroups = KernFeatureWriter._groupScriptsByTagAndDirection(scripts)
+  
+  tests/featureWriters/kernFeatureWriter_test.py:508:
+  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+  build/lib/ufo2ft/featureWriters/kernFeatureWriter.py:260: in _groupScriptsByTagAndDirection
+      direction = unicodedata.script_horizontal_direction(scriptCode)
+  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+  
+  script_code = 'Zmth', default = <class 'KeyError'>
+  
+      def script_horizontal_direction(script_code, default=KeyError):
+          """Return "RTL" for scripts that contain right-to-left characters
+          according to the Bidi_Class property. Otherwise return "LTR".
+          """
+          if script_code not in Scripts.NAMES:
+              if isinstance(default, type) and issubclass(default, KeyError):
+  >               raise default(script_code)
+  E               KeyError: 'Zmth'
+  
+  /usr/lib/python3.11/site-packages/fontTools/unicodedata/__init__.py:204: KeyError
+
+--- a/Lib/ufo2ft/featureWriters/kernFeatureWriter.py	2023-03-29 09:10:34.217000000 +0000
++++ b/Lib/ufo2ft/featureWriters/kernFeatureWriter.py	2023-03-29 09:11:04.065000000 +0000
+@@ -257,7 +257,7 @@ class KernFeatureWriter(BaseFeatureWrite
+         scriptGroups = {}
+         for scriptCode, scriptLangSys in feaScripts.items():
+             if scriptCode:
+-                direction = unicodedata.script_horizontal_direction(scriptCode)
++                direction = unicodedata.script_horizontal_direction(scriptCode, "LTR")
+             else:
+                 direction = "LTR"
+             if scriptCode in DIST_ENABLED_SCRIPTS:
