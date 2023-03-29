@@ -3,7 +3,7 @@
 
 pkgname=binutils
 pkgver=2.40
-pkgrel=3
+pkgrel=4
 pkgdesc="GNU tools for programs building"
 url="https://www.gnu.org/software/binutils/"
 makedepends_build="bison flex texinfo linux-headers"
@@ -57,9 +57,8 @@ build() {
 		local no_textrels=""
 		;;
 	*)
-		# set -z text by default
-		# this is the default for linkers such as ld.lld too
-		local no_textrels="--enable-textrel-check=error"
+		# don't fail if DT_TEXTREL is found in shared object, warn only
+		local no_textrels="--enable-textrel-check=warn"
 		;;
 	esac
 
