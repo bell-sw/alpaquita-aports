@@ -1,0 +1,18 @@
+This is needed because of llvm commit a602f76a2406cc3edd6b297ede3583b26513a34c
+("[clang][TargetInfo] Use LangAS for getPointer{Width,Align}()"):
+https://github.com/llvm/llvm-project/commit/a602f76a2406cc3edd6b297ede3583b26513a34c
+
+--- a/clang-plugin/annobin.cpp
++++ b/clang-plugin/annobin.cpp
+@@ -111,7 +111,11 @@
+     {
+       static char buf [6400];  // FIXME: Use a dynmically allocated buffer.
+ 
++#if CLANG_VERSION_MAJOR > 15
++      is_32bit = Context.getTargetInfo().getPointerWidth(LangAS::Default) == 32;
++#else
+       is_32bit = Context.getTargetInfo().getPointerWidth(0) == 32;
++#endif
+ 
+       SourceManager & src = Context.getSourceManager ();
+       std::string filename = src.getFilename (src.getLocForStartOfFile (src.getMainFileID ())).str ().c_str ();
