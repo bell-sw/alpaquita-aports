@@ -5,11 +5,12 @@ _java_pkgname=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
 _pkgname="${_java_pkgname}-nik"
 _nikmajor=22
 _javamajor=17
-_javaver=17.0.4
+_javaver=17.0.6
+_mxver=6.9.10
 
 pkgname=$_pkgname-$_nikmajor-$_javamajor
-pkgver=22.2.0
-pkgrel=2
+pkgver=22.3.1
+pkgrel=0
 pkgdesc="$VENDOR_JAVA_NAME Native Image Kit $pkgver (Java $_javamajor)"
 url="$VENDOR_URL"
 arch="x86_64"
@@ -23,7 +24,6 @@ makedepends="
 	cmake
 	linux-headers
 	zlib-static
-	python2
 	python3
 	gfortran
 	readline-dev
@@ -59,12 +59,12 @@ subpackages="
 provides="openjdk-nik-22-17=$pkgver-r$pkgrel"
 
 source="
-	${VENDOR_URL/\/\//\/\/download.}graalvm/graal-22.2.0.tar.gz
-	${VENDOR_URL/\/\//\/\/download.}graalvm/graaljs-22.2.0.tar.gz
-	${VENDOR_URL/\/\//\/\/download.}graalvm/graalpython-22.2.0.tar.gz
-	${VENDOR_URL/\/\//\/\/download.}graalvm/truffleruby-22.2.0.tar.gz
-	${VENDOR_URL/\/\//\/\/download.}graalvm/fastr-22.2.0.tar.gz
-	${VENDOR_URL/\/\//\/\/download.}graalvm/mx-6.0.1.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}graalvm/graal-$pkgver.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}graalvm/graaljs-$pkgver.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}graalvm/graalpython-$pkgver.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}graalvm/truffleruby-$pkgver.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}graalvm/fastr-$pkgver.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}graalvm/mx-$_mxver.tar.gz
 	0001-graal-musl-libc-support.patch
 	0002-graal-enable-jvmci.patch
 	0003-graal-disable-watchdog.patch
@@ -228,24 +228,24 @@ _ruby() {
 }
 
 sha512sums="
-3d3a4d97ffccc303268c2571ceb4b06f2ae26262e258d2402e67f294a1592b991e312a45e21d32105ca2b4a7e9f2c4c651405a83391a9779503d21c247dd3cb4  graal-22.2.0.tar.gz
-b0ce24e7f5f04e66b55f2a8ddcf0d996e5409d7bd55ff81f9bf0949e7dd350fd04c4703f9730e895a7e180594976627422499f079137c695c78b56cdd7d3f208  graaljs-22.2.0.tar.gz
-f8971509ea30e50a411ac87cb0b6782c53faf243c05ea2e1f7002edda44059168269ec8af81834e074a7c0842d895a6708630fc52303ff3247911f8bda0fb86d  graalpython-22.2.0.tar.gz
-1a1fbde8572f504bf851457ebb3b2eb41bdbe6740299b4115978191872ed97a7ef85ea36737c27bf1ec34f9dd06861cc222d0b924a403a2e1bc061d1661605fb  truffleruby-22.2.0.tar.gz
-5ef40f512aec486164a666ef911eb17ac725dd3600c55436f33392e281878ee330fe8a6596d2dc00f900a34680e6f9af63b1539a2736bde3c4aecdcbf6ffbc5f  fastr-22.2.0.tar.gz
-aa75eb66f1b1a6e18f4b6c01a85c797cc5ab4a61798bc20a016986bbb02a26da640775db529dbdeae0c02af7cd3a3bd0c263fde373323be43ec46f54fcdd28b7  mx-6.0.1.tar.gz
-22a22180bba3ffd0cd46f76b199b55b3400beb5cbee81e1bdce8891a0bf8cd3bf946d8f730346c6246084cec63eecafedb5920b8c2b8e18db93398125b4a205f  0001-graal-musl-libc-support.patch
+93d857723598b145e9faf426614a6b4b8f93f31e7d61a646be0ec8f5a43fd8a8960d2583637f5b1926473df476a11b42796e96f675cc0acd1305cb2079b4c01a  graal-22.3.1.tar.gz
+b67722751d0585a44f81746fb78fcd7f3b527d3e2a573dfb99b2d77ece85f198f6184f4737b934f5eefa44f464ed08becc9a5bf51f005ecb8bc6cc862ee3a81e  graaljs-22.3.1.tar.gz
+6bd2589ee189df059c91dc05baa2ce20103fd1b20bb293c358c03b564c8b96261797ed529eeec60267f08ba0addb236fba9984b958d455e70a3aee053ca25817  graalpython-22.3.1.tar.gz
+a9293f18b0069ee92a31170694f1f7f7c50dec7cd794d004a5f533d7641fc83ff3f4c4ff847f63539e6a675b600b99cd66ad16472fc8ff380f8bdbda3a78f2e9  truffleruby-22.3.1.tar.gz
+24c861ffa9ee6a773da6a7046357b03de647f6053f5a00a4e2637da3b3fcc2a26913350cb2a52b965696f6ad369f054714d10f1e19235a57b25a116f3778b399  fastr-22.3.1.tar.gz
+12fa8a59b26f4cdb14af77991261feab3dd0013bc0777609c6d03fee6107594127d2aa98b5abaa9c16c5b7cc905970c272b89778f5669c41234cdb40c8503793  mx-6.9.10.tar.gz
+7b7b77d1c987d5e08331e80ef18cb10baea744dd520f02ebd5058f8c2b2c455d2c65984d2ef2cc477164e6c638d9a18026dacbdb0bf2dc31cf500714b1a331f4  0001-graal-musl-libc-support.patch
 254d6bc15b6058017b0e1ae03b74501263b2b378f9c8b3664c661ac9218de410dc837e2e23c050d18b3ff988aaa35757721fbff034331616db608416853078bd  0002-graal-enable-jvmci.patch
 f48fe9eb922cdbd76a2ab429c684104db8f330899fc1eb802d4e8260e77221b910f8f6fc3177adcf286f1a8c1f3c1d13b17df947a693691bacb97c15515cc3ef  0003-graal-disable-watchdog.patch
-fc4acacdcaf993e8e452109fd137ab05db6eab1847b683a31c86d0d52cc6842f5bb99376bf5ceb13eab14531f1aacf98fae970fa767f31344b60ea6ffdebee5f  0004-graal-hotspot-speculation-log.patch
+85cc18ef007c5cefb131ff1d90819ae63b39eb929b5ced2e09c93ecaa613a238f3702eda43716b17453a5ce52ea3272e571bf01a3ee281c9a328f62010cac979  0004-graal-hotspot-speculation-log.patch
 d08f09e4f73aad4f2d1dcd7e8897a77f348063a20722c2a26a61ca0dcc8395f7c4a2f42cc7b33f296226686d892ff4eb6524835ab514c4ee9815b431464f90a8  0005-graal-use-patch-instead-of-git-apply.patch
 ac4979e81dac50dad0891a060602502dc546607fa938ddf41d7936a0991d7cbd40b7afd37d043fcba10d0676760046594cd3ebfed0e5236a48db921cc0bf57b3  0006-graal-rmain-disable-initialization-policy.patch
-072753730fc3d8a9a217d5a326fdd7e9dcaf4aeb88707cf41c7c4c14bde4b430b34af6f34395782e2909df7f11dc2c86e449b937ba9e1c370a82d6a31dbaffc0  0007-graal-update-llvm-toolchain.patch
+3091385920b690a9d45a55081d1aefb9b944daee7c079d2cddeca431aca3ed100d49f28405728dbb5235b653868e8276ecd3459c23551668eac83ab2e40f37d8  0007-graal-update-llvm-toolchain.patch
 7954925fb8d349369c0874913fc8e4ef77f3dddfcf52c80b8d5d66378783a67d13e8782f6837939b4951bafdf4c9f119092896c9658b4a4b2e12b19643bd97ac  0001-graaljs-gyp-fix-node-build-failure-with-long-build-directory.patch
 6d52c1b891958d9a89c0fd56a1fb83555228a6214b92a9a3b15592e059deb81ecdf0b2d91908d579552e7d6ca394bb2dbafd188c6b0b5210487feeb526b5a2cc  0002-graaljs-accept-python3.11.patch
 443899decf1b0932cc14d3275e503c361e4e419569365a339bfb32b34cf776d0448cb73381828320e8e1b5fa6fe26b04e8c3b125c59b29f436329ff06e30272d  0001-graalpython-add-ssizet-includes.patch
 a252ade8bcdb0224584ff75111f33900de7087b6b9fb3f08f61e30cf21f0141413e37a9d5a734c1f51958631a1c872e3be434e0e1ddd249b17d34269b181464f  0001-truffleruby-librt-fix.patch
-6447ed9e85ce60069a7fef3d41cdf93ad5141c6094a77812e5f23dc4cf61d7b3356349d74d083659dc3c3b48b2481c7d593b05d0a4ffd3f441334358685671b4  0002-truffleruby-allow-build-from-sources-out-of-the-vcs.patch
+486cd3d50a256baa5484dc95140ce7c78a72b354f3c7f0d78a8ecf9282f3478fb617d4b5434ef6fd8a6d84143ac263e93e0b10c07f6c22387800cd97e74c8d72  0002-truffleruby-allow-build-from-sources-out-of-the-vcs.patch
 1df4dad9d1aa9a42ac81744aba9f0bf37b79bdbc99451667672005b7bc149fe67ae74a5789132cbebfaf18ecef7626242d7b2562bfb5da8dcdcb8e23d1662c2d  0003-truffleruby-rubyvm-unsupported-methods.patch
 b2e9ace1fdae5e5de2a8a8c7c5a06d4a4763307f63aed3073599082027663334ac1bdb4379984c14d6c5afc3d89b30a87cf13c80e000e3338f8ec17c6feed0e5  0001-fastr-musl-c-library-compatibility.patch
 7b5280a7363809f213ef6c0b0ab6a6bc5894a233bf3cddf8c382d7af1437bfb9f375813ae717876d6d92cf95af344c5305bce70c20909f7f430c31dbec995b99  0002-fastr-build-suite-reduce-number-of-jobs.patch
