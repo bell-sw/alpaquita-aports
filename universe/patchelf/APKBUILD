@@ -1,0 +1,33 @@
+pkgname=patchelf
+pkgver=0.17.2
+pkgrel=0
+pkgdesc="Small utility to modify the dynamic linker and RPATH of ELF executables"
+url="https://nixos.org/patchelf.html"
+arch="all"
+license="GPL-3.0-or-later"
+subpackages="$pkgname-doc"
+source="$pkgname-$pkgver-2.tar.gz::https://github.com/NixOS/patchelf/releases/download/$pkgver/patchelf-$pkgver.tar.gz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+	make
+}
+
+check() {
+	case "$CARCH" in
+		ppc64le) ;;
+		x86) ;;
+		*) make -C tests -j1 check ;;
+	esac
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+3666eaccabab9470152d40fd89f7bb93f6ed4fb3132f7884f41c731ece9690cbee42634be1fefb699e7b244a5c29dc9a2e87039ecc669cefe8ddb989ee9ed2f1  patchelf-0.17.2-2.tar.gz
+"
