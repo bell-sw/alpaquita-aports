@@ -1,0 +1,40 @@
+pkgname=hunspell
+pkgver=1.7.2
+pkgrel=2
+pkgdesc="Spell checker and morphological analyzer library and program"
+url="https://hunspell.github.io/"
+arch="all"
+license="GPL-2.0-or-later OR LGPL-2.1-or-later OR MPL-1.1"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-lang lib$pkgname:libs"
+makedepends="gettext-dev ncurses-dev readline-dev"
+checkdepends="bash"
+source="https://github.com/hunspell/hunspell/releases/download/v$pkgver/hunspell-$pkgver.tar.gz"
+
+# secfixes:
+#   1.7.0-r1:
+#     - CVE-2019-16707
+
+build() {
+	CFLAGS="$CFLAGS -flto=auto" \
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--with-ui \
+		--with-readline \
+		--disable-static \
+		--without-included-gettext
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+49b3619bff12e111b6cc3f3d9463612b116f9b2a976896718e65f5bc4a83ece11100aaf56a4d18127ea39107446c495e12affe5ff3c9159ae8aba70e512f44ac  hunspell-1.7.2.tar.gz
+"
