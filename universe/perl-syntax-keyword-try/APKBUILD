@@ -1,0 +1,33 @@
+pkgname=perl-syntax-keyword-try
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=Syntax-Keyword-Try
+pkgver=0.28
+pkgrel=1
+pkgdesc="try/catch/finally syntax for perl"
+url="https://metacpan.org/release/Syntax-Keyword-Try/"
+arch="all"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-xs-parse-keyword"
+makedepends="perl-dev perl-module-build"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/P/PE/PEVANS/Syntax-Keyword-Try-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	perl Build.PL --installdirs=vendor
+	./Build
+}
+
+check() {
+	./Build test
+}
+
+package() {
+	./Build install --destdir="$pkgdir"
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+c297480200cc22d0b0e3adc542ef94f82e120f4ab25612f184880f934825297ccbb2c9a4c453393b8f4ea93621b0dbb84ff17db42ee2333709158b007cfe674f  Syntax-Keyword-Try-0.28.tar.gz
+"
