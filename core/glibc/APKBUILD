@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.34.3
-pkgrel=0
+pkgrel=1
 _glibcver=2.34
 _patch_ver="glibc-2.34-390-g16c6a89c17"
 pkgdesc="GNU C Library"
@@ -110,13 +110,16 @@ locales() {
 
 	amove usr/share/locale
 	amove usr/share/i18n
-	
+
 	mkdir "$subpkgdir"/usr/sbin
 	install -m755 "$srcdir"/locale-gen "$subpkgdir"/usr/sbin/
 	install -m644 "$srcdir"/locale.gen.in "$subpkgdir"/etc/locale.gen
 
-	sed -e '1,3d' -e 's|/| |g' -e 's|\\| |g' -e 's|^|#|g' \
+	sed -e '1,3d' -e 's|/| |g' -e 's|\\| |g' -e 's|^|# |g' \
 		"$builddir"/localedata/SUPPORTED >> "$subpkgdir"/etc/locale.gen
+
+	grep -Ev "^(#|SUPPORTED-LOCALES)" "$builddir"/localedata/SUPPORTED | \
+		tr -d '\' | tr '/' ' ' > "$subpkgdir"/usr/share/i18n/SUPPORTED
 }
 
 nscd() {
