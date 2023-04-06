@@ -1,0 +1,34 @@
+From 246179851cc445c7f205279d82608f7e86da04cc Mon Sep 17 00:00:00 2001
+From: Christian Hesse <mail@eworm.de>
+Date: Mon, 19 Sep 2022 15:31:28 +0200
+Subject: [PATCH] templates: Filter C.UTF-8 locale for translation
+
+In addition to C locale there is also C.UTF-8 locale now. Filter that as
+well, by using ${grub_lang}, which contains a stripped value.
+This fixes the following message and resulting boot failure:
+
+    error: file `/boot/grub/locale/C.gmo' not found.
+
+Signed-off-by: Christian Hesse <mail@eworm.de>
+Reviewed-by: Daniel Kiper <daniel.kiper@oracle.com>
+(cherry picked from commit f42266a8a2a4215e4ffe419b8092bdf9ced33e8e)
+---
+ util/grub.d/00_header.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/util/grub.d/00_header.in b/util/grub.d/00_header.in
+index f74c2a4c6..6a316a5ba 100644
+--- a/util/grub.d/00_header.in
++++ b/util/grub.d/00_header.in
+@@ -191,7 +191,7 @@ EOF
+ EOF
+ 
+ # Gettext variables and module
+-if [ "x${LANG}" != "xC" ] && [ "x${LANG}" != "xPOSIX" ] && [ "x${LANG}" != "x" ]; then
++if [ "x${grub_lang}" != "xC" ] && [ "x${LANG}" != "xPOSIX" ] && [ "x${LANG}" != "x" ]; then
+   cat << EOF
+   set locale_dir=\$prefix/locale
+   set lang=${grub_lang}
+-- 
+2.25.1
+
