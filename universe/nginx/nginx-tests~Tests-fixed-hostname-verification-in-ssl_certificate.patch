@@ -1,0 +1,33 @@
+From aedae20271d68a9341aff9f925499c367064fcd9 Mon Sep 17 00:00:00 2001
+From: Sergey Kandaurov <pluknet@nginx.com>
+Date: Thu, 15 Dec 2022 21:02:18 +0400
+Subject: [PATCH] Tests: fixed hostname verification in
+ ssl_certificate_chain.t.
+
+ssl_certificate_chain.t doesn't supply the hostname expected in a tested
+certificate, which causes IO::Socket::SSL to fall back to an IP address
+given in PeerAddr.  As of IO::Socket::SSL 2.078, verification enabled by
+default for such hostnames [1] results in "hostname verification failed"
+errors.
+To keep tests simple, the IP address is now included in subjectAltName.
+
+[1] https://github.com/noxxi/p5-io-socket-ssl/issues/121
+---
+ ssl_certificate_chain.t | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/ssl_certificate_chain.t b/ssl_certificate_chain.t
+index d2ab0c2..ef08784 100644
+--- a/ssl_certificate_chain.t
++++ b/ssl_certificate_chain.t
+@@ -97,6 +97,7 @@ commonName = supplied
+ 
+ [ myca_extensions ]
+ basicConstraints = critical,CA:TRUE
++subjectAltName = IP:127.0.0.1
+ EOF
+ 
+ foreach my $name ('root') {
+-- 
+2.39.2
+
