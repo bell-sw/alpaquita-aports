@@ -2,7 +2,7 @@
 
 pkgname=groff
 pkgver=1.22.4
-pkgrel=2
+pkgrel=3
 pkgdesc="GNU troff text-formatting system"
 url="https://www.gnu.org/software/groff/groff.html"
 arch="all"
@@ -13,6 +13,8 @@ subpackages="$pkgname-doc"
 source="https://ftp.gnu.org/gnu/groff/groff-$pkgver.tar.gz
 	site.tmac
 	"
+# 1.22.4 fails with diffutils 3.9
+options="!check"
 
 build() {
 	./configure \
@@ -21,8 +23,7 @@ build() {
 		--prefix=/usr \
 		--without-x \
 		--disable-rpath
-	# work around parallel build issue
-	make arch/misc && make
+	make
 }
 
 check() {
