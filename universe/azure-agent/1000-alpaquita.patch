@@ -1,0 +1,142 @@
+diff --git a/azurelinuxagent/common/osutil/alpine.py b/azurelinuxagent/common/osutil/alpine.py
+index a9c73c96..e6b8c57b 100644
+--- a/azurelinuxagent/common/osutil/alpine.py
++++ b/azurelinuxagent/common/osutil/alpine.py
+@@ -34,11 +34,15 @@ class AlpineOSUtil(DefaultOSUtil):
+     def get_dhcp_pid(self):
+         return self._get_dhcp_pid(["pidof", "dhcpcd"])
+ 
++    # TODO: XXX: this is bogus.  We really should ask dhcpcd
++    # --printpidfile and get the pif from there.  NB: the dhcpcd
++    # package uses /run instead of /run/dhcpcd so a master process, if
++    # used, will end up with "/run/pid" for its pidfile.
+     def restart_if(self, ifname, retries=None, wait=None):
+         logger.info('restarting {} (sort of, actually SIGHUPing dhcpcd)'.format(ifname))
+         pid = self.get_dhcp_pid()
+         if pid != None:
+-            ret = shellutil.run_get_output('kill -HUP {}'.format(pid))  # pylint: disable=W0612
++            ret = shellutil.run_get_output('kill -HUP {}'.format(pid[0]))  # pylint: disable=W0612
+ 
+     def set_ssh_client_alive_interval(self):
+         # Alpine will handle this.
+diff --git a/azurelinuxagent/common/osutil/factory.py b/azurelinuxagent/common/osutil/factory.py
+index 83123e3f..1e253f71 100644
+--- a/azurelinuxagent/common/osutil/factory.py
++++ b/azurelinuxagent/common/osutil/factory.py
+@@ -81,7 +81,7 @@ def _get_osutil(distro_name, distro_code_name, distro_version, distro_full_name)
+ 
+         return UbuntuOSUtil()
+ 
+-    if distro_name == "alpine":
++    if distro_name in ("alpine", "alpaquita"):
+         return AlpineOSUtil()
+ 
+     if distro_name == "kali":
+diff --git a/azurelinuxagent/common/version.py b/azurelinuxagent/common/version.py
+index a77f35e2..2250c558 100644
+--- a/azurelinuxagent/common/version.py
++++ b/azurelinuxagent/common/version.py
+@@ -151,6 +151,9 @@ def get_distro():
+     if os.path.exists("/etc/photon-release"):
+         osinfo[0] = "photonos"
+ 
++    if os.path.exists('/etc/alpaquita-release'):
++        osinfo[0] = 'alpaquita'
++
+     # Remove trailing whitespace and quote in distro name
+     osinfo[0] = osinfo[0].strip('"').strip(' ').lower()
+     return osinfo
+diff --git a/config/alpine/waagent.conf b/config/alpine/waagent.conf
+index d813ee5c..a78edd9d 100644
+--- a/config/alpine/waagent.conf
++++ b/config/alpine/waagent.conf
+@@ -1,5 +1,5 @@
+ #
+-# Windows Azure Linux Agent Configuration
++# Microsoft Azure Linux Agent Configuration
+ #
+ 
+ # Enable extension handling. Do not disable this unless you do not need password reset,
+@@ -14,11 +14,11 @@ Provisioning.Agent=auto
+ Provisioning.DeleteRootPassword=y
+ 
+ # Generate fresh host key pair.
+-Provisioning.RegenerateSshHostKeyPair=y
++Provisioning.RegenerateSshHostKeyPair=n
+ 
+ # Supported values are "rsa", "dsa", "ecdsa", "ed25519", and "auto".
+ # The "auto" option is supported on OpenSSH 5.9 (2011) and later.
+-Provisioning.SshHostKeyPairType=rsa
++Provisioning.SshHostKeyPairType=auto
+ 
+ # Monitor host name changes and publish changes via DHCP requests.
+ Provisioning.MonitorHostName=n
+@@ -48,7 +48,7 @@ ResourceDisk.SwapSizeMB=0
+ # Comma-separated list of mount options. See mount(8) for valid options.
+ ResourceDisk.MountOptions=None
+ 
+-# Respond to load balancer probes if requested by Windows Azure.
++# Respond to load balancer probes if requested by Microsoft Azure.
+ LBProbeResponder=y
+ 
+ # Enable logging to serial console (y|n)
+@@ -57,7 +57,7 @@ LBProbeResponder=y
+ Logs.Console=y
+ 
+ # Enable verbose logging (y|n)
+-Logs.Verbose=n
++Logs.Verbose=y
+ 
+ # Preferred network interface to communicate with Azure platform
+ Network.Interface=eth0
+@@ -91,4 +91,3 @@ OS.SshDir=/etc/ssh
+ 
+ # Add firewall rules to protect access to Azure host node services
+ OS.EnableFirewall=y
+-
+diff --git a/init/openrc/waagent b/init/openrc/waagent
+new file mode 100755
+index 00000000..19afb96d
+--- /dev/null
++++ b/init/openrc/waagent
+@@ -0,0 +1,11 @@
++#!/usr/sbin/openrc-run
++
++name="Microsoft Azure Linux Agent"
++command="/usr/sbin/waagent"
++command_args="-verbose -start"
++pidfile="/var/run/waagent.pid"
++
++depend() {
++    after sshd
++    provide waagent
++}
+diff --git a/setup.py b/setup.py
+index 8f5d92b4..334f88ed 100755
+--- a/setup.py
++++ b/setup.py
+@@ -61,6 +61,10 @@ def set_sysv_files(data_files, dest="/etc/rc.d/init.d", src=None):
+         src = ["init/waagent"]
+     data_files.append((dest, src))
+ 
++def set_openrc_files(data_files, dest="/etc/init.d", src=None):
++    if src is None:
++        src = ["init/openrc/waagent"]
++    data_files.append((dest, src))
+ 
+ def set_systemd_files(data_files, dest, src=None):
+     if src is None:
+@@ -254,6 +258,13 @@ def get_data_files(name, version, fullname):  # pylint: disable=R0912
+         set_logrotate_files(data_files)
+         set_udev_files(data_files)
+         set_systemd_files(data_files, dest=systemd_dir_path)
++    elif name in ('alpine', 'alpaquita'): # XXX: uwe
++        set_bin_files(data_files, dest=agent_bin_path,
++                      src=['bin/waagent'])
++        set_conf_files(data_files, src=["config/alpine/waagent.conf"])
++        set_logrotate_files(data_files)
++        set_udev_files(data_files)
++        set_openrc_files(data_files)
+     else:
+         # Use default setting
+         set_bin_files(data_files, dest=agent_bin_path)

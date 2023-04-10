@@ -1,0 +1,48 @@
+pkgname=azure-agent
+pkgver=2.9.1.0
+pkgrel=0
+pkgdesc="The Microsoft Azure Linux Agent"
+url="https://github.com/Azure/WALinuxAgent"
+license="Apache-2.0"
+arch="noarch"
+
+depends="
+	bash
+	coreutils
+	dhcpcd
+	openssl
+	parted
+	py3-asn1
+	py3-distro
+	sfdisk
+	shadow
+	sudo
+	util-linux-misc
+"
+
+makedepends="py3-setuptools"
+
+source="WALinuxAgent-$pkgver.tar.gz::https://github.com/Azure/WALinuxAgent/archive/refs/tags/pre-v$pkgver.tar.gz
+	1000-alpaquita.patch
+"
+
+builddir="$srcdir/WALinuxAgent-pre-v$pkgver"
+
+subpackages="$pkgname-openrc"
+
+prepare() {
+	default_prepare
+}
+
+build() {
+	python3 setup.py build
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+f3f56037a8bf04d8a58fa37bfbcb189c825a20ecb23366df20c683f2aead47359565bd81a21146dfb7bfe40b0d4c1437ec6575686f4cdc80382485516326cade  WALinuxAgent-2.9.1.0.tar.gz
+611780cf6f81f1e33760595b157f7f959c92797d086928aaad964335fcfcbef4d22b0f942b8bb957d8ebfd056c1f8d4b3b6524f48b6ef88b5b3cd634ad06ec3a  1000-alpaquita.patch
+"
