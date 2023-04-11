@@ -5,8 +5,8 @@
 # bad worst-case behaviors present in existing implementations.
 
 pkgname=musl-perf
-pkgver=1.2.3
-pkgrel=16
+pkgver=1.2.3_git20230322
+pkgrel=0
 pkgdesc="the musl c library (libc) implementation (optimized for performance)"
 url="https://musl.libc.org/"
 arch="x86_64"
@@ -29,8 +29,8 @@ case "$BOOTSTRAP" in
 nocc)	pkgname="$pkgname-dev"; subpackages="";;
 nolibc) ;;
 esac
-commit="v$pkgver"
-source="musl-$commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$commit.tar.gz
+_commit="1d5750b95c06913a1f18a995481276d698d20fae"
+source="musl-$_commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$_commit.tar.gz
 	../musl-default/0001-fix-incorrect-parameter-name-in-internal-netlink.h-R.patch
 	../musl-default/0002-mntent-fix-parsing-lines-with-optional-fields.patch
 	../musl-default/0003-mntent-fix-potential-mishandling-of-extremely-long-l.patch
@@ -66,11 +66,6 @@ source="musl-$commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$commi
 	0103-use-internal-ifunc-symbols-in-libc.patch
 	0104-increase-buffer-size-for-stdio-stream-functions.patch
 
-	relr-1.patch
-	relr-2.patch
-	relr-3.patch
-	relr-4.patch
-
 	__stack_chk_fail_local.c
 	"
 
@@ -83,6 +78,12 @@ source="musl-$commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$commi
 #     - CVE-2016-8859
 
 builddir="$srcdir"/$commit
+
+prepare() {
+	default_prepare
+
+	echo "$pkgver" > VERSION
+}
 
 build() {
 	[ "$BOOTSTRAP" = "nocc" ] && return 0
@@ -177,7 +178,7 @@ libintl() {
 }
 
 sha512sums="
-9a1b8f9208d99582ac00e3c46c829aa1fad3b7f09aa7d6822f02f25542453d3d977c69519ad01430b8dd624ac9dc70f47d611e36aefd7fef31ea47a7679e3111  musl-v1.2.3.tar.gz
+2441741b36d058db7a9a4d40f91fbc5bdd233ff804fe16f11638fffe1be02d9588d84360b86236b9ca9a6f7ce1056fe34393ca5a5afef2e88d903f4713b38e23  musl-1d5750b95c06913a1f18a995481276d698d20fae.tar.gz
 58b92d981e1cdcfe85c611b8f287b436c870e98d241249154ca83752a3aa2da71c354bc057926bd8d56e19ee3203731844d3bddb11669d06ce315cd1382b8139  0001-fix-incorrect-parameter-name-in-internal-netlink.h-R.patch
 be02a130202932758ab29ebb6fc868b89e2e60ad630c8cdab423738b2fb88606043207014536397ec785811e5b9f746dead2145a91fa7c01a00a6c516202a269  0002-mntent-fix-parsing-lines-with-optional-fields.patch
 cf0388c5bb51fecd8d9a6bd10d5f245e98309aaf42c2c7c8cdb899213e7239adf76cecdcf5487f0d13964d026b72695395866b63ad39d033e29ba2869f716eb5  0003-mntent-fix-potential-mishandling-of-extremely-long-l.patch
@@ -211,9 +212,5 @@ b36b0f566a57974f8cf12c76fa6b2bbd2d62fb52dd412425e86d630f422b27b1f0bce5934f7219d5
 52f89fc89789b06eaaeaf2d6e47f296de8cb0742ccd1c0b41e280e0691ab5f056af23daebf497dfc3b183d05dacc670980f0eaac330e3d6033d05ee07f55b8e2  0103-use-internal-ifunc-symbols-in-libc.patch
 93709be81eb6d13e00e3408651ccd1aa53f28ada09f9a45356d03188afbae486381069321c67a341f18c44afabf7b98c0471da7594d3983fdff7cbe21b9a3265  0104-increase-buffer-size-for-stdio-stream-functions.patch
 96b5d2760edb32c0e8e6fe45fb8b3d5a881c04b23ca18b51715b04c836abd6e382836ec91326a73bcf68d15bd89505f5cf480596a52d1a4b15b31b15bdc21162  0105-dns-check-length-field-in-tcp-response-message.patch
-8ebcde1e07819de208ab89ed0a71fdcc67a5b1cecec5aa19a92bc9f4f3c2708a9ff1528370089de0b71e9ec3b2e08dfa49694db433ac190ba055aa112ae12bde  relr-1.patch
-38b40ebedf57ba05ba14807a55a26261eeca8b6226a90a7aaebaaa31bae0bb7f5b98e0ce3ed727b704b828c9e509a21745f3e089585f8dea7092be164ec9d908  relr-2.patch
-9dc41f682887ef9a7b00253f576d0b738936c20d9bc5a54fa96552a82a2f056f0111936ad9778b96745befd6a660276618b4e05bef3c7f52d8c2a9e6d41e386c  relr-3.patch
-ee6ec5943df10597af0df3d6f792720a22d2070debb6933656a10a906725d1170c28c32ba8ad53efc72e77bd1d97efdbd3c80e91eddb856f377e917ff14ae8f3  relr-4.patch
 062bb49fa54839010acd4af113e20f7263dde1c8a2ca359b5fb2661ef9ed9d84a0f7c3bc10c25dcfa10bb3c5a4874588dff636ac43d5dbb3d748d75400756d0b  __stack_chk_fail_local.c
 "
