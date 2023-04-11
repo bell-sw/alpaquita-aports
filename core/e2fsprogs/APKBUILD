@@ -32,7 +32,8 @@ source="$pkgname-$pkgver.tar.gz::https://github.com/tytso/e2fsprogs/archive/v$pk
 #     - CVE-2019-5094
 
 build() {
-	CFLAGS="$CFLAGS -flto=auto" \
+	# XXX: LARGEFILE64
+	CFLAGS="$CFLAGS -D_LARGEFILE64_SOURCE -flto=auto" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
