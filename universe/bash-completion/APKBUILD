@@ -1,6 +1,6 @@
 pkgname=bash-completion
 pkgver=2.11
-pkgrel=4
+pkgrel=5
 pkgdesc="Command-line tab-completion for bash"
 options="!check" # 7 Tests fail
 url="https://github.com/scop/bash-completion"
@@ -67,6 +67,15 @@ check() {
 
 package() {
 	make -j1 DESTDIR="$pkgdir" install
+
+	# /etc/profile sources profile.d, and this occurs only in login shells
+	# it should not then load completions or expect the bashrc to source the profile directory.
+	# so, we move the sourcing script to /etc/bash, and include it from the bashrc when present.
+	mkdir -p "$pkgdir"/etc/bash
+	mv "$pkgdir"/etc/profile.d/bash_completion.sh \
+		"$pkgdir"/etc/bash/
+	rmdir -p "$pkgdir"/etc/profile.d/ || true
+	
 
 	mkdir -p "$pkgdir"/usr/share/doc/$pkgname/
 	install -m644 AUTHORS CHANGES CONTRIBUTING.md README.md \
