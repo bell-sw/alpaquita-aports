@@ -4,8 +4,8 @@
 # bad worst-case behaviors present in existing implementations.
 
 pkgname=musl-default
-pkgver=1.2.3
-pkgrel=16
+pkgver=1.2.3_git20230322
+pkgrel=0
 pkgdesc="the musl c library (libc) implementation"
 url="https://musl.libc.org/"
 arch="all"
@@ -29,8 +29,8 @@ nocc)	pkgname="$pkgname-dev"; subpackages="";;
 nolibc) ;;
 *)	subpackages="$subpackages musl-utils";;
 esac
-commit="v$pkgver"
-source="musl-$commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$commit.tar.gz
+_commit="1d5750b95c06913a1f18a995481276d698d20fae"
+source="musl-$_commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$_commit.tar.gz
 	0001-fix-incorrect-parameter-name-in-internal-netlink.h-R.patch
 	0002-mntent-fix-parsing-lines-with-optional-fields.patch
 	0003-mntent-fix-potential-mishandling-of-extremely-long-l.patch
@@ -60,11 +60,6 @@ source="musl-$commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$commi
 	0027-dns-prefer-monotonic-clock-for-timeouts.patch
 	0105-dns-check-length-field-in-tcp-response-message.patch
 
-	relr-1.patch
-	relr-2.patch
-	relr-3.patch
-	relr-4.patch
-
 	../musl-perf/0100-ldso-dynlink-add-ifunc-support.patch
 	../musl-perf/0101-support-ifunc-in-static-linking.patch
 
@@ -84,6 +79,12 @@ source="musl-$commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$commi
 #     - CVE-2016-8859
 
 builddir="$srcdir"/$commit
+
+prepare() {
+	default_prepare
+
+	echo "$pkgver" > VERSION
+}
 
 build() {
 	[ "$BOOTSTRAP" = "nocc" ] && return 0
@@ -229,7 +230,7 @@ compat() {
 
 }
 sha512sums="
-9a1b8f9208d99582ac00e3c46c829aa1fad3b7f09aa7d6822f02f25542453d3d977c69519ad01430b8dd624ac9dc70f47d611e36aefd7fef31ea47a7679e3111  musl-v1.2.3.tar.gz
+2441741b36d058db7a9a4d40f91fbc5bdd233ff804fe16f11638fffe1be02d9588d84360b86236b9ca9a6f7ce1056fe34393ca5a5afef2e88d903f4713b38e23  musl-1d5750b95c06913a1f18a995481276d698d20fae.tar.gz
 58b92d981e1cdcfe85c611b8f287b436c870e98d241249154ca83752a3aa2da71c354bc057926bd8d56e19ee3203731844d3bddb11669d06ce315cd1382b8139  0001-fix-incorrect-parameter-name-in-internal-netlink.h-R.patch
 be02a130202932758ab29ebb6fc868b89e2e60ad630c8cdab423738b2fb88606043207014536397ec785811e5b9f746dead2145a91fa7c01a00a6c516202a269  0002-mntent-fix-parsing-lines-with-optional-fields.patch
 cf0388c5bb51fecd8d9a6bd10d5f245e98309aaf42c2c7c8cdb899213e7239adf76cecdcf5487f0d13964d026b72695395866b63ad39d033e29ba2869f716eb5  0003-mntent-fix-potential-mishandling-of-extremely-long-l.patch
@@ -257,10 +258,6 @@ e901190a678c38829e42eab8e1cc41c47d4146973ca679f7dee8257fac23ad738b25d203089a5b74
 7dfc43b8618d14da77988221bdbaf1dc0c6aabb1c16864bccd4b5629406e5ceedd2f4cdc458efee9b1cec98bffe9932a690706b57e867305ecf4ed3459fe0097  0025-fix-return-value-of-gethostby-name-2-addr-with-no-re.patch
 48ef3ee71975782b5198eb9dadfde1c5903b97c67a8f49e88879263d31a7e5f19720581a05a420537f0b4ef1d4f4b4543485365f1d59b4b616d5ba73bc8b6d37  0026-inet_pton-fix-uninitialized-memory-use-for-IPv4-mapp.patch
 b36b0f566a57974f8cf12c76fa6b2bbd2d62fb52dd412425e86d630f422b27b1f0bce5934f7219d5fe9f73ba5159d17dc128ff00126b45d5cbcf7075db139c49  0027-dns-prefer-monotonic-clock-for-timeouts.patch
-8ebcde1e07819de208ab89ed0a71fdcc67a5b1cecec5aa19a92bc9f4f3c2708a9ff1528370089de0b71e9ec3b2e08dfa49694db433ac190ba055aa112ae12bde  relr-1.patch
-38b40ebedf57ba05ba14807a55a26261eeca8b6226a90a7aaebaaa31bae0bb7f5b98e0ce3ed727b704b828c9e509a21745f3e089585f8dea7092be164ec9d908  relr-2.patch
-9dc41f682887ef9a7b00253f576d0b738936c20d9bc5a54fa96552a82a2f056f0111936ad9778b96745befd6a660276618b4e05bef3c7f52d8c2a9e6d41e386c  relr-3.patch
-ee6ec5943df10597af0df3d6f792720a22d2070debb6933656a10a906725d1170c28c32ba8ad53efc72e77bd1d97efdbd3c80e91eddb856f377e917ff14ae8f3  relr-4.patch
 26fa733450c3b9f0e84668c6ae48b218a34de233f9d8cd2cf239648b825c9e9fcad1e91b02802605628be2c971cc64e5c90e7fca5ccbea9f370672cf9c71b3b4  0100-ldso-dynlink-add-ifunc-support.patch
 476fd0214911edbc4e36114c6c2a32ccb3e85d776e2de0427bbfd7ac1aaf46e6b1c3e00bd83cd998380c7db83b2a67ac3e6d840867472131eae69a1ce99d5a86  0101-support-ifunc-in-static-linking.patch
 96b5d2760edb32c0e8e6fe45fb8b3d5a881c04b23ca18b51715b04c836abd6e382836ec91326a73bcf68d15bd89505f5cf480596a52d1a4b15b31b15bdc21162  0105-dns-check-length-field-in-tcp-response-message.patch
