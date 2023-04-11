@@ -3,7 +3,7 @@
 
 pkgname=e2fsprogs
 pkgver=1.47.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Ext2/3/4 filesystem management tools"
 url="https://e2fsprogs.sourceforge.net/"
 arch="all"
@@ -32,13 +32,13 @@ source="$pkgname-$pkgver.tar.gz::https://github.com/tytso/e2fsprogs/archive/v$pk
 #     - CVE-2019-5094
 
 build() {
+	CFLAGS="$CFLAGS -flto=auto" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
 		--prefix=/usr \
 		--mandir=/usr/share/man \
 		--enable-elf-shlibs \
-		--enable-lto \
 		--enable-symlink-install \
 		--disable-fsck \
 		--disable-uuidd \
