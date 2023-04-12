@@ -3,7 +3,7 @@
 
 pkgname=pcsc-lite
 pkgver=1.9.9
-pkgrel=2
+pkgrel=3
 pkgdesc="Smart card access middleware"
 url="https://pcsclite.apdu.fr/"
 arch="all"
@@ -21,6 +21,7 @@ makedepends="
 	"
 install="$pkgname.pre-install $pkgname.pre-upgrade"
 subpackages="
+	$pkgname-static
 	$pkgname-dev
 	$pkgname-doc
 	$pkgname-spy-libs:spylibs
@@ -50,7 +51,8 @@ build() {
 		--enable-usbdropdir=/usr/lib/pcsc/drivers \
 		--disable-libsystemd \
 		--disable-polkit \
-		--disable-strict
+		--disable-strict \
+		--enable-static
 	make
 }
 
