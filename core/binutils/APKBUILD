@@ -50,18 +50,6 @@ build() {
 	local _gold_configure="--disable-gold"
 	local _plugin_configure="--enable-plugins"
 
-	case "$CARCH" in
-	riscv64)
-		# binutils creates empty textrels here
-		# https://sourceware.org/bugzilla/show_bug.cgi?id=25694
-		local no_textrels=""
-		;;
-	*)
-		# don't fail if DT_TEXTREL is found in shared object, warn only
-		local no_textrels="--enable-textrel-check=warn"
-		;;
-	esac
-
 	if [ "$CHOST" != "$CTARGET" ]; then
 		_sysroot="$CBUILDROOT"
 		_cross_configure="--disable-install-libiberty"
@@ -97,7 +85,6 @@ build() {
 		$_cross_configure \
 		$_arch_configure \
 		--enable-default-hash-style=gnu \
-		$no_textrels \
 		--with-pic \
 		--disable-werror \
 		--disable-nls \
