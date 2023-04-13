@@ -1,0 +1,25 @@
+--- a/fetch.xml
++++ b/fetch.xml
+@@ -97,7 +97,21 @@
+   </target>
+ 
+ 
+-  <target name="macros" depends="pick-dest,get-m2"
++  <property environment="env"/>
++
++  <condition property="isset.proxy">
++    <and>
++      <isset property="env.PROXY_HOST"/>
++      <isset property="env.PROXY_PORT"/>
++    </and>
++  </condition>
++
++  <target name="use-proxy" if="isset.proxy"
++          xmlns:resolver="antlib:org.apache.maven.resolver.ant">
++    <resolver:proxy host="${env.PROXY_HOST}" port="${env.PROXY_PORT}" type="https"/>
++  </target>
++
++  <target name="macros" depends="pick-dest,get-m2,use-proxy"
+           xmlns:resolver="antlib:org.apache.maven.resolver.ant">
+     <fail>
+       Cannot execute multiple targets due to the bug in Maven Ant tasks

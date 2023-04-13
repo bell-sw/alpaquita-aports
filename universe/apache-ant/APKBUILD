@@ -1,6 +1,6 @@
 pkgname=apache-ant
 pkgver=1.10.13
-pkgrel=1
+pkgrel=2
 pkgdesc="A java-based build tool"
 url="https://ant.apache.org/"
 # riscv64 blocked by java-jdk
@@ -10,6 +10,7 @@ makedepends="openjdk8"
 depends="java-jdk-no-deps"
 source="https://www.apache.org/dist/ant/source/apache-ant-$pkgver-src.tar.bz2
 	$pkgname-fetch-netrexx.patch::https://github.com/apache/ant/commit/541a1d2448af3e95134f79a970a608403deab00a.patch
+	0100-add-resolver-proxy-support.patch
 	"
 # !check: needs itself for testing
 # net: fetch dependencies
@@ -26,7 +27,23 @@ _anthome="/usr/share/java/$pkgname"
 #   1.10.8-r0:
 #     - CVE-2020-1945
 
+_setup_https_proxy()
+{
+	IFS=: read PROXY_HOST PROXY_PORT \
+		< <(echo "$HTTPS_PROXY" | awk -F'(://|@)' '{ print $NF }')
+
+	if [ -n "$PROXY_HOST}" ]; then
+		: ${PROXY_PORT:=443}
+		# settings for the java builtin HTTPS client
+		export JAVA_TOOL_OPTIONS="-Dhttps.proxyHost=$PROXY_HOST -Dhttps.proxyPort=$PROXY_PORT"
+		# settings for the HTTPS client used by maven-resolver-ant-tasks
+		export PROXY_HOST PROXY_PORT
+	fi
+}
+
 build() {
+	_setup_https_proxy
+
 	export JAVA_HOME="/usr/lib/jvm/java-8-$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])"
 	./bootstrap.sh
 	bootstrap/bin/ant -f fetch.xml -Ddest=optional
@@ -71,4 +88,5 @@ package() {
 sha512sums="
 0fc82578b24fc2ef286e5814e8e7579d4c9ccac80c8f093b33672fecb40e99b152cfab2ae7c967d9bab881a04f4536971042f06be2d8778bb19bb245854c439f  apache-ant-1.10.13-src.tar.bz2
 945b7bb7fa294543711a09d0f5fec1f89913502a691a1a9cdd6c0d227e8ea924de92887466792501fee52869c1101b824ca4c7869df8879cd466155e7a53ffc8  apache-ant-fetch-netrexx.patch
+76eb14db3921f6c7aff6d93e20bb4f284da0842466615fbeeacc3489465c1166c06b0c5fc7c46e1558c3ebcfb479a3b89b84fac711718facaddab7d5f52890be  0100-add-resolver-proxy-support.patch
 "
