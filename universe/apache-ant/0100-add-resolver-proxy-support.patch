@@ -1,25 +1,48 @@
 --- a/fetch.xml
 +++ b/fetch.xml
-@@ -97,7 +97,21 @@
+@@ -97,7 +97,44 @@
    </target>
  
  
 -  <target name="macros" depends="pick-dest,get-m2"
 +  <property environment="env"/>
 +
-+  <condition property="isset.proxy">
-+    <and>
-+      <isset property="env.PROXY_HOST"/>
-+      <isset property="env.PROXY_PORT"/>
-+    </and>
-+  </condition>
++  <macrodef name="init-proxy-prop">
++    <attribute name="proto"/>
++    <sequential>
++      <condition property="isset.@{proto}.proxy">
++        <and>
++          <isset property="env.@{proto}_proxy_host"/>
++          <isset property="env.@{proto}_proxy_port"/>
++        </and>
++      </condition>
++    </sequential>
++  </macrodef>
 +
-+  <target name="use-proxy" if="isset.proxy"
++  <init-proxy-prop proto="http"/>
++  <init-proxy-prop proto="https"/>
++
++  <target name="use-proxy-macro"
 +          xmlns:resolver="antlib:org.apache.maven.resolver.ant">
-+    <resolver:proxy host="${env.PROXY_HOST}" port="${env.PROXY_PORT}" type="https"/>
++    <macrodef name="use-proxy">
++      <attribute name="proto"/>
++      <sequential>
++        <resolver:proxy host="${env.@{proto}_proxy_host}"
++                        port="${env.@{proto}_proxy_port}"
++                        type="@{proto}"/>
++      </sequential>
++    </macrodef>
 +  </target>
 +
-+  <target name="macros" depends="pick-dest,get-m2,use-proxy"
++  <target name="use-http-proxy" if="isset.http.proxy" depends="use-proxy-macro">
++    <use-proxy proto="http"/>
++  </target>
++
++  <target name="use-https-proxy" if="isset.https.proxy" depends="use-proxy-macro">
++    <use-proxy proto="https"/>
++  </target>
++
++  <target name="macros" depends="pick-dest,get-m2,use-http-proxy,use-https-proxy"
            xmlns:resolver="antlib:org.apache.maven.resolver.ant">
      <fail>
        Cannot execute multiple targets due to the bug in Maven Ant tasks

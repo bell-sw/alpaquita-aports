@@ -1,6 +1,6 @@
 pkgname=apache-ant
 pkgver=1.10.13
-pkgrel=2
+pkgrel=3
 pkgdesc="A java-based build tool"
 url="https://ant.apache.org/"
 # riscv64 blocked by java-jdk
@@ -27,22 +27,32 @@ _anthome="/usr/share/java/$pkgname"
 #   1.10.8-r0:
 #     - CVE-2020-1945
 
-_setup_https_proxy()
+_setup_proxy()
 {
-	IFS=: read PROXY_HOST PROXY_PORT \
-		< <(echo "$HTTPS_PROXY" | awk -F'(://|@)' '{ print $NF }')
+	local proto=$1 default_port=$2
+	local proto_uc=$(echo "$proto" | tr [:lower:] [:upper:])
+	local var_name host port
 
-	if [ -n "$PROXY_HOST}" ]; then
-		: ${PROXY_PORT:=443}
-		# settings for the java builtin HTTPS client
-		export JAVA_TOOL_OPTIONS="-Dhttps.proxyHost=$PROXY_HOST -Dhttps.proxyPort=$PROXY_PORT"
-		# settings for the HTTPS client used by maven-resolver-ant-tasks
-		export PROXY_HOST PROXY_PORT
-	fi
+	for var_name in ${proto_uc}_PROXY ${proto}_proxy; do
+		# [protocol://][username:password@]<host>[:port]
+		IFS=: read host port \
+			< <(eval "echo \$$var_name" | awk -F'(://|@)' '{ print $NF }')
+
+		if [ -n "$host}" ]; then
+			: ${port:=$default_port}
+			# settings for the java builtin client
+			export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -D$proto.proxyHost=$host -D$proto.proxyPort=$port"
+			# settings for the client used by maven-resolver-ant-tasks
+			eval "export ${proto}_proxy_host=$host"
+			eval "export ${proto}_proxy_port=$port"
+			break
+		fi
+	done
 }
 
 build() {
-	_setup_https_proxy
+	_setup_proxy http 80
+	_setup_proxy https 443
 
 	export JAVA_HOME="/usr/lib/jvm/java-8-$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])"
 	./bootstrap.sh
@@ -88,5 +98,5 @@ package() {
 sha512sums="
 0fc82578b24fc2ef286e5814e8e7579d4c9ccac80c8f093b33672fecb40e99b152cfab2ae7c967d9bab881a04f4536971042f06be2d8778bb19bb245854c439f  apache-ant-1.10.13-src.tar.bz2
 945b7bb7fa294543711a09d0f5fec1f89913502a691a1a9cdd6c0d227e8ea924de92887466792501fee52869c1101b824ca4c7869df8879cd466155e7a53ffc8  apache-ant-fetch-netrexx.patch
-76eb14db3921f6c7aff6d93e20bb4f284da0842466615fbeeacc3489465c1166c06b0c5fc7c46e1558c3ebcfb479a3b89b84fac711718facaddab7d5f52890be  0100-add-resolver-proxy-support.patch
+841b5a5ef4f19e8043db9861c1e04644aaed1b92b5200a9245736891f266a48c87c787e8b9f80e3efb1bfb04c140f537508792d3f5dcbbaa525f50c54cfb2920  0100-add-resolver-proxy-support.patch
 "
