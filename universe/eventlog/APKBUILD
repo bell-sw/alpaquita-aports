@@ -1,0 +1,36 @@
+pkgname=eventlog
+pkgver=0.2.13
+pkgrel=2
+pkgdesc="API to format and send structured log messages"
+arch="all"
+url="https://github.com/balabit/eventlog"
+license="BSD-3-Clause"
+makedepends="automake autoconf libtool"
+subpackages="$pkgname-dev"
+source="https://src.fedoraproject.org/lookaside/extras/eventlog/eventlog_$pkgver.tar.gz/68ec8d1ea3b98fa35002bb756227c315/eventlog_$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+	autoreconf -vif
+}
+
+build() {
+	./configure \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--localstatedir=/var \
+		--disable-static
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -Dm644 COPYING \
+		"$pkgdir"/usr/share/licenses/"$pkgname"/LICENSE
+}
+
+sha512sums="0c76199479f1d5191e6f591909878dcb747fc211ea97345c5c5575dd50482ee6e2e34aa0e8255ae366c5d563a79a55b178ed3289965cc9013f001909a2cb9732  eventlog_0.2.13.tar.gz"
