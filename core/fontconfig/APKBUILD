@@ -3,15 +3,15 @@
 
 pkgname=fontconfig
 pkgver=2.14.2
-pkgrel=2
+pkgrel=3
 pkgdesc="Font configuration utility"
 url="https://www.freedesktop.org/wiki/Software/fontconfig"
 arch="all"
 license="MIT"
-makedepends="freetype-dev expat-dev python3-dev gperf util-linux-dev"
+makedepends="freetype-dev expat-dev python3-dev gperf util-linux-dev docbook2x"
 checkdepends="bash json-c-dev uuidgen"
 triggers="$pkgname.trigger=/usr/share/fonts/*"
-subpackages="$pkgname-static $pkgname-dev"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
 source="https://www.freedesktop.org/software/fontconfig/release/fontconfig-$pkgver.tar.gz
 	fix-arithmetic.patch
 	"
@@ -35,7 +35,7 @@ build() {
 		--sysconfdir=/etc \
 		--localstatedir=/var \
 		--enable-static \
-		--disable-docs \
+		--enable-docs \
 		--disable-nls
 	rm -f src/fcobjhash.h
 	make
