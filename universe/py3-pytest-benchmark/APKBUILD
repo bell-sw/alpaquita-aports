@@ -29,7 +29,7 @@ check() {
 	# last 2 tests fail when run inside a git repository, see: https://github.com/ionelmc/pytest-benchmark/issues/163
 	# test_storage.py fails because of 'DeprecationWarning: pkg_resources is deprecated as an API'
 	PATH="$builddir/testenv/bin:PATH" testenv/bin/python3 -m \
-		pytest -v tests \
+		pytest tests -n auto -p no:warnings \
 		--deselect tests/test_with_testcase.py::TerribleTerribleWayToWritePatchTests::test_foo2 \
 		--deselect tests/test_with_weaver.py::test_weave_fixture \
 		--deselect tests/test_with_weaver.py::test_weave_method \
