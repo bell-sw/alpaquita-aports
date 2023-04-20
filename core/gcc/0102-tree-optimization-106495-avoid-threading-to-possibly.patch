@@ -1,0 +1,40 @@
+From ef6fbe62ba5b3eef165f9a03f1e04aa1176e4e58 Mon Sep 17 00:00:00 2001
+From: Richard Biener <rguenther@suse.de>
+Date: Mon, 1 Aug 2022 14:59:08 +0200
+Subject: [PATCH] tree-optimization/106495 - avoid threading to possibly never
+ executed edge
+
+The following builds upon the logic of the PR105679 fix by avoiding
+to thread to a known edge that is predicted as probably never executed.
+
+	PR tree-optimization/106495
+	* tree-ssa-threadbackward.cc
+	(back_threader_profitability::profitable_path_p): If known_edge
+	is probably never executed avoid threading.
+
+(cherry picked from commit b9da686470d1c23929eefb401280ad8ba17e2a58)
+---
+ gcc/tree-ssa-threadbackward.cc | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/gcc/tree-ssa-threadbackward.cc b/gcc/tree-ssa-threadbackward.cc
+index 90f5331c265..0519f2a8c4b 100644
+--- a/gcc/tree-ssa-threadbackward.cc
++++ b/gcc/tree-ssa-threadbackward.cc
+@@ -777,6 +777,13 @@ back_threader_profitability::profitable_path_p (const vec<basic_block> &m_path,
+ 		     "exceeds PARAM_MAX_FSM_THREAD_PATH_INSNS.\n");
+ 	  return false;
+ 	}
++      if (taken_edge && probably_never_executed_edge_p (cfun, taken_edge))
++	{
++	  if (dump_file && (dump_flags & TDF_DETAILS))
++	    fprintf (dump_file, "  FAIL: Jump-thread path not considered: "
++		     "path leads to probably never executed edge.\n");
++	  return false;
++	}
+       edge entry = find_edge (m_path[m_path.length () - 1],
+ 			      m_path[m_path.length () - 2]);
+       if (probably_never_executed_edge_p (cfun, entry))
+-- 
+2.25.1
+

@@ -1,0 +1,68 @@
+From 05ce015e19070abbce6cc4a62560980a5cc8f1a2 Mon Sep 17 00:00:00 2001
+From: Richard Biener <rguenther@suse.de>
+Date: Fri, 29 Jul 2022 10:40:34 +0200
+Subject: [PATCH] tree-optimization/105679 - disable backward threading of
+ unlikely entry
+
+The following makes the backward threader reject threads whose entry
+edge is probably never executed according to the profile.  That in
+particular, for the testcase, avoids threading the irq == 1 check
+on the path where irq > 31, thereby avoiding spurious -Warray-bounds
+diagnostics
+
+  if (irq_1(D) > 31)
+    goto <bb 3>; [0.00%]
+  else
+    goto <bb 4>; [100.00%]
+
+;;   basic block 3, loop depth 0, count 0 (precise), probably never executed
+  _2 = (unsigned long) irq_1(D);
+  __builtin___ubsan_handle_shift_out_of_bounds (&*.Lubsan_data0, 1, _2);
+
+  _3 = 1 << irq_1(D);
+  mask_4 = (u32) _3;
+  entry = instance_5(D)->array[irq_1(D)];
+  capture (mask_4);
+  if (level_6(D) != 0)
+    goto <bb 7>; [34.00%]
+  else
+    goto <bb 5>; [66.00%]
+
+;;   basic block 5, loop depth 0, count 708669600 (estimated locally), maybe hot  if (irq_1(D) == 1)
+    goto <bb 7>; [20.97%]
+  else
+    goto <bb 6>; [79.03%]
+
+	PR tree-optimization/105679
+	* tree-ssa-threadbackward.cc
+	(back_threader_profitability::profitable_path_p): Avoid threading
+	when the entry edge is probably never executed.
+
+(cherry picked from commit 49ba4fdeb648c149fa7d964ba812084262c3d06f)
+---
+ gcc/tree-ssa-threadbackward.cc | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/gcc/tree-ssa-threadbackward.cc b/gcc/tree-ssa-threadbackward.cc
+index 3519aca84cd..90f5331c265 100644
+--- a/gcc/tree-ssa-threadbackward.cc
++++ b/gcc/tree-ssa-threadbackward.cc
+@@ -777,6 +777,15 @@ back_threader_profitability::profitable_path_p (const vec<basic_block> &m_path,
+ 		     "exceeds PARAM_MAX_FSM_THREAD_PATH_INSNS.\n");
+ 	  return false;
+ 	}
++      edge entry = find_edge (m_path[m_path.length () - 1],
++			      m_path[m_path.length () - 2]);
++      if (probably_never_executed_edge_p (cfun, entry))
++	{
++	  if (dump_file && (dump_flags & TDF_DETAILS))
++	    fprintf (dump_file, "  FAIL: Jump-thread path not considered: "
++		     "path entry is probably never executed.\n");
++	  return false;
++	}
+     }
+   else if (!m_speed_p && n_insns > 1)
+     {
+-- 
+2.25.1
+

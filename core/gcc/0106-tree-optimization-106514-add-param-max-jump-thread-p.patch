@@ -1,0 +1,236 @@
+From 320afa521699b029e6c62087d28559a8a60d736f Mon Sep 17 00:00:00 2001
+From: Richard Biener <rguenther@suse.de>
+Date: Mon, 8 Aug 2022 12:20:04 +0200
+Subject: [PATCH] tree-optimization/106514 - add --param max-jump-thread-paths
+
+The following adds a limit for the exponential greedy search of
+the backwards jump threader.  The idea is to limit the search
+space in a way that the paths considered are the same if the search
+were in BFS order rather than DFS.  In particular it stops considering
+incoming edges into a block if the product of the in-degrees of
+blocks on the path exceeds the specified limit.
+
+When considering the low stmt copying limit of 7 (or 1 in the size
+optimize case) this means the degenerate case with maximum search
+space is a sequence of conditions with no actual code
+
+  B1
+   |\
+   | empty
+   |/
+  B2
+   |\
+   ...
+  Bn
+   |\
+
+GIMPLE_CONDs are costed 2, an equivalent GIMPLE_SWITCH already 4, so
+we reach 7 already with 3 middle conditions (B1 and Bn do not count).
+The search space would be 2^4 == 16 to reach this.  The FSM threads
+historically allowed for a thread length of 10 but is really looking
+for a single multiway branch threaded across the backedge.  I've
+chosen the default of the new parameter to 64 which effectively
+limits the outdegree of the switch statement (the cases reaching the
+backedge) to that number (divided by 2 until I add some special
+pruning for FSM threads due to the loop header indegree).  The
+testcase ssa-dom-thread-7.c requires 56 at the moment (as said,
+some special FSM thread pruning of considered edges would bring
+it down to half of that), but we now get one more threading
+and quite some more in later threadfull.  This testcase seems to
+be difficult to check for expected transforms.
+
+The new testcases add the degenerate case we currently thread
+(without deciding whether that's a good idea ...) plus one with
+an approripate limit that should prevent the threading.
+
+This obsoletes the mentioned --param max-fsm-thread-length but
+I am not removing it as part of this patch.  When the search
+space is limited the thread stmt size limit effectively provides
+max-fsm-thread-length.
+
+The param with its default does not help PR106514 enough to unleash
+path searching with the higher FSM stmt count limit.
+
+	PR tree-optimization/106514
+	* params.opt (max-jump-thread-paths): New.
+	* doc/invoke.texi (max-jump-thread-paths): Document.
+	* tree-ssa-threadbackward.cc (back_threader::find_paths_to_names):
+	Honor max-jump-thread-paths, take overall_path argument.
+	(back_threader::find_paths): Pass 1 as initial overall_path.
+
+	* gcc.dg/tree-ssa/ssa-thread-16.c: New testcase.
+	* gcc.dg/tree-ssa/ssa-thread-17.c: Likewise.
+	* gcc.dg/tree-ssa/ssa-dom-thread-7.c: Adjust.
+
+(cherry picked from commit 409978d58dafa689c5b3f85013e2786526160f2c)
+---
+ gcc/doc/invoke.texi                           |  7 ++++++
+ gcc/params.opt                                |  4 ++++
+ .../gcc.dg/tree-ssa/ssa-dom-thread-7.c        |  2 +-
+ gcc/testsuite/gcc.dg/tree-ssa/ssa-thread-16.c | 24 +++++++++++++++++++
+ gcc/testsuite/gcc.dg/tree-ssa/ssa-thread-17.c |  7 ++++++
+ gcc/tree-ssa-threadbackward.cc                | 20 +++++++++++-----
+ 6 files changed, 57 insertions(+), 7 deletions(-)
+ create mode 100644 gcc/testsuite/gcc.dg/tree-ssa/ssa-thread-16.c
+ create mode 100644 gcc/testsuite/gcc.dg/tree-ssa/ssa-thread-17.c
+
+diff --git a/gcc/doc/invoke.texi b/gcc/doc/invoke.texi
+index cb83dd8a1cc..6cb2249bfe2 100644
+--- a/gcc/doc/invoke.texi
++++ b/gcc/doc/invoke.texi
+@@ -14435,6 +14435,13 @@ optimizing.
+ Maximum number of statements allowed in a block that needs to be
+ duplicated when threading jumps.
+ 
++@item max-jump-thread-paths
++The maximum number of paths to consider when searching for jump threading
++opportunities.  When arriving at a block incoming edges are only considered
++if the number of paths to be searched sofar multiplied by the incoming
++edge degree does not exhaust the specified maximum number of paths to
++consider.
++
+ @item max-fields-for-field-sensitive
+ Maximum number of fields in a structure treated in
+ a field sensitive manner during pointer analysis.
+diff --git a/gcc/params.opt b/gcc/params.opt
+index e0ff9e21054..2edf87b5756 100644
+--- a/gcc/params.opt
++++ b/gcc/params.opt
+@@ -601,6 +601,10 @@ Bound on the number of iterations the brute force # of iterations analysis algor
+ Common Joined UInteger Var(param_max_jump_thread_duplication_stmts) Init(15) Param Optimization
+ Maximum number of statements allowed in a block that needs to be duplicated when threading jumps.
+ 
++-param=max-jump-thread-paths=
++Common Joined UInteger Var(param_max_jump_thread_paths) Init(64) IntegerRange(1, 65536) Param Optimization
++Search space limit for the backwards jump threader.
++
+ -param=max-last-value-rtl=
+ Common Joined UInteger Var(param_max_last_value_rtl) Init(10000) Param Optimization
+ The maximum number of RTL nodes that can be recorded as combiner's last value.
+diff --git a/gcc/testsuite/gcc.dg/tree-ssa/ssa-dom-thread-7.c b/gcc/testsuite/gcc.dg/tree-ssa/ssa-dom-thread-7.c
+index b64e71dae22..47b8fdfa29a 100644
+--- a/gcc/testsuite/gcc.dg/tree-ssa/ssa-dom-thread-7.c
++++ b/gcc/testsuite/gcc.dg/tree-ssa/ssa-dom-thread-7.c
+@@ -11,7 +11,7 @@
+    to change decisions in switch expansion which in turn can expose new
+    jump threading opportunities.  Skip the later tests on aarch64.  */
+ /* { dg-final { scan-tree-dump-not "Jumps threaded"  "dom3" { target { ! aarch64*-*-* } } } } */
+-/* { dg-final { scan-tree-dump "Jumps threaded: 7"  "thread2" { target { ! aarch64*-*-* } } } } */
++/* { dg-final { scan-tree-dump "Jumps threaded: 9"  "thread2" { target { ! aarch64*-*-* } } } } */
+ /* { dg-final { scan-tree-dump "Jumps threaded: 18"  "thread2" { target { aarch64*-*-* } } } } */
+ 
+ enum STATE {
+diff --git a/gcc/testsuite/gcc.dg/tree-ssa/ssa-thread-16.c b/gcc/testsuite/gcc.dg/tree-ssa/ssa-thread-16.c
+new file mode 100644
+index 00000000000..f96170b073d
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/tree-ssa/ssa-thread-16.c
+@@ -0,0 +1,24 @@
++/* { dg-do compile } */
++/* { dg-options "-O2 -fdump-tree-threadfull1-details" } */
++
++int res;
++void foo (int a, int b, int c, int d, int e)
++{
++  if (a > 100)
++    res = 3;
++  if (b != 5)
++    res = 5;
++  if (c == 29)
++    res = 7;
++  if (d < 2)
++    res = 9;
++  /* Accounting whoes makes this not catched.  */
++#if 0
++  if (e != 37)
++    res = 11;
++#endif
++  if (a < 10)
++    res = 13;
++}
++
++/* { dg-final { scan-tree-dump "SUCCESS" "threadfull1" } } */
+diff --git a/gcc/testsuite/gcc.dg/tree-ssa/ssa-thread-17.c b/gcc/testsuite/gcc.dg/tree-ssa/ssa-thread-17.c
+new file mode 100644
+index 00000000000..94ee6666788
+--- /dev/null
++++ b/gcc/testsuite/gcc.dg/tree-ssa/ssa-thread-17.c
+@@ -0,0 +1,7 @@
++/* { dg-do compile } */
++/* { dg-options "-O2 -fdump-tree-threadfull1-details --param max-jump-thread-paths=15" } */
++
++#include "ssa-thread-16.c"
++
++/* With limiting the search space we should no longer consider this path.  */
++/* { dg-final { scan-tree-dump-not "SUCCESS" "threadfull1" } } */
+diff --git a/gcc/tree-ssa-threadbackward.cc b/gcc/tree-ssa-threadbackward.cc
+index 332a1d2a1dd..a5f8f141071 100644
+--- a/gcc/tree-ssa-threadbackward.cc
++++ b/gcc/tree-ssa-threadbackward.cc
+@@ -90,7 +90,7 @@ private:
+   bool debug_counter ();
+   edge maybe_register_path ();
+   void maybe_register_path_dump (edge taken_edge);
+-  void find_paths_to_names (basic_block bb, bitmap imports);
++  void find_paths_to_names (basic_block bb, bitmap imports, unsigned);
+   edge find_taken_edge (const vec<basic_block> &path);
+   edge find_taken_edge_cond (const vec<basic_block> &path, gcond *);
+   edge find_taken_edge_switch (const vec<basic_block> &path, gswitch *);
+@@ -337,9 +337,12 @@ back_threader::find_taken_edge_cond (const vec<basic_block> &path,
+ // INTERESTING bitmap, and register any such paths.
+ //
+ // BB is the current path being processed.
++//
++// OVERALL_PATHS is the search space up to this block
+ 
+ void
+-back_threader::find_paths_to_names (basic_block bb, bitmap interesting)
++back_threader::find_paths_to_names (basic_block bb, bitmap interesting,
++				    unsigned overall_paths)
+ {
+   if (m_visited_bbs.add (bb))
+     return;
+@@ -352,8 +355,10 @@ back_threader::find_paths_to_names (basic_block bb, bitmap interesting)
+ 	  || maybe_register_path ()))
+     ;
+ 
+-  // Continue looking for ways to extend the path
+-  else
++  // Continue looking for ways to extend the path but limit the
++  // search space along a branch
++  else if ((overall_paths = overall_paths * EDGE_COUNT (bb->preds))
++	   <= (unsigned)param_max_jump_thread_paths)
+     {
+       // For further greedy searching we want to remove interesting
+       // names defined in BB but add ones on the PHI edges for the
+@@ -407,7 +412,7 @@ back_threader::find_paths_to_names (basic_block bb, bitmap interesting)
+ 			unwind.quick_push (def);
+ 		      }
+ 		}
+-	      find_paths_to_names (e->src, new_interesting);
++	      find_paths_to_names (e->src, new_interesting, overall_paths);
+ 	      // Restore new_interesting.  We leave m_imports alone since
+ 	      // we do not prune defs in BB from it and separately keeping
+ 	      // track of which bits to unwind isn't worth the trouble.
+@@ -417,6 +422,9 @@ back_threader::find_paths_to_names (basic_block bb, bitmap interesting)
+ 	    }
+ 	}
+     }
++  else if (dump_file && (dump_flags & TDF_DETAILS))
++    fprintf (dump_file, "  FAIL: Search space limit %d reached.\n",
++	     param_max_jump_thread_paths);
+ 
+   // Reset things to their original state.
+   m_path.pop ();
+@@ -447,7 +455,7 @@ back_threader::find_paths (basic_block bb, tree name)
+ 
+       auto_bitmap interesting;
+       bitmap_copy (interesting, m_imports);
+-      find_paths_to_names (bb, interesting);
++      find_paths_to_names (bb, interesting, 1);
+     }
+ }
+ 
+-- 
+2.25.1
+
