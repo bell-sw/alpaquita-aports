@@ -6,8 +6,14 @@ url="https://github.com/tobgu/pyrsistent"
 arch="all"
 license="MIT"
 depends="python3"
-makedepends="py3-setuptools python3-dev py3-gpep517 py3-wheel"
+makedepends="
+	py3-gpep517
+	py3-setuptools
+	py3-wheel
+	python3-dev
+	"
 checkdepends="py3-hypothesis py3-pytest py3-pytest-runner"
+subpackages="$pkgname-pyc"
 source="pyrsistent-$pkgver.tar.gz::https://github.com/tobgu/pyrsistent/archive/v$pkgver.tar.gz"
 builddir="$srcdir/pyrsistent-$pkgver"
 provides="py-pyrsistent=$pkgver-r$pkgrel"
@@ -21,7 +27,7 @@ build() {
 check() {
 	python3 -m venv --clear --without-pip --system-site-packages testenv
 	testenv/bin/python3 -m installer dist/*.whl
-	testenv/bin/python3 -m pytest tests
+	testenv/bin/python3 -m pytest
 }
 
 package() {
