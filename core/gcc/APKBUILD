@@ -3,14 +3,14 @@
 
 pkgname=gcc
 _pkgbase=12.2.1 # must match gcc/BASE-VER
-_pkgsnap=20220924
+_pkgsnap=20230419
 pkgver=${_pkgbase}_git$_pkgsnap
 [ "$BOOTSTRAP" = "nolibc" ] && pkgname="gcc-pass2"
 [ "$CBUILD" != "$CHOST" ] && _cross="-$CARCH" || _cross=""
 [ "$CHOST" != "$CTARGET" ] && _target="-$CTARGET_ARCH" || _target=""
 
 pkgname="$pkgname$_target"
-pkgrel=9
+pkgrel=0
 pkgdesc="The GNU Compiler Collection"
 url="https://gcc.gnu.org"
 arch="all"
@@ -162,7 +162,7 @@ makedepends="$makedepends_build $makedepends_host"
 #
 # PLEASE submit all patches to gcc to https://gitlab.alpinelinux.org/kaniini/alpine-gcc-patches,
 # so that they can be properly tracked and easily rebased if needed.
-source="https://dev.alpinelinux.org/archive/gcc/${_pkgbase%%.*}-$_pkgsnap/gcc-${_pkgbase%%.*}-$_pkgsnap.tar.xz
+source="https://packages.bell-sw.com/$VENDOR_NAME/distfiles/${_pkgbase%%.*}-$_pkgsnap/gcc-${_pkgbase%%.*}-$_pkgsnap.tar.xz
 	0001-posix_memalign.patch
 	0002-gcc-poison-system-directories.patch
 	0003-specs-turn-on-Wl-z-now-by-default.patch
@@ -695,7 +695,7 @@ gnat() {
 }
 
 sha512sums="
-ba4d9e73d108088da26fbefe18d9b245b76771ffe752c2b4b31bdf38a2d0b638fbc115c377526c27311d4d7ffd4e0d236a5af5016bd364ccaa11a4989d1401e8  gcc-12-20220924.tar.xz
+3af6d2b83ec7cd0d204ccda5746db3c2f78e58060544a27f5fe70753e228e4bf0ca43b42c05b8a424e647813d5441f96638f8271bbdf7d9a42990e856632c9de  gcc-12-20230419.tar.xz
 41cbb4d69218006cf9e0cdb6c86212ef451f8decd52a50a7dbb4d34726009da7a4e0261c852b46cb584db253a4bae2f31dc485c506cb545e64a7d26e0ba6c2b6  0001-posix_memalign.patch
 531155055cda7f119bcac6479bcae73af9201cd596af9cf1616850bbcf4393b91c5de9f2fbbc1cde6e158fb4df7237b033146f662dff5fa0ea12151cc514adb8  0002-gcc-poison-system-directories.patch
 c1275d77b5269386a2ec683933570810f5a2ba1208c161ed887797eb9aee3cb82ef08a8964635902614e6a6e83f3065ba0801c9355d85dd8d60cb1fa20bdf687  0003-specs-turn-on-Wl-z-now-by-default.patch
