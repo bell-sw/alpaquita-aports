@@ -173,7 +173,6 @@ _modules="
 	hw-usb-host
 	hw-usb-redirect
 	ui-curses
-	ui-dbus
 	ui-egl-headless
 	ui-gtk
 	ui-opengl
@@ -181,6 +180,18 @@ _modules="
 	ui-spice-app
 	ui-spice-core
 	"
+
+case "$CARCH" in
+x86)
+	# ui-dbus has textrels
+	_configure_dbus=--disable-dbus-display
+	;;
+*)
+	_modules="$_modules ui-dbus"
+	_configure_dbus=--enable-dbus-display
+	;;
+esac
+
 for _mod in $_modules; do
 	subpackages="$subpackages $pkgname-$_mod:_module"
 done
@@ -370,7 +381,8 @@ build() {
 		--enable-virtfs \
 		--enable-vnc \
 		--enable-vnc-jpeg \
-		--enable-zstd
+		--enable-zstd \
+		$_configure_dbus
 }
 
 check() {
