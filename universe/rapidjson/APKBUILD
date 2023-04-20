@@ -1,11 +1,11 @@
 pkgname=rapidjson
 pkgver=1.1.0
-pkgrel=4
+pkgrel=5
 pkgdesc="Fast JSON parser/generator for C++ with both SAX/DOM style API"
 url="http://rapidjson.org/"
 arch="noarch"
 license="MIT"
-makedepends="cmake"
+makedepends="cmake samurai"
 checkdepends="gtest gtest-dev"
 subpackages="$pkgname-dev"
 source="$pkgname-$pkgver.tar.gz::https://github.com/miloyip/rapidjson/archive/v$pkgver.tar.gz
@@ -15,16 +15,17 @@ source="$pkgname-$pkgver.tar.gz::https://github.com/miloyip/rapidjson/archive/v$
 	"
 
 build() {
-
-	cmake -B build . \
+	CXXFLAGS="$CXXFLAGS -std=c++14" \
+	cmake -B build -G Ninja . \
 		-DCMAKE_BUILD_TYPE=None \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_VERBOSE_MAKEFILE=ON \
 		-DRAPIDJSON_BUILD_DOC=OFF \
 		-DRAPIDJSON_BUILD_EXAMPLES=OFF \
+		-DRAPIDJSON_BUILD_CXX11=OFF \
 		-DGTESTSRC_FOUND=ON \
 		-DGTEST_SOURCE_DIR=.
-	make -C build
+	cmake --build build
 }
 
 check() {
@@ -33,7 +34,7 @@ check() {
 }
 
 package() {
-	make -C build install DESTDIR="$pkgdir"
+	DESTDIR="$pkgdir" cmake --install bubild
 
 	# Remove examples and readme.
 	rm -r "$pkgdir"/usr/share
