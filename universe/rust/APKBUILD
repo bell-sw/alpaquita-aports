@@ -140,6 +140,14 @@ build() {
 	export CFLAGS="$CFLAGS -O2"
 	export CXXFLAGS="$CXXFLAGS -O2"
 
+	case "$CARCH" in
+	riscv64)
+		;;
+	*)
+		local lto=--set="rust.lto=thin"
+		;;
+	esac
+
 	./configure \
 		--build="$_build" \
 		--host="$_target" \
@@ -164,7 +172,7 @@ build() {
 		--set="rust.codegen-units-std=1" \
 		--set="rust.parallel-compiler=false" \
 		--set="rust.description=$VENDOR_DISTRO_NAME Linux" \
-		--set="rust.lto=thin" \
+		$lto \
 		--set="target.$_target.llvm-config=/usr/lib/llvm$_llvmver/bin/llvm-config" \
 		--set="target.$_target.musl-root=/usr" \
 		--set="target.$_target.crt-static=false" \
