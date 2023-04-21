@@ -1,6 +1,6 @@
 pkgname=mimalloc
 pkgver=1.8.1
-pkgrel=0
+pkgrel=1
 pkgdesc="mimalloc is a general purpose allocator with excellent performance characteristics"
 url="https://github.com/microsoft/mimalloc"
 arch="all"
@@ -11,6 +11,7 @@ source="$pkgname-$pkgver.tar.gz::https://github.com/microsoft/mimalloc/archive/r
 	malloc.sh
 "
 builddir="$srcdir/$pkgname-$pkgver"
+_so_ver=${pkgver%%.*}
 
 build() {
 	cd "$builddir"
@@ -29,7 +30,7 @@ package() {
 	cat > "$pkgdir"/usr/bin/mimalloc.sh << EOF
 #!/bin/sh
 
-LD_PRELOAD=/lib/libmimalloc.so.1.7
+LD_PRELOAD=/lib/libmimalloc.so.$_so_ver
 export LD_PRELOAD
 exec "\$@"
 EOF
@@ -53,7 +54,7 @@ global() {
 	alternative=1
 
 	install -D -m 755 "$srcdir"/malloc.sh "$subpkgdir"/etc/profile.d/mimalloc.sh
-	sed -i "s,@LIB_NAME@,libmimalloc.so.1.7,g" "$subpkgdir"/etc/profile.d/mimalloc.sh
+	sed -i "s,@LIB_NAME@,libmimalloc.so.$_so_ver,g" "$subpkgdir"/etc/profile.d/mimalloc.sh
 }
 
 sha512sums="
