@@ -1,6 +1,6 @@
 pkgname=apenwarr-redo
 pkgver=0.42d
-pkgrel=1
+pkgrel=2
 pkgdesc="Smaller, easier, more powerful, and more reliable than make"
 url="https://redo.readthedocs.io/en/latest/"
 arch="noarch"
@@ -8,7 +8,7 @@ license="Apache-2.0"
 depends="python3"
 makedepends="perl py3-beautifulsoup4 py3-markdown"
 checkdepends="cpio"
-subpackages="$pkgname-bash-completion $pkgname-doc"
+subpackages="$pkgname-bash-completion $pkgname-doc $pkgname-pyc"
 source="https://github.com/apenwarr/redo/archive/redo-$pkgver.tar.gz
 	fix-env-python.patch
 	"
@@ -46,6 +46,14 @@ cleanup_srcdir() {
 	[ -e "$srcdir" ] && chmod -R a+w "$srcdir"
 
 	default_cleanup_srcdir
+}
+
+pyc() {
+	default_pyc
+
+	amove \
+		usr/lib/redo/__pycache__ \
+		usr/lib/redo/version/__pycache__
 }
 
 sha512sums="
