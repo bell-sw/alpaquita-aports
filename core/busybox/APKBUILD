@@ -279,12 +279,23 @@ EOF
 	install -Dm755 "$srcdir"/default.script \
 		"$pkgdir"/usr/share/udhcpc/default.script
 
+	# Install a list of symlinks installed by busybox.  This is useful for
+	# building and analyzing Alpine-based images which contain busybox, where
+	# you don't want to run busybox --list-path at analysis or build time.
+	mkdir -p "$pkgdir"/etc/busybox-paths.d
+	"$pkgdir"/usr/bin/busybox --list-path > "$pkgdir"/etc/busybox-paths.d/busybox
 }
 
 extras() {
 	pkgdesc="Additional binaries of Busybox"
 	depends="$pkgname"
 	install -Dm755 "$_dyndir_extras"/busybox "$subpkgdir"/usr/bin/busybox-extras
+
+	# Install a list of symlinks installed by busybox-extras.  This is useful for
+	# building and analyzing Alpine-based images which contain busybox, where
+	# you don't want to run busybox --list-path at analysis or build time.
+	mkdir -p "$subpkgdir"/etc/busybox-paths.d
+	"$subpkgdir"/usr/bin/busybox-extras --list-path > "$subpkgdir"/etc/busybox-paths.d/busybox-extras
 }
 
 suid() {
