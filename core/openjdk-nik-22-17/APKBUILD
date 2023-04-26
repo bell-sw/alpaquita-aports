@@ -7,9 +7,10 @@ _nikmajor=22
 _javamajor=17
 _javaver=17.0.6
 _mxver=6.9.10
+_oldpkgver=22.3.1
 
 pkgname=$_pkgname-$_nikmajor-$_javamajor
-pkgver=22.3.1
+pkgver=22.3.2
 pkgrel=0
 pkgdesc="$VENDOR_JAVA_NAME Native Image Kit $pkgver (Java $_javamajor)"
 url="$VENDOR_URL"
@@ -62,8 +63,8 @@ source="
 	${VENDOR_URL/\/\//\/\/download.}graalvm/graal-$pkgver.tar.gz
 	${VENDOR_URL/\/\//\/\/download.}graalvm/graaljs-$pkgver.tar.gz
 	${VENDOR_URL/\/\//\/\/download.}graalvm/graalpython-$pkgver.tar.gz
-	${VENDOR_URL/\/\//\/\/download.}graalvm/truffleruby-$pkgver.tar.gz
-	${VENDOR_URL/\/\//\/\/download.}graalvm/fastr-$pkgver.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}graalvm/truffleruby-$_oldpkgver.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}graalvm/fastr-$_oldpkgver.tar.gz
 	${VENDOR_URL/\/\//\/\/download.}graalvm/mx-$_mxver.tar.gz
 	0001-graal-musl-libc-support.patch
 	0002-graal-enable-jvmci.patch
@@ -73,7 +74,6 @@ source="
 	0006-graal-rmain-disable-initialization-policy.patch
 	0007-graal-update-llvm-toolchain.patch
 	0001-graaljs-gyp-fix-node-build-failure-with-long-build-directory.patch
-	0002-graaljs-accept-python3.11.patch
 	0001-graalpython-add-ssizet-includes.patch
 	0001-truffleruby-librt-fix.patch
 	0002-truffleruby-allow-build-from-sources-out-of-the-vcs.patch
@@ -94,6 +94,10 @@ sonameprefix="$pkgname:"
 
 unpack() {
 	default_unpack
+
+	# some sources are still from 22.3.1, move them to 22.3.2
+	mv liberica-nik-$_oldpkgver/* -t liberica-nik-$pkgver
+	rmdir liberica-nik-$_oldpkgver
 
 	local curbuilddir=$(readlink -f *-nik-$pkgver)
 	if [ "$curbuilddir" != "$builddir" ]; then
@@ -228,9 +232,9 @@ _ruby() {
 }
 
 sha512sums="
-93d857723598b145e9faf426614a6b4b8f93f31e7d61a646be0ec8f5a43fd8a8960d2583637f5b1926473df476a11b42796e96f675cc0acd1305cb2079b4c01a  graal-22.3.1.tar.gz
-b67722751d0585a44f81746fb78fcd7f3b527d3e2a573dfb99b2d77ece85f198f6184f4737b934f5eefa44f464ed08becc9a5bf51f005ecb8bc6cc862ee3a81e  graaljs-22.3.1.tar.gz
-6bd2589ee189df059c91dc05baa2ce20103fd1b20bb293c358c03b564c8b96261797ed529eeec60267f08ba0addb236fba9984b958d455e70a3aee053ca25817  graalpython-22.3.1.tar.gz
+3e1f89db9b436d2a47a1930ed38f60155efd2cf6fec993a439e0a99a4bb6a68a5fe25f69a2ede5200734104a76699b6a5d691d66b4c4a89ac770773d156e0a6c  graal-22.3.2.tar.gz
+fa4ab6b657d9844116071b19cf99a4f165c20667f69b2e6d9fff95893c18fa77c4b1bb929a0240caa7d41b3c2216f71990666ff261c88df7a0fdfa1a19cc1453  graaljs-22.3.2.tar.gz
+2ae26a63defda09c4e80723cef7395645e0047b34879f218754361d7ce1a174a53c100917c578d0fef99ffe3e0d7eb8b7c8ce649e880426769a63e858c30ad06  graalpython-22.3.2.tar.gz
 a9293f18b0069ee92a31170694f1f7f7c50dec7cd794d004a5f533d7641fc83ff3f4c4ff847f63539e6a675b600b99cd66ad16472fc8ff380f8bdbda3a78f2e9  truffleruby-22.3.1.tar.gz
 24c861ffa9ee6a773da6a7046357b03de647f6053f5a00a4e2637da3b3fcc2a26913350cb2a52b965696f6ad369f054714d10f1e19235a57b25a116f3778b399  fastr-22.3.1.tar.gz
 12fa8a59b26f4cdb14af77991261feab3dd0013bc0777609c6d03fee6107594127d2aa98b5abaa9c16c5b7cc905970c272b89778f5669c41234cdb40c8503793  mx-6.9.10.tar.gz
@@ -242,7 +246,6 @@ d08f09e4f73aad4f2d1dcd7e8897a77f348063a20722c2a26a61ca0dcc8395f7c4a2f42cc7b33f29
 ac4979e81dac50dad0891a060602502dc546607fa938ddf41d7936a0991d7cbd40b7afd37d043fcba10d0676760046594cd3ebfed0e5236a48db921cc0bf57b3  0006-graal-rmain-disable-initialization-policy.patch
 3091385920b690a9d45a55081d1aefb9b944daee7c079d2cddeca431aca3ed100d49f28405728dbb5235b653868e8276ecd3459c23551668eac83ab2e40f37d8  0007-graal-update-llvm-toolchain.patch
 7954925fb8d349369c0874913fc8e4ef77f3dddfcf52c80b8d5d66378783a67d13e8782f6837939b4951bafdf4c9f119092896c9658b4a4b2e12b19643bd97ac  0001-graaljs-gyp-fix-node-build-failure-with-long-build-directory.patch
-6d52c1b891958d9a89c0fd56a1fb83555228a6214b92a9a3b15592e059deb81ecdf0b2d91908d579552e7d6ca394bb2dbafd188c6b0b5210487feeb526b5a2cc  0002-graaljs-accept-python3.11.patch
 443899decf1b0932cc14d3275e503c361e4e419569365a339bfb32b34cf776d0448cb73381828320e8e1b5fa6fe26b04e8c3b125c59b29f436329ff06e30272d  0001-graalpython-add-ssizet-includes.patch
 a252ade8bcdb0224584ff75111f33900de7087b6b9fb3f08f61e30cf21f0141413e37a9d5a734c1f51958631a1c872e3be434e0e1ddd249b17d34269b181464f  0001-truffleruby-librt-fix.patch
 486cd3d50a256baa5484dc95140ce7c78a72b354f3c7f0d78a8ecf9282f3478fb617d4b5434ef6fd8a6d84143ac263e93e0b10c07f6c22387800cd97e74c8d72  0002-truffleruby-allow-build-from-sources-out-of-the-vcs.patch
