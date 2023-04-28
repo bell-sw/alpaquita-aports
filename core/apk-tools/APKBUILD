@@ -3,12 +3,19 @@
 
 pkgname=apk-tools
 pkgver=2.14.0
-pkgrel=5
+pkgrel=6
 pkgdesc="APK Package Manager (Derivative from Alpine Package Keeper)"
 arch="all"
 url="https://gitlab.alpinelinux.org/alpine/apk-tools"
 license="GPL-2.0-only"
 subpackages="$pkgname-dbg $pkgname-dev $pkgname-doc $pkgname-zsh-completion"
+# starting with musl 1.2.4 and glibc 2.37, we added DT_RELR
+# it is possible for old systems to upgrade, and apk-tools would upgrade first,
+# which would upgrade to a binary that cannot run until musl/glibc is upgraded.
+# forcing this constraint makes apk upgrade musl/glibc as part of the 'critical' transaction,
+# and update musl/glibc first.
+depends="musl:musl>=1.2.4
+	glibc:glibc>=2.37.0"
 makedepends_build="openssl>3 lua5.3 lua5.3-lzlib scdoc"
 makedepends_host="zlib-dev openssl-dev>3 linux-headers"
 makedepends="$makedepends_build $makedepends_host"
