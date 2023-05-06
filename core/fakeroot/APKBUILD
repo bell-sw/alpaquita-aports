@@ -4,7 +4,8 @@
 
 pkgname=fakeroot
 pkgver=1.31
-pkgrel=1
+pkgrel=2
+provider_priority=100
 pkgdesc="Utility for file manipulation in a fake root environment"
 arch="all"
 license="GPL-3.0-or-later"
@@ -24,6 +25,12 @@ source="https://deb.debian.org/debian/pool/main/f/fakeroot/fakeroot_$pkgver.orig
 	fix-format.patch
 	"
 
+prepare() {
+	default_prepare
+
+	CONFIG_SHELL=/bin/sh ./bootstrap
+}
+
 build() {
 	if [ "$CLIBC" = "musl" ]; then
 		# musl does not have _STAT_VER, it's really not used for
@@ -31,7 +38,6 @@ build() {
 		export CFLAGS="-D_STAT_VER=0 $CFLAGS"
 	fi
 
-	CONFIG_SHELL=/bin/sh ./bootstrap
 	CONFIG_SHELL=/bin/sh ./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
