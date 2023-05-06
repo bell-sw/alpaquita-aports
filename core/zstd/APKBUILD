@@ -3,7 +3,7 @@
 
 pkgname=zstd
 pkgver=1.5.5
-pkgrel=3
+pkgrel=4
 pkgdesc="Zstandard Library"
 url="https://www.zstd.net/"
 arch="all"
@@ -102,7 +102,6 @@ build() {
 	export CFLAGS="${CFLAGS/-Os/-O3} -flto=auto -ffat-lto-objects"
 	export CXXFLAGS="${CXXFLAGS/-Os/-O3} -flto=auto -ffat-lto-objects"
 	export CPPFLAGS="${CPPFLAGS/-Os/-O3} -flto=auto -ffat-lto-objects"
-
 	if [ -z "$BOOTSTRAP" ]; then
 		# Disable PGO due to insufficient test coverage of more versatile use
 		# of the package.
@@ -119,6 +118,7 @@ build() {
 	# shellcheck disable=2046
 	abuild-meson \
 		--default-library=both \
+		-Db_ndebug=true \
 		$(test $pgo = true && echo -Db_pgo=generate) \
 		-Dbin_contrib=true \
 		-Dbin_programs=true \
