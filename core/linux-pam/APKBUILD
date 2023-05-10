@@ -5,18 +5,27 @@
 # discretion of the local system administrator.
 
 pkgname=linux-pam
-pkgver=1.5.2
-pkgrel=12
+pkgver=1.5.3
+pkgrel=0
 pkgdesc="Linux PAM (Pluggable Authentication Modules for Linux)"
 url="https://www.kernel.org/pub/linux/libs/pam"
 arch="all"
 license="BSD-3-Clause"
 depends_dev="gettext-dev"
-makedepends="$depends_dev bison flex-dev autoconf automake libtool linux-headers xz"
+makedepends="
+	$depends_dev
+	autoconf
+	automake
+	bison
+	flex-dev
+	libtool
+	linux-headers
+	"
 options="suid !check"
 subpackages="$pkgname-dev $pkgname-doc"
 source="
 	https://github.com/linux-pam/linux-pam/releases/download/v$pkgver/Linux-PAM-$pkgver.tar.xz
+	no-examples.patch
 
 	base-auth.pamd
 	base-account.pamd
@@ -38,16 +47,7 @@ replaces="util-linux-login shadow-login"
 #   1.5.1-r0:
 #     - CVE-2020-27780
 
-prepare() {
-	default_prepare
-	# disable insecure modules
-	sed -e 's/pam_rhosts//g' -i modules/Makefile.am
-
-	autoreconf -vif
-}
-
 build() {
-	[ "$CLIBC" = "musl" ] && export ac_cv_search_crypt=no
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -88,7 +88,8 @@ package() {
 }
 
 sha512sums="
-fa16350c132d3e5fb82b60d991768fb596582639841b8ece645c684705467305ccf1302a0147ec222ab78c01b2c9114c5496dc1ca565d2b56bf315f29a815144  Linux-PAM-1.5.2.tar.xz
+af88e8c1b6a9b737ffaffff7dd9ed8eec996d1fbb5804fb76f590bed66d8a1c2c6024a534d7a7b6d18496b300f3d6571a08874cf406cd2e8cea1d5eff49c136a  Linux-PAM-1.5.3.tar.xz
+9407f38d0dc0f24eb3e1c74ecc3ac78ddbe9f9882a4738fa82bfb387be30f5bff5599b11cb2d70705a299587697d967ddf57923b9bd0270d05f71cc5140f8d62  no-examples.patch
 d5ad4dc80c892a6be190f5dad26013dab29c89e9735e3c67bfc897df7e6c55c7e220b4f9a4ab03af5f1dbeb47205042e94aab81f41addc9a8965012f5daebf2f  base-auth.pamd
 697684befee830c3b60b618ad9b265ec6a5fc63447b03e626dc881f42438bed7402adb649546e852477441971dacc9d98d5974fc89fd74b57b24887258db0b93  base-account.pamd
 ba4114b7e19cf71f71d1e16bebbdc5cff6ca78c6f43184fe076c8cb774186dea0f0d51cd9536147111b28355aaf722be48a1ea2040677d7916a9277ee78500fa  base-password.pamd
