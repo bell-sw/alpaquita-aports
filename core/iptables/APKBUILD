@@ -3,16 +3,16 @@
 
 pkgname=iptables
 pkgver=1.8.9
-pkgrel=2
+pkgrel=3
 pkgdesc="Tools for packet filtering and NAT"
 url="https://www.netfilter.org/projects/iptables/index.html"
 arch="all"
 license="GPL-2.0-or-later"
 depends_dev="linux-headers"
 makedepends="$depends_dev libnftnl-dev bison flex autoconf automake"
-subpackages="ip6tables $pkgname-doc $pkgname-dev $pkgname-openrc ip6tables-openrc:ip6tables_openrc"
-provides="ebtables=$pkgver-r$pkgrel" # for backards compat
-replaces="ebtables"
+subpackages="$pkgname-doc $pkgname-dev $pkgname-openrc"
+provides="ip6tables=$pkgver-r$pkgrel ebtables=$pkgver-r$pkgrel" # for backards compat
+replaces="ip6tables ebtables"
 source="https://www.netfilter.org/projects/iptables/files/iptables-$pkgver.tar.xz
 	format-security.patch
 	use-sh-iptables-apply.patch
@@ -48,6 +48,7 @@ package() {
 	mkdir -p "$pkgdir"/usr/include/libiptc \
 		"$pkgdir"/usr/lib \
 		"$pkgdir"/var/lib/iptables \
+		"$pkgdir"/var/lib/ip6tables \
 		"$pkgdir"/etc/iptables
 
 	install -m644 include/iptables.h include/ip6tables.h \
@@ -56,27 +57,23 @@ package() {
 
 	install -D -m755 "$srcdir"/iptables.initd "$pkgdir"/etc/init.d/iptables
 	install -D -m644 "$srcdir"/iptables.confd "$pkgdir"/etc/conf.d/iptables
+	install -D -m755 "$srcdir"/iptables.initd "$pkgdir"/etc/init.d/ip6tables
+	install -D -m644 "$srcdir"/ip6tables.confd "$pkgdir"/etc/conf.d/ip6tables
 	install -D -m755 "$srcdir"/ebtables.initd "$pkgdir"/etc/init.d/ebtables
 	install -D -m644 "$srcdir"/ebtables.confd "$pkgdir"/etc/conf.d/ebtables
+
+	ln -sfv xtables-nft-multi "$pkgdir"/usr/sbin/iptables
+	ln -sfv xtables-nft-multi "$pkgdir"/usr/sbin/iptables-save
+	ln -sfv xtables-nft-multi "$pkgdir"/usr/sbin/iptables-restore
+	ln -sfv xtables-nft-multi "$pkgdir"/usr/sbin/ip6tables
+	ln -sfv xtables-nft-multi "$pkgdir"/usr/sbin/ip6tables-save
+	ln -sfv xtables-nft-multi "$pkgdir"/usr/sbin/ip6tables-restore
 }
 
-ip6tables() {
-	mkdir -p "$subpkgdir"
-	cd "$subpkgdir"
-
-	mkdir -p usr/sbin \
-		var/lib/ip6tables \
-		usr/lib/xtables
-
-	amove usr/sbin/ip6*
-	amove usr/lib/xtables/libip6*
-}
-
-ip6tables_openrc() {
+openrc() {
 	default_openrc
-
-	install -D -m755 "$srcdir"/iptables.initd "$subpkgdir"/etc/init.d/ip6tables
-	install -D -m644 "$srcdir"/ip6tables.confd "$subpkgdir"/etc/conf.d/ip6tables
+	provides="ip6tables-openrc=$pkgver-r$pkgrel"
+	replaces="ip6tables-openrc"
 }
 
 sha512sums="
