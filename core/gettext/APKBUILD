@@ -3,7 +3,7 @@
 
 pkgname=gettext
 pkgver=0.21.1
-pkgrel=7
+pkgrel=8
 pkgdesc="GNU i18n utilities"
 url="https://www.gnu.org/software/gettext/gettext.html"
 arch="all"
@@ -31,7 +31,6 @@ source="https://ftp.gnu.org/gnu/gettext/gettext-$pkgver.tar.xz
 	skip-tests-libunistring-1.0.patch
 	"
 
-provider_priority=100 # highest (other provider of cmd:envsubst is testing/envsubst)
 
 # secfixes:
 #   0.20.1-r0:
@@ -89,6 +88,8 @@ asprintf() {
 
 envsubst() {
 	pkgdesc="GNU gettext envsubst binary"
+	provides="envsubst"
+	provider_priority=100 # highest (other provider of cmd:envsubst is testing/envsubst)
 
 	amove usr/bin/envsubst
 }
