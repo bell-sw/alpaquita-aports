@@ -3,7 +3,7 @@
 
 pkgname=gettext
 pkgver=0.21.1
-pkgrel=6
+pkgrel=7
 pkgdesc="GNU i18n utilities"
 url="https://www.gnu.org/software/gettext/gettext.html"
 arch="all"
@@ -20,6 +20,7 @@ subpackages="
 	$pkgname-static
 	$pkgname-dev
 	$pkgname-lang
+	$pkgname-envsubst
 	libintl
 	$pkgname-asprintf
 	$pkgname-libs
@@ -56,13 +57,8 @@ check() {
 }
 
 package() {
+	depends="$pkgname-envsubst=$pkgver-r$pkgrel"
 	make -j1 DESTDIR="$pkgdir" install
-}
-
-static() {
-	pkgdesc="$pkgdesc: libintl static libraries"
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/*.a "$subpkgdir"/usr/lib/
 }
 
 dev() {
@@ -75,12 +71,11 @@ dev() {
 libintl() {
 	pkgdesc="$pkgdesc: runtime library"
 	license="LGPL-2.1-or-later"
-	mkdir -p "$subpkgdir"/usr/lib
 	if [ "$CLIBC" = "glibc" ] ; then
 		amove usr/lib/preloadable_libintl.so
 		chmod +x "$subpkgdir"/usr/lib/preloadable_libintl.so
 	else
-		mv "$pkgdir"/usr/lib/libintl.so.* "$subpkgdir"/usr/lib
+		amove usr/lib/libintl.so.*
 		chmod +x "$subpkgdir"/usr/lib/libintl.so.*
 	fi
 }
@@ -88,8 +83,14 @@ libintl() {
 asprintf() {
 	pkgdesc="$pkgdesc: asprintf library"
 	license="LGPL-2.1-or-later"
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/libasprintf.so.* "$subpkgdir"/usr/lib
+
+	amove usr/lib/libasprintf.so.*
+}
+
+envsubst() {
+	pkgdesc="GNU gettext envsubst binary"
+
+	amove usr/bin/envsubst
 }
 
 sha512sums="
