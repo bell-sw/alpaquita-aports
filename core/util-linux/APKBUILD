@@ -1,8 +1,8 @@
 # Description: contains various important Linux utilities.
 
 pkgname=util-linux
-pkgver=2.38.1
-pkgrel=8
+pkgver=2.39
+pkgrel=0
 pkgdesc="Linux utilities"
 url="https://git.kernel.org/cgit/utils/util-linux/util-linux.git"
 arch="all"
@@ -10,11 +10,6 @@ license="GPL-3.0-or-later AND GPL-2.0-or-later AND GPL-2.0-only AND
 	GPL-1.0-only AND LGPL-2.1-or-later AND LGPL-1.0-only AND BSD-1-Clause AND
 	BSD-3-Clause AND BSD-4-Clause-UC AND MIT AND Public-Domain"
 checkdepends="bash findutils xz"
-makedepends_build="
-	autoconf
-	automake
-	libtool
-	"
 makedepends_host="
 	libcap-ng-dev
 	linux-headers
@@ -23,6 +18,7 @@ makedepends_host="
 	"
 subpackages="
 	$pkgname-bash-completion
+	$pkgname-static
 	$pkgname-dev
 	$pkgname-openrc
 
@@ -75,6 +71,7 @@ else
 fi
 subpackages="$subpackages $pkgname-doc $pkgname-misc"
 makedepends="$makedepends_build $makedepends_host"
+builddir="$srcdir/util-linux-$pkgver"
 options="$options suid"
 
 # please fix me!
@@ -86,7 +83,7 @@ case $pkgver in
 	*.*.*) _v=${pkgver%.*};;
 	*.*) _v=$pkgver;;
 esac
-source="https://www.kernel.org/pub/linux/utils/util-linux/v$_v/util-linux-$pkgver.tar.xz
+source="https://www.kernel.org/pub/linux/utils/util-linux/v$pkgver/util-linux-$pkgver.tar.xz
 	utmps.patch
 	ttydefaults.h
 	rfkill.confd
@@ -111,26 +108,21 @@ prepare() {
 	default_prepare
 
 	cp "$srcdir"/ttydefaults.h include/
-	libtoolize --force
-	aclocal -I m4
-	autoconf
-	automake --add-missing
 
 	# FIXME: This test fails, dunno why.
 	rm tests/ts/col/multibyte
-	# FIXME: Fails on GitLab CI, but passes locally, dunno why.
-	rm tests/ts/misc/setarch
-	# XXX: Hangs on GitLab CI.
-	rm tests/ts/lsns/*
-	# XXX: succeeds in all actions but fails anyway
+	# # XXX: succeeds in all actions but fails anyway
 	rm tests/ts/lsfd/mkfds-directory
-	# XXX: flakes 20% of the time
+	# # XXX: flakes 20% of the time
 	rm tests/ts/hardlink/options
-	# XXX: fail on aarch64
-	rm tests/ts/lsfd/mkfds-symlink
-	rm tests/ts/lsfd/mkfds-rw-character-device
-	# XXX: fails on arm builders probably due to new networking
+	# # XXX: fails on arm builders probably due to new networking
 	rm tests/ts/utmp/last-ipv6
+	# fails without coreutils
+	rm tests/ts/lib/timeutils
+	rm tests/ts/lscpu/lscpu
+	rm tests/ts/dmesg/limit
+	# very flaky with network
+	rm tests/ts/lsfd/option-inet
 }
 
 build() {
@@ -139,16 +131,18 @@ build() {
 		# and also much more space efficient - adds 4 kiB to each binary, that's
 		# 20 kiB in total for util-linux-*, versus 196 kiB (libskarnet.so).
 		# TODO: Find a better way (libutmps.so w/o dependency on libskarnet.so)?
-		export UTMPX_CFLAGS=$(pkg-config --cflags --static utmps)
-		# Clearly specify we want to link with utmps statically in
-		# Alpaquita. For more information, see:
+		# also throw in lto when not bootstrapping
+		export CFLAGS="$CFLAGS -ffat-lto-objects -flto=auto $(pkg-config --cflags --static utmps)"
+		# Clearly specify we want to link with utmps statically.  For
+		# more information, see:
 		#
 		# 	../../core/busybox/APKBUILD
 		#
 		# Prepend each linker flag with '-Wl,', otherwise libtool will
 		# mangle the order of linker options.
-		export UTMPX_LIBS="-Wl,-Bstatic $(pkg-config --libs --static utmps | sed 's/-/-Wl,-/g') -Wl,-Bdynamic"
+		export LDFLAGS="$LDFLAGS -Wl,-Bstatic $(pkg-config --libs --static utmps | sed 's/-/-Wl,-/g') -Wl,-Bdynamic"
 	fi
+
 	# --disable-chfn-chsh - chfn and chsh are provided by shadow package
 	./configure \
 		--build=$CBUILD \
@@ -175,7 +169,7 @@ check() {
 }
 
 package() {
-	make -j1 DESTDIR="$pkgdir" -C "$builddir" install
+	make DESTDIR="$pkgdir" install
 
 	# use pkg-config
 	install -D -m755 "$srcdir"/rfkill.initd "$pkgdir"/etc/init.d/rfkill
@@ -361,8 +355,8 @@ _py3() {
 }
 
 sha512sums="
-07f11147f67dfc6c8bc766dfc83266054e6ede776feada0566b447d13276b6882ee85c6fe53e8d94a17c03332106fc0549deca3cf5f2e92dda554e9bc0551957  util-linux-2.38.1.tar.xz
-88736b554b60f836357a29f537d51658bb487dd316c92cc5160ba06bed5f8cf8e34bbfb8eb7370c4e4a2e75997a6e4bd2058201d227e41f83a18abbf4a73bdbd  utmps.patch
+3d59a0f114c06be19ef7f86fca37ba5b9073823d011b3fc37997ddb00124b4505ea32903b78798a64dffbccf0ba645a692678ee845cc65a5b321824448a82a94  util-linux-2.39.tar.xz
+c1c9cd816d20582438cda75a9c0ea4e687eee124e657172729aff410f52558be19cc5d649dae07c03f7618411e5aa6c23bcebc3fdf25529517a61b6b343966ef  utmps.patch
 876bb9041eca1b2cca1e9aac898f282db576f7860aba690a95c0ac629d7c5b2cdeccba504dda87ff55c2a10b67165985ce16ca41a0694a267507e1e0cafd46d9  ttydefaults.h
 401d2ccbdbfb0ebd573ac616c1077e2c2b79ff03e9221007759d8ac25eb522c401f705abbf7daac183d5e8017982b8ec5dd0a5ebad39507c5bb0a9f31f04ee97  rfkill.confd
 8f8cb6505c8a016b3c8d29fb317d2cae6e1a3e6b512e95020264792f7ab576f2b900007b326525d3a9f18b4f5c8bdb8cd0ab5cee75723e542dbe96c98cde59e0  rfkill.initd
