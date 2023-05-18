@@ -3,7 +3,7 @@
 
 pkgname=elfutils
 pkgver=0.189
-pkgrel=2
+pkgrel=3
 pkgdesc="ELF/DWARF files management tools"
 url="http://elfutils.org/"
 arch="all"
@@ -60,7 +60,7 @@ source="https://sourceware.org/elfutils/ftp/$pkgver/elfutils-$pkgver.tar.bz2
 #     - CVE-2017-7608
 
 build() {
-	CFLAGS="$CFLAGS -Wno-error -Wno-null-dereference" \
+	CFLAGS="$CFLAGS -D_GNU_SOURCE -Wno-error -Wno-null-dereference" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
