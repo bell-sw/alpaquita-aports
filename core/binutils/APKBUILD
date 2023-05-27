@@ -3,7 +3,7 @@
 
 pkgname=binutils
 pkgver=2.40
-pkgrel=10
+pkgrel=11
 pkgdesc="GNU tools for programs building"
 url="https://www.gnu.org/software/binutils/"
 makedepends_build="bison flex texinfo linux-headers"
@@ -74,6 +74,8 @@ build() {
 		_arch_configure="--enable-targets=x86_64-pep"
 	fi
 
+	CFLAGS="$CFLAGS -O2" \
+	CXXFLAGS="$CXXFLAGS -O2" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
