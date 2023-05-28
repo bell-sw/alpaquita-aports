@@ -3,12 +3,12 @@
 
 pkgname=coreutils
 pkgver=9.3
-pkgrel=2
+pkgrel=3
 pkgdesc="GNU core utilities"
 url="https://www.gnu.org/software/coreutils/"
 arch="all"
 license="GPL-3.0-or-later"
-makedepends="acl-dev attr-dev utmps-dev perl"
+makedepends="acl-dev attr-dev utmps-dev perl openssl-dev"
 subpackages="$pkgname-doc $pkgname-env"
 install="$pkgname.post-deinstall"
 source="https://ftp.gnu.org/gnu/coreutils/coreutils-$pkgver.tar.xz
@@ -34,6 +34,7 @@ build() {
 		--enable-no-install-program=hostname,su,kill,uptime \
 		--enable-single-binary=symlinks \
 		--enable-single-binary-exceptions=env \
+		--with-openssl \
 		--with-packager="$VENDOR_DISTRO_NAME Linux" \
 		--with-packager-version="$pkgver-r$pkgrel" \
 		--with-packager-bug-reports="$VENDOR_BUG_REPORT_URL"
