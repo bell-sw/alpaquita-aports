@@ -4,7 +4,7 @@
 pkgname=openssl
 pkgver=3.1.1
 _abiver=${pkgver%.*.*}
-pkgrel=0
+pkgrel=1
 pkgdesc="Toolkit for general-purpose cryptography and secure communication (v.3)"
 url="https://www.openssl.org/"
 arch="all"
@@ -142,6 +142,7 @@ check() {
 }
 
 package() {
+	depends="libssl$_abiver=$pkgver-r$pkgrel libcrypto$_abiver=$pkgver-r$pkgrel"
 	provides="openssl3=$pkgver-r$pkgrel"
 	replaces="openssl3"
 
