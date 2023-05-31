@@ -1,12 +1,12 @@
 pkgname=linux-firmware
 pkgver=20230515
-pkgrel=1
+pkgrel=2
 pkgdesc="firmware files for linux"
 url="https://git.kernel.org/?p=linux/kernel/git/firmware/linux-firmware.git;a=summary"
 arch="all"
 license="custom"
 makedepends="libarchive-tools"
-provides="linux-firmware-any=$pkgver-r$pkgrel linux-firmware-extra-modules-any=$pkgver-r$pkgrel"
+provides="linux-firmware-any linux-firmware-extra-modules-any"
 provider_priority=2
 options="!strip !check !archcheck !spdx !annobin"
 
@@ -92,7 +92,7 @@ _folder() {
 	local folder=${subpkgname##linux-firmware-}
 	pkgdesc="firmware files for linux ($folder folder)"
 	depends=""
-	provides="linux-firmware-any=$pkgver-r$pkgrel linux-firmware-extra-modules-any=$pkgver-r$pkgrel"
+	provides="linux-firmware-any linux-firmware-extra-modules-any"
 	provider_priority=1
 
 	local linkedbins= bin=
@@ -134,7 +134,7 @@ other() {
 	# Move /lib/firmware (which doesn't have subfolders now)
 	pkgdesc="firmware files for linux (uncategorized)"
 	depends=""
-	provides="linux-firmware-any=$pkgver-r$pkgrel linux-firmware-extra-modules-any=$pkgver-r$pkgrel"
+	provides="linux-firmware-any linux-firmware-extra-modules-any"
 	provider_priority=1
 
 	amove /lib
@@ -147,15 +147,15 @@ other() {
 none() {
 	# dummy package with no firmware
 	pkgdesc="Empty linux firwmare package for those who does not need any firmware"
+	provides="linux-firmware-any linux-firmware-extra-modules-any"
 	provider_priority=1
-	provides="linux-firmware-any=$pkgver-r$pkgrel linux-firmware-extra-modules-any=$pkgver-r$pkgrel"
 	depends=
 	mkdir -p "$subpkgdir"
 }
 
 ucode() {
 	pkgdesc="Microcode update files for AMD CPUs"
-	provider_priority=1
+	provider_priority=
 	provides=
 	depends=
 
@@ -172,8 +172,8 @@ ucode() {
 modules()
 {
 	pkgdesc="firmware files for linux extra modules package"
+	provides="linux-firmware-extra-modules-any"
 	provider_priority=3
-	provides="linux-firmware-extra-modules-any=$pkgver-r$pkgrel"
 
 	depends="linux-firmware-other=$pkgver-r$pkgrel"
 	for i in $_firmware_modules; do
