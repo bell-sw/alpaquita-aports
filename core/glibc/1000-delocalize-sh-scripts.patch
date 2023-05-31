@@ -1,19 +1,127 @@
 Eliminate dependency on bash by converting $"..." message strings into
 plain, untranslated strings.
 
+---
+ debug/xtrace.sh | 26 +++++++++++++-------------
+ elf/ldd.bash.in | 32 ++++++++++++++++----------------
+ elf/sotruss.sh  | 26 +++++++++++++-------------
+ 3 files changed, 42 insertions(+), 42 deletions(-)
 
---- a/elf/ldd.bash.in.dist
+diff --git a/debug/xtrace.sh b/debug/xtrace.sh
+index 3d1f2af43a..4d8bbedf82 100755
+--- a/debug/xtrace.sh
++++ b/debug/xtrace.sh
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/bin/sh
+ # Copyright (C) 1999-2023 Free Software Foundation, Inc.
+ # This file is part of the GNU C Library.
+ 
+@@ -22,26 +22,26 @@ TEXTDOMAIN=libc
+ 
+ # Print usage message.
+ do_usage() {
+-  printf $"Usage: xtrace [OPTION]... PROGRAM [PROGRAMOPTION]...\n"
++  printf "Usage: xtrace [OPTION]... PROGRAM [PROGRAMOPTION]...\n"
+   exit 0
+ }
+ 
+ # Refer to --help option.
+ help_info() {
+-  printf >&2 $"Try \`%s --help' or \`%s --usage' for more information.\n" xtrace xtrace
++  printf >&2 "Try \`%s --help' or \`%s --usage' for more information.\n" xtrace xtrace
+   exit 1
+ }
+ 
+ # Message for missing argument.
+ do_missing_arg() {
+-  printf >&2 $"%s: option '%s' requires an argument.\n" xtrace "$1"
++  printf >&2 "%s: option '%s' requires an argument.\n" xtrace "$1"
+   help_info
+ }
+ 
+ # Print help message
+ do_help() {
+-  printf $"Usage: xtrace [OPTION]... PROGRAM [PROGRAMOPTION]...\n"
+-  printf $"Trace execution of program by printing currently executed function.
++  printf "Usage: xtrace [OPTION]... PROGRAM [PROGRAMOPTION]...\n"
++  printf "Trace execution of program by printing currently executed function.
+ 
+      --data=FILE          Don't run the program, just print the data from FILE.
+ 
+@@ -53,18 +53,18 @@ Mandatory arguments to long options are also mandatory for any corresponding
+ short options.
+ 
+ "
+-  printf $"For bug reporting instructions, please see:\\n%s.\\n" \
++  printf "For bug reporting instructions, please see:\\n%s.\\n" \
+     "@REPORT_BUGS_TO@"
+   exit 0
+ }
+ 
+ do_version() {
+   echo 'xtrace @PKGVERSION@@VERSION@'
+-  printf $"Copyright (C) %s Free Software Foundation, Inc.
++  printf "Copyright (C) %s Free Software Foundation, Inc.
+ This is free software; see the source for copying conditions.  There is NO
+ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ " "2023"
+-  printf $"Written by %s.
++  printf "Written by %s.
+ " "Ulrich Drepper"
+   exit 0
+ }
+@@ -121,7 +121,7 @@ while test $# -gt 0; do
+     break
+     ;;
+   --*)
+-    printf >&2 $"xtrace: unrecognized option \`$1'\n"
++    printf >&2 "xtrace: unrecognized option \`$1'\n"
+     help_info
+     ;;
+   *)
+@@ -134,7 +134,7 @@ done
+ 
+ # See whether any arguments are left.
+ if test $# -eq 0; then
+-  printf >&2 $"No program name given\n"
++  printf >&2 "No program name given\n"
+   help_info
+ fi
+ 
+@@ -142,11 +142,11 @@ fi
+ program=$1
+ shift
+ if test ! -f "$program"; then
+-  printf >&2 $"executable \`$program' not found\n"
++  printf >&2 "executable \`$program' not found\n"
+   help_info
+ fi
+ if test ! -x "$program"; then
+-  printf >&2 $"\`$program' is no executable\n"
++  printf >&2 "\`$program' is no executable\n"
+   help_info
+ fi
+ 
+diff --git a/elf/ldd.bash.in b/elf/ldd.bash.in
+index e45dec5894..21daab3e08 100644
+--- a/elf/ldd.bash.in
 +++ b/elf/ldd.bash.in
 @@ -1,4 +1,4 @@
 -#!/bin/bash
 +#!/bin/sh
- # Copyright (C) 1996-2021 Free Software Foundation, Inc.
+ # Copyright (C) 1996-2023 Free Software Foundation, Inc.
  # This file is part of the GNU C Library.
  
-@@ -39,12 +39,12 @@
+@@ -35,16 +35,16 @@ while test $# -gt 0; do
+   case "$1" in
+   --vers | --versi | --versio | --version)
+     echo 'ldd @PKGVERSION@@VERSION@'
+-    printf $"Copyright (C) %s Free Software Foundation, Inc.
++    printf "Copyright (C) %s Free Software Foundation, Inc.
  This is free software; see the source for copying conditions.  There is NO
  warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- " "2021"
+ " "2023"
 -    printf $"Written by %s and %s.
 +    printf "Written by %s and %s.
  " "Roland McGrath" "Ulrich Drepper"
@@ -25,7 +133,7 @@ plain, untranslated strings.
        --help              print this help and exit
        --version           print version information and exit
    -d, --data-relocs       process data relocations
-@@ -52,7 +52,7 @@
+@@ -52,7 +52,7 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
    -u, --unused            print unused direct dependencies
    -v, --verbose           print all information
  "
@@ -34,7 +142,7 @@ plain, untranslated strings.
        "@REPORT_BUGS_TO@"
      exit 0
      ;;
-@@ -77,15 +77,15 @@
+@@ -77,15 +77,15 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
      shift
      ;;
    --v | --ve | --ver)
@@ -53,7 +161,7 @@ plain, untranslated strings.
      exit 1
      ;;
    *)
-@@ -121,8 +121,8 @@
+@@ -121,8 +121,8 @@ try_trace() (
  
  case $# in
  0)
@@ -64,7 +172,7 @@ plain, untranslated strings.
    exit 1
    ;;
  1)
-@@ -144,13 +144,13 @@
+@@ -144,13 +144,13 @@ for file do
       ;;
    esac
    if test ! -e "$file"; then
@@ -81,7 +189,7 @@ plain, untranslated strings.
  warning: you do not have execution permission for" "\`$file'" >&2
      RTLD=
      ret=1
-@@ -167,7 +167,7 @@
+@@ -167,7 +167,7 @@ warning: you do not have execution permission for" "\`$file'" >&2
      1)
        # This can be a non-ELF binary or no binary at all.
        nonelf "$file" || {
@@ -90,7 +198,7 @@ plain, untranslated strings.
  	result=1
        }
        ;;
-@@ -175,12 +175,12 @@
+@@ -175,12 +175,12 @@ warning: you do not have execution permission for" "\`$file'" >&2
        try_trace "$RTLD" "$file" || result=1
        ;;
      *)
@@ -105,15 +213,17 @@ plain, untranslated strings.
      result=1
    fi
  done
---- a/elf/sotruss.sh.dist
+diff --git a/elf/sotruss.sh b/elf/sotruss.sh
+index 874a6bed3f..97e9219c8b 100755
+--- a/elf/sotruss.sh
 +++ b/elf/sotruss.sh
 @@ -1,4 +1,4 @@
 -#!/bin/bash
 +#!/bin/sh
- # Copyright (C) 2011-2021 Free Software Foundation, Inc.
+ # Copyright (C) 2011-2023 Free Software Foundation, Inc.
  # This file is part of the GNU C Library.
  
-@@ -29,7 +29,7 @@
+@@ -29,7 +29,7 @@ SOTRUSS_WHICH=$$
  lib='@PREFIX@/$LIB/audit/sotruss-lib.so'
  
  do_help() {
@@ -122,7 +232,7 @@ plain, untranslated strings.
    -F, --from FROMLIST     Trace calls from objects on FROMLIST
    -T, --to TOLIST         Trace calls to objects on TOLIST
  
-@@ -43,28 +43,28 @@
+@@ -43,28 +43,28 @@ do_help() {
        --version           Print program version"
  
    echo
@@ -157,7 +267,7 @@ plain, untranslated strings.
    exit 1
  }
  
-@@ -72,18 +72,18 @@
+@@ -72,18 +72,18 @@ while test $# -gt 0; do
    case "$1" in
    --v | --ve | --ver | --vers | --versi | --versio | --version)
      echo "sotruss @PKGVERSION@@VERSION@"
@@ -165,7 +275,7 @@ plain, untranslated strings.
 +    printf "Copyright (C) %s Free Software Foundation, Inc.
  This is free software; see the source for copying conditions.  There is NO
  warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- " "2021"
+ " "2023"
 -    printf $"Written by %s.\n" "Ulrich Drepper"
 +    printf "Written by %s.\n" "Ulrich Drepper"
      exit 0
@@ -179,7 +289,7 @@ plain, untranslated strings.
  	    [--follow] [--from FROMLIST] [--output FILENAME] [--to TOLIST]
  	    [--help] [--usage] [--version] [--]
  	    EXECUTABLE [EXECUTABLE-OPTION...]\n" sotruss
-@@ -131,8 +131,8 @@
+@@ -131,8 +131,8 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
      break
      ;;
    -*)
@@ -190,97 +300,6 @@ plain, untranslated strings.
      exit 1
      ;;
    *)
---- a/debug/xtrace.sh.dist
-+++ b/debug/xtrace.sh
-@@ -1,4 +1,4 @@
--#!/bin/bash
-+#!/bin/sh
- # Copyright (C) 1999-2021 Free Software Foundation, Inc.
- # This file is part of the GNU C Library.
- # Contributed by Ulrich Drepper <drepper@gnu.org>, 1999.
-@@ -23,26 +23,26 @@
- 
- # Print usage message.
- do_usage() {
--  printf $"Usage: xtrace [OPTION]... PROGRAM [PROGRAMOPTION]...\n"
-+  printf "Usage: xtrace [OPTION]... PROGRAM [PROGRAMOPTION]...\n"
-   exit 0
- }
- 
- # Refer to --help option.
- help_info() {
--  printf >&2 $"Try \`%s --help' or \`%s --usage' for more information.\n" xtrace xtrace
-+  printf >&2 "Try \`%s --help' or \`%s --usage' for more information.\n" xtrace xtrace
-   exit 1
- }
- 
- # Message for missing argument.
- do_missing_arg() {
--  printf >&2 $"%s: option '%s' requires an argument.\n" xtrace "$1"
-+  printf >&2 "%s: option '%s' requires an argument.\n" xtrace "$1"
-   help_info
- }
- 
- # Print help message
- do_help() {
--  printf $"Usage: xtrace [OPTION]... PROGRAM [PROGRAMOPTION]...\n"
--  printf $"Trace execution of program by printing currently executed function.
-+  printf "Usage: xtrace [OPTION]... PROGRAM [PROGRAMOPTION]...\n"
-+  printf "Trace execution of program by printing currently executed function.
- 
-      --data=FILE          Don't run the program, just print the data from FILE.
- 
-@@ -54,18 +54,18 @@
- short options.
- 
- "
--  printf $"For bug reporting instructions, please see:\\n%s.\\n" \
-+  printf "For bug reporting instructions, please see:\\n%s.\\n" \
-     "@REPORT_BUGS_TO@"
-   exit 0
- }
- 
- do_version() {
-   echo 'xtrace @PKGVERSION@@VERSION@'
--  printf $"Copyright (C) %s Free Software Foundation, Inc.
-+  printf "Copyright (C) %s Free Software Foundation, Inc.
- This is free software; see the source for copying conditions.  There is NO
- warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- " "2021"
--  printf $"Written by %s.
-+  printf "Written by %s.
- " "Ulrich Drepper"
-   exit 0
- }
-@@ -122,7 +122,7 @@
-     break
-     ;;
-   --*)
--    printf >&2 $"xtrace: unrecognized option \`$1'\n"
-+    printf >&2 "xtrace: unrecognized option \`$1'\n"
-     help_info
-     ;;
-   *)
-@@ -135,7 +135,7 @@
- 
- # See whether any arguments are left.
- if test $# -eq 0; then
--  printf >&2 $"No program name given\n"
-+  printf >&2 "No program name given\n"
-   help_info
- fi
- 
-@@ -143,11 +143,11 @@
- program=$1
- shift
- if test ! -f "$program"; then
--  printf >&2 $"executable \`$program' not found\n"
-+  printf >&2 "executable \`$program' not found\n"
-   help_info
- fi
- if test ! -x "$program"; then
--  printf >&2 $"\`$program' is no executable\n"
-+  printf >&2 "\`$program' is no executable\n"
-   help_info
- fi
- 
+-- 
+2.25.1
+
