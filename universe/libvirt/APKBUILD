@@ -1,7 +1,7 @@
 pkgname=libvirt
-pkgver=9.3.0
+pkgver=9.4.0
 _ver="${pkgver/_rc/-rc}"
-pkgrel=2
+pkgrel=0
 pkgdesc="A virtualization API for several hypervisor and container systems"
 url="https://libvirt.org/"
 arch="all"
@@ -75,7 +75,6 @@ source="https://libvirt.org/sources/libvirt-$pkgver.tar.xz
 	libvirt-guests.initd
 	virtlogd.initd
 	virtlockd.initd
-	libvirt-6.0.0-fix_paths_in_libvirt-guests_sh.patch
 	"
 subpackages="$subpackages $pkgname-common-drivers:_common_drivers"
 
@@ -93,9 +92,12 @@ subpackages="$subpackages $pkgname-common-drivers:_common_drivers"
 #     - CVE-2019-10161
 
 build() {
+	# silence repetitive warnings
+	CFLAGS="$CFLAGS -Wno-inline" \
 	abuild-meson \
 		-Db_lto=true \
 		--libexec=/usr/lib/$pkgname \
+		-Dinit_script=openrc \
 		. output
 
 	meson configure --no-pager output
@@ -191,12 +193,11 @@ _common_drivers() {
 }
 
 sha512sums="
-b9349dcd7798c76d75bb20afad67d6e676758cb201acaf7aed5109f0e91422b2bcca964a2f19aa8dc4fd0eca2923902474e16e3839bf8b15aca827028e88ddb7  libvirt-9.3.0.tar.xz
+8a8e3983c47c5ed5f4b50d90cb04e435717afddd27e16112ceeddda458d45c693daf65575f5d50274cfffcd1c83cbdd290819d8ece63f3bf9441b6bdaa309852  libvirt-9.4.0.tar.xz
 c3647366e589f2134599baefcbd7ec480cbc0830c71f95cd903cacb28e463d4cd8d972fbd1db81aa17eef81c1f701bd3937c9b8eb71d56ee630e1ed8b89887e9  libvirt.confd
 3ea7599940bb40b7867c718a24a95bb430940894a37cd22057fd47a8d71dc930ce581e1c15a3b3f29a052f462fa8b2467d3f90f42f6cb7744214aedc6c75f4ac  libvirt.initd
 78f419a89de7aabaad860903c24f1c070786fc1296d987e61dd537705b0e7f71a46c315888028f3826c3417e42861ca8471788be4ec5695e98427c5f18ae63fc  libvirt-guests.confd
 4ece28373ea9e00ccb884493a8489922c8155bc991c1679d956d77a9aaafc99253645ca9a3cdb397ad101356361003a6a2b5f43af5088a3c8c0f8103dfa434ac  libvirt-guests.initd
 e1e092a67294488457064cdc709729814d7dc82482075c7584aeb625d79d6c2c0d0e196e98aef9240f2dd0f15c3c7e9bfcd0876b5671fdbb454bfe87092ba477  virtlogd.initd
 4b8626ac39a4e6c2cc3a8883d6f9fe3234d3a948c000a525a9c8571500989e40e3eb466fce45f1f600235ee282ad6dd05fc14aa689ce108f475dc0dc79bd0268  virtlockd.initd
-dc80c9fc459207dd1ff77548054ea5a51c41a2d36e1b8917eca5f69293a86168af3da47466d8ff954a8b2e0ead9f28ed7d6c2c3671cf67d0ebb4039003a0dde2  libvirt-6.0.0-fix_paths_in_libvirt-guests_sh.patch
 "
