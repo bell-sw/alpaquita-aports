@@ -1,6 +1,6 @@
 pkgname=gdb
 pkgver=13.2
-pkgrel=0
+pkgrel=1
 pkgdesc="The GNU Debugger"
 url="https://www.gnu.org/software/gdb/"
 arch="all"
@@ -23,8 +23,9 @@ makedepends="
 options="!check"
 subpackages="$pkgname-dbg $pkgname-doc $pkgname-multiarch"
 source="https://ftp.gnu.org/gnu/gdb/gdb-$pkgver.tar.xz
-	musl:musl-signals.patch
 	gcore-sh.patch
+	musl:musl-signals.patch
+	fix-segfault-dereferencing-the_bfd_section.patch
 	"
 
 prepare() {
@@ -105,6 +106,7 @@ multiarch() {
 
 sha512sums="
 8185d3e11ab60dafff5860a5016577bfe7dd7547ef01ebc867bc247603d82b74ff74c4f29492c7d2aee57076f52be33e289f4c6b414a4b870d4b3004909f4c34  gdb-13.2.tar.xz
-58aacc7cdc119eab729a3c5a5521f6a0db41c6a5bc2d09d6e32cbdd071d85dd1a31b5e6559616f8da1237c5b79ad9e04aab485211e957b4d1ca752c0c5ad660b  musl-signals.patch
 68f893e72742eac7e41fd7c3e688b8cccc79327f0422b03319302a1a9d24513e77d698bc6ff16f67236b521df321b9ff0ca2ee342c11f12933c492c5c530ec9b  gcore-sh.patch
+58aacc7cdc119eab729a3c5a5521f6a0db41c6a5bc2d09d6e32cbdd071d85dd1a31b5e6559616f8da1237c5b79ad9e04aab485211e957b4d1ca752c0c5ad660b  musl-signals.patch
+ae0de066cbf167b8da0c9787441c86ca2afc67e269605734b36337092a14a2e74a56e560837d17db2eec431a5f46dcf31014f0917929266b1a9e150108f1c4eb  fix-segfault-dereferencing-the_bfd_section.patch
 "
