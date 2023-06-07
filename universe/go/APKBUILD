@@ -232,11 +232,7 @@ check() {
 	#   • https://gitlab.alpinelinux.org/alpine/aports/-/merge_requests/39618
 	export GCCGO=/does/not/exist
 
-	# TODO: cgo_test fails due to https://github.com/golang/go/issues/39857
-	# TODO: revisit this when Musl 1.2.4 is released
-	local _disabled_tests=""
-	[ "$CLIBC" = "musl" ] && _disabled_tests='!(^cgo:test-.*)'
-	PATH="$builddir/bin:$PATH" ./run.bash -no-rebuild -run "$_disabled_tests"
+	PATH="$builddir/bin:$PATH" ./run.bash -no-rebuild
 }
 
 package() {
