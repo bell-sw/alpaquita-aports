@@ -1,0 +1,153 @@
+pkgname=edk2
+pkgver=0.0.202302
+_realver=edk2-stable${pkgver##*.}
+_sslver=1.1.1t
+_sfver=3e
+pkgrel=0
+pkgdesc="EFI Development Kit II"
+url="https://github.com/tianocore/tianocore.github.io/wiki/EDK-II/"
+arch="x86_64 aarch64"
+license="BSD-2-Clause-Patent"
+makedepends="bash python3 iasl nasm util-linux-dev util-linux-misc"
+options="!check" # has no checks
+subpackages="$pkgname-pyc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/tianocore/edk2/archive/$_realver.tar.gz
+	https://www.openssl.org/source/openssl-$_sslver.tar.gz
+	http://www.jhauser.us/arithmetic/SoftFloat-$_sfver.zip
+	build-hack.patch
+	disable-werror.patch
+	0008-BaseTools-do-not-build-BrotliCompress-RH-only.patch
+	0009-MdeModulePkg-remove-package-private-Brotli-include-p.patch
+	openssl-1.1.1t.patch
+	"
+builddir="$srcdir/$pkgname-$_realver"
+
+case "$CARCH" in
+	x86)
+		TARGET_ARCH=IA32
+		PLATFORM=OvmfPkg/OvmfPkgIa32X64.dsc
+		;;
+	x86_64)
+		TARGET_ARCH=X64
+		PLATFORM=OvmfPkg/OvmfPkgX64.dsc
+		subpackages="$subpackages ovmf::noarch"
+		;;
+	aarch64)
+		TARGET_ARCH=AARCH64
+		PLATFORM=ArmVirtPkg/ArmVirtQemu.dsc
+		subpackages="$subpackages aavmf::noarch"
+		;;
+esac
+
+TOOLCHAIN=GCC5
+RELEASE=RELEASE
+
+prepare() {
+	# unix line endings for the files to be patched
+	sed -e 's/\r$//' -i BaseTools/Source/C/VfrCompile/VfrUtilityLib.cpp \
+		BaseTools/Source/C/VolInfo/VolInfo.c
+	rm -rf CryptoPkg/Library/OpensslLib/openssl
+	ln -s "$srcdir"/openssl-$_sslver CryptoPkg/Library/OpensslLib/openssl
+	rm -rf ArmPkg/Library/ArmSoftFloatLib/berkeley-softfloat-3
+	ln -s "$srcdir"/SoftFloat-$_sfver \
+		ArmPkg/Library/ArmSoftFloatLib/berkeley-softfloat-3
+	default_prepare
+}
+
+build() {
+	export PYTHON_COMMAND=python3
+	export WORKSPACE=$PWD
+	export PACKAGES_PATH=$PWD
+	export EDK_TOOLS_PATH=$PWD/BaseTools/
+	export PATH=$PWD/BaseTools/BinWrappers/PosixLike/:$PATH
+	# parallel build fails
+	unset MAKEFLAGS
+
+	bash -c ". edksetup.sh"
+	make -C BaseTools
+
+	msg "Building Plaform Files"
+	command build -b $RELEASE \
+		-a $TARGET_ARCH  \
+		-t $TOOLCHAIN \
+		-p $PLATFORM \
+		-n ${JOBS:-2} \
+		-DSECURE_BOOT_ENABLE=TRUE \
+		-DTPM2_ENABLE=TRUE
+}
+
+package() {
+	mkdir -p "$pkgdir"/usr/bin \
+		"$pkgdir"/usr/share/$pkgname/Conf \
+		"$pkgdir"/usr/share/$pkgname/Scripts
+
+	install BaseTools/Source/C/bin/* BaseTools/BinWrappers/PosixLike/LzmaF86Compress \
+		"$pkgdir"/usr/bin
+	install BaseTools/BuildEnv "$pkgdir"/usr/share/$pkgname/
+	install BaseTools/Conf/*.template "$pkgdir"/usr/share/$pkgname/Conf
+	install BaseTools/Scripts/GccBase.lds "$pkgdir"/usr/share/$pkgname/Scripts
+
+	for i in $(find BaseTools/Source/Python -type d -maxdepth 1); do
+		local mod=${i##*/}
+		test -f "$i/$mod.py" || continue
+		cp -R BaseTools/Source/Python/"$mod" "$pkgdir"/usr/share/edk2/Python/
+		cat <<- EOF > "$pkgdir"/usr/bin/"$mod".py
+		#!/bin/sh
+		export PYTHONPATH=/usr/share/edk2/Python
+		exec $PYTHON_COMMAND /usr/share/edk2/Python/$mod/$mod.py "\$@"
+		EOF
+		chmod +x "$pkgdir"/usr/bin/"$mod".py
+	done
+}
+
+ovmf() {
+	pkgdesc="Open Virtual Machine Firmware (OVMF) BIOS"
+	license="BSD MIT"
+
+	for fw in "$builddir"/Build/*/"$RELEASE"_"$TOOLCHAIN"/FV/*.fd; do
+		install -D $fw "$subpkgdir"/usr/share/OVMF/${fw##*/}
+	done
+
+	# dont ship memfd for now to save space
+	rm -f "$subpkgdir"/usr/share/OVMF/MEMFD.fd
+
+	install -d "$subpkgdir"/usr/share/ovmf
+	ln -sf ../OVMF/OVMF.fd "$subpkgdir"/usr/share/ovmf/bios.bin
+}
+
+aavmf() {
+	pkgdesc="ARM (aarch64) Virtual Machine Firmware EFI"
+	license="BSD MIT"
+
+	dd if=/dev/zero \
+		of="$builddir"/Build/ArmVirtQemu-AARCH64/"$RELEASE"_$TOOLCHAIN/FV/AAVMF_CODE.fd \
+		bs=1M seek=64 count=0
+	dd if="$builddir"/Build/ArmVirtQemu-AARCH64/"$RELEASE"_$TOOLCHAIN/FV/QEMU_EFI.fd \
+		of="$builddir"/Build/ArmVirtQemu-AARCH64/"$RELEASE"_$TOOLCHAIN/FV/AAVMF_CODE.fd \
+		conv=notrunc
+	dd if=/dev/zero \
+	of="$builddir"/Build/ArmVirtQemu-AARCH64/"$RELEASE"_$TOOLCHAIN/FV/AAVMF_VARS.fd \
+		bs=1M seek=64 count=0
+
+	for fw in "$builddir"/Build/*/"$RELEASE"_"$TOOLCHAIN"/FV/*.fd; do
+		install -D $fw "$subpkgdir"/usr/share/AAVMF/${fw##*/}
+	done
+}
+
+pyc() {
+	default_pyc
+
+	local IFS=$'\n'
+	amove $(find usr/share/edk2/Python -type d -name __pycache__)
+}
+
+sha512sums="
+dffc7f265fbf99100007239567fdd141f9046c84b270ccf5853a7245aa05ea96cdda2dfc1cec1a1fc1f14384ef001581fd727415dbf74c225136f8189cfee9a1  edk2-0.0.202302.tar.gz
+628676c9c3bc1cf46083d64f61943079f97f0eefd0264042e40a85dbbd988f271bfe01cd1135d22cc3f67a298f1d078041f8f2e97b0da0d93fe172da573da18c  openssl-1.1.1t.tar.gz
+3fedcd0060affb2d8fc7995894133cfed6a495c8717df0d30c89885223c38749f25743598383736036332dad6353c6a3f027f5a94a696660f7c4b607e33e534c  SoftFloat-3e.zip
+a7d4ab2c82b62ba01c86e59f53bd3896d661c9bfbb9db9598734155b66d5fe03eca4a2a9993a14d3bf555992c6d01ba5d7a15868ff9ec6ed98b8a9b3895bb7df  build-hack.patch
+a7c566f2347ee08ee062be45c340f38dc047c31b1541b8eca994692c8d04f48fea45830dce5933699e9bf9207deeaf22e09639c605a896171f01d9bcd68878ce  disable-werror.patch
+ecbfc1ec3b732580c33c477191b71553247af1a68f1754bd363d179e0f5aabde93e3c5ec7f2574f9a9ffefef34e75787a2a87b1057b02cd206e8f0618a252871  0008-BaseTools-do-not-build-BrotliCompress-RH-only.patch
+ecad98ff84ab307bda751c8a9a321e064ef880dc66b4d107e66aedbc4e14d00eed76770437e25fa9153dc30803f5cbbf1299329f56865a3b75d2c19f6615e68b  0009-MdeModulePkg-remove-package-private-Brotli-include-p.patch
+4277f419c1a34dcaf5abf54fcf1d2cb164213fcf1c86e282a476c48bf4e2fc3be4e0595230143727a344056feb84d185390c4bc115bf46ecb8cc46fb6ed18cb1  openssl-1.1.1t.patch
+"
