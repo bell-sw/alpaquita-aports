@@ -10,7 +10,7 @@ arch="x86_64 aarch64"
 license="BSD-2-Clause-Patent"
 makedepends="bash python3 iasl nasm util-linux-dev util-linux-misc"
 options="!check" # has no checks
-subpackages="$pkgname-pyc"
+subpackages=""
 source="$pkgname-$pkgver.tar.gz::https://github.com/tianocore/edk2/archive/$_realver.tar.gz
 	https://www.openssl.org/source/openssl-$_sslver.tar.gz
 	http://www.jhauser.us/arithmetic/SoftFloat-$_sfver.zip
@@ -132,13 +132,6 @@ aavmf() {
 	for fw in "$builddir"/Build/*/"$RELEASE"_"$TOOLCHAIN"/FV/*.fd; do
 		install -D $fw "$subpkgdir"/usr/share/AAVMF/${fw##*/}
 	done
-}
-
-pyc() {
-	default_pyc
-
-	local IFS=$'\n'
-	amove $(find usr/share/edk2/Python -type d -name __pycache__)
 }
 
 sha512sums="
