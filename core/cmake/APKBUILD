@@ -8,7 +8,7 @@
 
 pkgname=cmake
 pkgver=3.26.4
-pkgrel=0
+pkgrel=1
 pkgdesc="Cross-platform make system"
 url="https://www.cmake.org/"
 arch="all"
@@ -28,13 +28,12 @@ makedepends="
 	zlib-dev
 	"
 checkdepends="file"
-case "$CLIBC" in
-musl)
-	checkdepends="$checkdepends musl-utils"
-esac
 subpackages="
+	ccmake
 	$pkgname-doc
 	$pkgname-bash-completion
+	$pkgname-emacs::noarch
+	$pkgname-vim::noarch
 	"
 case $pkgver in
 *.*.*.*) _v=v${pkgver%.*.*};;
@@ -70,6 +69,26 @@ check() {
 
 package() {
 	DESTDIR="$pkgdir" ninja install
+}
+
+ccmake() {
+	pkgdesc="$pkgdesc (ccmake configurator)"
+
+	amove usr/bin/ccmake
+}
+
+emacs() {
+	pkgdesc="$pkgdesc (emacs mode)"
+	install_if="$pkgname=$pkgver-r$pkgrel emacs"
+
+	amove usr/share/emacs
+}
+
+vim() {
+	pkgdesc="$pkgdesc (vim files)"
+	install_if="$pkgname=$pkgver-r$pkgrel vim"
+
+	amove usr/share/vim
 }
 
 sha512sums="
