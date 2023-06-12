@@ -6,7 +6,7 @@
 
 pkgname=linux-pam
 pkgver=1.5.3
-pkgrel=1
+pkgrel=2
 pkgdesc="Linux PAM (Pluggable Authentication Modules for Linux)"
 url="https://www.kernel.org/pub/linux/libs/pam"
 arch="all"
@@ -32,16 +32,11 @@ source="
 	base-password.pamd
 	base-session.pamd
 	base-session-noninteractive.pamd
-	login.pamd
 	other.pamd
-	system-local-login.pamd
-	system-login.pamd
+	login.pamd
 	su.pamd
 	"
 builddir="$srcdir"/Linux-PAM-$pkgver
-
-# these had a /etc/pam.d/login
-replaces="util-linux-login shadow-login"
 
 # secfixes:
 #   1.5.1-r0:
@@ -67,15 +62,17 @@ package() {
 	make DESTDIR="$pkgdir" install
 
 	# install our pam.d files
-	for i in $source; do
-		case $i in
-		*.pamd)
-			basename=$(echo $i | cut -d. -f1)
-			install -Dm644 "$srcdir"/$i "$pkgdir"/etc/pam.d/"$basename"
-			;;
-		esac
-	done
+	install -Dm644 "$srcdir"/base-auth.pamd "$pkgdir"/etc/pam.d/base-auth
+	install -Dm644 "$srcdir"/base-password.pamd "$pkgdir"/etc/pam.d/base-password
+	install -Dm644 "$srcdir"/base-account.pamd "$pkgdir"/etc/pam.d/base-account
+	install -Dm644 "$srcdir"/base-session.pamd "$pkgdir"/etc/pam.d/base-session
+	install -Dm644 "$srcdir"/base-session-noninteractive.pamd \
+		"$pkgdir"/etc/pam.d/base-session-noninteractive
+	install -Dm644 "$srcdir"/other.pamd "$pkgdir"/etc/pam.d/other
+	install -Dm644 "$srcdir"/login.pamd "$pkgdir"/etc/pam.d/login
+	install -Dm644 "$srcdir"/su.pamd "$pkgdir"/etc/pam.d/su
 
+	# make "unix_chkpwd" shadow group and enable g+s
 	chgrp shadow "$pkgdir"/usr/sbin/unix_chkpwd \
 		&& chmod g+s "$pkgdir"/usr/sbin/unix_chkpwd
 
@@ -90,14 +87,12 @@ package() {
 sha512sums="
 af88e8c1b6a9b737ffaffff7dd9ed8eec996d1fbb5804fb76f590bed66d8a1c2c6024a534d7a7b6d18496b300f3d6571a08874cf406cd2e8cea1d5eff49c136a  Linux-PAM-1.5.3.tar.xz
 9407f38d0dc0f24eb3e1c74ecc3ac78ddbe9f9882a4738fa82bfb387be30f5bff5599b11cb2d70705a299587697d967ddf57923b9bd0270d05f71cc5140f8d62  no-examples.patch
-d5ad4dc80c892a6be190f5dad26013dab29c89e9735e3c67bfc897df7e6c55c7e220b4f9a4ab03af5f1dbeb47205042e94aab81f41addc9a8965012f5daebf2f  base-auth.pamd
-697684befee830c3b60b618ad9b265ec6a5fc63447b03e626dc881f42438bed7402adb649546e852477441971dacc9d98d5974fc89fd74b57b24887258db0b93  base-account.pamd
-ba4114b7e19cf71f71d1e16bebbdc5cff6ca78c6f43184fe076c8cb774186dea0f0d51cd9536147111b28355aaf722be48a1ea2040677d7916a9277ee78500fa  base-password.pamd
-12a4a30bedb46c804ae5625578359a76f64cb8e5e2c8506c5396ad4ab2c7501c9923a94c5d33a664c645adf178bc3af1fe5d71abc7f0e4c2755e51ee24035720  base-session.pamd
+3acebf9e78ce79f781946445b1b05a2f754692b69b3ab7c1699e601c7939e5374cc7be55b2e20b5d18285e5bc84daf0a93f553a9fc63ed3544cd01dd5b593cc2  base-auth.pamd
+85806253a2a9163c6fb75e38bcbe4ee10e8713b784c60f46d0f89119c8aa7b5a98e1e920a1bde52fb7a33f65858954cadefc925d91f17dfa0f15f0132fe5cc01  base-account.pamd
+8289d81b54630b764eb5e0b49b53cff7cf69a624a031b687046145fb027a07ec19d01a8608ed022315c0b40083e5c8a522675bbd429c3109dab87556d59656bf  base-password.pamd
+27ddcfa807cc3f1e0fd09c5f3852bcfed28087e3c43f7d538fe9ff93385ed6ed83364f387ee2b1801d4839a907b44c1746cba1bd241fd3fac76f0641171434d2  base-session.pamd
 fb1a6245e8c3618afc740d86549c9151e6992e886c7dc912fe084c8b9831e48b4635beab1e98afa9d1c794938c57cdcf111512201793a0f52838954923cd4543  base-session-noninteractive.pamd
-de5a9aabdf22d65a0eebbe39b717ac68dbed5ab8ad3cfb05239d18cb61d16e4e1d6ded5ad95f4fbae32483753a7ee62645a1eccd15176bf2bb247ba6a0b7157d  login.pamd
-d4f11e176cbc6a1bde70096ac6b44895f9ce4f6d201bb6a8c812f452cceeac1a215835230ce894635325b2dc71e9d428b5d39663cacb9c3fc1c1281d0c165b2c  other.pamd
-83cc3d84ef5afded9afd4d347132901b9adcbd8b21be45b80d010370a2082e8388a713eb78d052944bc47b07fd7383edf18e2674d9d0545215cc45e14a2e14b1  system-local-login.pamd
-bb264a4db84aa4aa42d561bc0ca5db54034242a7ec0dcfd3df4b1900b2d80888c2e4ac0d0ed2ca3b503a320a464f1ed6658bb0a6346e6f82831b8e87cbfddcd8  system-login.pamd
-9b3c860ee661be126a47445b3ed56d04df82f0b03fd4a8a8bbb8febf28985cd0704c7100b56a47f1b0f56bd639cbc1449df92e82cb098890fdeda023efcdb40a  su.pamd
+299bb3791652174a4d836d60f146200bb692ad80c20c18e6e872543ac8885156ff1a7ca00acaf55b89672fa98f00b8df53879c9ab1913a9cc91f620163dd50be  other.pamd
+ae3a807bc121eb59b54f5e53ff8efdde972610cf7463b6a38bccbc89b49954aa2e0a8693919b01f8bc7a956ba58c97de34a28963bc14f526b70b3073d64427b5  login.pamd
+2038d4187d6920b1dd4c7216f9aa8922e12792ebe02dc33022e97acb617206d2084bbcb834b668f339ec99741041314909973929215be04f396f229863860a4b  su.pamd
 "
