@@ -1,4 +1,4 @@
-From 4e8b4e31aad3c3f5c7b85d8087581ae5752fb595 Mon Sep 17 00:00:00 2001
+From 6f0a054db4febf921b2840361df6b6ee28da29ff Mon Sep 17 00:00:00 2001
 From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
 Date: Fri, 2 Sep 2022 19:20:01 +0300
 Subject: [PATCH] abuild: warn if /bin, /sbin or /lib is found
@@ -9,7 +9,7 @@ Subject: [PATCH] abuild: warn if /bin, /sbin or /lib is found
  2 files changed, 70 insertions(+), 1 deletion(-)
 
 diff --git a/abuild.in b/abuild.in
-index 891b9fa..612923e 100755
+index b7f8784..e6280d0 100755
 --- a/abuild.in
 +++ b/abuild.in
 @@ -832,6 +832,17 @@ postcheck() {
@@ -31,22 +31,22 @@ index 891b9fa..612923e 100755
  	if ! options_has "libtool"; then
  		find "$dir" -name '*.la' -type f -delete
 diff --git a/tests/abuild_test b/tests/abuild_test
-index 7fefae4..39522d2 100755
+index fb20246..2f78eff 100755
 --- a/tests/abuild_test
 +++ b/tests/abuild_test
-@@ -25,7 +25,8 @@ init_tests \
- 	abuild_git_ceiling \
- 	abuild_package_size_zero \
- 	abuild_package_size_nonzero \
--	abuild_amove
-+	abuild_amove \
+@@ -39,7 +39,8 @@ init_tests \
+ 	abuild_cleanoldpkg \
+ 	abuild_path_with_spaces \
+ 	abuild_pyc_warn \
+-	abuild_pyc
++	abuild_pyc \
 +	abuild_invalid_fhs
  
  export ABUILD_SHAREDIR=$(atf_get_srcdir)/..
  export ABUILD_CONF=/dev/null
-@@ -594,3 +595,60 @@ abuild_amove_body() {
- 		test -f pkg/$i || atf_fail "$i failed"
- 	done
+@@ -922,3 +923,60 @@ abuild_pyc_body() {
+ 	atf_check -o match:"foo=1.0-r0" -o match:"pyc" \
+ 		grep install_if pkg/.control.foo-pyc/.PKGINFO
  }
 +
 +abuild_invalid_fhs_body() {
@@ -106,5 +106,5 @@ index 7fefae4..39522d2 100755
 +		abuild cleanpkg all
 +}
 -- 
-2.36.2
+2.39.2
 

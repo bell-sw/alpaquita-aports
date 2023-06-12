@@ -1,4 +1,4 @@
-From 9278851854c21be6cea182939ffd3d0a533d66f7 Mon Sep 17 00:00:00 2001
+From 3b8dca19fb0b2772a3e8696bad3d534ff4c8a2aa Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
 Date: Thu, 20 Jan 2022 09:25:14 +0000
 Subject: [PATCH] Added support for glibc toolchains
@@ -10,7 +10,7 @@ Subject: [PATCH] Added support for glibc toolchains
  3 files changed, 34 insertions(+), 44 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index 0de4fa2..55bff16 100644
+index eb0b2b5..80dc82f 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -7,6 +7,8 @@ sysconfdir	?= /etc
@@ -31,10 +31,10 @@ index 0de4fa2..55bff16 100644
  SSL_CFLAGS	?= $(shell pkg-config --cflags openssl)
  SSL_LDFLAGS	?= $(shell pkg-config --cflags openssl)
 diff --git a/abuild.in b/abuild.in
-index 3a14d7b..5dbd9e9 100755
+index 86ad8c9..352d222 100755
 --- a/abuild.in
 +++ b/abuild.in
-@@ -69,6 +69,25 @@ error() {
+@@ -70,6 +70,25 @@ error() {
  	logcmd "ERROR: $pkgname: $1"
  }
  
@@ -60,7 +60,7 @@ index 3a14d7b..5dbd9e9 100755
  amove() {
  	[ -n "$subpkgdir" ] || return 1
  
-@@ -255,8 +274,8 @@ default_sanitycheck() {
+@@ -263,8 +282,8 @@ default_sanitycheck() {
  
  		[ -e "$startdir"/$f ] || die "trigger script $f is missing"
  	done
@@ -71,7 +71,7 @@ index 3a14d7b..5dbd9e9 100755
  			if install_has "$i"; then
  				warning "You should not have \$install in source"
  				continue
-@@ -332,7 +351,7 @@ sumcheck() {
+@@ -340,7 +359,7 @@ sumcheck() {
  	set -- $sums
  	local numsums=$(( $# / 2 ))
  
@@ -80,7 +80,7 @@ index 3a14d7b..5dbd9e9 100755
  	if [ $# -ne $numsums ]; then
  		die "Number of ${algo}sums($numsums) does not correspond to number of sources($#)"
  	fi
-@@ -454,7 +473,7 @@ symlinksrc() {
+@@ -462,7 +481,7 @@ symlinksrc() {
  default_fetch() {
  	local s
  	mkdir -p "$srcdir"
@@ -89,7 +89,7 @@ index 3a14d7b..5dbd9e9 100755
  		if is_remote "$s"; then
  			uri_fetch_mirror "$s" || return 1
  			ln -sf "$SRCDEST/$(filename_from_uri $s)" "$srcdir"/
-@@ -551,7 +570,7 @@ clean() {
+@@ -562,7 +581,7 @@ clean() {
  # cleanup fetched sources
  cleancache() {
  	local s
@@ -98,16 +98,16 @@ index 3a14d7b..5dbd9e9 100755
  		if is_remote "$s"; then
  			s=$(filename_from_uri $s)
  			msg "Cleaning downloaded $s ..."
-@@ -2338,7 +2357,7 @@ builddeps() {
+@@ -2404,7 +2423,7 @@ builddeps() {
  # replace the md5sums in the APKBUILD
  checksum() {
  	local s files
 -	[ -z "$source" ] && [ -n "${md5sums}${sha256sums}${sha512sums}" ] \
 +	[ -z "$source_all" ] && [ -n "${md5sums}${sha256sums}${sha512sums}" ] \
- 		&& msg "Removing checksums from APKBUILD"
+ 		&& msg "Removing checksums from $APKBUILD"
  	sed -E -i \
  		-e '/^(md5|sha[0-9]+)sums=".*"$/d' \
-@@ -2350,7 +2369,7 @@ checksum() {
+@@ -2416,7 +2435,7 @@ checksum() {
  
  	[ -z "$source" ] && return 0
  	fetch
@@ -116,7 +116,7 @@ index 3a14d7b..5dbd9e9 100755
  		local name="$(filename_from_uri $s)"
  		case " $files " in
  		*" $name "*) die "duplicate found in \$source: $name";;
-@@ -2525,7 +2544,7 @@ listpkg() {
+@@ -2624,7 +2643,7 @@ listpkg() {
  
  source_has() {
  	local i
@@ -125,7 +125,7 @@ index 3a14d7b..5dbd9e9 100755
  		[ "$1" = "${i##*/}" ] && return 0
  		[ "$1" = "${i%%::*}" ] && return 0
  	done
-@@ -2811,6 +2830,8 @@ cd "$startdir" || die
+@@ -2899,6 +2918,8 @@ cd "$startdir" || die
  
  builddir=${builddir:-"$srcdir/$pkgname-$pkgver"}
  
@@ -135,10 +135,10 @@ index 3a14d7b..5dbd9e9 100755
  if [ -z "$REPODEST" ]; then
  	warning "REPODEST is not set and is now required. Defaulting to $HOME/packages"
 diff --git a/functions.sh.in b/functions.sh.in
-index 7cfc176..43d24b8 100644
+index 382a86b..5745fb4 100644
 --- a/functions.sh.in
 +++ b/functions.sh.in
-@@ -5,25 +5,8 @@ program=${0##*/}
+@@ -6,25 +6,8 @@ program=${0##*/}
  
  arch_to_hostspec() {
  	case "$1" in
@@ -166,7 +166,7 @@ index 7cfc176..43d24b8 100644
  	*)		echo "unknown" ;;
  	esac
  }
-@@ -31,23 +14,6 @@ arch_to_hostspec() {
+@@ -32,23 +15,6 @@ arch_to_hostspec() {
  hostspec_to_arch() {
  	case "$1" in
  	aarch64*-*-*-*)		echo "aarch64" ;;
@@ -191,5 +191,5 @@ index 7cfc176..43d24b8 100644
  	*)			echo "unknown" ;;
  	esac
 -- 
-2.36.2
+2.39.2
 
