@@ -24,7 +24,6 @@ makedepends_host="linux-headers gmp-dev mpfr-dev mpc1-dev isl-dev zlib-dev !gett
 subpackages=" "
 [ "$CHOST" = "$CTARGET" ] && subpackages="gcc-gdb gcc-doc$_target"
 replaces="libstdc++ binutils"
-options="!annobin"
 
 : "${LANG_CXX:=true}"
 : "${LANG_D:=true}"
@@ -38,6 +37,15 @@ _libgomp=true
 _libgcc=true
 _libatomic=true
 _libitm=true
+
+# If we specify options="!annobin", the '-fplugin=annobin' flag is removed from
+# values of the following compiler environment variables after they are used to
+# define another compiler environment variables.  This leads to that the
+# '-fplugin=annobin' flag is unexpectedly used at some build stages.  So let's
+# remove the '-fplugin=annobin' flag ourselves.
+export CFLAGS="${CFLAGS/-fplugin=annobin/}"
+export CXXFLAGS="${CXXFLAGS/-fplugin=annobin/}"
+export CPPFLAGS="${CPPFLAGS/-fplugin=annobin/}"
 
 if [ "$CHOST" != "$CTARGET" ]; then
 	if [ "$BOOTSTRAP" = nolibc ]; then
