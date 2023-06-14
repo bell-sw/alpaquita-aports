@@ -1,0 +1,41 @@
+From 236cca3a78a467699e58371567f3f7eb15fb15ab Mon Sep 17 00:00:00 2001
+From: Nick Clifton <nickc@redhat.com>
+Date: Fri, 16 Dec 2022 11:12:56 +0000
+Subject: [PATCH] 10.98: gcc plugin: Fix building with gcc 13.
+
+---
+ gcc-plugin/annobin.cc | 2 ++
+ tests/atexit-test     | 2 +-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/gcc-plugin/annobin.cc b/gcc-plugin/annobin.cc
+index 0ee0b47..8229138 100644
+--- a/gcc-plugin/annobin.cc
++++ b/gcc-plugin/annobin.cc
+@@ -893,8 +893,10 @@ compute_GOWall_options (void)
+       val = 0;
+     }
+ 
++#if GCCPLUGIN_VERSION_MAJOR < 13
+   if (GET_INT_OPTION_BY_NAME (use_gnu_debug_info_extensions))
+     val |= (1 << 3);
++#endif
+ 
+   i = GET_INT_OPTION_BY_NAME (debug_info_level);
+   if (i > DINFO_LEVEL_VERBOSE)
+diff --git a/tests/atexit-test b/tests/atexit-test
+index 14558fe..fafa517 100755
+--- a/tests/atexit-test
++++ b/tests/atexit-test
+@@ -40,7 +40,7 @@ $STRIP -g -o atexit.strip atexit.exe
+ 
+ # Run annocheck
+ 
+-SKIPS="--skip-cf-protection --skip-property-note --skip-stack-realign --skip-entry --skip-dynamic-tags --skip-not-dynamic-tags --skip-branch-protection --skip-not-branch-protection --skip-lto"
++SKIPS="--skip-cf-protection --skip-property-note --skip-stack-realign --skip-entry --skip-dynamic-tags --skip-not-dynamic-tags --skip-branch-protection --skip-not-branch-protection --skip-lto --skip-stack-prot"
+ $ANNOCHECK atexit.strip $SKIPS --ignore-gaps > atexit.out
+ grep -e "PASS" atexit.out
+ if [ $? != 0 ];
+-- 
+2.40.1
+
