@@ -1,17 +1,30 @@
-From ec2dc62528e762095794fce991b0b8c61d22e4fd Mon Sep 17 00:00:00 2001
+From 9b0801178dbaa1ea8b330314354b3145fdb5d194 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
-Date: Wed, 1 Mar 2023 20:29:17 +0300
+Date: Fri, 16 Jun 2023 14:12:34 +0000
 Subject: [PATCH] support fmv_targets and fmv_functions variables
 
+'fmv_src_prefix' is used for custom build paths.
 ---
- abuild.in | 22 ++++++++++++++++++++++
- 1 file changed, 22 insertions(+)
+ abuild.in | 27 +++++++++++++++++++++++++++
+ 1 file changed, 27 insertions(+)
 
 diff --git a/abuild.in b/abuild.in
-index 4f20254..cee34a4 100755
+index 4f20254..4029810 100755
 --- a/abuild.in
 +++ b/abuild.in
-@@ -3082,6 +3082,28 @@ remove_cflags()
+@@ -776,6 +776,11 @@ default_prepare() {
+ 				;;
+ 		esac
+ 	done
++
++	if [ "$fmv_targets" ] && [ "$fmv_functions" ]; then
++		setup_fmv
++	fi
++
+ 	if [ -z "$failed" ]; then
+ 		return 0
+ 	fi
+@@ -3082,6 +3087,28 @@ remove_cflags()
  	export CPPFLAGS="${CPPFLAGS/$f/}"
  }
  
@@ -26,20 +39,20 @@ index 4f20254..cee34a4 100755
 +		[ "$targets" ] && targets="$targets,$i" || targets="-fplugin-arg-fmv-targets=$i"
 +	done
 +	for i in $fmv_functions; do
-+		[ "$functions" ] && functions="$functions,$i" || functions="-fplugin-arg-fmv-functions=$i"
++		[ -f "$builddir/${i%%:*}" ] || die "fmv: missing src file $builddir/${i%%:*}"
++
++		local fn="${fmv_src_prefix}$i"
++		[ "$functions" ] && functions="$functions,$fn" || \
++		                    functions="-fplugin-arg-fmv-functions=$fn"
 +	done
 +
 +	cflags="$cflags $targets $functions"
 +	export CFLAGS="$CFLAGS $cflags"
 +}
 +
-+if [ "$fmv_targets" ] && [ "$fmv_functions" ]; then
-+	setup_fmv
-+fi
-+
  if options_has "!annobin" || [ -n "$ABUILD_DISABLE_ANNOBIN" ] ; then
  	remove_cflags "-fplugin=annobin"
  fi
 -- 
-2.39.2
+2.25.1
 
