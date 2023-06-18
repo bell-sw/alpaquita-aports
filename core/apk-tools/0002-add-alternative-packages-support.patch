@@ -1,4 +1,4 @@
-From 44d7cb18cceeabf9f3c57b5922dc35b84446ecfa Mon Sep 17 00:00:00 2001
+From 145453f2d5f4334ac16ea3e432b63071ce49f0ad Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 22 Feb 2022 18:18:06 +0300
 Subject: [PATCH] add alternative packages support
@@ -13,10 +13,10 @@ Subject: [PATCH] add alternative packages support
  6 files changed, 134 insertions(+), 13 deletions(-)
 
 diff --git a/src/apk_package.h b/src/apk_package.h
-index 6e428e4..adf7686 100644
+index 895811d..ccdde45 100644
 --- a/src/apk_package.h
 +++ b/src/apk_package.h
-@@ -116,6 +116,7 @@ struct apk_package {
+@@ -117,6 +117,7 @@ struct apk_package {
  	unsigned marked : 1;
  	unsigned uninstallable : 1;
  	unsigned cached_non_repository : 1;
@@ -81,10 +81,10 @@ index dac85c9..eb23549 100644
  		} else {
  			apk_deps_add(&virtpkg->depends, &dep);
 diff --git a/src/package.c b/src/package.c
-index cd2329c..8e5dca5 100644
+index a4d4e3a..3b62847 100644
 --- a/src/package.c
 +++ b/src/package.c
-@@ -825,6 +825,9 @@ int apk_pkg_add_info(struct apk_database *db, struct apk_package *pkg,
+@@ -826,6 +826,9 @@ int apk_pkg_add_info(struct apk_database *db, struct apk_package *pkg,
  	case 'k':
  		pkg->provider_priority = apk_blob_pull_uint(&value, 10);
  		break;
@@ -94,7 +94,7 @@ index cd2329c..8e5dca5 100644
  	case 'F': case 'M': case 'R': case 'Z': case 'r': case 'q':
  	case 'a': case 's': case 'f':
  		/* installed db entries which are handled in database.c */
-@@ -864,6 +867,7 @@ static int read_info_line(void *ctx, apk_blob_t line)
+@@ -865,6 +868,7 @@ static int read_info_line(void *ctx, apk_blob_t line)
  		{ "builddate",	't' },
  		{ "commit",	'c' },
  		{ "provider_priority", 'k' },
@@ -102,7 +102,7 @@ index cd2329c..8e5dca5 100644
  	};
  	struct read_info_ctx *ri = (struct read_info_ctx *) ctx;
  	apk_blob_t l, r;
-@@ -1160,6 +1164,10 @@ int apk_pkg_write_index_entry(struct apk_package *info,
+@@ -1153,6 +1157,10 @@ int apk_pkg_write_index_header(struct apk_package *info, struct apk_ostream *os)
  		apk_blob_push_blob(&bbuf, APK_BLOB_STR("\nk:"));
  		apk_blob_push_uint(&bbuf, info->provider_priority, 10);
  	}
@@ -114,7 +114,7 @@ index cd2329c..8e5dca5 100644
  
  	if (APK_BLOB_IS_NULL(bbuf)) {
 diff --git a/src/solver.c b/src/solver.c
-index 8021df2..e6a566d 100644
+index 345656c..50956ea 100644
 --- a/src/solver.c
 +++ b/src/solver.c
 @@ -51,6 +51,13 @@ void apk_solver_set_name_flags(struct apk_name *name,
@@ -357,5 +357,5 @@ index 8021df2..e6a566d 100644
  }
  
 -- 
-2.38.1
+2.39.2
 
