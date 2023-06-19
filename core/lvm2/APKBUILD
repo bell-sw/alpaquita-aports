@@ -2,7 +2,7 @@
 
 pkgname=lvm2
 pkgver=2.03.21
-pkgrel=7
+pkgrel=8
 pkgdesc="Linux Logical Volume Manager"
 url="https://sourceware.org/lvm2/"
 arch="all"
@@ -50,8 +50,8 @@ subpackages="
 builddir="$srcdir/LVM2.$pkgver"
 
 if [ -z "$BOOTSTRAP" ]; then
-	_no_bootstrap="--enable-lvmlockd-sanlock"
-	makedepends_host="$makedepends_host sanlock-dev"
+	_no_bootstrap="--enable-lvmlockd-sanlock --enable-udev_sync"
+	makedepends_host="$makedepends_host eudev-dev sanlock-dev"
 	subpackages="$subpackages $pkgname-lockd $pkgname-lockd-openrc:lockd_openrc"
 fi
 
@@ -70,6 +70,7 @@ build() {
 		--sysconfdir=/etc \
 		--localstatedir=/var \
 		$__enable_static_link \
+		--disable-dependency-tracking \
 		--disable-nls \
 		--disable-readline \
 		--enable-pkgconfig \
