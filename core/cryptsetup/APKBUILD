@@ -4,7 +4,7 @@
 
 pkgname=cryptsetup
 pkgver=2.6.1
-pkgrel=6
+pkgrel=7
 pkgdesc="Block devices encryption utility"
 url="https://gitlab.com/cryptsetup/cryptsetup"
 arch="all"
@@ -64,6 +64,15 @@ package() {
 	mkdir -p "$pkgdir"/usr/share/doc/$pkgname/
 	install -m644 README.md FAQ.md docs/v$pkgver-ReleaseNotes \
 		-t "$pkgdir"/usr/share/doc/$pkgname/
+
+	# mandoc does not support the .so directive which replace the
+	# content of a man page with that of another. cryptsetup uses
+	# several man pages which just contain an .so directive. Replace
+	# these with symlinks to make them work by default in mandoc.
+	#
+	# See https://inbox.vuxu.org/mandoc-tech/20101024194129.GJ20876@iris.usta.de/#r
+	grep -l -R '^\.so ' "$pkgdir"/usr/share/man | \
+		xargs awk '/^\.so/ { system("ln -fs " $2 " " FILENAME) }'
 }
 
 libs() {
