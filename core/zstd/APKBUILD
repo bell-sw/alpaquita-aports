@@ -3,15 +3,16 @@
 
 pkgname=zstd
 pkgver=1.5.4
-pkgrel=1
+pkgrel=2
 pkgdesc="Zstandard Library"
 url="https://www.zstd.net/"
 arch="all"
 license="BSD-3-Clause GPL-2.0-or-later"
 depends_dev="$pkgname=$pkgver-r$pkgrel"
-makedepends="grep meson"
+makedepends="grep meson fmv"
 checkdepends="file"
 subpackages="
+	$pkgname-dbg
 	$pkgname-libs
 	$pkgname-dev
 	$pkgname-doc
@@ -26,6 +27,73 @@ source="zstd-$pkgver.tar.gz::https://github.com/facebook/zstd/archive/v$pkgver.t
 	"
 # we run the tests in build() for pgo, so it's tested from there.
 # options="!check"
+
+fmv_targets="x86-64-v3 default"
+fmv_src_prefix="../"
+
+_bm_fn="lib/compress/zstd_opt.c:ZSTD_btGetAllMatches"
+for _t in dictMatchState extDict noDict; do
+	for _n1 in 3 4 5 6; do
+		fmv_functions="$fmv_functions ${_bm_fn}_${_t}_${_n1}"
+	done
+done
+
+fmv_functions="$fmv_functions
+	lib/decompress/zstd_decompress_block.c:ZSTD_decompressSequencesLong_bmi2
+	lib/decompress/zstd_decompress_block.c:ZSTD_decompressSequencesLong_default
+	lib/decompress/zstd_decompress_block.c:ZSTD_decompressSequencesSplitLitBuffer_bmi2
+	lib/decompress/zstd_decompress_block.c:ZSTD_decompressSequences_bmi2
+	lib/compress/zstd_compress_sequences.c:ZSTD_encodeSequences_bmi2
+	lib/compress/zstd_compress_sequences.c:ZSTD_encodeSequences_default
+	lib/compress/zstd_double_fast.c:ZSTD_fillDoubleHashTable
+	lib/compress/zstd_fast.c:ZSTD_fillHashTable
+
+	lib/compress/zstd_opt.c:ZSTD_insertBt1
+	lib/compress/zstd_opt.c:ZSTD_compressBlock_btopt
+	lib/compress/zstd_opt.c:ZSTD_compressBlock_btopt_dictMatchState
+	lib/compress/zstd_opt.c:ZSTD_compressBlock_btopt_extDict
+	lib/compress/zstd_opt.c:ZSTD_compressBlock_btultra
+	lib/compress/zstd_opt.c:ZSTD_compressBlock_btultra2
+	lib/compress/zstd_opt.c:ZSTD_compressBlock_btultra_dictMatchState
+	lib/compress/zstd_opt.c:ZSTD_compressBlock_btultra_extDict
+	lib/compress/zstd_opt.c:ZSTD_compressBlock_opt2
+
+	lib/compress/zstd_double_fast.c:ZSTD_compressBlock_doubleFast
+	lib/compress/zstd_double_fast.c:ZSTD_compressBlock_doubleFast_dictMatchState
+	lib/compress/zstd_double_fast.c:ZSTD_compressBlock_doubleFast_extDict
+
+	lib/compress/zstd_fast.c:ZSTD_compressBlock_fast
+	lib/compress/zstd_fast.c:ZSTD_compressBlock_fast_dictMatchState
+	lib/compress/zstd_fast.c:ZSTD_compressBlock_fast_extDict
+
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_btlazy2
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_btlazy2_dictMatchState
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_btlazy2_extDict
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_greedy
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_greedy_dedicatedDictSearch
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_greedy_dedicatedDictSearch_row
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_greedy_dictMatchState
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_greedy_dictMatchState_row
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_greedy_extDict
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_greedy_extDict_row
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_greedy_row
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy2
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy2_dedicatedDictSearch
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy2_dedicatedDictSearch_row
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy2_dictMatchState
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy2_dictMatchState_row
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy2_extDict
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy2_extDict_row
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy2_row
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy_dedicatedDictSearch
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy_dedicatedDictSearch_row
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy_dictMatchState
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy_dictMatchState_row
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy_extDict
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy_extDict_row
+	lib/compress/zstd_lazy.c:ZSTD_compressBlock_lazy_row
+"
 
 # secfixes:
 #   1.4.9-r0:
@@ -42,11 +110,16 @@ prepare() {
 }
 
 build() {
-	export CFLAGS="${CFLAGS/-Os/-O2} -flto=auto -ffat-lto-objects"
-	export CXXFLAGS="${CXXFLAGS/-Os/-O2} -flto=auto -ffat-lto-objects"
-	export CPPFLAGS="${CPPFLAGS/-Os/-O2} -flto=auto -ffat-lto-objects"
+	export CFLAGS="${CFLAGS/-Os/-O3} -flto=auto -ffat-lto-objects"
+	export CXXFLAGS="${CXXFLAGS/-Os/-O3} -flto=auto -ffat-lto-objects"
+	export CPPFLAGS="${CPPFLAGS/-Os/-O3} -flto=auto -ffat-lto-objects"
+
 	if [ -z "$BOOTSTRAP" ]; then
-		local pgo=true
+		# Disable PGO due to insufficient test coverage of more versatile use
+		# of the package.
+		# Note that when using PGO with FMV, it also requires running
+		# pgo/generate-stage for all fmv_targets.
+		local pgo=false
 	fi
 	# 2-stage pgo+lto build (non-bootstrap), standard meson usage.
 	# note that with clang,
@@ -78,9 +151,7 @@ build() {
 }
 
 check() {
-	# ran in build above, via pgo
-	return 0
-	#meson test -t 4 --no-rebuild --print-errorlogs -C output
+	meson test -t 4 --no-rebuild --print-errorlogs -C output
 }
 
 package() {
