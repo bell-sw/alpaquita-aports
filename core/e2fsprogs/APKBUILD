@@ -3,7 +3,7 @@
 
 pkgname=e2fsprogs
 pkgver=1.47.0
-pkgrel=3
+pkgrel=4
 pkgdesc="Ext2/3/4 filesystem management tools"
 url="https://e2fsprogs.sourceforge.net/"
 arch="all"
@@ -33,8 +33,7 @@ source="$pkgname-$pkgver.tar.gz::https://github.com/tytso/e2fsprogs/archive/v$pk
 #     - CVE-2019-5094
 
 build() {
-	# XXX: LARGEFILE64
-	CFLAGS="$CFLAGS -D_LARGEFILE64_SOURCE -flto=auto" \
+	CFLAGS="$CFLAGS -flto=auto" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
