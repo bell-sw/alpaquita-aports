@@ -9,12 +9,12 @@ _java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 17 Lite"
 
 pkgname=${_java_pkg_name}17-lite
 pkgver=${_java_ver/+/_p}
-pkgrel=1
+pkgrel=2
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
 arch="x86_64"
-options="!strip !tracedeps ldpath-recursive"
+options="!strip !tracedeps ldpath-recursive !annobin"
 annocheck_skip="libsyslookup.so"
 depends="$pkgname-jdk=$pkgver-r$pkgrel"
 makedepends="
@@ -97,7 +97,7 @@ build() {
 		export JOBS=$(printf '%s\n' "$MAKEFLAGS" | sed -n -e 's/.*-j\([0-9]\+\).*/\1/p')
 	fi
 
-	local _cflags="-fplugin=annobin -fstack-protector-strong -D_FORTIFY_SOURCE=2"
+	local _cflags="-fstack-protector-strong -D_FORTIFY_SOURCE=2"
 
 	CFLAGS='' CXXFLAGS='' LDFLAGS=''
 	bash ./configure \
