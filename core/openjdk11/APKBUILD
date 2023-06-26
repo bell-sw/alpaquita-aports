@@ -9,12 +9,12 @@ _java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 11"
 
 pkgname=${_java_pkg_name}11
 pkgver=${_java_ver/+/_p}
-pkgrel=0
+pkgrel=1
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
 arch="x86_64"
-options="!strip !tracedeps ldpath-recursive"
+options="!strip !tracedeps ldpath-recursive !annobin"
 depends="
 	$pkgname-jmods=$pkgver-r$pkgrel
 	$pkgname-doc=$pkgver-r$pkgrel
@@ -98,7 +98,7 @@ build() {
 		export JOBS=$(printf '%s\n' "$MAKEFLAGS" | sed -n -e 's/.*-j\([0-9]\+\).*/\1/p')
 	fi
 
-	local _cflags="-fplugin=annobin -fstack-protector-strong -D_FORTIFY_SOURCE=2"
+	local _cflags="-fstack-protector-strong -D_FORTIFY_SOURCE=2"
 	local _boot_jdk=$(echo /usr/lib/jvm/java-11-* | awk '{ print $1 }')
 
 	CFLAGS='' CXXFLAGS='' LDFLAGS=''
