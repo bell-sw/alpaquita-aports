@@ -6,7 +6,7 @@
 
 pkgname=linux-pam
 pkgver=1.5.3
-pkgrel=2
+pkgrel=3
 pkgdesc="Linux PAM (Pluggable Authentication Modules for Linux)"
 url="https://www.kernel.org/pub/linux/libs/pam"
 arch="all"
@@ -75,10 +75,6 @@ package() {
 	# make "unix_chkpwd" shadow group and enable g+s
 	chgrp shadow "$pkgdir"/usr/sbin/unix_chkpwd \
 		&& chmod g+s "$pkgdir"/usr/sbin/unix_chkpwd
-
-	# wrong dir due to libdir
-	mkdir -p "$pkgdir"/usr/lib
-	mv "$pkgdir"/lib/pkgconfig "$pkgdir"/usr/lib/pkgconfig
 
 	# we don't ship systemd
 	rm -r "$pkgdir"/usr/lib/systemd
