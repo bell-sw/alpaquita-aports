@@ -1,6 +1,6 @@
 pkgname=xfsprogs
 pkgver=6.3.0
-pkgrel=0
+pkgrel=1
 pkgdesc="XFS filesystem utilities"
 url="https://xfs.org/index.php/Main_Page"
 arch="all"
@@ -35,7 +35,7 @@ build() {
 
 package() {
 	make -j1 DIST_ROOT="$pkgdir" install install-dev
-	rm -v "$pkgdir"/lib/libhandle.la
+	rm -v "$pkgdir"/usr/lib/libhandle.la
 	mv "$pkgdir"/sbin "$pkgdir"/usr
 	mkdir -p "$pkgdir"/sbin
 	for i in mkfs.xfs fsck.xfs xfs_repair; do
