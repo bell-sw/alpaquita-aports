@@ -5,7 +5,7 @@
 
 pkgname=musl-default
 pkgver=1.2.4
-pkgrel=1
+pkgrel=2
 pkgdesc="the musl c library (libc) implementation"
 url="https://musl.libc.org/"
 arch="all"
@@ -15,7 +15,6 @@ subpackages="
 	$pkgname-dbg
 	$pkgname-libintl:libintl:noarch
 	$pkgname-dev
-	libc6-compat:compat:noarch
 	"
 
 provides="musl=$pkgver-r$pkgrel"
@@ -175,36 +174,6 @@ libintl() {
 		"$subpkgdir"/usr/include/
 }
 
-compat() {
-	provides=""
-	replaces=""
-	provider_priority=""
-	replaces_priority=""
-	alternative=""
-
-	pkgdesc="compatibility libraries for glibc"
-
-	install -dm755 "$subpkgdir"/usr/lib
-	install -dm755 "$subpkgdir"/usr/lib64
-	ln -sf usr/lib64 "$subpkgdir"/lib64
-
-	# definitive source is https://sourceware.org/glibc/wiki/ABIList
-	case "$CARCH" in
-	aarch64)
-		ln -sf "libc.musl-${CARCH}.so.1" "$subpkgdir/usr/lib/ld-linux-aarch64.so.1"
-		ln -sf ../lib/ld-linux-aarch64.so.1 "$subpkgdir"/usr/lib64/
-		;;
-	x86_64)
-		ln -sf "libc.musl-${CARCH}.so.1" "$subpkgdir/usr/lib/ld-linux-x86-64.so.2"
-		ln -sf ../lib/ld-linux-x86-64.so.2 "$subpkgdir"/usr/lib64/
-		;;
-	esac
-
-	for i in libc.so.6 libcrypt.so.1 libm.so.6 libpthread.so.0 librt.so.1 libutil.so.1; do
-		ln -sf "libc.musl-${CARCH}.so.1" "$subpkgdir/usr/lib/$i"
-	done
-
-}
 sha512sums="
 25fe4004424fe1c26106a71caf5f832833d5d4ebac1399f6d776657a03ba49605f17aedee2ffb25527808de665a8cea02b8c8ae2de065c4e009ef26b324d031e  musl-1.2.4.tar.gz
 6360a9efa57ae14c25d097b9ff45bd3891e02c01f6124e3810a09e42db9820eea4ef0622937fc680c61d0c0c08a40f241c16b6abdc6ae0b376a163ebe82503f3  lfs64.patch
