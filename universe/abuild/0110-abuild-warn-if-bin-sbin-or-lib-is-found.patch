@@ -1,4 +1,4 @@
-From 6f0a054db4febf921b2840361df6b6ee28da29ff Mon Sep 17 00:00:00 2001
+From 884d626f9f3ce16070c5424f2f1e48794d8a2c8f Mon Sep 17 00:00:00 2001
 From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
 Date: Fri, 2 Sep 2022 19:20:01 +0300
 Subject: [PATCH] abuild: warn if /bin, /sbin or /lib is found
@@ -9,10 +9,10 @@ Subject: [PATCH] abuild: warn if /bin, /sbin or /lib is found
  2 files changed, 70 insertions(+), 1 deletion(-)
 
 diff --git a/abuild.in b/abuild.in
-index b7f8784..e6280d0 100755
+index a8b1841..c9202d2 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -832,6 +832,17 @@ postcheck() {
+@@ -844,6 +844,17 @@ postcheck() {
  		fi
  	fi
  
@@ -31,22 +31,22 @@ index b7f8784..e6280d0 100755
  	if ! options_has "libtool"; then
  		find "$dir" -name '*.la' -type f -delete
 diff --git a/tests/abuild_test b/tests/abuild_test
-index fb20246..2f78eff 100755
+index adb203f..f2864fd 100755
 --- a/tests/abuild_test
 +++ b/tests/abuild_test
-@@ -39,7 +39,8 @@ init_tests \
- 	abuild_cleanoldpkg \
- 	abuild_path_with_spaces \
- 	abuild_pyc_warn \
--	abuild_pyc
-+	abuild_pyc \
+@@ -45,7 +45,8 @@ init_tests \
+ 	abuild_command_provides \
+ 	abuild_gocache_dir \
+ 	abuild_cargo_home_dir \
+-	abuild_fish_comp_split
++	abuild_fish_comp_split \
 +	abuild_invalid_fhs
  
  export ABUILD_SHAREDIR=$(atf_get_srcdir)/..
  export ABUILD_CONF=/dev/null
-@@ -922,3 +923,60 @@ abuild_pyc_body() {
- 	atf_check -o match:"foo=1.0-r0" -o match:"pyc" \
- 		grep install_if pkg/.control.foo-pyc/.PKGINFO
+@@ -1063,3 +1064,60 @@ abuild_fish_comp_split_body() {
+ 		exit 1
+ 	fi
  }
 +
 +abuild_invalid_fhs_body() {
@@ -106,5 +106,5 @@ index fb20246..2f78eff 100755
 +		abuild cleanpkg all
 +}
 -- 
-2.39.2
+2.41.0
 

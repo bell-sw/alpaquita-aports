@@ -1,4 +1,4 @@
-From 98accc2f8a2b07a62c8ea771a11e847349d5e185 Mon Sep 17 00:00:00 2001
+From f86320582c40d72a97cd5f46e5d1d0a4f28af2ab Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 1 Mar 2022 16:59:59 +0300
 Subject: [PATCH] new 'alternative' variable
@@ -9,7 +9,7 @@ Subject: [PATCH] new 'alternative' variable
  2 files changed, 15 insertions(+)
 
 diff --git a/APKBUILD.5.scd b/APKBUILD.5.scd
-index 2b0cd70..9bb3ca4 100644
+index 49ba43a..121b1e2 100644
 --- a/APKBUILD.5.scd
 +++ b/APKBUILD.5.scd
 @@ -168,6 +168,12 @@ file.
@@ -26,10 +26,10 @@ index 2b0cd70..9bb3ca4 100644
  	Specifies subpackages or split packages built with this
  	package. Typically, this will include _$pkgname-dev_ for development
 diff --git a/abuild.in b/abuild.in
-index aa819c6..0dd1feb 100755
+index 6fb6476..9a4bbf2 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -264,6 +264,11 @@ default_sanitycheck() {
+@@ -265,6 +265,11 @@ default_sanitycheck() {
  		die "provider_priority must be a number"
  	fi
  
@@ -41,7 +41,7 @@ index aa819c6..0dd1feb 100755
  	# check pkgname and subpkgnames
  	for i in "$pkgname" $subpackages; do
  		verify_pkgname "${i%%:*}" || die "${i%%:*} is not a valid package name"
-@@ -1204,6 +1209,10 @@ prepare_metafiles() {
+@@ -1235,6 +1240,10 @@ prepare_metafiles() {
  		echo "provider_priority = $provider_priority" >> "$pkginfo"
  	fi
  
@@ -53,5 +53,5 @@ index aa819c6..0dd1feb 100755
  	for i in $replaces; do
  		echo "replaces = $i" >> "$pkginfo"
 -- 
-2.39.2
+2.41.0
 

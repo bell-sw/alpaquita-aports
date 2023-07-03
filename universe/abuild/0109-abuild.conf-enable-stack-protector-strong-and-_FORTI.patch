@@ -1,4 +1,4 @@
-From 562b8ee27c72e244c57485e98d56c9cb563fd993 Mon Sep 17 00:00:00 2001
+From a4dd1b470744ac5bba7621994f5a46ac5e5800c4 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 16 Aug 2022 16:31:08 +0300
 Subject: [PATCH] abuild.conf: enable stack-protector-strong and
@@ -13,10 +13,10 @@ can be set to disable the test and building with the plugin.
  3 files changed, 86 insertions(+), 5 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index a59dcd9..b7f8784 100755
+index 793c5c5..a8b1841 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -2035,7 +2035,9 @@ default_dbg() {
+@@ -2071,7 +2071,9 @@ default_dbg() {
  		if ! [ -e "$pkgbasedir/.dbg-tmp/$ino" ]; then
  			local tmp=$pkgbasedir/.dbg-tmp/${src##*/}
  			${CROSS_COMPILE}objcopy --only-keep-debug "$src" "$dst"
@@ -27,7 +27,7 @@ index a59dcd9..b7f8784 100755
  			# preserve attributes, links
  			cat "$tmp" > "$src"
  			rm "$tmp"
-@@ -2251,6 +2253,7 @@ rootpkg() {
+@@ -2295,6 +2297,7 @@ rootpkg() {
  	do_fakeroot "$abuild_path" $forceroot $color_opt $keep_build $verbose \
  		set_source_date \
  		package \
@@ -35,7 +35,7 @@ index a59dcd9..b7f8784 100755
  		prepare_subpackages \
  		prepare_language_packs \
  		prepare_package \
-@@ -2661,13 +2664,66 @@ stripbin() {
+@@ -2712,13 +2715,66 @@ stripbin() {
  
  		[ "$osabi" != "STANDALONE" ] || continue
  		local XATTR=$(getfattr --match="" --dump "${filename}")
@@ -103,7 +103,7 @@ index a59dcd9..b7f8784 100755
  # simply list target apks
  listpkg() {
  	local name
-@@ -2980,6 +3036,26 @@ if [ -n "$DEBUG" ] || subpackage_types_has "dbg"; then
+@@ -3032,6 +3088,26 @@ if [ -n "$DEBUG" ] || subpackage_types_has "dbg"; then
  	options="$options !strip"
  fi
  
@@ -131,7 +131,7 @@ index a59dcd9..b7f8784 100755
  	# If we are handling a sub package then reset subpackages and install
  	origsubpackages="$subpackages"
 diff --git a/default.conf b/default.conf
-index bdaef90..a3a71d9 100644
+index 04c2540..1945f77 100644
 --- a/default.conf
 +++ b/default.conf
 @@ -1,5 +1,5 @@
@@ -161,5 +161,5 @@ index e090c35..e3c8b7b 100644
  
  check() {
 -- 
-2.39.2
+2.41.0
 
