@@ -1,6 +1,6 @@
 pkgname=clang16
 pkgver=16.0.6
-pkgrel=2
+pkgrel=3
 _llvmver=${pkgver%%.*}
 pkgdesc="C language family front-end for LLVM"
 arch="all"
@@ -89,7 +89,7 @@ build() {
 		-DCLANG_PLUGIN_SUPPORT=ON \
 		-DCLANG_PYTHON_BINDINGS_VERSIONS="$python_version" \
 		-DCLANG_SYSTEMZ_DEFAULT_ARCH=z196 \
-		-DCLANG_VENDOR=Alpaquita \
+		-DCLANG_VENDOR="$VENDOR_DISTRO_NAME" \
 		-DENABLE_LINKER_BUILD_ID=ON \
 		-DLIBCLANG_BUILD_STATIC=ON
 
@@ -98,8 +98,8 @@ build() {
 
 	if [ "$_default_clang" = yes ]; then
 		help2man --no-info \
-			--source "Alpaquita" \
-			--name "Alpaquita Clang $pkgver-r$pkgrel" \
+			--source "$VENDOR_DISTRO_NAME" \
+			--name "$VENDOR_DISTRO_NAME Clang $pkgver-r$pkgrel" \
 			--version-string "$pkgver-r$pkgrel" \
 			--help-option "--help-hidden" \
 			./build/bin/clang > clang.1
