@@ -1,14 +1,19 @@
-pkgname=terminus-font
+pkgname=font-terminus
 pkgver=4.49.1
-pkgrel=3
+pkgrel=4
 pkgdesc="Monospace bitmap font (for X11 and console)"
 url="https://terminus-font.sourceforge.net/"
 arch="noarch"
 license="OFL-1.1"
 makedepends="bdftopcf fontconfig mkfontscale python3"
-options="!check" # no test suite
 subpackages="$pkgname-doc"
 source="https://sourceforge.net/projects/terminus-font/files/terminus-font-${pkgver%.*}/terminus-font-$pkgver.tar.gz"
+builddir="$srcdir/terminus-font-$pkgver"
+options="!check" # no test suite
+
+# renamed from terminus-font
+provides="terminus-font=$pkgver-r$pkgrel"
+replaces="terminus-font"
 
 build() {
 	./configure \
@@ -23,18 +28,20 @@ build() {
 package() {
 	make DESTDIR="$pkgdir" install install-otb
 
-	install -d "$pkgdir"/usr/share/doc/"$pkgname"
+	install -d "$pkgdir"/usr/share/doc/$pkgname
 	install -Dm655 README README-BG \
-		"$pkgdir"/usr/share/doc/"$pkgname"/
+		"$pkgdir"/usr/share/doc/$pkgname/
 
 	install -Dm644 75-yes-terminus.conf \
 		"$pkgdir"/etc/fonts/conf.avail/75-yes-terminus.conf
 	install -Dm644 OFL.TXT \
-		"$pkgdir"/usr/share/licenses/"$pkgname"/copyright
+		"$pkgdir"/usr/share/licenses/$pkgname/LICENSE
 
 	install -d "$pkgdir/etc/fonts/conf.d"
 	cd "$pkgdir/etc/fonts/conf.d"
 	ln -s ../conf.avail/75-yes-terminus.conf .
 }
 
-sha512sums="2e3a99960c459a453b5879bebbebeb653f0a22060177bf75c67bbeb7d32cfe1acce9e74a88fdc42e299b6dc402e0708552487abd26e80e985c7d6059b0d445a8  terminus-font-4.49.1.tar.gz"
+sha512sums="
+2e3a99960c459a453b5879bebbebeb653f0a22060177bf75c67bbeb7d32cfe1acce9e74a88fdc42e299b6dc402e0708552487abd26e80e985c7d6059b0d445a8  terminus-font-4.49.1.tar.gz
+"
