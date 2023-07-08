@@ -1,6 +1,6 @@
 pkgname=gpgme
 pkgver=1.21.0
-pkgrel=1
+pkgrel=2
 pkgdesc="gnupg made easy"
 url="https://www.gnupg.org/related_software/gpgme/"
 arch="all"
@@ -29,7 +29,9 @@ subpackages="
 	py3-gpgme:py3
 	$pkgname-lisp::noarch
 	"
-source="https://www.gnupg.org/ftp/gcrypt/gpgme/gpgme-$pkgver.tar.bz2"
+source="https://www.gnupg.org/ftp/gcrypt/gpgme/gpgme-$pkgver.tar.bz2
+	lfs64.patch
+	"
 
 case "$CARCH" in
 x86|armhf|armv7)
@@ -44,9 +46,6 @@ x86|armhf|armv7)
 esac
 
 build() {
-	# XXX: LARGEFILE64 fixme
-	export CFLAGS="$CFLAGS -D_LARGEFILE64_SOURCE"
-
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -95,4 +94,5 @@ py3() {
 
 sha512sums="
 eb70813d22920d6d54459a4271259edf55d5833edfdd053551ca245521e06a8c19ed02dc93e0c53132a699e6d8c82499f50caf8e390af28468e3549470595b7d  gpgme-1.21.0.tar.bz2
+14856041423365463d0e479b85c721f88761e507b480dfde3cda2deb2a323055f016125651a55f7c1b821cec76d2721196407c40c37dbe256959d9b3e1fdecf5  lfs64.patch
 "
