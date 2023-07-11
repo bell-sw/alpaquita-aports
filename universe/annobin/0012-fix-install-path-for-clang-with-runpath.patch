@@ -1,0 +1,51 @@
+If llvm and clang are linked using new dynamic tags (--enable-new-dtags),
+DT_RUNPATH is used instead of DT_RPATH.  On glibc systems, a DT_RUNPATH value
+is not used for transitive dependencies [1].  This leads to that an annobin
+shared object file cannot be found.
+
+With DT_RPATH:
+
+        6723:	find library=annobin [0]; searching
+        6723:	 search path=/usr/lib/llvm16		(RPATH from file /usr/lib/llvm16/bin/../lib/libLLVM-16.so)
+        6723:	  trying file=/usr/lib/llvm16/annobin
+        6723:	 search path=/usr/lib/llvm16/bin/../lib:/usr/lib/llvm16/lib		(RPATH from file /usr/lib/llvm16/bin/clang-16)
+        6723:	  trying file=/usr/lib/llvm16/bin/../lib/annobin
+        6723:	
+        6723:	
+        6723:	calling init: /usr/lib/llvm16/bin/../lib/annobin
+
+With DT_RUNPATH:
+
+        6714:	find library=annobin [0]; searching
+        6714:	 search path=/usr/lib/llvm16		(RUNPATH from file /usr/lib/llvm16/lib/libLLVM-16.so)
+        6714:	  trying file=/usr/lib/llvm16/annobin
+        6714:	 search cache=/etc/ld.so.cache
+        6714:	 search path=/usr/lib/glibc-hwcaps/x86-64-v3:/usr/lib/glibc-hwcaps/x86-64-v2:/usr/lib		(system search path)
+        6714:	  trying file=/usr/lib/glibc-hwcaps/x86-64-v3/annobin
+        6714:	  trying file=/usr/lib/glibc-hwcaps/x86-64-v2/annobin
+        6714:	  trying file=/usr/lib/annobin
+        6714:	
+  error: unable to load plugin 'annobin': 'annobin: cannot open shared object file: No such file or directory'
+
+So let's put an annobin symbolic link also to /usr/lib/llvm16/ .
+
+[1] https://bugs.launchpad.net/ubuntu/+source/eglibc/+bug/1253638
+
+--- a/clang-plugin/Makefile.in
++++ b/clang-plugin/Makefile.in
+@@ -22,6 +22,7 @@
+ INCDIR := @srcdir@/.. -I$(shell llvm-config --includedir)
+ 
+ LLVM_LIB_DIR := $(shell llvm-config --libdir)
++LLVM_PREFIX := $(shell llvm-config --prefix)
+ 
+ CLANG_LIBS := $(shell llvm-config --libs)
+ 
+@@ -38,6 +39,7 @@
+ 	install -Dpm0755 -t $(DESTDIR)${PLUGIN_INSTALL_DIR} $<
+ 	mkdir -p $(DESTDIR)$(LLVM_LIB_DIR)
+ 	ln -s ${PLUGIN_INSTALL_DIR}/$< $(DESTDIR)$(LLVM_LIB_DIR)/annobin
++	ln -s ${PLUGIN_INSTALL_DIR}/$< $(DESTDIR)$(LLVM_PREFIX)/annobin
+ 
+ clean:
+ 	rm -f $(PLUGIN_NAME) clang-plugin-test.out hello.o
