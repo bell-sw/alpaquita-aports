@@ -15,13 +15,13 @@ So looks like we can safely omit invoking it.
 
 --- a/tools/distrib/python/make_grpcio_tools.py
 +++ b/tools/distrib/python/make_grpcio_tools.py
-@@ -161,6 +161,9 @@
-                     os.path.join(target_dir, relative_file))
-                 shutil.copyfile(source_file, target_file)
+@@ -237,6 +237,9 @@
+     )
+     print()
  
 +    print('Omit invoking "bazel query" to gather the protobuf dependencies since it fails anyway.')
 +    return
 +
-     try:
-         print('Invoking "bazel query" to gather the protobuf dependencies.')
-         protoc_lib_deps_content = get_deps()
+     # Step 2:
+     # Extract build metadata from bazel build (by running "bazel query")
+     # and populate the protoc_lib_deps.py file with python-readable data structure
