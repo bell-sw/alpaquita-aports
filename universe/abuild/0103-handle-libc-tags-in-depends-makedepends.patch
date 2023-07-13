@@ -1,4 +1,4 @@
-From 7099f5987956d158897bbd6d3a62533b7c2fa048 Mon Sep 17 00:00:00 2001
+From 7ee919a0130e43530e52d4fc1aac9a256d917a3a Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Wed, 2 Feb 2022 17:41:55 +0300
 Subject: [PATCH] handle libc tags in depends/makedepends
@@ -8,14 +8,14 @@ Subject: [PATCH] handle libc tags in depends/makedepends
  1 file changed, 26 insertions(+), 1 deletion(-)
 
 diff --git a/abuild.in b/abuild.in
-index 023dd02..7165c43 100644
+index 023dd02..239f464 100644
 --- a/abuild.in
 +++ b/abuild.in
 @@ -205,6 +205,28 @@ verify_pkgname() {
  	return 0
  }
  
-+remove_tag() {
++remove_tagged_items() {
 +	local var="$1"
 +	local rm_tag="$2"
 +
@@ -28,12 +28,12 @@ index 023dd02..7165c43 100644
 +
 +	[ "$CLIBC" = "musl" ] && rm_tag="glibc"
 +
-+	depends="$(remove_tag "$depends" $rm_tag)"
-+	makedepends="$(remove_tag "$makedepends" $rm_tag)"
++	depends="$(remove_tagged_items "$depends" $rm_tag)"
++	makedepends="$(remove_tagged_items "$makedepends" $rm_tag)"
 +
 +	for t in musl glibc; do
-+		depends="${depends/$t:/}"
-+		makedepends="${makedepends/$t:/}"
++		depends="${depends//$t:/}"
++		makedepends="${makedepends//$t:/}"
 +	done
 +}
 +
