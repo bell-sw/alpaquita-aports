@@ -1,0 +1,30 @@
+pkgname=perl-test-deep
+pkgver=1.204
+pkgrel=1
+pkgdesc="Test::Deep perl module"
+url="https://metacpan.org/release/Test-Deep/"
+arch="noarch"
+license="GPL-1.0-or-later or Artistic-1.0-Perl"
+depends="perl perl-test-simple perl-test-nowarnings"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/R/RJ/RJBS/Test-Deep-$pkgver.tar.gz"
+
+builddir="$srcdir"/Test-Deep-$pkgver
+
+build() {
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+1a11b221810b7b23a6d3f71546e264ea3636fa36c73def760f756da69e6937ca3e1c1123505b80241360459d09fc4b9ab614d1c6826593695f6577f60595a8ae  Test-Deep-1.204.tar.gz
+"
