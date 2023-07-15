@@ -1,0 +1,33 @@
+pkgname=perl-test2-suite
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=Test2-Suite
+pkgver=0.000155
+pkgrel=1
+pkgdesc="Distribution with a rich set of tools built upon the Test2 framework."
+url="https://metacpan.org/release/Test2-Suite/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-term-table perl-scope-guard perl-sub-info perl-importer perl-module-pluggable"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/E/EX/EXODIST/Test2-Suite-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+d9b9866c53185fed9b67a76f38fbe2527b7e1796937d91b0ea7efc1b3df525d07142b53b030c659ffed72fb41a6334b4d963a2d13f58684364c8cf571898bf31  Test2-Suite-0.000155.tar.gz
+"
