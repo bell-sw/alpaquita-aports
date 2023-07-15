@@ -1,0 +1,34 @@
+pkgname=perl-term-table
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=Term-Table
+pkgver=0.016
+pkgrel=2
+pkgdesc="Format a header and rows into a table"
+url="https://metacpan.org/release/Term-Table/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-importer"
+makedepends="perl-dev"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/E/EX/EXODIST/Term-Table-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+b35700fba336f57e479d818ef74fc746979b3acb081a7cde816b39c5fb65bedd5217257426ba22bdcaf8d73292cd98efd23295144a996f7bd117ada775cdfe5b  Term-Table-0.016.tar.gz
+"
