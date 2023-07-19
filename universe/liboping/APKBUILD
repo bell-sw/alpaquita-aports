@@ -1,6 +1,6 @@
 pkgname=liboping
 pkgver=1.10.0
-pkgrel=2
+pkgrel=3
 pkgdesc="A C library to generate ICMP echo requests"
 url="http://verplant.org/liboping/"
 arch="all"
@@ -18,7 +18,11 @@ prepare() {
 }
 
 build() {
-	CFLAGS="$CFLAGS -D_BSD_SOURCE" \
+	case "$CLIBC" in
+	musl)  CFLAGS="$CFLAGS -D_BSD_SOURCE" ;;
+	glibc) CFLAGS="$CFLAGS -D_DEFAULT_SOURCE" ;;
+	esac
+
 	./configure \
 		--prefix=/usr \
 		--libdir=/usr/lib \
