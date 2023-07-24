@@ -1,0 +1,104 @@
+pkgname=maturin
+pkgver=1.1.0
+pkgrel=1
+pkgdesc="Build and publish crates with pyo3, rust-cpython and cffi bindings"
+url="https://github.com/PyO3/maturin"
+arch="all"
+license="Apache-2.0 OR MIT"
+makedepends="
+	bzip2-dev
+	cargo
+	dbus-dev
+	openssl-dev
+	py3-gpep517
+	py3-setuptools
+	py3-setuptools-rust
+	py3-wheel
+	"
+checkdepends="
+	libffi-dev
+	patchelf
+	py3-cffi
+	py3-pyo
+	py3-virtualenv
+	python3-dev
+	"
+subpackages="
+	$pkgname-bash-completion
+	$pkgname-fish-completion
+	$pkgname-zsh-completion
+	py3-$pkgname:py3:noarch
+	"
+source="$pkgname-$pkgver.tar.gz::https://github.com/PyO3/maturin/archive/v$pkgver.tar.gz"
+options="net"
+
+_features="--features=full,native-tls"
+
+case "$CARCH" in
+s390x)
+	# s390x fails to build password-storage, so don't append it
+	;;
+*)
+	_features="$_features,password-storage"
+	;;
+esac
+
+prepare() {
+	default_prepare
+
+	# Rust target triple.
+	local target=$(rustc -vV | sed -n 's/host: //p')
+
+	# Build against system-provided bz2.
+	mkdir -p .cargo
+	cat >> .cargo/config.toml <<-EOF
+		[target.$target]
+		zstd = { rustc-link-lib = ["bz2"] }
+	EOF
+
+
+	cargo fetch --target="$CTARGET" --locked
+}
+
+build() {
+	export OPENSSL_NO_VENDOR=1
+
+	export MATURIN_SETUP_ARGS="--no-default-features $_features"
+
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+
+	./target/release/maturin completions bash > $pkgname.bash
+	./target/release/maturin completions fish > $pkgname.fish
+	./target/release/maturin completions zsh > $pkgname.zsh
+}
+
+check() {
+	export OPENSSL_NO_VENDOR=1
+
+	cargo test \
+	  --frozen \
+	  --no-default-features $_features \
+	  -- --skip git_sdist_generator
+}
+
+package() {
+	install -Dm644 $pkgname.bash "$pkgdir"/usr/share/bash-completion/completions/$pkgname
+	install -Dm644 $pkgname.fish "$pkgdir"/usr/share/fish/vendor_completions.d/$pkgname.fish
+	install -Dm644 $pkgname.zsh "$pkgdir"/usr/share/zsh/site-functions/_$pkgname
+
+	python3 -m installer -d "$pkgdir" \
+		.dist/maturin*.whl
+}
+
+py3() {
+	pkgdesc="$pkgdesc (python module)"
+	depends="$pkgname=$pkgver-r$pkgrel"
+
+	amove usr/lib/python3*
+}
+
+sha512sums="
+1e35288bd671d9133a10fd3c4cdebc7488aa58b5d42e8c12e867d8dff662b80d8d149bb28bc0292debd1225a2e2f15b2ae91df1dba8efe85a1d94cdfb22d12e2  maturin-1.1.0.tar.gz
+"
