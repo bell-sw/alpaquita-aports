@@ -11,7 +11,7 @@ _java_name="${VENDOR_NAME} ${VENDOR_JAVA_NAME} JDK 8"
 
 pkgname=${_java_pkg_name}8
 pkgver=${_java_ver/+/_p}
-pkgrel=1
+pkgrel=2
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
@@ -116,10 +116,10 @@ build() {
 	fi
 
 	# Force using 1 job since this seems to help us work around the
-	# following build error on glibc:
+	# following build error:
 	#
 	# 	Exception in thread "main" java.lang.ClassFormatError: Truncated class file
-	[ "$CLIBC" = 'glibc' ] && JOBS=1
+	JOBS=1
 
 	local _cflags="-fstack-protector-strong -D_FORTIFY_SOURCE=2"
 	local _boot_jdk=$(echo /usr/lib/jvm/java-8-* | awk '{ print $1 }')
