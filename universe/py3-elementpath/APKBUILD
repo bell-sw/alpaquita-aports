@@ -1,15 +1,12 @@
 pkgname=py3-elementpath
 pkgver=4.1.0
-pkgrel=0
+pkgrel=1
 pkgdesc="XPath 1.0/2.0 parsers and selectors for ElementTree and lxml"
 url="https://github.com/sissaschool/elementpath"
 arch="noarch"
 license="MIT"
 makedepends="py3-setuptools"
 checkdepends="py3-pytest py3-lxml"
-case "$CLIBC" in
-glibc) options="!check" ;; # LIN-72 (no en_US.UTF-8 in the build environment)
-esac
 source="$pkgname-$pkgver.tar.gz::https://github.com/sissaschool/elementpath/archive/refs/tags/v$pkgver.tar.gz"
 builddir="$srcdir/elementpath-$pkgver/"
 
@@ -22,7 +19,6 @@ check() {
 	# Rest of the tests need more investigation, started with upgrade to 4.1.0
 	pytest \
 		--deselect tests/test_xpath2_functions.py::XPath2FunctionsTest::test_compare_function \
-		--deselect tests/test_xpath2_functions.py::LxmlXPath2FunctionsTest::test_compare_function \
 		--deselect tests/test_xpath30.py::XPath30FunctionsTest::test_compare_function \
 		--deselect tests/test_xpath31.py::XPath31FunctionsTest::test_compare_function \
 		--deselect tests/test_collations.py::CollationsTest::test_context_activation \
