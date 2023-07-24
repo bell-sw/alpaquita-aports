@@ -1,0 +1,44 @@
+pkgname=py3-jsonschema-specifications
+pkgver=2023.07.1
+pkgrel=0
+pkgdesc="Support files exposing JSON from the JSON Schema specifications to Python"
+url="https://github.com/python-jsonschema/jsonschema-specifications"
+arch="noarch"
+license="MIT"
+depends="
+	py3-referencing
+	"
+makedepends="
+	py3-gpep517
+	py3-hatch-vcs
+	py3-hatchling
+	"
+checkdepends="
+	py3-pytest
+	"
+subpackages="$pkgname-pyc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/python-jsonschema/jsonschema-specifications/archive/refs/tags/v$pkgver.tar.gz"
+builddir="$srcdir/jsonschema-specifications-$pkgver"
+
+build() {
+	SETUPTOOLS_SCM_PRETEND_VERSION=$pkgver \
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/*.whl
+	.testenv/bin/python3 -m pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+	rm -r "$pkgdir"/usr/lib/python*/site-packages/jsonschema_specifications/tests/
+}
+
+sha512sums="
+9e23cb41b1ee636df788ee17e889bb1c15657afb081a8ff5c5278a171e9a572425642ab579527a093ca97f802070231608e71ac7d25f72e6e0f11a7d4ed865bd  py3-jsonschema-specifications-2023.07.1.tar.gz
+"
