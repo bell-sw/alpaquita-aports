@@ -1,0 +1,38 @@
+pkgname=py3-trove-classifiers
+pkgver=2023.7.6
+pkgrel=0
+pkgdesc="Canonical source for classifiers on PyPI"
+url="https://github.com/pypa/trove-classifiers"
+license="Apache-2.0"
+arch="noarch"
+depends="python3"
+makedepends="py3-calver py3-gpep517 py3-installer py3-setuptools py3-wheel"
+checkdepends="py3-pytest"
+subpackages="$pkgname-pyc"
+source="https://github.com/pypa/trove-classifiers/archive/$pkgver/py3-trove-classifiers-$pkgver.tar.gz"
+builddir="$srcdir/trove-classifiers-$pkgver"
+
+prepare() {
+	default_prepare
+
+	echo "Version: $pkgver" > PKG-INFO
+}
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/trove_classifiers-$pkgver-py3-none-any.whl
+}
+
+sha512sums="
+c8381e7eabbc4772d5d7c9904ce3811cf3ecd879710d3a9394b99fd11125f31685d782c03653cd9a3aab85ea385a8219f7654669cf0adb93d740dbf6400ec7e7  py3-trove-classifiers-2023.7.6.tar.gz
+"
