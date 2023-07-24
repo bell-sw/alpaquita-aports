@@ -1,6 +1,6 @@
 pkgname=maturin
 pkgver=1.1.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Build and publish crates with pyo3, rust-cpython and cffi bindings"
 url="https://github.com/PyO3/maturin"
 arch="all"
@@ -30,7 +30,9 @@ subpackages="
 	py3-$pkgname:py3:noarch
 	"
 source="$pkgname-$pkgver.tar.gz::https://github.com/PyO3/maturin/archive/v$pkgver.tar.gz"
-options="net"
+# disable check in order not to pull py3-pyo which requires a pile of useless
+# stuff
+options="net !check"
 
 _features="--features=full,native-tls"
 
