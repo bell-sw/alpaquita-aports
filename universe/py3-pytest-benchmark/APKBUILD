@@ -1,7 +1,7 @@
 pkgname=py3-pytest-benchmark
 _pkgname=pytest-benchmark
 pkgver=4.0.0
-pkgrel=3
+pkgrel=4
 pkgdesc="pytest fixture for benchmarking code"
 url="https://github.com/ionelmc/pytest-benchmark"
 arch="noarch"
@@ -29,7 +29,7 @@ check() {
 	# disable three tests that require aspectlib (needs packaging)
 	# last 2 tests fail when run inside a git repository, see: https://github.com/ionelmc/pytest-benchmark/issues/163
 	# test_storage.py fails because of 'DeprecationWarning: pkg_resources is deprecated as an API'
-	PATH="$builddir/testenv/bin:PATH" .testenv/bin/python3 -m \
+	PATH="$builddir/.testenv/bin:$PATH" .testenv/bin/python3 -m \
 		pytest tests -n auto -p no:warnings \
 		--deselect tests/test_with_testcase.py::TerribleTerribleWayToWritePatchTests::test_foo2 \
 		--deselect tests/test_with_weaver.py::test_weave_fixture \
