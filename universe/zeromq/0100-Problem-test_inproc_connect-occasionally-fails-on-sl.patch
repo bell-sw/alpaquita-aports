@@ -1,0 +1,62 @@
+From de03c9a6ab3976cea614d0cdc9398bd0bbb63bc9 Mon Sep 17 00:00:00 2001
+From: Luca Boccassi <bluca@debian.org>
+Date: Sun, 13 Jun 2021 17:45:57 +0100
+Subject: [PATCH] Problem: test_inproc_connect occasionally fails on slow archs
+
+Solution: actually send a message rather than just opening/closing
+the sockets, as connecting is asynchronous.
+
+tests/test_inproc_connect.cpp:341:test_bind_before_connect:PASS
+tests/test_inproc_connect.cpp:342:test_connect_before_bind:PASS
+tests/test_inproc_connect.cpp:343:test_connect_before_bind_pub_sub:PASS
+tests/test_inproc_connect.cpp:344:test_connect_before_bind_ctx_term:PASS
+tests/test_inproc_connect.cpp:345:test_multiple_connects:PASS
+tests/test_inproc_connect.cpp:346:test_multiple_threads:PASS
+Assertion failed: _state == active || _state == waiting_for_delimiter (src/pipe.cpp:504)
+0  0xffffa015d3e4 in /usr/src/packages/BUILD/src/.libs/libzmq.so.5 (zmq::zmq_abort(char const*)+0xc)
+1  0xffffa017b208 in /usr/src/packages/BUILD/src/.libs/libzmq.so.5 (zmq::pipe_t::process_delimiter()+0xb0)
+2  0xffffa017b420 in /usr/src/packages/BUILD/src/.libs/libzmq.so.5 (zmq::pipe_t::read(zmq::msg_t*)+0xd8)
+3  0xffffa01a4b28 in /usr/src/packages/BUILD/src/.libs/libzmq.so.5 (zmq::xpub_t::xread_activated(zmq::pipe_t*)+0x110)
+4  0xffffa01a3758 in /usr/src/packages/BUILD/src/.libs/libzmq.so.5 (zmq::xpub_t::xattach_pipe(zmq::pipe_t*, bool, bool)+0x68)
+5  0xffffa018dc3c in /usr/src/packages/BUILD/src/.libs/libzmq.so.5 (zmq::socket_base_t::attach_pipe(zmq::pipe_t*, bool, bool)+0x94)
+6  0xffffa016f288 in /usr/src/packages/BUILD/src/.libs/libzmq.so.5 (zmq::object_t::process_command(zmq::command_t const&)+0x148)
+7  0xffffa014ee3c in /usr/src/packages/BUILD/src/.libs/libzmq.so.5 (zmq::ctx_t::connect_inproc_sockets(zmq::socket_base_t*, zmq::options_t const&, zmq::ctx_t::pending_connection_t const&, zmq::ctx_t::side)+0xdc)
+8  0xffffa0150bec in /usr/src/packages/BUILD/src/.libs/libzmq.so.5 (zmq::ctx_t::connect_pending(char const*, zmq::socket_base_t*)+0x1fc)
+9  0xffffa0190034 in /usr/src/packages/BUILD/src/.libs/libzmq.so.5 (zmq::socket_base_t::bind(char const*)+0x3e4)
+10  0xaaaae50475d8 in /usr/src/packages/BUILD/tests/.libs/test_inproc_connect (simult_bind(void*)+0x28)
+11  0xffffa019bfb8 in /usr/src/packages/BUILD/src/.libs/libzmq.so.5 (thread_routine+0x70)
+12  0xffffa00e07e4 in /lib/aarch64-linux-gnu/libpthread.so.0 (start_thread+0x18c)
+13  0xffff9fdcab2c in /lib/aarch64-linux-gnu/libc.so.6 (clone+0x5c)
+---
+ tests/test_inproc_connect.cpp | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/tests/test_inproc_connect.cpp b/tests/test_inproc_connect.cpp
+index de1923fb..7a3acbda 100644
+--- a/tests/test_inproc_connect.cpp
++++ b/tests/test_inproc_connect.cpp
+@@ -54,8 +54,9 @@ static void simult_conn (void *endpt_)
+ 
+     // Connect
+     // do not use test_context_socket here, as it is not thread-safe
+-    void *connect_socket = zmq_socket (get_test_context (), ZMQ_SUB);
++    void *connect_socket = zmq_socket (get_test_context (), ZMQ_PAIR);
+     TEST_ASSERT_SUCCESS_ERRNO (zmq_connect (connect_socket, endpt));
++    recv_string_expect_success (connect_socket, "foobar", 0);
+ 
+     // Cleanup
+     TEST_ASSERT_SUCCESS_ERRNO (zmq_close (connect_socket));
+@@ -68,8 +69,9 @@ static void simult_bind (void *endpt_)
+ 
+     // Bind
+     // do not use test_context_socket here, as it is not thread-safe
+-    void *bind_socket = zmq_socket (get_test_context (), ZMQ_PUB);
++    void *bind_socket = zmq_socket (get_test_context (), ZMQ_PAIR);
+     TEST_ASSERT_SUCCESS_ERRNO (zmq_bind (bind_socket, endpt));
++    send_string_expect_success (bind_socket, "foobar", 0);
+ 
+     // Cleanup
+     TEST_ASSERT_SUCCESS_ERRNO (zmq_close (bind_socket));
+-- 
+2.41.0
+
