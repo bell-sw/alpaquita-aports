@@ -3,7 +3,7 @@
 
 pkgname=file
 pkgver=5.45
-pkgrel=0
+pkgrel=1
 pkgdesc="File type recognition tool"
 url="https://www.darwinsys.com/file/"
 arch="all"
@@ -23,8 +23,13 @@ builddir="$srcdir/$pkgname-FILE${pkgver/./_}"
 #     - CVE-2019-8906
 #     - CVE-2019-8907
 
+prepare() {
+	default_prepare
+
+	autoreconf -fvi
+}
+
 build() {
-	SH_LIBTOOL='/usr/share/build-1/libtool' autoreconf -f -i
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -44,8 +49,10 @@ package() {
 
 libmagic() {
 	pkgdesc="File type identification library"
-	mkdir -p "$subpkgdir"/usr
-	mv "$pkgdir"/usr/lib "$pkgdir"/usr/share "$subpkgdir"/usr
+
+	amove \
+		usr/lib/libmagic.so.* \
+		usr/share/misc/magic.mgc
 }
 
 sha512sums="
