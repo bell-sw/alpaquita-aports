@@ -5,8 +5,8 @@
 # bad worst-case behaviors present in existing implementations.
 
 pkgname=musl-perf
-pkgver=1.2.4
-pkgrel=6
+pkgver=1.2.4_git20230717
+pkgrel=0
 pkgdesc="the musl c library (libc) implementation (optimized for performance)"
 url="https://musl.libc.org/"
 arch="x86_64"
@@ -29,7 +29,7 @@ case "$BOOTSTRAP" in
 nocc)	pkgname="$pkgname-dev"; subpackages="";;
 nolibc) ;;
 esac
-_commit="1.2.4"
+_commit="83b858f83b658bd34eca5d8ad4d145f673ae7e5e"
 source="musl-$_commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$_commit.tar.gz
 
 	0100-ldso-dynlink-add-ifunc-support.patch
@@ -37,8 +37,6 @@ source="musl-$_commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$_com
 	0102-Makefile-link-glibc-string-lib.patch
 	0103-use-internal-ifunc-symbols-in-libc.patch
 	0104-increase-buffer-size-for-stdio-stream-functions.patch
-
-	1-fallocate64-location.patch
 
 	__stack_chk_fail_local.c
 	"
@@ -67,7 +65,7 @@ build() {
 	export LDFLAGS="${LDFLAGS/-O1/-O2}"
 
 	# provide minimal libssp_nonshared.a so we don't need libssp from gcc
-	${CROSS_COMPILE}gcc $CPPFLAGS $CFLAGS -c "$srcdir"/__stack_chk_fail_local.c -o __stack_chk_fail_local.o
+	${CROSS_COMPILE}cc $CFLAGS -c "$srcdir"/__stack_chk_fail_local.c -o __stack_chk_fail_local.o
 	${CROSS_COMPILE}ar r libssp_nonshared.a __stack_chk_fail_local.o
 
 	cp /usr/lib/libglibc-string.a "$builddir"/
@@ -154,12 +152,11 @@ libintl() {
 }
 
 sha512sums="
-25fe4004424fe1c26106a71caf5f832833d5d4ebac1399f6d776657a03ba49605f17aedee2ffb25527808de665a8cea02b8c8ae2de065c4e009ef26b324d031e  musl-1.2.4.tar.gz
+29c8b33565f2f7aeacf274e8029b94dc515c569f2e3fc27acb0cf8254e22d6248bf0948076f2c2887ba0495ff2e2db59f760d69d2b4ee6697fea4cda1adf9136  musl-83b858f83b658bd34eca5d8ad4d145f673ae7e5e.tar.gz
 26fa733450c3b9f0e84668c6ae48b218a34de233f9d8cd2cf239648b825c9e9fcad1e91b02802605628be2c971cc64e5c90e7fca5ccbea9f370672cf9c71b3b4  0100-ldso-dynlink-add-ifunc-support.patch
 476fd0214911edbc4e36114c6c2a32ccb3e85d776e2de0427bbfd7ac1aaf46e6b1c3e00bd83cd998380c7db83b2a67ac3e6d840867472131eae69a1ce99d5a86  0101-support-ifunc-in-static-linking.patch
 5ed91362c40f18bf1af4c744a234c828e3c4979ecbc21f8dbf0d8b96c9d7662615163a9ce13372249f5be7472366c6e8f68e6f984c0172d6a22b21e8161cd07c  0102-Makefile-link-glibc-string-lib.patch
 52f89fc89789b06eaaeaf2d6e47f296de8cb0742ccd1c0b41e280e0691ab5f056af23daebf497dfc3b183d05dacc670980f0eaac330e3d6033d05ee07f55b8e2  0103-use-internal-ifunc-symbols-in-libc.patch
 93709be81eb6d13e00e3408651ccd1aa53f28ada09f9a45356d03188afbae486381069321c67a341f18c44afabf7b98c0471da7594d3983fdff7cbe21b9a3265  0104-increase-buffer-size-for-stdio-stream-functions.patch
-940d95cad7bfb6066cd7a6601bfb5f42144b049e40a68d52ac25ea0c23fa9b400b38096e3c1b6ce2054734f41128756f2cf4f239feffcfa219e34bb4358c3c1a  1-fallocate64-location.patch
 062bb49fa54839010acd4af113e20f7263dde1c8a2ca359b5fb2661ef9ed9d84a0f7c3bc10c25dcfa10bb3c5a4874588dff636ac43d5dbb3d748d75400756d0b  __stack_chk_fail_local.c
 "
