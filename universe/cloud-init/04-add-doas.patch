@@ -9,7 +9,7 @@ Add doas support to users_groups module.
 diff -aur a/cloudinit/config/cc_users_groups.py b/cloudinit/config/cc_users_groups.py
 --- a/cloudinit/config/cc_users_groups.py
 +++ b/cloudinit/config/cc_users_groups.py
-@@ -55,14 +55,20 @@
+@@ -54,14 +54,20 @@
      if the cloud-config can be intercepted. SSH authentication is preferred.
  
  .. note::
@@ -35,17 +35,27 @@ diff -aur a/cloudinit/config/cc_users_groups.py b/cloudinit/config/cc_users_grou
 diff -aur a/cloudinit/config/schemas/schema-cloud-config-v1.json b/cloudinit/config/schemas/schema-cloud-config-v1.json
 --- a/cloudinit/config/schemas/schema-cloud-config-v1.json
 +++ b/cloudinit/config/schemas/schema-cloud-config-v1.json
-@@ -142,6 +142,14 @@
+@@ -140,6 +140,24 @@
            "description": "The user's login name. Required otherwise user creation will be skipped for this user.",
            "type": "string"
          },
 +        "doas": {
-+          "description": "List of Doas rules to use. Absence of a doas value will result in no doas rules added for this user.",
-+          "type": "array",
-+          "items": {
-+            "type": "string"
-+          },
-+          "minItems": 1
++          "description": "List of Doas rules to use. Absence of a doas value or ``null`` will result in no doas rules added for this user.",
++          "oneOf": [
++            {
++              "type": "array",
++              "items": {
++                "type": "string"
++              },
++              "minItems": 1
++            },
++            {
++              "type": [
++                "string",
++                "null"
++              ]
++            }
++          ]
 +        },
          "expiredate": {
            "default": null,
@@ -53,15 +63,15 @@ diff -aur a/cloudinit/config/schemas/schema-cloud-config-v1.json b/cloudinit/con
 diff -aur a/cloudinit/distros/__init__.py b/cloudinit/distros/__init__.py
 --- a/cloudinit/distros/__init__.py
 +++ b/cloudinit/distros/__init__.py
-@@ -84,6 +84,7 @@
+@@ -93,6 +93,7 @@
      pip_package_name = "python3-pip"
      usr_lib_exec = "/usr/lib"
      hosts_fn = "/etc/hosts"
-+    ci_doas_fn = "/etc/doas.d/cloud-init.conf"
++    ci_doas_fn = "/etc/doas.conf"
      ci_sudoers_fn = "/etc/sudoers.d/90-cloud-init-users"
      hostname_conf_fn = "/etc/hostname"
      tz_zone_dir = "/usr/share/zoneinfo"
-@@ -643,6 +644,7 @@
+@@ -655,6 +656,7 @@
          * ``plain_text_passwd``
          * ``hashed_passwd``
          * ``lock_passwd``
@@ -69,7 +79,7 @@ diff -aur a/cloudinit/distros/__init__.py b/cloudinit/distros/__init__.py
          * ``sudo``
          * ``ssh_authorized_keys``
          * ``ssh_redirect_user``
-@@ -668,6 +670,11 @@
+@@ -680,6 +682,11 @@
          if kwargs.get("lock_passwd", True):
              self.lock_passwd(name)
  
@@ -81,14 +91,10 @@ diff -aur a/cloudinit/distros/__init__.py b/cloudinit/distros/__init__.py
          # Configure sudo access
          if "sudo" in kwargs:
              if kwargs["sudo"]:
-@@ -773,6 +780,85 @@
+@@ -785,6 +792,80 @@
          cmd = ["chpasswd"] + (["-e"] if hashed else [])
          subp.subp(cmd, payload)
  
-+    def ensure_doas_dir(self, path):
-+        # Ensure the directory actually exists
-+        util.ensure_dir(path, 0o750)
-+
 +    def is_doas_rule_valid(self, user, rule):
 +        rule_pattern = r"^(?:permit|deny)" + \
 +                       r"(?:\s+(?:nolog|nopass|persist|keepenv|setenv \{[^}]+\})+)*" + \
@@ -126,14 +132,14 @@ diff -aur a/cloudinit/distros/__init__.py b/cloudinit/distros/__init__.py
 +                    LOG.error(msg)
 +                    return
 +        elif isinstance(rules, str):
-+            if not self.is_doas_rule_valid(user, rule):
-+                msg = "Invalid Doas rule %r for user '%s', not writing any Doas rules for user!" % (rule, user)
++            if not self.is_doas_rule_valid(user, rules):
++                msg = "Invalid Doas rule %r for user '%s', not writing any Doas rules for user!" % (rules, user)
 +                LOG.error(msg)
 +                return
 +
 +        lines = [
 +            "",
-+            "# User rules for %s" % user,
++            "# cloud-init User rules for %s" % user,
 +        ]
 +        if isinstance(rules, (list, tuple)):
 +            for rule in rules:
@@ -146,7 +152,6 @@ diff -aur a/cloudinit/distros/__init__.py b/cloudinit/distros/__init__.py
 +        content = "\n".join(lines)
 +        content += "\n"  # trailing newline
 +
-+        self.ensure_doas_dir(os.path.dirname(doas_file))
 +        if not os.path.exists(doas_file):
 +            contents = [
 +                util.make_header(),
@@ -170,7 +175,7 @@ diff -aur a/cloudinit/distros/__init__.py b/cloudinit/distros/__init__.py
 diff -aur a/config/cloud.cfg.tmpl b/config/cloud.cfg.tmpl
 --- a/config/cloud.cfg.tmpl
 +++ b/config/cloud.cfg.tmpl
-@@ -277,6 +277,9 @@
+@@ -278,6 +278,9 @@
       lock_passwd: True
       gecos: {{ variant }} Cloud User
  {% endif %}
@@ -180,7 +185,7 @@ diff -aur a/config/cloud.cfg.tmpl b/config/cloud.cfg.tmpl
  {% if variant == "suse" %}
       groups: [cdrom, users]
  {% elif variant == "gentoo" %}
-@@ -284,7 +287,7 @@
+@@ -285,7 +288,7 @@
       primary_group: users
       no_user_group: true
  {% elif variant == "alpine" %}

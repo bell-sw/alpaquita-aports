@@ -1,9 +1,9 @@
 diff --git a/cloudinit/distros/alpaquita.py b/cloudinit/distros/alpaquita.py
 new file mode 100644
-index 00000000..8a96f94c
+index 00000000..673932f0
 --- /dev/null
 +++ b/cloudinit/distros/alpaquita.py
-@@ -0,0 +1,207 @@
+@@ -0,0 +1,211 @@
 +# Copyright (C) 2016 Matt Dainty
 +# Copyright (C) 2020 Dermot Bradley
 +#
@@ -181,13 +181,17 @@ index 00000000..8a96f94c
 +
 +        return command
 +
-+    def uses_systemd(self):
++    @staticmethod
++    def uses_systemd():
 +        """
 +        Alpine uses OpenRC, not systemd
 +        """
 +        return False
 +
-+    def manage_service(self, action: str, service: str):
++    @classmethod
++    def manage_service(
++        self, action: str, service: str, *extra_args: str, rcs=None
++    ):
 +        """
 +        Perform the requested action on a service. This handles OpenRC
 +        specific implementation details.
@@ -210,4 +214,4 @@ index 00000000..8a96f94c
 +            "status": list(init_cmd) + [service, "status"],
 +        }
 +        cmd = list(cmds[action])
-+        return subp.subp(cmd, capture=True)
++        return subp.subp(cmd, capture=True, rcs=rcs)

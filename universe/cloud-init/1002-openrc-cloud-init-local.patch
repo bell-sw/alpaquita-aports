@@ -1,13 +1,13 @@
 diff --git a/sysvinit/gentoo/cloud-init-local b/sysvinit/gentoo/cloud-init-local
-index 0f8cf65c..1ad81d76 100755
+index 4ea92b46..db84edb3 100755
 --- a/sysvinit/gentoo/cloud-init-local
 +++ b/sysvinit/gentoo/cloud-init-local
-@@ -8,6 +8,8 @@ depend() {
- }
+@@ -13,6 +13,8 @@ start() {
+   elif test -e /etc/cloud/cloud-init.disabled; then
+     ewarn "$RC_SVCNAME is disabled via cloud-init.disabled file"
+   else
++    # provide possibility to sneak in a fallback dhclient stub
++    local PATH="$PATH":/usr/lib/cloud-init
+     cloud-init init --local
+   fi
  
- start() {
-+  # provide possibility to sneak in a fallback dhclient stub
-+  local PATH="$PATH":/usr/lib/cloud-init
-   cloud-init init --local
-   eend 0
- }

@@ -7,7 +7,7 @@
 # Contributor: Matt Dainty <matt+alpine@bodgit-n-scarper.com>
 # Contributor: Dermot Bradley <dermot_bradley@yahoo.com>
 pkgname=cloud-init
-pkgver=22.4
+pkgver=23.2.2
 pkgrel=0
 pkgdesc="Cloud instance init scripts"
 url="https://cloud-init.io"
@@ -49,13 +49,15 @@ checkdepends="
 subpackages="
 	$pkgname-bash-completion
 	$pkgname-doc
+	$pkgname-pyc
 	$pkgname-openrc
 	"
-source="cloud-init-$pkgver.tar.gz::https://github.com/canonical/cloud-init/archive/$pkgver.tar.gz
+source="cloud-init-$pkgver.tar.gz::https://github.com/canonical/cloud-init/archive/refs/tags/$pkgver.tar.gz
 	01-oauthlib-remove.patch
 	02-disable-irrelevant-modules.patch
 	03-hook-hotplug-sh.patch
 	04-add-doas.patch
+	05-set-default-datasource-list.patch
 	1000-new-distro.patch
 	1001-recognize-distro.patch
 	1002-openrc-cloud-init-local.patch
@@ -70,6 +72,8 @@ source="cloud-init-$pkgver.tar.gz::https://github.com/canonical/cloud-init/archi
 install="$pkgname.post-install"
 
 # secfixes:
+#   23.1.2-r0:
+#     - CVE-2023-1786
 #   22.2.2-r0:
 #     - CVE-2022-2084
 #   21.1-r1:
@@ -96,11 +100,10 @@ package() {
 	python3 setup.py install \
 		--prefix=/usr --root="$pkgdir" --init-system=sysvinit_openrc
 
-	mkdir -p \
-		"$pkgdir"/etc/network
 	install -m644 \
+		-D \
 		"$srcdir"/interfaces \
-		"$pkgdir"/etc/network/
+		"$pkgdir"/etc/network/interfaces
 
 	install -m755 \
 		-D \
@@ -136,7 +139,8 @@ package() {
 	# Delete non-Alpine distribution template files
 	for distro in \
 		arch centos cos debian fedora freebsd gentoo mariner openbsd \
-		opensuse photon redhat rhel sles suse ubuntu
+		opensuse opensuse-leap opensuse-microos opensuse-tumbleweed \
+		photon redhat rhel sle_hpc sle-micro sles suse ubuntu
 	do
 		for file in \
 			"$pkgdir"/etc/cloud/templates/*."$distro".tmpl
@@ -149,8 +153,10 @@ package() {
 	for distro in \
 		almalinux amazon arch bsd centos cloudlinux cos debian \
 		dragonflybsd eurolinux fedora freebsd gentoo mariner \
-		miraclelinux netbsd net_util openEuler openbsd openmandriva \
-		opensuse photon rhel rhel_util rocky sles ubuntu virtuozzo
+		miraclelinux netbsd net_util openEuler openbsd OpenCloudOS \
+		openmandriva opensuse opensuse-leap opensuse-microos \
+		opensuse-tumbleweed photon rhel rhel_util rocky sle-micro \
+		sle_hpc sles TencentOS ubuntu virtuozzo
 	do
 		rm "$pkgdir"/usr/lib/python3.*/site-packages/cloudinit/distros/"$distro".py
 		rm "$pkgdir"/usr/lib/python3.*/site-packages/cloudinit/distros/__pycache__/"$distro".*.pyc
@@ -176,7 +182,6 @@ package() {
 		keyboard \
 		landscape \
 		lxd \
-		refresh_rmc_and_interface \
 		reset_rmc \
 		rh_subscription \
 		snap \
@@ -185,7 +190,6 @@ package() {
 		ubuntu_advantage \
 		ubuntu_autoinstall \
 		ubuntu_drivers \
-		wireguard \
 		yum_add_repo \
 		zypper_add_repo
 	do
@@ -205,19 +209,20 @@ package() {
 }
 
 sha512sums="
-a3385316ecce1f7f351d6e90c308aaa0d17eae1827625d97f815431ee86acc35d9e94608262dc7bcd6c9d640d09fd3a02ab99a6bf4b2f248bab59ad1264d8ac1  cloud-init-22.4.tar.gz
+5a3788d3bad568b502bc4776472ca58d2543da2340a1cfcffd69429d44b1a00ba904d9986fac9babb0b4f58f0d1d326a497e56239e9c10fa35f2668de5a77dba  cloud-init-23.2.2.tar.gz
 c14ce3b27c55d1c381e27b2898bb73da8a74c53480d496bdfc87318b69fb612678205ab5a686c1ce703ef5c2c7a8529f629c8f908aeff39524d36870a83c1929  01-oauthlib-remove.patch
-16833181bdb1f0f98bb7cb3037ada035c0cd9f1a1a9ff58fe48a6bd8cbfbd9c2adbbeec9d0e1e92686f4902d3b798ef5e487147db15749f316d63c4a0fb1a3d5  02-disable-irrelevant-modules.patch
+81d233d121a94c5277ad92713f8660b0fef79f1f50452436f2ad67deda6dea86c685f349db53e57a209d5dc6ba0ab726292d399627778af4d3752c05bfd849fb  02-disable-irrelevant-modules.patch
 463d7ca00f576de75444e86d9b32e1452c824a9f2708b624549e7e003b330c96fbc78d44756efd95d1f954fa0633ce0c0b619e798cdb33b8c86799ee07554834  03-hook-hotplug-sh.patch
-adc410bf3a311fe7509825e4287e8fdda08a9bca5b6060036e8b1fffc58e3efa9aba0db4a8d3939f5ddac25cab1345af0db0798bbb5c608154d1feb586a7b424  04-add-doas.patch
-96bb47d1d2e961d30acb0024d4aeafdc61f824012d19bc281c156001fded9c5ca7beb2bf794f7b15912f7f94f4d967e79bf0fa303b7be4bf161eb57f7046e53a  1000-new-distro.patch
-696a76bb4d853519e60f6f71b2e49bbe7927c70b8ea48f420596b9b17887f8a3423efb2274b8d4cbd0f38de1ef45548d1288f4b586a2ad21d3b69ab9419dda06  1001-recognize-distro.patch
-0cca56d1a222d69928e087c6ee26bd2b8d1f68886d2e7573234c0eb29ff03dc5bb51d0b0e6ba5d16ee1a8fd744b41333b1b0157901e26b55c6eea047fb041380  1002-openrc-cloud-init-local.patch
+619385c93138b6678d1a58c8e9e786a355eb11da646cf29a60ed19137ef52cfaf0c76736cd1cb8a179d01a207259d3a9147ff45179e2625a97c73eb28e261305  04-add-doas.patch
+fe0f6d3c9e4772af8aa940450ec7b905ab5105325bcab7fe5b5ec0bcbd428067957ce2f4489ee55fae0c8c248ee2100ebec321e14938e504cde52de9637b27eb  05-set-default-datasource-list.patch
+622672d0a633791c44ca776ac0a0e971356290d436615d66ce8ffcf80d163b214a1a533e7936c3b5696e2802743262f05044cbb7d97ad7770d4093cde81864fb  1000-new-distro.patch
+0cebe5dcc20fc8c728b335d25c596feb92f0e4ae377ee33814415f6bb5ddc7a12291af5e8f9a46fc5dbf82f2698f285678fbfb8a8c1596bab6d9bac2079b0f20  1001-recognize-distro.patch
+8375da32f231e1d3be9fb81d0551d239ee0118329f485f7eba6a6eaa8cc3465d5895183182f2665ebd5ae4d58b07f5a697e374703c274877d821d2d15ae85fdf  1002-openrc-cloud-init-local.patch
 2d7b80fc248ec18f20c4ed2fbe0f8d6ea85ae57a0ece8ecf8a095cf910c576807c19ab0453c00160b85253df5725cba90abec731cb54f441a509611115519b46  cloud-init-hotplugd
 ab44fc51979a5da8569b08ed2f290a6610de6c36cf147af20f30e9224847623d3594c056a1f64c614598ac130e9bec92d566fb901024f806b768a89190c45f59  cloud-init-hotplugd.initd
 3c6c5189859633012fd389a8d8370cbd46ddd07f206d61bcf872f12105f340552073cbf28f28096109c158b641de1c8199afcfc7f751166a27d4089355e1dd7d  cloud-init.logrotate
 5a40e2a6dedb2939917f6befc4cf675b6bf307f8f185f593ba1af51a55dcd90020efda714fb526e1afdcd10af90300376070ee394b2d221df5b69894f2e143b6  dhclient-stub.py
 48b25ec4457c2b3772a7d210033551d041749a0d1869818d888030e6df7fd9bbc13a38b95cf465de3d46d96881a722f94a337584ce48f280c4a52b819586563a  interfaces
 9340e30b6c95f66cb2cdc68c0c5d765e4ce879d2f2bfb042c4b45996cf2b5c542b3762c6abfd213b4b9610f290d6ca734c28c7240fea76fb5cf58253570d2e8f  setup-cloud-init
-6d0ea580030e900a67bc4d94be9fa69899155b1725af3a6701f43874de73656bfc2a5ddfad03a1ef8969a80e6e7c88546cca2987fde4f4049b391ee69bc774f0  README.Alpine
+585471d64ea0d34f2802c08ccc701ea206311f3ff82c60c8a67d72d60618927fdd1c3c59448d1b840942c23319e6127a7eda9280e8dba776741efef1eb0b07a6  README.Alpine
 "
