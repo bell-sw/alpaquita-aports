@@ -2,7 +2,7 @@
 # Userspace) kernel module.
 
 pkgname=fuse3
-pkgver=3.15.1
+pkgver=3.16.1
 pkgrel=0
 pkgdesc="The reference implementation of the FUSE interface"
 url="https://github.com/libfuse/libfuse"
@@ -26,6 +26,7 @@ subpackages="
 	"
 source="https://github.com/libfuse/libfuse/releases/download/fuse-$pkgver/fuse-$pkgver.tar.gz
 	fuse.initd
+	dont-mknod-dev-fuse.patch
 	"
 options="suid !check" # check is currently broken: https://github.com/libfuse/libfuse/issues/293
 builddir="$srcdir"/fuse-$pkgver
@@ -48,9 +49,6 @@ check() {
 
 package() {
 	DESTDIR="$pkgdir" meson install --no-rebuild -C output
-
-	# shellcheck disable=2115
-	rm -r "$pkgdir"/dev
 
 	install -Dm755 "$srcdir"/fuse.initd "$pkgdir"/etc/init.d/fuse
 	# create config
@@ -80,6 +78,7 @@ _openrc() {
 }
 
 sha512sums="
-927132acff5f313257b39a487d2bb1cb47a4e2a71b49ffc2a2d3428cea22f7c57d133fe93fefc943fec8271802ecd1ddbd43e5e1f534b8ddf2036c1039902ffd  fuse-3.15.1.tar.gz
+3f07919a7451a30d05bc174e2f8ec2c65b6225e63b4bbb40f2b097d760d4aa9b753a1da5da4874855094a01979fc4313ffabce54668ed20a6900f5eed92912c8  fuse-3.16.1.tar.gz
 9fbb6f0fab6faadb592b2218dc0628caf0ea123b1fa8bfe3c10431bd929f7f44f752b3c6aa76373a6f037c662fc61d9e1b664236aca0c51d719891fceaa52b54  fuse.initd
+6827781f53cfd79497245ab129998dc01cbd08bd7eea238191be8816b9a4f85e58407e0cdcc518daab622b3cb08ff887fd8f974f272b14bf64c2bd39b86828d5  dont-mknod-dev-fuse.patch
 "
