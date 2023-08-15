@@ -4,7 +4,7 @@
 
 pkgname=busybox
 pkgver=1.36.1
-pkgrel=5
+pkgrel=6
 pkgdesc="Modular toolbox of common UNIX utilities"
 url="https://busybox.net/"
 arch="all"
@@ -80,6 +80,7 @@ source="https://busybox.net/downloads/busybox-$pkgver.tar.bz2
 	dad.if-up
 	ssl_client.c
 	default.script
+	udhcpc.conf
 	$_openrc_files
 	$_extras_openrc_files
 
@@ -258,6 +259,7 @@ package() {
 	mkdir -p "$pkgdir"/var/lib/udhcpd
 	install -Dm644 "$builddir"/examples/udhcp/udhcpd.conf \
 		"$pkgdir"/etc/udhcpd.conf
+	install -Dm644 "$srcdir"/udhcpc.conf "$pkgdir"/etc/udhcpc/udhcpc.conf
 	cat >"$pkgdir"/etc/securetty <<EOF
 console
 tty1
@@ -410,6 +412,7 @@ aa93095e20de88730f526c6f463cef711b290b9582cdbd8c1ba2bd290019150cbeaa7007c2e15f03
 6321c1d96d8938a3b5eab21731de289ede136fff550f98127c509452bfb17769ccf94b118491f7b81d3c60e1bbb3e80bb07186e4ce07e29724a52f0daba9b218  dad.if-up
 26eac967d6cfe13b7dc973112de145543ac0bdda9e9dd3a69bbd8c133ae6a20387abe9377917efb770b191130d3a6385ff5738abc84a8216d7b86ae88b159260  ssl_client.c
 e56f9d74f7d471893ff9c3fde319b989e1854c9b12f06c1b6739694b07165ae256b5c555bc75c92986265df7f0a276001aba73853855c7a0fb3404a091a92c86  default.script
+5f9ff70f99a970e88460c0de81a6637d8a82252fba6715e259833f16ed8cbfc3440972b1fa454eb77dbbcd1e244774c96b4eef96f71a2b67a9039a0dd5e6fc1e  udhcpc.conf
 fb3d32dc8047357dc7b0b6881765f6322981a8251ff869ce9b189fa036c133f76028bef4b1ff35d777e4c48423f02e597fa868b3ba36eedeaeb88030da2da8f2  acpid.initd
 34c6f3197064bb91619b899b28a201bd4d920b18bded3845440b2cb36dc6f16cabf447c96878349b16e46c30184cbe48bac00a01c5f7cf1be038c0b7136064c5  crond.confd
 653e8fc27285b9cce6df4f0af6b8d89153515abc295228fcdd8e1ac7a3d7d4f80c5b0b13d774bbc96a8726c588170b9ff698671de5f8fe59eb1a68426041d088  crond.initd
