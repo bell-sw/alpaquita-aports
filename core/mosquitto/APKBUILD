@@ -2,8 +2,8 @@
 # messaging; perfect for IoT.
 
 pkgname=mosquitto
-pkgver=2.0.15
-pkgrel=3
+pkgver=2.0.16
+pkgrel=0
 pkgdesc="MQTT broker"
 url="https://mosquitto.org/"
 arch="all"
@@ -15,7 +15,7 @@ makedepends="openssl-dev>3 c-ares-dev util-linux-dev libxslt"
 checkdepends="python3 cunit-dev"
 subpackages="$pkgname-dbg $pkgname-dev $pkgname-doc $pkgname-libs++:_pp $pkgname-openrc
 	$pkgname-libs $pkgname-clients"
-source="http://mosquitto.org/files/source/mosquitto-$pkgver.tar.gz
+source="https://mosquitto.org/files/source/mosquitto-$pkgver.tar.gz
 	mosquitto.initd
 	mosquitto.confd
 	"
@@ -56,7 +56,7 @@ prepare() {
 	# don't strip
 	sed -i -e "s|(INSTALL) -s|(INSTALL)|g" \
 		-e 's|--strip-program=${CROSS_COMPILE}${STRIP}||' \
-		*/Makefile */*/Makefile
+		./*/Makefile ./*/*/Makefile
 }
 
 build() {
@@ -106,7 +106,7 @@ clients() {
 }
 
 sha512sums="
-8a0c58222ea0b9304e7f096f6d13965478072baf1d1c9bc931b32a33f5ea8196c2dd54bde8d83fec7ed9cd413cb5fb115ce0a6701ca20664df52fdd7ca63ddaf  mosquitto-2.0.15.tar.gz
+9e54f0a19a68afd17ca9d0d9ba8a0220e883687312f973a64e09da216cc0ad89dab959863bf1a34f737338e97e54559e8d4eb4178fce5a7fc1e02965c499db97  mosquitto-2.0.16.tar.gz
 4b6987846e8e9a588719b94e8d27ee56271dbe6e0e3a4a6ba7723552c83683d479df8b59827a2bc41383bfe1944e61b0f40e9f3c0b4f669553482b55a2868c1a  mosquitto.initd
 678a8aaefb9181f5f4998304046e5a8737049f90cf6bbbfd5fd4549592728afe77cb536547b39ad1598d53fe0b7c03e1506b2683e7b936712b9fad4a317f4b43  mosquitto.confd
 "
