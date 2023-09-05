@@ -9,7 +9,7 @@ _java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 17"
 
 pkgname=${_java_pkg_name}17
 pkgver=${_java_ver/+/_p}
-pkgrel=0
+pkgrel=1
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
@@ -98,6 +98,8 @@ build() {
 
 	local _cflags="-fstack-protector-strong -D_FORTIFY_SOURCE=2"
 	local _boot_jdk=$(echo /usr/lib/jvm/java-17-* | awk '{ print $1 }')
+
+	[ "$CLIBC" = 'musl' ] && _cflags="$_cflags -D_LARGEFILE64_SOURCE"
 
 	CFLAGS='' CXXFLAGS='' LDFLAGS=''
 	bash ./configure \
