@@ -1,48 +1,81 @@
-From ea10c03a2a8b94b4715266ab4fccdd4c5b746a27 Mon Sep 17 00:00:00 2001
+From f206f7adc713f297da94a35914fc1c0cc633bcfe Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
-Date: Fri, 16 Jun 2023 14:12:34 +0000
+Date: Fri, 8 Sep 2023 14:53:40 +0000
 Subject: [PATCH] support fmv_targets and fmv_functions variables
 
-'fmv_src_prefix' is used for custom build paths.
+* 'fmv_src_prefix' is used for custom build paths.
+
+* 'fmv_check_files' is an optional variable and used for FMV sanity
+   checks. It should contain the list of object files to be searched
+   for specific FMV symbols.
 ---
- abuild.in | 27 +++++++++++++++++++++++++++
- 1 file changed, 27 insertions(+)
+ abuild.in | 56 +++++++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 54 insertions(+), 2 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index 29daaa8..b0ff164 100644
+index 44f15c2..a8d1b51 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -788,6 +788,11 @@ default_prepare() {
+@@ -769,6 +769,7 @@ default_prepare() {
+ 	local i failed=
+ 	[ -n "$builddir" -a -d "$builddir" ] && cd "$builddir"
+ 	if ! have_patches; then
++		setup_fmv
+ 		return 0
+ 	fi
+ 	[ -d "$builddir" ] || { error "Is \$builddir set correctly?"; return 1; }
+@@ -788,6 +789,9 @@ default_prepare() {
  				;;
  		esac
  	done
 +
-+	if [ "$fmv_targets" ] && [ "$fmv_functions" ]; then
-+		setup_fmv
-+	fi
++	setup_fmv
 +
  	if [ -z "$failed" ]; then
  		return 0
  	fi
-@@ -3134,6 +3139,28 @@ remove_cflags()
+@@ -1971,7 +1975,7 @@ build_abuildrepo() {
+ 		set_source_date
+ 
+ 		for part in remove_libc_tags sanitycheck builddeps clean fetch unpack prepare mkusers build \
+-				$_check rootpkg; do
++				$_check check_fmv rootpkg; do
+ 			runpart $part
+ 		done
+ 		local _endtime=$(date -u +%s)
+@@ -2580,7 +2584,7 @@ rootbld_actions() {
+ 	if ! want_check; then
+ 		_check=true
+ 	fi
+-	for part in symlinksrc unpack prepare build $_check rootpkg; do
++	for part in symlinksrc unpack prepare build $_check check_fmv rootpkg; do
+ 		runpart $part
+ 	done
+ }
+@@ -3134,6 +3138,54 @@ remove_cflags()
  	export CPPFLAGS="${CPPFLAGS/$f/}"
  }
  
 +setup_fmv()
 +{
-+	[ "$CARCH" = "x86_64" ] || return
++	if [ -z "$fmv_targets" ] || [ -z "$fmv_functions" ] || [ "$CARCH" != "x86_64" ]; then
++		return 0
++	fi
 +
 +	local i targets functions
-+	local cflags="-fopt-info -fplugin=fmv"
++	local cflags="-fplugin=fmv"
 +
 +	for i in $fmv_targets; do
 +		[ "$targets" ] && targets="$targets,$i" || targets="-fplugin-arg-fmv-targets=$i"
 +	done
 +	for i in $fmv_functions; do
-+		[ -f "$builddir/${i%%:*}" ] || die "fmv: missing src file $builddir/${i%%:*}"
++		local srcfile="${i%%:*}"
++		local srcpath="$builddir/$srcfile"
++
++		[ "$srcfile" != "*" ] && [ ! -f "$srcpath" ] && die "fmv: missing src file $srcpath"
 +
 +		local fn="${fmv_src_prefix}$i"
-+		[ "$functions" ] && functions="$functions,$fn" || \
++		[ "$functions" ] && functions="$functions+$fn" || \
 +		                    functions="-fplugin-arg-fmv-functions=$fn"
 +	done
 +
@@ -50,9 +83,30 @@ index 29daaa8..b0ff164 100644
 +	export CFLAGS="$CFLAGS $cflags"
 +}
 +
++check_fmv()
++{
++	[ "$fmv_check_files" ] || return 0
++
++	local files="$fmv_check_files"
++	local pattern
++
++	case "$CARCH" in
++	x86_64) pattern='[.]resolver';;
++	*) return 0;;
++	esac
++
++	msg "fmv: checking '$files' for '$pattern' in symbols"
++
++	local i; for i in $files; do
++		[ -f "$i" ] || die "fmv: cannot find file '$i'"
++		nm -jUC $i | grep -q "$pattern" || die "fmv: file '$i' missing '$pattern' in symbols"
++	done
++}
++
++
  if options_has "!annobin" || [ -n "$ABUILD_DISABLE_ANNOBIN" ] ; then
  	remove_cflags "-fplugin=annobin"
  fi
 -- 
-2.41.0
+2.25.1
 
