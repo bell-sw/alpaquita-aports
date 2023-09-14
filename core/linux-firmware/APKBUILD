@@ -1,6 +1,6 @@
 pkgname=linux-firmware
 pkgver=20230804
-pkgrel=0
+pkgrel=1
 pkgdesc="firmware files for linux"
 url="https://git.kernel.org/?p=linux/kernel/git/firmware/linux-firmware.git;a=summary"
 arch="all"
@@ -48,7 +48,7 @@ case "$CARCH" in
 	arm*|aarch64) _folders="$_folders qcom";;
 esac
 
-subpackages="$pkgname-other::noarch $pkgname-none::noarch $pkgname-extra-modules::noarch"
+subpackages="$pkgname-other::noarch $pkgname-none::noarch $pkgname-extra-modules:extra_modules:noarch"
 depends="linux-firmware-other=$pkgver-r$pkgrel"
 for i in $_folders; do
 	subpackages="$pkgname-$i:_folder:noarch $subpackages"
@@ -189,7 +189,7 @@ ucode() {
 	  bsdtar --null -cf - --format=newc @- > "$subpkgdir"/boot/amd-ucode.img
 }
 
-modules()
+extra_modules()
 {
 	pkgdesc="firmware files for linux extra modules package"
 	provides="linux-firmware-extra-modules-any"
