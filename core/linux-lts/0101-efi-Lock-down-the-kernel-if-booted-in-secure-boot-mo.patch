@@ -1,4 +1,4 @@
-From 2f3988c6a3385b7db737199232efc5f849658cb2 Mon Sep 17 00:00:00 2001
+From 680ad20973f26f1532625b29a71dfc9938ba2f98 Mon Sep 17 00:00:00 2001
 From: Ben Hutchings <ben@decadent.org.uk>
 Date: Tue, 10 Sep 2019 11:54:28 +0100
 Subject: [PATCH] efi: Lock down the kernel if booted in secure boot mode
@@ -71,10 +71,10 @@ index b6620669e32b..8f2554291fb1 100644
  			break;
  		default:
 diff --git a/include/linux/security.h b/include/linux/security.h
-index ca1b7109c0db..61c1d0a56e60 100644
+index a6c97cc57caa..3e0cb97e8e55 100644
 --- a/include/linux/security.h
 +++ b/include/linux/security.h
-@@ -478,6 +478,7 @@ int security_inode_notifysecctx(struct inode *inode, void *ctx, u32 ctxlen);
+@@ -479,6 +479,7 @@ int security_inode_notifysecctx(struct inode *inode, void *ctx, u32 ctxlen);
  int security_inode_setsecctx(struct dentry *dentry, void *ctx, u32 ctxlen);
  int security_inode_getsecctx(struct inode *inode, void **ctx, u32 *ctxlen);
  int security_locked_down(enum lockdown_reason what);
@@ -82,7 +82,7 @@ index ca1b7109c0db..61c1d0a56e60 100644
  #else /* CONFIG_SECURITY */
  
  static inline int call_blocking_lsm_notifier(enum lsm_event event, void *data)
-@@ -1366,6 +1367,11 @@ static inline int security_locked_down(enum lockdown_reason what)
+@@ -1372,6 +1373,11 @@ static inline int security_locked_down(enum lockdown_reason what)
  {
  	return 0;
  }
