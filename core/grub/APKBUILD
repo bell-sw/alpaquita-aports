@@ -240,10 +240,12 @@ build() {
 	local f
 	for f in $flavors; do
 		case "$f" in
-		bios)		_build_flavor $f --with-platform=pc;;
+		bios)		CFLAGS="${CFLAGS/-fno-plt/}" \
+				  _build_flavor $f --with-platform=pc;;
 		efi)		_build_flavor $f --with-platform=efi --disable-efiemu;;
 		xenhost)	_build_flavor $f --with-platform=xen;;
-		xenhost_pvh)	_build_flavor $f --with-platform=xen_pvh --target=i386;;
+		xenhost_pvh)	CFLAGS="${CFLAGS/-fno-plt/}" \
+				  _build_flavor $f --with-platform=xen_pvh --target=i386;;
 		*)		_build_flavor $f --with-platform=$f;;
 
 		esac
