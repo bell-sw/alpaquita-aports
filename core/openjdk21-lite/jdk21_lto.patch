@@ -1,0 +1,93 @@
+diff --git a/make/autoconf/flags-ldflags.m4 b/make/autoconf/flags-ldflags.m4
+index e5c345fdef1..126c6cfa768 100644
+--- a/make/autoconf/flags-ldflags.m4
++++ b/make/autoconf/flags-ldflags.m4
+@@ -189,6 +189,13 @@ AC_DEFUN([FLAGS_SETUP_LDFLAGS_CPU_DEP],
+       $1_CPU_LDFLAGS="${$1_CPU_LDFLAGS} -Wl,--hash-style=gnu"
+     fi
+ 
++    # also add -fno-omit-frame-pointer to ldflags symmetrically flags-cflags logic
++    if test "x${OPENJDK_$1_CPU}" != xarm && test "x${OPENJDK_$1_CPU}" != xppc; then
++      # for all archs except arm and ppc, prevent gcc to omit frame pointer
++      # especially required for lto
++      $1_CPU_LDFLAGS="${$1_CPU_LDFLAGS} -fno-omit-frame-pointer"
++    fi
++
+   elif test "x$TOOLCHAIN_TYPE" = xmicrosoft; then
+     if test "x${OPENJDK_$1_CPU_BITS}" = "x32"; then
+       $1_CPU_EXECUTABLE_LDFLAGS="-stack:327680"
+diff --git a/make/hotspot/lib/JvmOverrideFiles.gmk b/make/hotspot/lib/JvmOverrideFiles.gmk
+index b50d6f8bb36..c8dee4a5fc5 100644
+--- a/make/hotspot/lib/JvmOverrideFiles.gmk
++++ b/make/hotspot/lib/JvmOverrideFiles.gmk
+@@ -33,6 +33,19 @@ ifeq ($(TOOLCHAIN_TYPE), gcc)
+   BUILD_LIBJVM_vmStructs.cpp_CXXFLAGS := -fno-var-tracking-assignments
+   BUILD_LIBJVM_jvmciCompilerToVM.cpp_CXXFLAGS := -fno-var-tracking-assignments
+   BUILD_LIBJVM_jvmciCompilerToVMInit.cpp_CXXFLAGS := -fno-var-tracking-assignments
++
++  BUILD_LIBJVM_os_linux.cpp_CXXFLAGS := -fno-lto
++  BUILD_LIBJVM_g1ParScanThreadState.cpp_CXXFLAGS := -fno-lto
++  BUILD_LIBJVM_interp_masm_aarch64.cpp_CXXFLAGS := -fno-lto
++  BUILD_LIBJVM_macroAssembler_aarch64.cpp_CXXFLAGS := -fno-lto
++
++  # async profiler
++  BUILD_LIBJVM_allocTracer.cpp_CXXFLAGS := -fno-lto
++  BUILD_LIBJVM_jvmtiEnv.cpp_CXXFLAGS := -fno-lto
++  BUILD_LIBJVM_codeCache.cpp_CXXFLAGS := -fno-lto
++  BUILD_LIBJVM_mutex.cpp_CXXFLAGS := -fno-lto
++  BUILD_LIBJVM_sweeper.cpp_CXXFLAGS := -fno-lto
++
+   ifeq ($(DEBUG_LEVEL), release)
+     # Need extra inlining to collapse shared marking code into the hot marking loop
+     BUILD_LIBJVM_shenandoahMark.cpp_CXXFLAGS := --param inline-unit-growth=1000
+diff --git a/src/hotspot/share/runtime/handles.inline.hpp b/src/hotspot/share/runtime/handles.inline.hpp
+index 669a940eca9..d41e4bb9d64 100644
+--- a/src/hotspot/share/runtime/handles.inline.hpp
++++ b/src/hotspot/share/runtime/handles.inline.hpp
+@@ -62,13 +62,15 @@ DEF_HANDLE_CONSTR(array    , is_array_noinline    )
+ DEF_HANDLE_CONSTR(objArray , is_objArray_noinline )
+ DEF_HANDLE_CONSTR(typeArray, is_typeArray_noinline)
+ 
++// DMS    assert(_thread->is_in_live_stack((address)this), "not on stack?"); \
++//
++
+ // Constructor for metadata handles
+ #define DEF_METADATA_HANDLE_FN(name, type) \
+ inline name##Handle::name##Handle(Thread* thread, type* obj) : _value(obj), _thread(thread) { \
+   if (obj != nullptr) {                                                   \
+     assert(((Metadata*)obj)->is_valid(), "obj is valid");              \
+     assert(_thread == Thread::current(), "thread must be current");    \
+-    assert(_thread->is_in_live_stack((address)this), "not on stack?"); \
+     _thread->metadata_handles()->push((Metadata*)obj);                 \
+   }                                                                    \
+ }                                                                      \
+diff --git a/src/jdk.hotspot.agent/share/classes/sun/jvm/hotspot/types/basic/BasicTypeDataBase.java b/src/jdk.hotspot.agent/share/classes/sun/jvm/hotspot/types/basic/BasicTypeDataBase.java
+index 5a490a7b00f..d9eca9f7db3 100644
+--- a/src/jdk.hotspot.agent/share/classes/sun/jvm/hotspot/types/basic/BasicTypeDataBase.java
++++ b/src/jdk.hotspot.agent/share/classes/sun/jvm/hotspot/types/basic/BasicTypeDataBase.java
+@@ -219,8 +219,11 @@ public class BasicTypeDataBase implements TypeDataBase {
+     // search nearby memory for the vtbl value of the given type.
+ 
+     if (vtblForType(baseType) == null) {
+-      // Type was not polymorphic which is an error of some sort
+-      throw new InternalError(baseType + " does not appear to be polymorphic");
++      // Compiler optimization coulid optimize out vtable symbols, 
++      // will try to find vtbl of one of child classes below
++      if (DEBUG) {
++        System.err.println("BasicTypeDataBase.findDynamicTypeForAddress: vtblAddr == null for " + baseType);
++      }
+     }
+ 
+     // This is a more restricted version of guessTypeForAddress since
+diff --git a/test/hotspot/jtreg/runtime/NMT/CheckForProperDetailStackTrace.java b/test/hotspot/jtreg/runtime/NMT/CheckForProperDetailStackTrace.java
+index 25c41f346b1..a8bea1ab2ff 100644
+--- a/test/hotspot/jtreg/runtime/NMT/CheckForProperDetailStackTrace.java
++++ b/test/hotspot/jtreg/runtime/NMT/CheckForProperDetailStackTrace.java
+@@ -71,6 +71,7 @@ public class CheckForProperDetailStackTrace {
+        inlined instead.
+     */
+     private static String stackTraceAllocateHeap =
++        ".*Hashtable.*new_entry.*\n" +
+         ".*AllocateHeap.*\n" +
+         ".*ModuleEntryTable.*locked_create_entry.*\n" +
+         ".*Modules.*define_module.*\n";
