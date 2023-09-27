@@ -22,7 +22,7 @@ license="GPL-2.0 WITH Classpath-Exception-2.0"
 arch="x86_64"
 options="!strip ldpath-recursive !tracedeps !annobin"
 annocheck_skip="libsyslookup.so"
-depends="$pkgname-doc=$pkgver-r$pkgrel $pkgname-jdk=$pkgver-r$pkgrel"
+depends="$pkgname-jdk=$pkgver-r$pkgrel $pkgname-doc=$pkgver-r$pkgrel"
 
 # NB: openjdk21-bootstrap is added to makedepends separately, only if
 # not bootstrapping the first package from prebuilt binaries
@@ -74,7 +74,7 @@ provides="
 	"
 
 source="
-	${VENDOR_URL/\/\//\/\/download.}java/$_java_ver/bellsoft-jdk21+37-src.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}java/$_java_ver/bellsoft-jdk$_java_ver-src.tar.gz
 	HelloJava.java
 	readme.txt.template
 	"
@@ -143,7 +143,6 @@ build() {
 		--with-vendor-vm-bug-url="$VENDOR_BUG_REPORT_URL" \
 		--with-extra-cflags="$_cflags" \
 		--with-extra-cxxflags="$_cflags" \
-		--with-extra-ldflags=$LDFLAGS \
 		--disable-warnings-as-errors \
 		--with-zlib=system \
 		--with-boot-jdk=$_boot_jdk
@@ -189,7 +188,7 @@ _jre_no_deps() {
 		envsubst < readme.txt.template > "$subpkgdir/$_java_home/readme.txt"
 
 	ln -sf . "$subpkgdir/$_java_home/jre"
-	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-21-${pkgname%21}
+	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-21-${pkgname/21/}
 }
 
 _jre() {
@@ -203,7 +202,6 @@ _jre() {
 
 	mkdir -p "$subpkgdir"
 }
-
 
 _jre_doc() {
 	pkgdesc="$_java_name (JRE Documentation)"
@@ -237,9 +235,9 @@ _jdk() {
 	provides="
 		java-jdk
 		java21-jdk
-		$pkgname-bootstrap=$pkgver-r$pkgrel
-		openjdk21-bootstrap=$pkgver-r$pkgrel
 		openjdk21-jdk=$pkgver-r$pkgrel
+		openjdk21-bootstrap=$pkgver-r$pkgrel
+		$pkgname-bootstrap=$pkgver-r$pkgrel
 	"
 
 	mkdir -p "$subpkgdir"
