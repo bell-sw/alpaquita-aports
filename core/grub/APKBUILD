@@ -3,7 +3,7 @@
 
 pkgname=grub
 pkgver=2.06
-pkgrel=17
+pkgrel=18
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
 arch="all !s390x"
@@ -174,7 +174,6 @@ source="https://ftp.gnu.org/gnu/grub/grub-$pkgver.tar.xz
 	1018-ensure-grub-mkconfig-ignores-.apk-new-files.patch
 	1019-prevent-harmless-LVM-warnings-from-grub-probe.patch
 	1020-Handle-encrypted-zfs-root-partition.patch
-	1023-build-force-no-pie.patch
 
 	1101-fixes-for-menu.patch
 	"
@@ -360,23 +359,18 @@ efi() {
 	mv $pkgdir/usr/lib/grub/*-efi $subpkgdir/usr/lib/grub/
 
 	local _cd_modules="\
-		all_video cat configfile disk echo efi_gop fat gzio \
-		help iso9660 linux ls memdisk normal part_gpt part_msdos \
+		all_video cat configfile disk echo fat gzio help \
+		iso9660 linux ls memdisk normal part_gpt part_msdos \
 		search search_label squash4 test true \
 		"
 
-	case "$CARCH" in
-	x86*) _cd_modules="$_cd_modules backtrace chain tpm multiboot2 efi_uga";;
-	esac
-
 	local _modules="$_cd_modules \
-		boot btrfs cryptodisk efifwsetup efinet ext2 f2fs font \
-		gcry_rijndael gcry_rsa gcry_serpent gcry_sha256 gcry_sha512 \
-		gcry_twofish gcry_whirlpool gfxmenu gfxterm halt hfsplus http jpeg \
-		loadenv loopback lvm lsefi lsefimmap luks luks2 mdraid09 mdraid1x \
-		minicmd net part_apple password_pbkdf2 png reboot regexp \
-		search_fs_uuid search_fs_file serial sleep syslinuxcfg tftp \
-		video xfs zstd \
+		at_keyboard boot btrfs cryptodisk efifwsetup efinet ext2 f2fs \
+		font gcry_rijndael gcry_rsa gcry_serpent gcry_sha256 gcry_sha512 \
+		gcry_twofish gcry_whirlpool gfxmenu gfxterm halt hfsplus http \
+		jpeg loadenv loopback lsefi lsefimmap luks lvm mdraid09 mdraid1x \
+		minicmd part_apple password_pbkdf2 png reboot regexp search_fs_file \
+		search_fs_uuid serial sleep tftp video xfs zstd \
 		"
 
 	local _format _efi
@@ -387,14 +381,6 @@ efi() {
 	x86)	_format="i386-efi";   _efi="ia32.efi" ;;
 	x86_64) _format="x86_64-efi"; _efi="x64.efi"  ;;
 	*)	return 0 ;;
-	esac
-
-	case $_format in
-	x86_64-efi|i386-efi)
-		_modules="$_modules usb \
-			usbserial_common usbserial_pl2303 usbserial_ftdi \
-			usbserial_usbdebug keylayouts at_keyboard \
-			"
 	esac
 
 	local _install_dir="$subpkgdir/usr/lib/grub/$_format/unified"
@@ -623,6 +609,5 @@ f7670f4ade09358b3449423fb22e10e6acdbe4033c63de8fe10ca3211dc13e67089d5b1012e39a6c
 97719bfd538b8b328a1b2a975bea4c836cea2b2c391d24f4ec66a4626c6ae2aecd4d5a343061d08174299db8556f07d6d0353485f7c2205f8d960ea2ea50e90e  1018-ensure-grub-mkconfig-ignores-.apk-new-files.patch
 334e4559eb63ba3861b35d9502524dc6e6faa6af56c54554960854c293f9c524cddbb778f9bd7d0bd4f4e4ce8bfa5b9b0087445c2174b733c95640e44df38e6c  1019-prevent-harmless-LVM-warnings-from-grub-probe.patch
 333231df2394a9257352b51712f9dd386193d6e52d591ad8456e54b4fb585e425ceb62843928d4e5e82dc17debe31eb7dc0ccca0cec7352303c718f58987e1ec  1020-Handle-encrypted-zfs-root-partition.patch
-552a0034b4f721d56b3ad7eb23b47b278690c219ba1a12fbf1f82eb88b03132c0b73fe11934f7ab26e7e2c819f1c20f06422ae2df26dbeaec8f0eaa3dfd4f03d  1023-build-force-no-pie.patch
 438d8baf52b9b69dcaaf064a3e8d770991f50ab9262a32ac5cbd9059a2aff8426ebe3c4b8e70a27884fc3fbd1fc3b4e1701cad8c0378902ba29b738e3cb4a90c  1101-fixes-for-menu.patch
 "
