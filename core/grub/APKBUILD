@@ -175,10 +175,20 @@ source="https://ftp.gnu.org/gnu/grub/grub-$pkgver.tar.xz
 	1019-prevent-harmless-LVM-warnings-from-grub-probe.patch
 	1020-Handle-encrypted-zfs-root-partition.patch
 
+	1030-fs-ntfs-Fix-an-OOB-write-when-parsing-the-ATTRIBUTE_.patch
+	1031-fs-ntfs-Fix-an-OOB-read-when-reading-data-from-the-r.patch
+	1032-fs-ntfs-Fix-an-OOB-read-when-parsing-directory-entri.patch
+	1033-fs-ntfs-Fix-an-OOB-read-when-parsing-bitmaps-for-ind.patch
+	1034-fs-ntfs-Fix-an-OOB-read-when-parsing-a-volume-label.patch
+	1035-fs-ntfs-Make-code-more-readable.patch
+
 	1101-fixes-for-menu.patch
 	"
 
 # secfixes:
+#   2.06-r18:
+#     - CVE-2023-4693
+#     - CVE-2023-4692
 #   2.06-r8:
 #     - CVE-2022-3775
 #     - CVE-2022-2601
@@ -484,7 +494,7 @@ bashcomp() {
 sha512sums="
 4f11c648f3078567e53fc0c74d5026fdc6da4be27d188975e79d9a4df817ade0fe5ad2ddd694238a07edc45adfa02943d83c57767dd51548102b375e529e8efe  grub-2.06.tar.xz
 4e7394e0fff6772c89683039ccf81099ebbfe4f498e6df408977a1488fd59389b6e19afdbf0860ec271e2b2aea0df7216243dcc8235d1ca3af0e7f4d0a9d60a4  grub-xen-host_grub.cfg
-3bdefa7effaba59d23110cdd60598bd3cc91cac82792df76adbb98cc0cff17ae3cd0ac1684795ada31651166e9d06bc7be7b0a856e4d0be95828689458dbf37f  sbat.distro.csv
+4ef20cb99053afcfcbb99fbd7d58254eb14f2493a63084ccd21839e6bf71baea20b827a5f60423ca3681282bb2bd8db0ea78c4d18baa8489ed5b799e8f4b3bc4  sbat.distro.csv
 c1601f2c2293da193c9ca76191a2934c16138ac30d9eec24a0a50454dbf4f28094875eb45f33b297fcef689c16ac1e2f2f584d49601733a1da8632aa96f9bfe3  0004-Add-support-for-Linux-EFI-stub-loading.patch
 3ca03148e8f1943d94182670070cea204d51a4f7285f243e7ccf08d9c3d7b111d38ed754648a820b52ac9c68a29c52fd18c7a29ae461e2a20ab036b3762caf03  0005-Rework-linux-command.patch
 d831124d84d890413d2aec7a75d4bbf1684c64dbf8ab7f46472ce36ad5e30f2c110b62ce0ac75bda7257a13f9024e7c135109b4f15250416fdd1c26a5fea2d49  0006-Rework-linux16-command.patch
@@ -610,5 +620,11 @@ f7670f4ade09358b3449423fb22e10e6acdbe4033c63de8fe10ca3211dc13e67089d5b1012e39a6c
 97719bfd538b8b328a1b2a975bea4c836cea2b2c391d24f4ec66a4626c6ae2aecd4d5a343061d08174299db8556f07d6d0353485f7c2205f8d960ea2ea50e90e  1018-ensure-grub-mkconfig-ignores-.apk-new-files.patch
 334e4559eb63ba3861b35d9502524dc6e6faa6af56c54554960854c293f9c524cddbb778f9bd7d0bd4f4e4ce8bfa5b9b0087445c2174b733c95640e44df38e6c  1019-prevent-harmless-LVM-warnings-from-grub-probe.patch
 333231df2394a9257352b51712f9dd386193d6e52d591ad8456e54b4fb585e425ceb62843928d4e5e82dc17debe31eb7dc0ccca0cec7352303c718f58987e1ec  1020-Handle-encrypted-zfs-root-partition.patch
+d7c4123f7f5959ebc735ec8055dd109d5e625f4ef4339c419d5478031851c39229a45d489c235d91a002aa0bd0a62c6fc4edc1c0beb3224a698bfc423bf655d7  1030-fs-ntfs-Fix-an-OOB-write-when-parsing-the-ATTRIBUTE_.patch
+8f0a962d753f47939fd61233bbd31064c167d5061aa54db975f3e7f853060f13509debc4afa61d593f33a796b3b0973a34f1e9533e4d4d2108fd0be81d112190  1031-fs-ntfs-Fix-an-OOB-read-when-reading-data-from-the-r.patch
+26bbb7b2e76cfe7213560611f98507c41627939cbb3f39087d6381d68a304a972523e0f603d8c31d6dcd7d3d7593eeeb2ace10e7fafc919041126ae2608c645f  1032-fs-ntfs-Fix-an-OOB-read-when-parsing-directory-entri.patch
+cd2143b596bbe3852f20e91fa5d2f7bbb507413f9d0bd67f324c5bf262330faa57772f85c0a0d2f8dc0577d18acfaf34b65105bb15b34bede92ff2f5f77eb056  1033-fs-ntfs-Fix-an-OOB-read-when-parsing-bitmaps-for-ind.patch
+9381b2669295cfd9357fb7502d7981e217bda54ba3c5082e91e0b4bb860799113cb8bc599fc1363f5fcfe6102edc6d0ea140f25777de50eaf1e01ddd1cc86180  1034-fs-ntfs-Fix-an-OOB-read-when-parsing-a-volume-label.patch
+8f1d654d62fb9e2b0cfcf13b5e7eb92ca8b5ba20dce4681599f4c57fc679901642ec6cab8d0e9f63aa4878a3d8a139a04d3607a9c713d7c0711e4f619f000dd4  1035-fs-ntfs-Make-code-more-readable.patch
 438d8baf52b9b69dcaaf064a3e8d770991f50ab9262a32ac5cbd9059a2aff8426ebe3c4b8e70a27884fc3fbd1fc3b4e1701cad8c0378902ba29b738e3cb4a90c  1101-fixes-for-menu.patch
 "
