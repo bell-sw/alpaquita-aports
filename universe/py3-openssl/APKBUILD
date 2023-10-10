@@ -1,0 +1,42 @@
+pkgname=py3-openssl
+_pkgname=pyOpenSSL
+pkgver=23.2.0
+pkgrel=0
+pkgdesc="Python3 wrapper module around the OpenSSL library"
+url="https://github.com/pyca/pyopenssl"
+arch="noarch"
+license="Apache-2.0"
+depends="python3 py3-cryptography"
+makedepends="
+	py3-gpep517
+	py3-setuptools
+	py3-wheel
+	"
+checkdepends="py3-flaky py3-pytest-xdist py3-pretend"
+subpackages="$pkgname-pyc"
+source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces="py-openssl" # Backwards compatibility
+provides="py-openssl=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/*.whl
+	.testenv/bin/python3 -m pytest -n auto
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+}
+
+sha512sums="
+a467801bf94959a067d9d3551b47d17d4798bf0b87d253d41a89cac9cdb1731a967a98bda3e83ab8a560ed5fdc0a17f34604f3c6e0f6789bc4c920bc49f520c9  pyOpenSSL-23.2.0.tar.gz
+"
