@@ -3,7 +3,7 @@
 
 pkgname=grub
 pkgver=2.06
-pkgrel=18
+pkgrel=19
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
 arch="all !s390x"
@@ -39,7 +39,8 @@ for f in $flavors; do
 done
 
 # Patch number ranges:
-# 0000..1000: fedora, https://src.fedoraproject.org/rpms/grub2/tree/rawhide
+_FEDORA_RELEASE="2.06-102.fc38"
+# 0000..1000: fedora, https://src.fedoraproject.org/rpms/grub2/tree/f38
 # 1001..1100: various upstream and alpine patches
 # 1101..    : distro specific patches
 
@@ -402,6 +403,7 @@ efi() {
 	sed -e "s,@PKGVER@,$pkgver,g" -e "s,@PKGREL@,$pkgrel," \
 		-e "s,@DISTRO@,$VENDOR_DISTRO,g" -e "s,@DISTRO_NAME@,$VENDOR_DISTRO_NAME,g" \
 		-e "s,@SUPPORT_URL@,$VENDOR_BUG_REPORT_URL,g" \
+		-e "s,@FEDORA_RELEASE@,$_FEDORA_RELEASE,g" \
 		< "$srcdir"/sbat.distro.csv > "$builddir"/sbat.distro.csv
 
 	# create memdisk with fonts
@@ -494,7 +496,7 @@ bashcomp() {
 sha512sums="
 4f11c648f3078567e53fc0c74d5026fdc6da4be27d188975e79d9a4df817ade0fe5ad2ddd694238a07edc45adfa02943d83c57767dd51548102b375e529e8efe  grub-2.06.tar.xz
 4e7394e0fff6772c89683039ccf81099ebbfe4f498e6df408977a1488fd59389b6e19afdbf0860ec271e2b2aea0df7216243dcc8235d1ca3af0e7f4d0a9d60a4  grub-xen-host_grub.cfg
-4ef20cb99053afcfcbb99fbd7d58254eb14f2493a63084ccd21839e6bf71baea20b827a5f60423ca3681282bb2bd8db0ea78c4d18baa8489ed5b799e8f4b3bc4  sbat.distro.csv
+aa79c0c659c40ad200000315fb1d5d410f6e99f5f2c65f10d84a82a89ba4fbbe2bb39727b0c48c1a00455bf3b5badf1789cd8b67c4d42e7f2b400ccf2290e166  sbat.distro.csv
 c1601f2c2293da193c9ca76191a2934c16138ac30d9eec24a0a50454dbf4f28094875eb45f33b297fcef689c16ac1e2f2f584d49601733a1da8632aa96f9bfe3  0004-Add-support-for-Linux-EFI-stub-loading.patch
 3ca03148e8f1943d94182670070cea204d51a4f7285f243e7ccf08d9c3d7b111d38ed754648a820b52ac9c68a29c52fd18c7a29ae461e2a20ab036b3762caf03  0005-Rework-linux-command.patch
 d831124d84d890413d2aec7a75d4bbf1684c64dbf8ab7f46472ce36ad5e30f2c110b62ce0ac75bda7257a13f9024e7c135109b4f15250416fdd1c26a5fea2d49  0006-Rework-linux16-command.patch
