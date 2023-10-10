@@ -1,0 +1,50 @@
+pkgname=py3-trio
+pkgver=0.21.0
+pkgrel=3
+pkgdesc="A friendly Python library for async concurrency and I/O"
+url="https://trio.readthedocs.io/"
+arch="noarch"
+license="MIT OR Apache-2.0"
+depends="
+	py3-attrs
+	py3-async_generator
+	py3-idna
+	py3-cffi
+	py3-openssl
+	py3-outcome
+	py3-sniffio
+	py3-sortedcontainers
+	python3
+	"
+makedepends="py3-setuptools"
+checkdepends="
+	py3-astor
+	py3-pytest
+	py3-trustme
+	"
+subpackages="$pkgname-pyc"
+source="https://pypi.python.org/packages/source/t/trio/trio-$pkgver.tar.gz
+	fix-musl-getaddrinfo.patch
+	"
+builddir="$srcdir/trio-$pkgver"
+
+case "$CARCH" in
+	ppc64le) options="$options !check" ;; # unix pipes test times out
+esac
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	pytest -v -m "not redistributors_should_skip"
+}
+
+package() {
+	python3 setup.py install --skip-build --root="$pkgdir"
+}
+
+sha512sums="
+146b18886c9a1483c35c2469017201c4ce5e74bcd1be670150ab9ec7c4ad51dd416ca201f911cf18a27391280a00580718a05b17b6470a646c477e4c626c8da4  trio-0.21.0.tar.gz
+a888e81ac513564e66e80143b615f608313d61ff7131b9afb0f698deb56761c91373059a1c87ecad0e758952912302af8937087a30dbda2c93f94860f3ff34e2  fix-musl-getaddrinfo.patch
+"
