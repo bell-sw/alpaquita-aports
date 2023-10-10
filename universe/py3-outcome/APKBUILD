@@ -1,0 +1,33 @@
+pkgname=py3-outcome
+pkgver=1.2.0
+pkgrel=2
+pkgdesc="Capture the outcome of Python function calls"
+url="https://github.com/python-trio/outcome"
+arch="noarch"
+license="MIT OR Apache-2.0"
+depends="
+	py3-async_generator
+	py3-attrs
+	python3
+	"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest"
+subpackages="$pkgname-pyc"
+source="https://pypi.python.org/packages/source/o/outcome/outcome-$pkgver.tar.gz"
+builddir="$srcdir/outcome-$pkgver"
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	PYTHONPATH="$PWD/build/lib" pytest
+}
+
+package() {
+	python3 setup.py install --skip-build --root="$pkgdir"
+}
+
+sha512sums="
+0ffba054c781edaf2437f3377e9685f76f5410a4e4e3dc377ec77a97535d3b103025e5f1006142eb55bacf5ba6c4632dc1524b524b050c7c01a18ed0893b373d  outcome-1.2.0.tar.gz
+"
