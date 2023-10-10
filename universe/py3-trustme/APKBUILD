@@ -1,0 +1,35 @@
+pkgname=py3-trustme
+pkgver=1.1.0
+pkgrel=0
+pkgdesc="#1 quality TLS certs while you wait, for the discerning tester"
+url="https://github.com/python-trio/trustme"
+arch="noarch"
+license="Apache-2.0 OR MIT"
+depends="
+	py3-cryptography
+	py3-idna
+	py3-openssl
+	py3-service_identity
+	python3
+	"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest"
+subpackages="$pkgname-pyc"
+source="https://pypi.python.org/packages/source/t/trustme/trustme-$pkgver.tar.gz"
+builddir="$srcdir/trustme-$pkgver"
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	PYTHONPATH="$PWD/build/lib" pytest
+}
+
+package() {
+	python3 setup.py install --skip-build --root="$pkgdir"
+}
+
+sha512sums="
+f0ad39ffd9f4074107c90258738412ff8ca8ed1b4138e38edc6edad9a5cb8787a53a47fa78b12eba189774902ee3728961feed54b3b5e944e4737749912627b2  trustme-1.1.0.tar.gz
+"
