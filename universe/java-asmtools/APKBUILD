@@ -1,0 +1,51 @@
+pkgname=java-asmtools
+_pkgver=7.0-b09
+pkgver=${_pkgver/-b/.}
+pkgrel=0
+pkgdesc="The AsmTools open source project is used to develop tools for the production of proper and improper Java '.class' files"
+url="https://github.com/openjdk/asmtools"
+# s390x: ftbfs due to sigfpe
+# riscv64: java
+arch="noarch !riscv64 !s390x"
+license="GPL-2.0"
+makedepends="java-jdk"
+options="!check" # this package has no tests
+subpackages="$pkgname-doc:_doc"
+source="https://github.com/openjdk/asmtools/archive/$_pkgver/asmtools-$_pkgver.tar.gz
+	https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.13-bin.zip
+	"
+builddir="$srcdir/asmtools-$_pkgver"
+
+_ant_home="$srcdir"/apache-ant-1.9.13/
+
+build() {
+	cd "$builddir/build"
+
+	# fix the build target directory
+	sed -i "s@^BUILD_DIR.\+@BUILD_DIR = $builddir/target@" build.properties
+
+	$_ant_home/bin/ant
+}
+
+package() {
+	_destdir="$pkgdir/usr/share/java/asmtools"
+	mkdir -p "$_destdir"
+	cp -r \
+		$builddir/target/binaries/lib \
+		$builddir/target/binaries/LICENSE \
+		"$_destdir"
+}
+
+_doc() {
+	_destdir="$subpkgdir/usr/share/java/asmtools"
+	mkdir -p "$_destdir"
+	cp -r \
+		$builddir/target/binaries/doc \
+		$builddir/target/binaries/README.html \
+		"$_destdir"
+}
+
+sha512sums="
+027744e2b92719525c8d00cc16c03563dc1ca6c9e7d771145cd39ba841fe35934e3f3d3e2982ca12156466050b98a458f08f204ed44d964b467d37517d7d288a  asmtools-7.0-b09.tar.gz
+873062cf789e1572ec4ef3cdbb15c0d3a57e5a0794068591565367d4cec15b9f9a24f59734a85170d61b23eb9288d6bafd35a9ae2b015b09c7a175e344cb4e1c  apache-ant-1.9.13-bin.zip
+"
