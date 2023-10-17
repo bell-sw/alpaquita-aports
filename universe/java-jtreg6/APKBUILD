@@ -1,0 +1,86 @@
+pkgname=java-jtreg6
+pkgver=6.1_p3
+_pkgver=${pkgver/_p/+}
+pkgrel=0
+pkgdesc="jtreg is the test harness used by the JDK test framework"
+url="https://github.com/openjdk/jtreg"
+# oracle dropped support for 32 bit
+# riscv64 blocked by openjdk11
+# s390x due to java-asmtools
+arch="all !x86 !armhf !armv7 !riscv64 !s390x"
+license="GPL-2.0"
+depends="java-jtharness java-asmtools apache-ant"
+makedepends="bash openjdk11 zip" # explicitly requires java 11 to compile
+options="!check"
+
+source="jtreg-$_pkgver.tar.gz::https://github.com/openjdk/jtreg/archive/jtreg-$_pkgver.tar.gz
+	jtreg-symlink-patch.txt
+	jtdiff-symlink-patch.txt
+"
+builddir="$srcdir/jtreg-jtreg-${pkgver/_p/-}"
+
+build() {
+	export JTREG_BUILD_VERSION="${_pkgver%+*}" \
+		JTREG_BUILD_NUMBER="${_pkgver/*+}"
+
+	local ant_home=/usr/share/java/apache-ant
+	export  ANT="$ant_home"/bin/ant \
+		ANT_JAR="$ant_home"/lib/ant.jar
+
+	local asmtools_home=/usr/share/java/asmtools
+	export  ASMTOOLS_JAR="$asmtools_home"/lib/asmtools.jar \
+		ASMTOOLS_LICENSE="$asmtools_home"/LICENSE
+
+	local jtharness_home=/usr/share/java/jtharness
+	export  JTHARNESS_JAVATEST_JAR="$jtharness_home"/lib/javatest.jar \
+		JTHARNESS_LICENSE="$jtharness_home"/legal/license.txt \
+		JTHARNESS_COPYRIGHT="$jtharness_home"/legal/copyright.txt
+
+	bash make/build.sh \
+		--jdk /usr/lib/jvm/default-jvm \
+		-- \
+		-j1
+}
+
+package() {
+	_destdir="$pkgdir/usr/share/java/jtreg"
+	mkdir -p "$_destdir"
+	cp -r \
+		$builddir/build/images/jtreg/bin\
+		$builddir/build/images/jtreg/legal \
+		$builddir/build/images/jtreg/lib \
+		$builddir/build/images/jtreg/COPYRIGHT \
+		$builddir/build/images/jtreg/LICENSE \
+		$builddir/build/images/jtreg/README \
+		$builddir/build/images/jtreg/release \
+		"$_destdir"
+
+	# link to jtharness and asmtools from depends
+	rm "$_destdir"/lib/asmtools.jar
+	rm "$_destdir"/lib/javatest.jar
+	ln -s /usr/share/java/asmtools/lib/asmtools.jar  "$_destdir"/lib/asmtools.jar
+	ln -s /usr/share/java/jtharness/lib/javatest.jar "$_destdir"/lib/javatest.jar
+
+	# patch the jtreg executable script to handle symlink from /usr/bin
+	cd "$pkgdir"
+	patch -p1 -i "$srcdir"/jtreg-symlink-patch.txt
+	patch -p1 -i "$srcdir"/jtdiff-symlink-patch.txt
+
+	mkdir -p "$pkgdir/usr/bin"
+	ln -s /usr/share/java/jtreg/bin/jtdiff "$pkgdir"/usr/bin/jtdiff
+	ln -s /usr/share/java/jtreg/bin/jtreg  "$pkgdir"/usr/bin/jtreg
+}
+
+_doc() {
+	_destdir="$subpkgdir/usr/share/java/jtreg"
+	mkdir -p "$_destdir"
+	cp -r \
+		$builddir/target/binaries/doc \
+		"$_destdir"
+}
+
+sha512sums="
+eba87ad38fb7aafe49ffad1066f4a6a9c1f35ddb00f43925a28384940c18b338c151599a89d4e1508682a6dbf0421a95fbc7eaafc274c7e0b5f822842a89c160  jtreg-6.1+3.tar.gz
+136e6e58b85d05f3e97467344c95303cbd310ada7c6533a129a6e62786d5e9498a1842b75de9838b432e68d0d863058ac5aeeea2a78e98a2170b4a0c1c113083  jtreg-symlink-patch.txt
+67f63317a2aaedd17e822389065ff5d86d574f4cb2e2af375856a9c7356dd048c396517372788b889db376fe4aa73c66d530938b8975d11d7714ac84e3dcd00d  jtdiff-symlink-patch.txt
+"
