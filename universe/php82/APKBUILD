@@ -26,11 +26,7 @@ pkgver=8.2.11
 pkgrel=1
 _apiver=20220829
 _suffix=${pkgname#php}
-# Is this package the default (latest) PHP version?
-_default_php="yes"
 provides="$pkgname-cli php-cli php"  # for backward compatibility
-# priority of community/php81 is 50
-provider_priority=100
 pkgdesc="The PHP$_suffix language runtime engine"
 url="https://www.php.net/"
 arch="all"
@@ -108,6 +104,9 @@ source="php-$pkgver.tar.xz::https://php.net/distributions/$_pkgreal-$pkgver.tar.
 	fix-lfs64.patch
 	"
 builddir="$srcdir/$_pkgreal-$pkgver"
+
+# ffi.so: rpath '/usr/lib/../lib'
+annocheck_skip="ffi.so"
 
 _libdir="/usr/lib/$pkgname"
 _extension_dir="$_libdir/modules"
@@ -393,9 +392,7 @@ package() {
 	find "$pkgdir" -name '.*' -print0 | xargs -0 rm -rf
 	rmdir "$pkgdir"/var/run
 
-	if [ "$_default_php" = yes ]; then
-		ln -s php$_suffix "$pkgdir"/usr/bin/php
-	fi
+	ln -s php$_suffix "$pkgdir"/usr/bin/php
 
 	install -D -m 755 sapi/apache2handler/mod_php$_suffix.so \
 		"$pkgdir"/usr/lib/apache2/mod_php$_suffix.so
@@ -413,10 +410,8 @@ dev() {
 		usr/bin/phpize$_suffix \
 		$_libdir/build
 
-	if [ "$_default_php" = yes ]; then
-		ln -s phpize$_suffix "$subpkgdir"/usr/bin/phpize
-		ln -s php-config$_suffix "$subpkgdir"/usr/bin/php-config
-	fi
+	ln -s phpize$_suffix "$subpkgdir"/usr/bin/phpize
+	ln -s php-config$_suffix "$subpkgdir"/usr/bin/php-config
 }
 
 doc() {
@@ -446,9 +441,7 @@ phpdbg() {
 
 	amove usr/bin/phpdbg$_suffix
 
-	if [ "$_default_php" = yes ]; then
-		ln -s phpdbg$_suffix "$subpkgdir"/usr/bin/phpdbg
-	fi
+	ln -s phpdbg$_suffix "$subpkgdir"/usr/bin/phpdbg
 }
 
 embed() {
@@ -467,9 +460,7 @@ litespeed() {
 
 	amove usr/bin/lsphp$_suffix
 
-	if [ "$_default_php" = yes ]; then
-		ln -s lsphp$_suffix "$subpkgdir"/usr/bin/lsphp
-	fi
+	ln -s lsphp$_suffix "$subpkgdir"/usr/bin/lsphp
 }
 
 cgi() {
@@ -478,9 +469,7 @@ cgi() {
 
 	amove usr/bin/php-cgi$_suffix
 
-	if [ "$_default_php" = yes ]; then
-		ln -s php-cgi$_suffix "$subpkgdir"/usr/bin/php-cgi
-	fi
+	ln -s php-cgi$_suffix "$subpkgdir"/usr/bin/php-cgi
 }
 
 fpm() {
@@ -512,9 +501,7 @@ pear() {
 	mkdir -p "$subpkgdir"/usr/bin
 	local file; for file in pecl pear peardev; do
 		mv "$pkgdir"/usr/bin/$file "$subpkgdir"/usr/bin/$file$_suffix
-		if [ "$_default_php" = yes ]; then
-			ln -s $file$_suffix "$subpkgdir"/usr/bin/$file
-		fi
+		ln -s $file$_suffix "$subpkgdir"/usr/bin/$file
 	done
 
 	amove etc/$pkgname/pear.conf usr/share
@@ -538,10 +525,8 @@ phar() {
 	rm "$pkgdir"/usr/bin/phar$_suffix
 	ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar$_suffix
 
-	if [ "$_default_php" = yes ]; then
-		ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar.phar
-		ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar
-	fi
+	ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar.phar
+	ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar
 }
 
 _extension() {
@@ -608,7 +593,7 @@ _extensions_by_load_order() {
 	for name in $_extensions; do
 		list="$list $(_extension_load_order $name);$name"
 	done
-	printf '%s\n' $list | sort -t ';' -k 1 | sed -E 's/\d+;//'
+	printf '%s\n' $list | sort -t ';' -k 1 | cut -f2 -d';'
 }
 
 sha512sums="
