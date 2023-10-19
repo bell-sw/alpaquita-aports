@@ -296,8 +296,9 @@ _libs_static() {
 }
 
 
-# NB: "abuild checksum" emits single sha512sums assignment at the end
-# of the file, manual postprocessing requied
+# If you ever need to bootstrap, tweak the sums below to include
+# sha512boot (not done in advnace so that it doesn't get in the way of
+# normal "abuild checksum" updates).
 if ${BOOTSTRAP}; then
 sha512boot="
 3f78bdccd8f93c2f7fe52acf0682bb2277afe97f5d9120b194f7772cf1aec4b26d6fb2f03c31e65664772de3f678d3d9d8d4f81e004745348bfb767d481a06d2  bellsoft-jdk21+37-linux-x64-musl.tar.gz
@@ -305,8 +306,6 @@ sha512boot="
 "
 fi
 
-# NB: restore sha512sums="$sha512boot ..." after "abuild checksum",
-# move checksums for bootstrap kits to sha512boot if renewing them
 sha512sums="
 d0d92098a7946e7ffc2c26f6210defe33dde4298c4386d05711e18b39f72ed638134716fadf39a280ae9264e00a9bf876315acaa7cc59633f0a80e24a483794a  bellsoft-jdk21+37-src.tar.gz
 508cc8511fecee2288f41dc009834d444785ddd4129acfabefeae03ab75a26088bc7e8a60548dac58c6d18865d994e5ad8fa340cac20ba3cc838434dc7cbbcde  HelloJava.java
