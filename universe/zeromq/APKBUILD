@@ -1,6 +1,6 @@
 pkgname=zeromq
 pkgver=4.3.5
-pkgrel=1
+pkgrel=2
 pkgdesc="The ZeroMQ messaging library and tools"
 url="https://zeromq.org/"
 arch="all"
@@ -45,6 +45,7 @@ build() {
 }
 
 check() {
+	ulimit -n 2048 # Fix test failure on the builders
 	ctest --test-dir build --output-on-failure -E test_security_curve --timeout 300 -j1
 }
 
