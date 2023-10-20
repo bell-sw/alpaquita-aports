@@ -1,4 +1,4 @@
-From fb388df56cca30612abd450d4b69cfe07fb0e202 Mon Sep 17 00:00:00 2001
+From 88ffdccc8a73ebef9709ffa3435004e02939c03e Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
 Date: Thu, 20 Jan 2022 09:25:14 +0000
 Subject: [PATCH] Added support for glibc toolchains
@@ -10,7 +10,7 @@ Subject: [PATCH] Added support for glibc toolchains
  3 files changed, 34 insertions(+), 44 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index f7ed46e..a33a6c6 100644
+index d3922de..066310d 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -7,6 +7,8 @@ sysconfdir	?= /etc
@@ -31,10 +31,10 @@ index f7ed46e..a33a6c6 100644
  SSL_CFLAGS	?= $(shell pkg-config --cflags openssl)
  SSL_LDFLAGS	?= $(shell pkg-config --cflags openssl)
 diff --git a/abuild.in b/abuild.in
-index 1f8cbb0..023dd02 100644
+index af5ccf0..d960a02 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -70,6 +70,25 @@ error() {
+@@ -71,6 +71,25 @@ error() {
  	logcmd "ERROR: $pkgname: $1"
  }
  
@@ -60,7 +60,7 @@ index 1f8cbb0..023dd02 100644
  amove() {
  	[ -n "$subpkgdir" ] || return 1
  
-@@ -264,8 +283,8 @@ default_sanitycheck() {
+@@ -265,8 +284,8 @@ default_sanitycheck() {
  
  		[ -e "$startdir"/$f ] || die "trigger script $f is missing"
  	done
@@ -71,7 +71,7 @@ index 1f8cbb0..023dd02 100644
  			if install_has "$i"; then
  				warning "You should not have \$install in source"
  				continue
-@@ -341,7 +360,7 @@ sumcheck() {
+@@ -342,7 +361,7 @@ sumcheck() {
  	set -- $sums
  	local numsums=$(( $# / 2 ))
  
@@ -80,7 +80,7 @@ index 1f8cbb0..023dd02 100644
  	if [ $# -ne $numsums ]; then
  		die "Number of ${algo}sums($numsums) does not correspond to number of sources($#)"
  	fi
-@@ -463,7 +482,7 @@ symlinksrc() {
+@@ -464,7 +483,7 @@ symlinksrc() {
  default_fetch() {
  	local s
  	mkdir -p "$srcdir"
@@ -89,7 +89,7 @@ index 1f8cbb0..023dd02 100644
  		if is_remote "$s"; then
  			uri_fetch_mirror "$s" || return 1
  			ln -sf "$SRCDEST/$(filename_from_uri $s)" "$srcdir"/
-@@ -564,7 +583,7 @@ clean() {
+@@ -565,7 +584,7 @@ clean() {
  # cleanup fetched sources
  cleancache() {
  	local s
@@ -98,7 +98,7 @@ index 1f8cbb0..023dd02 100644
  		if is_remote "$s"; then
  			s=$(filename_from_uri $s)
  			msg "Cleaning downloaded $s ..."
-@@ -2448,7 +2467,7 @@ builddeps() {
+@@ -2449,7 +2468,7 @@ builddeps() {
  # replace the md5sums in the APKBUILD
  checksum() {
  	local s files
@@ -107,7 +107,7 @@ index 1f8cbb0..023dd02 100644
  		&& msg "Removing checksums from $APKBUILD"
  	sed -E -i \
  		-e '/^(md5|sha[0-9]+)sums=".*"$/d' \
-@@ -2460,7 +2479,7 @@ checksum() {
+@@ -2461,7 +2480,7 @@ checksum() {
  
  	[ -z "$source" ] && return 0
  	fetch
@@ -116,7 +116,7 @@ index 1f8cbb0..023dd02 100644
  		local name="$(filename_from_uri $s)"
  		case " $files " in
  		*" $name "*) die "duplicate found in \$source: $name";;
-@@ -2675,7 +2694,7 @@ listpkg() {
+@@ -2676,7 +2695,7 @@ listpkg() {
  
  source_has() {
  	local i
@@ -125,7 +125,7 @@ index 1f8cbb0..023dd02 100644
  		[ "$1" = "${i##*/}" ] && return 0
  		[ "$1" = "${i%%::*}" ] && return 0
  	done
-@@ -2951,6 +2970,8 @@ cd "$startdir" || die
+@@ -2952,6 +2971,8 @@ cd "$startdir" || die
  
  builddir=${builddir:-"$srcdir/$pkgname-$pkgver"}
  
@@ -191,5 +191,5 @@ index 382a86b..5745fb4 100644
  	*)			echo "unknown" ;;
  	esac
 -- 
-2.41.0
+2.42.0
 
