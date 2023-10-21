@@ -3,7 +3,7 @@ pkgname=containerd
 # NOTE: containerd's Makefile tries to get REVISION from git, but we're building from a tarball.
 _commit=8c087663b0233f6e6e2f4515cee61d49f14746a8
 pkgver=1.7.7
-pkgrel=1
+pkgrel=2
 pkgdesc="An open and reliable container runtime"
 url="https://containerd.io/"
 arch="all"
@@ -97,6 +97,12 @@ package() {
 	"$pkgdir"/usr/bin/containerd config default | sed "s|/opt/cni/bin|/usr/libexec/cni|g" > "$pkgdir"/etc/containerd/config.toml
 }
 
+openrc() {
+	default_openrc
+	depends="log_proxy"
+	install_if="openrc $pkgname=$pkgver-r$pkgrel"
+}       
+
 ctr() {
 	pkgdesc="unsupported debug/admin client for containerd"
 	amove usr/bin/ctr
@@ -109,6 +115,6 @@ stress() {
 
 sha512sums="
 a44e901b017522639963bb415f666599af04335d8ccbd28899712606a4692c1601e95eaa2f1db32a3c077ad2c3f332f37393154ad6c2660646b7e8365a6ab720  containerd-1.7.7.tar.gz
-21a9888b684913138ec4a342b0b69e40e9c773ecd329c4e2401a807365586468cb19035583a4fc8b0f86138f5ee4c7fb911c75495263e4b43d2886ea11e0e271  containerd.confd
-43db40e4ba6e0bcc0959ec9f7accafea369a2ac63bfb7be11d87d07bd5545c2a6cf27daf6625520a80b0ab63297a461343391398a5845a3038df60a988e5c3b2  containerd.initd
+5fb37b88554422738cc75b944b75836c123d87d418a16c6a25b9d49da023bd0e654d1aa694e60026de42c055ccf7469f5b4778a4876e94720ec2f40d618db580  containerd.confd
+c6aaa6efecc292222e931e5add7276143ab60fb124d58a3c01a94da508e7318358cad721b417b2ae3714ca750d4b9b6a679cdc2a8181756a712b52200cba934a  containerd.initd
 "
