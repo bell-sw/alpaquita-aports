@@ -1,7 +1,7 @@
 pkgname=py3-pytest-benchmark
 _pkgname=pytest-benchmark
 pkgver=4.0.0
-pkgrel=4
+pkgrel=5
 pkgdesc="pytest fixture for benchmarking code"
 url="https://github.com/ionelmc/pytest-benchmark"
 arch="noarch"
@@ -15,6 +15,7 @@ source="https://github.com/ionelmc/pytest-benchmark/archive/v$pkgver/pytest-benc
 	$pkgname-$pkgver-tests.patch::https://github.com/ionelmc/pytest-benchmark/commit/2b987f5be1873617f02f24cb6d76196f9aed21bd.patch
 	"
 builddir="$srcdir/$_pkgname-$pkgver"
+options="!check" # fails https://gitlab.alpinelinux.org/alpine/aports/-/issues/15385
 
 build() {
 	gpep517 build-wheel \
