@@ -23,7 +23,7 @@
 pkgname=php82
 _pkgreal=php
 pkgver=8.2.11
-pkgrel=1
+pkgrel=2
 _apiver=20220829
 _suffix=${pkgname#php}
 provides="$pkgname-cli php-cli php"  # for backward compatibility
@@ -593,7 +593,9 @@ _extensions_by_load_order() {
 	for name in $_extensions; do
 		list="$list $(_extension_load_order $name);$name"
 	done
-	printf '%s\n' $list | sort -t ';' -k 1 | cut -f2 -d';'
+	# Unlike Alpine, we use '[0-9]' instead of '\d' since glibc doesn't
+	# understand the '\d' character class.
+	printf '%s\n' $list | sort -t ';' -k 1 | sed -E 's/[0-9]+;//'
 }
 
 sha512sums="
