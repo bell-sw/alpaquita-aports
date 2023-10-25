@@ -116,7 +116,7 @@
 pkgname=nodejs
 # Note: Update only to even-numbered versions (e.g. 6.y.z, 8.y.z)!
 # Odd-numbered versions are supported only for 9 months by upstream.
-pkgver=18.20.6
+pkgver=20.9.0
 pkgrel=0
 pkgdesc="JavaScript runtime built on V8 engine - LTS version"
 url="https://nodejs.org/"
@@ -157,9 +157,16 @@ prepare() {
 	mv deps/openssl/nodejs-openssl.cnf .
 
 	# Remove bundled dependencies that we're not using.
+	#
+	# NOTE: nghttp3 and ngtcp2 are only used when building with OpenSSL
+	#  that supports QUIC. After the QUIC support is added to openssl, add
+	#  options --shared-nghttp3 and --shared-ngtcp2.
 	rm -rf deps/brotli \
 		deps/cares \
 		deps/corepack \
+		deps/nghttp2 \
+		deps/nghttp3 \
+		deps/ngtcp2 \
 		deps/openssl/* \
 		deps/v8/third_party/jinja2 \
 		deps/zlib \
@@ -224,6 +231,6 @@ dev() {
 }
 
 sha512sums="
-93fa51edb0d86d899feeaa280288db6f1ac1fe05f0c7e8c8bcfcdec2eb1dc90ea71e7c09862cdcdc908a1599f893670769743980671db3741a46b41c4ae38f8b  node-v18.20.6.tar.gz
-b07c1883cc5b83c8fdfe104e832cfb608ecb596eea9e58e59dd1aefb99aa7b6c6fdf2402421e9c8910f5a8904632763daa8200bf6f9d482626c89c341742afd3  disable-running-gyp-on-shared-deps.patch
+594dea752e8f07036a41ccfddea45835be5219b8f0bc04b5903c3b44c32f8c73aa1d57798b4066852add098cd5ec856ee87a56b57633a45dfc0cfbe788451223  node-v20.9.0.tar.gz
+8c264eefc0bfa9dd57656f9f515e940d5c21b8d836dc549031ee559ba909643f4f2495b8b392ee9976c5eed7c3b4a09db876bbe0f7fcd5b2bf63fafca37bffc2  disable-running-gyp-on-shared-deps.patch
 "
