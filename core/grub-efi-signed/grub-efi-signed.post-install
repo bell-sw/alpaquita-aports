@@ -9,12 +9,24 @@ fi
 efi_path="/boot/efi/EFI/${linux}"
 
 if [ -e "$efi_path" ]; then
+	root_uuid="$(grub-probe --target=fs_uuid /)"
 	boot_uuid="$(grub-probe --target=fs_uuid /boot/grub)"
 	[ $? -ne 0 ] && exit $?
 
+	grub_path="grub"
+	if [ "$root_uuid" = "$boot_uuid" ]; then
+		grub_path="boot/grub"
+	fi
+
 	cat << EOF > $efi_path/grub.cfg.new
 search --no-floppy --fs-uuid --set=dev $boot_uuid
-set prefix=(\$dev)/boot/grub
+
+set prefix=(\$dev)/$grub_path
+
+if [ ! -d "\$prefix" ]; then
+    echo "ERROR: failed to find grub directory on (\$dev)"
+fi
+
 export \$prefix
 configfile \$prefix/grub.cfg
 EOF
