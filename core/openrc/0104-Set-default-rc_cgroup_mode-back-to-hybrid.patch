@@ -1,0 +1,46 @@
+From b3b8d1f8a2f37209879449ff7604eb628bd04087 Mon Sep 17 00:00:00 2001
+From: Stanislav Kholmanskikh <stanislav.kholmanskikh@bell-sw.com>
+Date: Thu, 26 Oct 2023 15:59:46 +0300
+Subject: [PATCH] Set default rc_cgroup_mode back to hybrid
+
+When it's "unified", docker top fails. See:
+
+https://github.com/opencontainers/runc/issues/4097
+
+It looks like an issue in runc, but fixing it
+may take some time. Meanwhile we should make docker
+work with the default openrc configuration.
+---
+ etc/rc.conf       | 2 +-
+ init.d/cgroups.in | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/etc/rc.conf b/etc/rc.conf
+index 6f226cc..580f310 100644
+--- a/etc/rc.conf
++++ b/etc/rc.conf
+@@ -203,7 +203,7 @@ rc_tty_number=12
+ # cgroups version 1 on /sys/fs/cgroup.
+ # "legacy" mounts cgroups version 1 on /sys/fs/cgroup
+ # "unified" mounts cgroups version 2 on /sys/fs/cgroup
+-#rc_cgroup_mode="unified"
++#rc_cgroup_mode="hybrid"
+ 
+ # This is a list of controllers which should be enabled for cgroups version 2
+ # when hybrid mode is being used.
+diff --git a/init.d/cgroups.in b/init.d/cgroups.in
+index faf53d8..4fa6b13 100644
+--- a/init.d/cgroups.in
++++ b/init.d/cgroups.in
+@@ -128,7 +128,7 @@ cgroups_unified()
+ 
+ mount_cgroups()
+ {
+-	case "${rc_cgroup_mode:-unified}" in
++	case "${rc_cgroup_mode:-hybrid}" in
+ 	hybrid) cgroups_hybrid ;;
+ 	legacy) cgroups_legacy ;;
+ 	unified) cgroups_unified ;;
+-- 
+2.41.0
+
