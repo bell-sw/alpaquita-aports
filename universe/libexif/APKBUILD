@@ -1,0 +1,56 @@
+pkgname=libexif
+pkgver=0.6.24
+pkgrel=2
+pkgdesc="library to parse an EXIF file and read the data from those tags"
+url="https://sourceforge.net/projects/libexif/"
+arch="all"
+license="LGPL-2.0-or-later"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://github.com/libexif/libexif/releases/download/v$pkgver/libexif-$pkgver.tar.bz2"
+
+# secfixes:
+#   0.6.23-r0:
+#     - CVE-2020-0198
+#     - CVE-2020-0452
+#   0.6.22-r0:
+#     - CVE-2018-20030
+#     - CVE-2020-13114
+#     - CVE-2020-13113
+#     - CVE-2020-13112
+#     - CVE-2020-0093
+#     - CVE-2019-9278
+#     - CVE-2020-12767
+#     - CVE-2016-6328
+#   0.6.21-r3:
+#     - CVE-2017-7544
+#   0.6.21-r0:
+#     - CVE-2012-2812
+#     - CVE-2012-2813
+#     - CVE-2012-2814
+#     - CVE-2012-2836
+#     - CVE-2012-2837
+#     - CVE-2012-2840
+#     - CVE-2012-2841
+#     - CVE-2012-2845
+#   0.6.19-r0:
+#     - CVE-2009-3895
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--disable-static
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+sha512sums="
+35c9e7af2c3d44a638dc6bbe8f96962d41c0f3fe4a257494f7a73baefab9aba507477175289ccf9002a66cc16ca53d5d1f44d6fef9e014b27f687ecdc58f5111  libexif-0.6.24.tar.bz2
+"
