@@ -81,7 +81,6 @@ makedepends_host="
 	musl-dev
 	musl-utils
 	openssl-dev
-	pigz
 	unzip
 	zip
 	zlib-dev
@@ -415,7 +414,7 @@ bootstrap() {
 		"$subpkgdir"/$_libdir/dotnet/artifacts/$pkgver
 
 	# unpack build artifacts to bootstrap subdir for use by future builds
-	tar --use-compress-program="pigz" \
+	tar \
 		-xf "$_downloaddir"/installer/$_installerver/dotnet-sdk-$_pkgver_macro*.tar.gz \
 		-C "$subpkgdir"/$_libdir/dotnet/bootstrap/$pkgver/ \
 		--no-same-owner
@@ -483,7 +482,7 @@ artifacts() {
 		"$subpkgdir"/usr/share/licenses
 
 	# extract artifacts to artifacts dir for use by future dotnet builds
-	tar --use-compress-program="pigz" \
+	tar \
 		-xf "$srcdir"/Private.SourceBuilt.Artifacts.*.noextract \
 		-C "$subpkgdir"/$_libdir/dotnet/artifacts/$pkgver/ \
 		--no-same-owner \
