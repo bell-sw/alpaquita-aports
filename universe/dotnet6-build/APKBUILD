@@ -128,7 +128,6 @@ makedepends="
 	nodejs
 	numactl-dev
 	openssl-dev
-	pigz
 	rsync
 	tar
 	xz
@@ -380,7 +379,7 @@ check() {
 	export DOTNET_ROOT="$_checkdir/release"
 	if [ ! -d "$DOTNET_ROOT" ]; then
 		mkdir -p "$DOTNET_ROOT"
-		tar --use-compress-program="pigz" \
+		tar \
 			-xf "$builddir"/artifacts/$_dotnet_arch/Release/dotnet-sdk-$_pkgver_macro*.tar.gz \
 			-C "$DOTNET_ROOT" \
 			--no-same-owner
@@ -418,13 +417,13 @@ package() {
 		"$pkgdir"/$_libdir/dotnet/artifacts/$pkgver
 
 	# unpack sdk to bootstrap
-	tar --use-compress-program="pigz" \
+	tar \
 		-xf "$builddir"/artifacts/$_dotnet_arch/Release/dotnet-sdk-$_pkgver_macro*.tar.gz \
 		-C "$pkgdir"/$_libdir/dotnet/bootstrap/$pkgver/ \
 		--no-same-owner
 
 	# extract arch-specific artifacts to artifacts dir for use by future dotnet builds
-	tar --use-compress-program="pigz" \
+	tar \
 		-xf "$builddir"/artifacts/$_dotnet_arch/Release/Private.SourceBuilt.Artifacts.*.tar.gz \
 		-C "$pkgdir"/$_libdir/dotnet/artifacts/$pkgver/ \
 		--no-same-owner \
@@ -462,7 +461,7 @@ sdk() {
 	install -dm 755 "$subpkgdir"/$_libdir/dotnet
 
 	# sdk
-	tar --use-compress-program="pigz" \
+	tar \
 		-xf "$builddir"/artifacts/$_dotnet_arch/Release/dotnet-sdk-$_pkgver_macro*.tar.gz \
 		-C "$subpkgdir"/$_libdir/dotnet/ \
 		--no-same-owner \
@@ -482,7 +481,7 @@ netstandard_targeting_pack() {
 	provides="netstandard-targeting-pack-2.1=$pkgver-r$pkgrel"
 
 	install -dm 755 "$subpkgdir"/$_libdir/dotnet/packs
-	tar --use-compress-program="pigz" \
+	tar \
 		-xf "$builddir"/artifacts/$_dotnet_arch/Release/dotnet-sdk-$_pkgver_macro*.tar.gz \
 		-C "$subpkgdir"/$_libdir/dotnet/ \
 		--no-same-owner \
@@ -498,7 +497,7 @@ templates() {
 	provides="dotnet-templates-$_pkgver_macro=$pkgver-r$pkgrel"
 
 	install -dm 755 "$subpkgdir"/$_libdir/dotnet
-	tar --use-compress-program="pigz" \
+	tar \
 		-xf "$builddir"/artifacts/$_dotnet_arch/Release/dotnet-sdk-$_pkgver_macro*.tar.gz \
 		-C "$subpkgdir"/$_libdir/dotnet/ \
 		--no-same-owner \
@@ -520,7 +519,7 @@ artifacts() {
 		"$subpkgdir"/usr/share/licenses
 
 	# extract arch-agnostic artifacts to artifacts dir for use by future dotnet builds
-	tar --use-compress-program="pigz" \
+	tar \
 		-xf "$builddir"/artifacts/$_dotnet_arch/Release/Private.SourceBuilt.Artifacts.*.tar.gz \
 		-C "$subpkgdir"/$_libdir/dotnet/artifacts/$pkgver/ \
 		--no-same-owner \
@@ -558,7 +557,7 @@ doc() {
 
 	# licenses
 	install -dm 755 "$subpkgdir"/usr/share/licenses/dotnet
-	tar --use-compress-program="pigz" \
+	tar \
 		-xf "$builddir"/artifacts/$_dotnet_arch/Release/dotnet-sdk-$_pkgver_macro*.tar.gz \
 		-C "$subpkgdir"/usr/share/licenses/dotnet/ \
 		--no-same-owner \
