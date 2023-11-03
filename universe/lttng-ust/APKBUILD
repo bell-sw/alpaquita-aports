@@ -9,7 +9,9 @@ depends_dev="userspace-rcu-dev>0.10"
 makedepends="$depends_dev util-linux-dev linux-headers python3"
 checkdepends="bash"
 subpackages="$pkgname-doc $pkgname-dev $pkgname-tools::noarch py3-lttng:pyagent"
-source="https://lttng.org/files/lttng-ust/lttng-ust-$pkgver.tar.bz2"
+source="https://lttng.org/files/lttng-ust/lttng-ust-$pkgver.tar.bz2
+	busybox-mkdir-detection.patch
+	"
 
 build() {
 	./configure \
@@ -48,4 +50,5 @@ pyagent() {
 
 sha512sums="
 15458f8dd0ad6fa96a9cf7569ffabadfddcaa70b822b69b39d4d7dfba3701c9489706b06f12f9d7e376147299fb3cfc6fe1213d46d510bdb7b3dc834271da55f  lttng-ust-2.13.6.tar.bz2
+04f4d4914589fc383b8ebf6e85e1dd9f7d456b40f4f965a64ec72f360dcd8b9edccb3a300c7525eeb8d15da9b2167accc6c8e2a83baa2ba89d9543770628c2a0  busybox-mkdir-detection.patch
 "
