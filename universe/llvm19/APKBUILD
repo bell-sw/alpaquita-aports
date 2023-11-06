@@ -1,6 +1,6 @@
 _pkgname=llvm
 pkgver=19.1.7
-pkgrel=3
+pkgrel=4
 _sover=${pkgver%.*}
 _majorver=${pkgver%%.*}
 _prevmajorver=$((_majorver - 1))
@@ -72,8 +72,9 @@ source="https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/l
 	10-add-musl-triples.patch
 	30-Enable-stack-protector-by-default-for-Alpine-Linux.patch
 	clang-001-fortify-include.patch
-	clang-002-fortify-enable.patch
 	clang-003-as-needed.patch
+
+	0100-Enable-stack-protector-by-default-for-Alpaquita-Linux.patch
 
 	LLD-add-build-shared-libs-option.patch
 	"
@@ -101,10 +102,10 @@ _prefix="usr/lib/llvm$_majorver"
 
 # gcc is for libgcc-dev which we don't have split
 _depends_clang="
-	fortify-headers>=1.1-r2
+	musl:fortify-headers>=1.1-r2
 	gcc
 	libstdc++-dev
-	musl-dev
+	$CLIBC-dev
 	"
 
 # llvm-config and llvm-tblgen are needed for cross-compiling, otherwise
@@ -257,7 +258,7 @@ build() {
 		-DCLANG_LINK_CLANG_DYLIB=ON \
 		-DCLANG_PLUGIN_SUPPORT=ON \
 		-DCLANG_SYSTEMZ_DEFAULT_ARCH=z196 \
-		-DCLANG_VENDOR=Alpine \
+		-DCLANG_VENDOR="$VENDOR_DISTRO_NAME" \
 		-DENABLE_LINKER_BUILD_ID=ON \
 		-DLIBCLANG_BUILD_STATIC=ON \
 		-DLLD_BUILD_SHARED_LIBS=ON \
@@ -629,7 +630,7 @@ a45f078c4ddd5e1bece2e2e6795d4760a88dd3bb0921786d2f0650979268554e87e9190b42be1efa
 9d5f51ca6ff7a2eca3d2ffc04d0336ae9c2911305947c60319df4ce82aaced4e5a0a10ffc7a5cbda8af82f926693f911906e0868e90cbfacef00331e30a31ae5  10-add-musl-triples.patch
 1387277a263a5b37bd9255ddfdfad2a61b752f0a992494334b9ae42551d85d59c372986cdded0c4cbb24b07f660a28ebd799258cd8dab3180efc4f82eec8f1be  30-Enable-stack-protector-by-default-for-Alpine-Linux.patch
 4864189aab65ef48e9f44986bfdd55aac906bb4e91fd7d35bc1d41e4ba4940e06651618cfb6e88b34934631df5186eda976e77793fbf510df0eb594bb1802f25  clang-001-fortify-include.patch
-fbfac7cd1425d6774ce9cb2d6b8e72cbb156b3f2aa178d96e5ee83ff8a9280b5b971b97a3f44cef5fa30d76796324e779b4da1904f9314d4028d10636f5bfbcd  clang-002-fortify-enable.patch
 9d013c593ae323b007a5b09f5ac67cab827c95441c4f70cae592f3e39400532e1d7b94b8fb36878dcfad82e210d7abee801316fc8392516ec045b6a08a4a2628  clang-003-as-needed.patch
 73d6be123ab157816e8511358cf436efcdd5bb7d330c79b6a04af622d0a79934400b35a5abf359073ed510c1b77f7b3fdf5ea69c1fa7ae348694c95308e42900  LLD-add-build-shared-libs-option.patch
+77b4003d5ba53880b6988479505cba669aa49302e908744da6c7b4a58bc5edbd4832f2335075e16a465934361c2bdfb4482fbef7f03da61b3a15d06d564c87ed  0100-Enable-stack-protector-by-default-for-Alpaquita-Linux.patch
 "
