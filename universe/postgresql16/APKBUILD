@@ -1,13 +1,13 @@
 _pkgname=postgresql
 pkgver=16.0
-pkgrel=1
+pkgrel=2
 _majorver=${pkgver%%[_.]*}
 pkgname=$_pkgname$_majorver
 pkgdesc="A sophisticated object-relational DBMS, version $_majorver"
 url="https://www.postgresql.org/"
 arch="all"
 license="PostgreSQL"
-_llvmver=16
+_llvmver=17
 depends="$pkgname-client postgresql-common tzdata"
 depends_dev="
 	libpq-dev
@@ -78,6 +78,8 @@ source="https://ftp.postgresql.org/pub/source/v$pkgver/postgresql-$pkgver.tar.bz
 	libpgport-pkglibdir.patch.txt
 
 	pltcl_create_tables.sql
+
+	0100-jit-Changes-for-LLVM-17.patch
 	"
 builddir="$srcdir/$_pkgname-$pkgver"
 options="net !check"  # TODO: reenable check
@@ -467,4 +469,5 @@ b0688d66fdd7d612c24d9aa69bdd80d30787d2d6409b4524c79b41797144fc743213460e6de9c536
 e1949917fa3ea7cfc25b843d22139694628f73b0eb763a92a23f19d0a87230d805a2454657652c200e916d6fc6ef1b16d2d7cb27b0195d4b69f8583f64d11b65  icu-collations-hack.patch
 f8ed2b7b96fd22cd87c982151e659d82bcae10033a97f403f7847fce6daa8fc580e998cfb3813af9cb59a12f0c6bcc276397c28b1fc48321eed8c7ba5f3f92ed  libpgport-pkglibdir.patch.txt
 5c9bfd9e295dcf678298bf0aa974347a7c311d6e7c2aa76a6920fcb751d01fd1ab77abbec11f3c672f927ad9deaa88e04e370c0b5cd1b60087554c474b748731  pltcl_create_tables.sql
+7edf2132462e753fb8e7935349676363229ef37a417c49a34abdfdea5fc71af87dc07660395d760c5a31529ab6a886310baa52c0b53e8d38939399cbd83336d5  0100-jit-Changes-for-LLVM-17.patch
 "
