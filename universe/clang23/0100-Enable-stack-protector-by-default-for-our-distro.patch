@@ -1,0 +1,46 @@
+--- a/lib/Driver/ToolChains/Linux.h
++++ b/lib/Driver/ToolChains/Linux.h
+@@ -64,7 +64,7 @@
+   LangOptions::StackProtectorMode
+   GetDefaultStackProtectorLevel(bool KernelOrKext) const override {
+     StringRef VendorName = Linux::getTriple().getVendorName();
+-    if (VendorName.compare("alpine") == 0)
++    if (VendorName.compare("alpaquita") == 0)
+       return LangOptions::SSPStrong;
+ 
+     return LangOptions::SSPOff;
+--- a/test/Driver/stack-protector.c
++++ b/test/Driver/stack-protector.c
+@@ -33,21 +33,21 @@
+ // SSP-PS4-BUF: "-stack-protector" "2"
+ // SSP-PS4-BUF: "-stack-protector-buffer-size" "16"
+ 
+-// Test default stack protector values for Alpine
++// Test default stack protector values for Alpaquita
+ 
+-// RUN: %clang -target x86_64-alpine-linux-musl -### %s 2>&1 | FileCheck %s -check-prefix=ALPINE
+-// ALPINE: "-stack-protector" "2"
++// RUN: %clang -target x86_64-alpaquita-linux-musl -### %s 2>&1 | FileCheck %s -check-prefix=ALPAQUITA
++// ALPAQUITA: "-stack-protector" "2"
+ 
+-// RUN: %clang -target x86_64-alpine-linux-musl -fstack-protector -### %s 2>&1 | FileCheck %s -check-prefix=ALPINE_SPS
+-// ALPINE_SPS: "-stack-protector" "2"
++// RUN: %clang -target x86_64-alpaquita-linux-musl -fstack-protector -### %s 2>&1 | FileCheck %s -check-prefix=ALPAQUITA_SPS
++// ALPAQUITA_SPS: "-stack-protector" "2"
+ 
+-// RUN: %clang -target x86_64-alpine-linux-musl -fstack-protector-all -### %s 2>&1 | FileCheck %s -check-prefix=ALPINE_ALL
+-// ALPINE_ALL: "-stack-protector" "3"
+-// ALPINE_ALL-NOT: "-stack-protector-buffer-size"
++// RUN: %clang -target x86_64-alpaquita-linux-musl -fstack-protector-all -### %s 2>&1 | FileCheck %s -check-prefix=ALPAQUITA_ALL
++// ALPAQUITA_ALL: "-stack-protector" "3"
++// ALPAQUITA_ALL-NOT: "-stack-protector-buffer-size"
+ 
+-// RUN: %clang -target x86_64-alpine-linux-musl -fno-stack-protector -### %s 2>&1 | FileCheck %s -check-prefix=ALPINE_NOSSP
+-// ALPINE_NOSSP-NOT: "-stack-protector"
+-// ALPINE_NOSSP-NOT: "-stack-protector-buffer-size"
++// RUN: %clang -target x86_64-alpaquita-linux-musl -fno-stack-protector -### %s 2>&1 | FileCheck %s -check-prefix=ALPAQUITA_NOSSP
++// ALPAQUITA_NOSSP-NOT: "-stack-protector"
++// ALPAQUITA_NOSSP-NOT: "-stack-protector-buffer-size"
+ 
+ // Test default stack protector values for Darwin platforms
+ 
