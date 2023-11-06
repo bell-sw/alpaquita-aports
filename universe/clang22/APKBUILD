@@ -1,7 +1,7 @@
 pkgver=22.1.0
 # NOTE: Upgrade together with the whole LLVM suite.
 _pkgver=${pkgver/_/-}
-pkgrel=0
+pkgrel=1
 _sover=${pkgver%.*}
 _llvmver=${pkgver%%.*}
 _prevllvmver=$((_llvmver - 1))
@@ -34,13 +34,14 @@ subpackages="
 	$pkgname-extra-tools:extra
 	"
 source="https://github.com/llvm/llvm-project/releases/download/llvmorg-$_pkgver/llvm-project-$_pkgver.src.tar.xz
-	10-add-musl-triples.patch
+	musl:10-add-musl-triples.patch
 	30-Enable-stack-protector-by-default-for-Alpine-Linux.patch
 
 	clang-001-fortify-include.patch
-	clang-002-fortify-enable.patch
 	clang-003-as-needed.patch
 	py3-clang-add-version-to-so-name.patch
+
+	0100-Enable-stack-protector-by-default-for-our-distro.patch
 	"
 _basedir="$srcdir/llvm-project-$_pkgver.src"
 builddir="$_basedir/clang"
@@ -90,7 +91,7 @@ build() {
 		-DCLANG_PLUGIN_SUPPORT=ON \
 		-DCLANG_PYTHON_BINDINGS_VERSIONS="$python_version" \
 		-DCLANG_SYSTEMZ_DEFAULT_ARCH=z196 \
-		-DCLANG_VENDOR=Alpine \
+		-DCLANG_VENDOR="$VENDOR_DISTRO_NAME" \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_INSTALL_PREFIX=/usr/lib/llvm$_llvmver \
 		-DCMAKE_INSTALL_RPATH=/usr/lib/llvm$_llvmver/lib \
@@ -109,8 +110,8 @@ build() {
 
 	if [ "$_default_clang" = yes ]; then
 		help2man --no-info \
-			--source "Alpine" \
-			--name "Alpine Clang $pkgver-r$pkgrel" \
+			--source "$VENDOR_DISTRO_NAME" \
+			--name "$VENDOR_DISTRO_NAME Clang $pkgver-r$pkgrel" \
 			--version-string "$pkgver-r$pkgrel" \
 			--help-option "--help-hidden" \
 			./build/bin/clang > clang.1
@@ -127,11 +128,11 @@ package() {
 	depends="
 		$pkgname-headers=$pkgver-r$pkgrel
 		$pkgname-libs=$pkgver-r$pkgrel
-		fortify-headers>=1.1-r2
+		musl:fortify-headers>=1.1-r2
 		gcc
 		libstdc++-dev
 		llvm$_llvmver-linker-tools
-		musl-dev
+		$CLIBC-dev
 		"
 
 	# create system config
@@ -490,7 +491,7 @@ sha512sums="
 f4f56c762d1ae32f41e76940dce2e3544451280751e987ededb32b5788b0ad8a1bd8eaf1a6a30f83db8ba67aa2522b5a6b0dc4e01d26405d523ec4dc5a9180e2  10-add-musl-triples.patch
 9624cc6fe5c77eac1d6fe5869f15479bba6495c2dd18b46a8488a141e6078f6f77b6e2b3285e825d3ddb7dcc72b5b75bb295ca018b551d059817ec42ccb81099  30-Enable-stack-protector-by-default-for-Alpine-Linux.patch
 0703536160515b86073c52689c3ac0f242cbf9ef5960d6d4fe96ba2fe8a12dc99a3b922fc5f445da541b5cc4c02d7648d6714ebcc76545c938409254baf6bfac  clang-001-fortify-include.patch
-52f6b101fe785126f303ead4bed59e0c797a4ecb750f2c598e7700c9bd702aebfb240ebc757fe19b6dea87bbe000d888ae336d1a87efccdd66451c1c133eb354  clang-002-fortify-enable.patch
 538ab9eca207c17cb71492f055ccc381ea6281a3784be6b1ada20a2766d42acde8cee01b28020f1c93b39587a4a9e4ff2b1204a9ccf4c482027fc53285174ac8  clang-003-as-needed.patch
 6aaa267fc45ff16870c4654c1590438df347b0b6482ca6d20282ba4842052907b8cbb11f418a587bd52154308ce70779045ff320e14e97cf80a08acd56910dbb  py3-clang-add-version-to-so-name.patch
+23da1ced916b8efb9c14a8cec085053c979832dba30f37989d2c942ef1b7d4c77a983908858c0ab5a5b49d9067034f1db8cdac3783695fafd9c2076e844b10ac  0100-Enable-stack-protector-by-default-for-our-distro.patch
 "
