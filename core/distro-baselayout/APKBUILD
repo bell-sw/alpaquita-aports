@@ -1,6 +1,6 @@
 pkgname=distro-baselayout
 pkgver=3.4.3
-pkgrel=3
+pkgrel=4
 pkgdesc="$VENDOR_DISTRO_NAME base dir structure and init scripts"
 url="$VENDOR_URL"
 arch="all"
@@ -212,11 +212,11 @@ package() {
 		fs.protected_hardlinks = 1
 		fs.protected_symlinks = 1
 
-		# Don't allow open of FIFOs or regular files not owned by the user
-		# in world writable sticky directories, unless they are owned by the
+		# Don't allow O_CREAT open of FIFOs or regular files not owned by the user
+		# in world/group writable sticky directories, unless they are owned by the
 		# owner of the directory. This makes data spoofing attacks harder.
-		fs.protected_fifos = 1
-		fs.protected_regular = 1
+		fs.protected_fifos = 2
+		fs.protected_regular = 2
 
 		# Disable unprivileged use of the bpf(2) syscall.
 		# Allowing unprivileged use of the bpf(2) syscall may allow a
