@@ -1,0 +1,149 @@
+pkgname=llvm-runtimes
+# Note: Update together with llvm.
+pkgver=17.0.4
+_llvmver=${pkgver%%.*}
+pkgrel=0
+pkgdesc="LLVM Runtimes"
+url="https://llvm.org/"
+arch="all"
+license="Apache-2.0"
+makedepends="
+	clang
+	cmake
+	linux-headers
+	llvm$_llvmver-dev
+	llvm$_llvmver-static
+	python3
+	samurai
+	"
+subpackages="
+	libc++:libcxx
+	libc++-static:libcxx_static
+	libc++-dev:libcxx_dev
+	compiler-rt:rt
+	llvm-libunwind:libunwind
+	llvm-libunwind-static:libunwind_static
+	llvm-libunwind-dev:libunwind_dev
+	"
+source="https://github.com/llvm/llvm-project/releases/download/llvmorg-${pkgver//_/-}/llvm-project-${pkgver//_/}.src.tar.xz
+	armv6-arch.patch.noauto
+	compiler-rt-lsan-dtp-offset.patch
+	compiler-rt-ppc-fixes.patch
+	compiler-rt-sanitizer-supported-arch.patch
+	libunwind-link-libssp.patch
+	fix-msan-with-musl.patch
+	"
+builddir="$srcdir/llvm-project-${pkgver//_/}.src"
+options="!check"
+
+case "$CARCH" in
+# Sanitizers are broken on other arches.
+# Keep in sync with compiler-rt-sanitizer-supported-arch.patch.
+aarch64|ppc64le|x86_64)
+	_build_sanitizers='ON'
+	;;
+*)
+	_build_sanitizers='OFF'
+	;;
+esac
+
+prepare() {
+	default_prepare
+
+	case "$CARCH" in
+	armhf)
+		patch -Np1 < "$srcdir"/armv6-arch.patch.noauto
+		;;
+	esac
+}
+
+build() {
+	if [ "$CBUILD" != "$CHOST" ]; then
+		local crossopts="
+			-DCMAKE_SYSTEM_NAME=Linux
+			-DCMAKE_HOST_SYSTEM_NAME=Linux
+			-DLIBUNWIND_SYSROOT=$CBUILDROOT
+			"
+	fi
+
+	CC=clang \
+	CXX=clang++ \
+	CFLAGS="$CFLAGS -DNDEBUG" \
+	CXXFLAGS="$CXXFLAGS -DNDEBUG" \
+	cmake -B build -G Ninja -Wno-dev -S runtimes \
+		-DLLVM_ENABLE_RUNTIMES="compiler-rt;libunwind;libcxx;libcxxabi" \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DLIBCXX_HAS_MUSL_LIBC=ON \
+		-DLIBUNWIND_HAS_NODEFAULTLIBS_FLAG=OFF \
+		-DCOMPILER_RT_INCLUDE_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DCOMPILER_RT_BUILD_SANITIZERS=$_build_sanitizers \
+		-DCOMPILER_RT_INSTALL_PATH="/usr/lib/llvm$_llvmver/lib/clang/$_llvmver" \
+		-DCOMPILER_RT_BUILD_GWP_ASAN=OFF \
+		-DCMAKE_VERBOSE_MAKEFILE=ON \
+		$crossopts
+	cmake --build build
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+
+	mkdir -p "$pkgdir"/usr/include/mach-o
+	cp libunwind/include/*.h "$pkgdir"/usr/include/
+	cp libunwind/include/mach-o/*.h "$pkgdir"/usr/include/mach-o/
+}
+
+libunwind() {
+	pkgdesc="LLVM libunwind library"
+	depends="!libunwind-dev"
+
+	amove usr/lib/libunwind.so.*
+}
+
+libunwind_static() {
+	pkgdesc="LLVM libunwind library (static)"
+
+	amove usr/lib/libunwind.a
+}
+
+libunwind_dev() {
+	pkgdesc="LLVM libunwind library (development files)"
+
+	amove usr/lib/libunwind.so
+	amove usr/include
+}
+
+rt() {
+	pkgdesc="LLVM compiler-rt runtime libraries"
+
+	amove usr/lib/llvm$_llvmver/lib/clang/$_llvmver
+}
+
+libcxx() {
+	pkgdesc="LLVM libc++ library"
+
+	amove usr/lib/libc++*.so.*
+}
+
+libcxx_static() {
+	pkgdesc="LLVM libc++ library (static libs)"
+
+	amove usr/lib/libc++*.a
+}
+
+libcxx_dev() {
+	pkgdesc="LLVM libc++ library (development files)"
+
+	amove usr/lib/libc++*.so
+	amove usr/include/c++
+}
+
+sha512sums="
+6703eede8013e7e5733fbd7b527757166d5698f52e239522fb320717430c88696309038501d22fe384b016b330bd92126a2c0ba88b0258c3f092801e3800b7a3  llvm-project-17.0.4.src.tar.xz
+5e7bbddbaea902e5ba5cd4db78bedbeef216f44fdd9b8f73efde6c09f40115c078649a109ffa61fefa0ee2f26655c038a48589ecac83068a47d60e9248c5dff1  armv6-arch.patch.noauto
+7c2cbd095b863f735842aaa8f0daecbf0282200fc58f1394139cee30d53c4a738757e38cbf0ec734398ee827e8a47314592bd7dc9768ef5c3664db682680e5a1  compiler-rt-lsan-dtp-offset.patch
+aaef886f71c5499da18ff18937404ab641cbc3a540ee9e4eed7ae6895970863e6d01ed598f8b2f1512936f33d6dd122cd7a00545afaf710a8026c729a3af720c  compiler-rt-ppc-fixes.patch
+448ad39865b1a86d69c80b6626500e16509834787944f0b402b3eb3b2d6d1c034073b4004b7e1eee6afdc21b553945e65943b79426105503012c4dfac1ee2e7b  compiler-rt-sanitizer-supported-arch.patch
+102d050172d1f20c273515b8ccf05ee7e756287f1d74529116ac061f0119da5ce4e5ea3d1a5d21c6395256b5d0538aa928302a6cf39ae59f41aa35929b265e2f  libunwind-link-libssp.patch
+4295d104f3615d0ccae3f17e60a8e00c7df5b899fb790c746033f48e76c2b020e312639e03148d6162ce471a3c3b45461a5a82ac4eed407fafc670223656b572  fix-msan-with-musl.patch
+"
