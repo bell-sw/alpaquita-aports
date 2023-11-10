@@ -1,0 +1,69 @@
+pkgname=lld
+pkgver=17.0.4
+pkgrel=0
+_llvmver=${pkgver%%.*}
+pkgdesc="The LLVM Linker"
+url="https://llvm.org/"
+arch="all"
+license="Apache-2.0"
+depends_dev="$pkgname=$pkgver-r$pkgrel"
+makedepends="
+	clang
+	cmake
+	compiler-rt
+	libedit-dev
+	libxml2-dev
+	llvm$_llvmver-dev
+	llvm$_llvmver-gtest
+	llvm$_llvmver-static
+	llvm$_llvmver-test-utils
+	llvm-libunwind-dev
+	patchelf
+	samurai
+	scudo-malloc
+	zlib-dev
+	"
+checkdepends="gtest-dev bash llvm$_llvmver-test-utils"
+subpackages="$pkgname-dbg $pkgname-libs $pkgname-dev $pkgname-doc"
+source="https://github.com/llvm/llvm-project/releases/download/llvmorg-${pkgver//_/-}/lld-${pkgver//_/}.src.tar.xz
+	https://github.com/llvm/llvm-project/releases/download/llvmorg-${pkgver//_/-}/cmake-${pkgver//_/}.src.tar.xz
+	"
+builddir="$srcdir/$pkgname-${pkgver//_/}.src"
+
+prepare() {
+	default_prepare
+	mv "$srcdir"/cmake-${pkgver//_/}.src "$srcdir"/cmake
+}
+
+build() {
+	CFLAGS="$CFLAGS -O2 -DNDEBUG -g1" \
+	CXXFLAGS="$CXXFLAGS -O2 -DNDEBUG -g1" \
+	CC=clang CXX=clang++ \
+	cmake -B build -G Ninja -Wno-dev \
+		-DCMAKE_BUILD_TYPE=None \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_SKIP_INSTALL_RPATH=ON \
+		-DBUILD_SHARED_LIBS=ON \
+		-DLLVM_INCLUDE_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DLLVM_EXTERNAL_LIT=/usr/bin/lit \
+		-DLLD_BUILT_STANDALONE=ON
+	cmake --build build
+}
+
+check() {
+	ninja -C build check-lld
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+	install -Dm644 "$builddir"/docs/ld.lld.1 -t "$pkgdir"/usr/share/man/man1/
+
+	# we have the scudo allocator available, so link lld to it to
+	# significantly improve performance, especially in LTO contexts
+	patchelf --add-needed libscudo.so "$pkgdir"/usr/bin/lld
+}
+
+sha512sums="
+5d126af3382bd918a9ab550e2e67864f9291ae4296de3c7a46c3b26f971fd791155dcfcfcd126e11657d9dff72b5c635ee45899c433c6b4ca901a2661d437667  lld-17.0.4.src.tar.xz
+bddfa97e6d1866a571d036490321099593063be33c38be1c6d117ea26d311876526d13760dc63155d3a7ea460f9c3de6da9911bdebeb286964ccdab377085a28  cmake-17.0.4.src.tar.xz
+"
