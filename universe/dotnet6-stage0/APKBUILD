@@ -226,6 +226,8 @@ _runtime() {
 		/p:GitCommitHash=$(grep GitCommitHash "$builddir"/git-info/runtime.props | sed -E 's|</?GitCommitHash>||g' | tr -d ' ')
 		/p:ILAsmToolPath=$_cli_root
 		"
+	# To make build more verbose:
+	# local args="$args --cmakeargs -DCMAKE_VERBOSE_MAKEFILE=ON"
 	if [ "$CBUILD" != "$CHOST" ]; then
 		local args="$args -cross"
 		# https://github.com/dotnet/runtime/pull/75597 broke crossbuilding when true
