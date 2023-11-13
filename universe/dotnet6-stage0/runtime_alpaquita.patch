@@ -1,0 +1,38 @@
+--- a/src/runtime/eng/native/configureplatform.cmake
++++ b/src/runtime/eng/native/configureplatform.cmake
+@@ -64,6 +64,10 @@ if(CLR_CMAKE_HOST_OS STREQUAL Linux)
+             COMMAND bash -c "source ${LINUX_ID_FILE} && echo \$ID"
+             OUTPUT_VARIABLE CLR_CMAKE_LINUX_ID
+             OUTPUT_STRIP_TRAILING_WHITESPACE)
++        execute_process(
++            COMMAND bash -c "if strings \"${CMAKE_SYSROOT}/usr/bin/ldd\" 2>&1 | grep -q musl; then echo musl; fi"
++            OUTPUT_VARIABLE CLR_CMAKE_LINUX_MUSL
++            OUTPUT_STRIP_TRAILING_WHITESPACE)
+     endif()
+ 
+     if(DEFINED CLR_CMAKE_LINUX_ID)
+@@ -73,6 +77,9 @@ if(CLR_CMAKE_HOST_OS STREQUAL Linux)
+         elseif(CLR_CMAKE_LINUX_ID STREQUAL alpine)
+             set(CLR_CMAKE_HOST_ALPINE_LINUX 1)
+             set(CLR_CMAKE_HOST_OS ${CLR_CMAKE_LINUX_ID})
++        elseif(CLR_CMAKE_LINUX_MUSL STREQUAL musl)
++            set(CLR_CMAKE_HOST_ALPINE_LINUX 1) # XXX
++            set(CLR_CMAKE_HOST_OS ${CLR_CMAKE_LINUX_ID})
+         endif()
+     endif(DEFINED CLR_CMAKE_LINUX_ID)
+ endif(CLR_CMAKE_HOST_OS STREQUAL Linux)
+@@ -302,6 +309,14 @@ if(CLR_CMAKE_TARGET_OS STREQUAL alpine)
+     set(CLR_CMAKE_TARGET_ALPINE_LINUX 1)
+ endif(CLR_CMAKE_TARGET_OS STREQUAL alpine)
+ 
++if(CLR_CMAKE_TARGET_OS STREQUAL alpaquita)
++    set(CLR_CMAKE_TARGET_UNIX 1)
++    set(CLR_CMAKE_TARGET_LINUX 1)
++    if(CLR_CMAKE_LINUX_MUSL STREQUAL musl)
++      set(CLR_CMAKE_TARGET_ALPINE_LINUX 1)
++    endif()
++endif(CLR_CMAKE_TARGET_OS STREQUAL alpaquita)
++
+ if(CLR_CMAKE_TARGET_OS STREQUAL Android)
+     set(CLR_CMAKE_TARGET_UNIX 1)
+     set(CLR_CMAKE_TARGET_LINUX 1)
