@@ -66,6 +66,11 @@ build() {
 			"
 	fi
 
+	local libcopts=""
+	if [ "$CLIBC" = "musl" ]; then
+	    libcopts="-DLIBCXX_HAS_MUSL_LIBC=ON"
+	fi
+
 	CC=clang \
 	CXX=clang++ \
 	CFLAGS="$CFLAGS -DNDEBUG" \
@@ -74,7 +79,7 @@ build() {
 		-DLLVM_ENABLE_RUNTIMES="compiler-rt;libunwind;libcxx;libcxxabi" \
 		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
 		-DCMAKE_INSTALL_PREFIX=/usr \
-		-DLIBCXX_HAS_MUSL_LIBC=ON \
+		$libcopts \
 		-DLIBUNWIND_HAS_NODEFAULTLIBS_FLAG=OFF \
 		-DCOMPILER_RT_INCLUDE_TESTS="$(want_check && echo ON || echo OFF)" \
 		-DCOMPILER_RT_BUILD_SANITIZERS=$_build_sanitizers \
