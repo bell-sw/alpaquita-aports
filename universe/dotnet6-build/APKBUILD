@@ -432,7 +432,7 @@ package() {
 		-C "$pkgdir"/$_libdir/dotnet/artifacts/$pkgver/ \
 		--no-same-owner \
 		--wildcards \
-		'*alpine*'
+		"*${VENDOR_DISTRO}*"
 
 	# assemble docs
 	find "$builddir" -iname 'dotnet*.1' -type f -exec cp '{}' "$pkgdir"/usr/share/man/man1/. \;
@@ -528,7 +528,7 @@ artifacts() {
 		-C "$subpkgdir"/$_libdir/dotnet/artifacts/$pkgver/ \
 		--no-same-owner \
 		--exclude '*Intermediate*' \
-		--exclude '*alpine*'
+		--exclude "*${VENDOR_DISTRO}*"
 }
 
 zshcomp() {
