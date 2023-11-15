@@ -20,6 +20,13 @@ build() {
 }
 
 check() {
+	# the package uses -Werror
+	# the test program is compiled with explicit -O0
+	# glibc warns about using fortify with unoptimized code
+	if [ "$CLIBC" = "glibc" ]; then
+	    local CFLAGS_DEBUG_EXTRA="${CFLAGS_DEBUG_EXTRA} -U_FORTIFY_SOURCE"
+	    export CFLAGS_DEBUG_EXTRA
+	fi
 	make test
 }
 
