@@ -3,6 +3,7 @@ pkgver=6.0.116
 pkgrel=3
 
 [ "$CBUILD" != "$CHOST" ] && _cross="-$CARCH" || _cross=""
+[ "$CLIBC" = "musl" ] && _musl="-musl" || _musl=""
 
 # Tag of tarball generator.
 _gittag=v$pkgver
@@ -53,13 +54,24 @@ subpackages="
 	"
 source="
 	https://lab.ilot.io/dotnet/installer/-/releases/$_gittag/downloads/tarball/dotnet-$_gittag.tar.xz
-	dotnet-sdk-$_bootstrapver-linux-musl-x64.noextract::https://dotnetcli.azureedge.net/dotnet/Sdk/$_bootstrapver/dotnet-sdk-$_bootstrapver-linux-musl-x64.tar.gz
-	dotnet-sdk-$_bootstrapver-linux-musl-arm64.noextract::https://dotnetcli.azureedge.net/dotnet/Sdk/$_bootstrapver/dotnet-sdk-$_bootstrapver-linux-musl-arm64.tar.gz
-	dotnet-sdk-$_bootstrapver-linux-musl-arm.noextract::https://dotnetcli.azureedge.net/dotnet/Sdk/$_bootstrapver/dotnet-sdk-$_bootstrapver-linux-musl-arm.tar.gz
+
+    musl:dotnet-sdk-$_bootstrapver-linux-musl-x64.noextract::https://dotnetcli.azureedge.net/dotnet/Sdk/$_bootstrapver/dotnet-sdk-$_bootstrapver-linux-musl-x64.tar.gz
+    musl:dotnet-sdk-$_bootstrapver-linux-musl-arm64.noextract::https://dotnetcli.azureedge.net/dotnet/Sdk/$_bootstrapver/dotnet-sdk-$_bootstrapver-linux-musl-arm64.tar.gz
+    musl:dotnet-sdk-$_bootstrapver-linux-musl-arm.noextract::https://dotnetcli.azureedge.net/dotnet/Sdk/$_bootstrapver/dotnet-sdk-$_bootstrapver-linux-musl-arm.tar.gz
+
+   glibc:dotnet-sdk-$_bootstrapver-linux-x64.noextract::https://dotnetcli.azureedge.net/dotnet/Sdk/$_bootstrapver/dotnet-sdk-$_bootstrapver-linux-x64.tar.gz
+   glibc:dotnet-sdk-$_bootstrapver-linux-arm64.noextract::https://dotnetcli.azureedge.net/dotnet/Sdk/$_bootstrapver/dotnet-sdk-$_bootstrapver-linux-arm64.tar.gz
+   glibc:dotnet-sdk-$_bootstrapver-linux-arm.noextract::https://dotnetcli.azureedge.net/dotnet/Sdk/$_bootstrapver/dotnet-sdk-$_bootstrapver-linux-arm.tar.gz
+
 	Private.SourceBuilt.Artifacts.$_artifactsver.noextract::https://dotnetcli.azureedge.net/source-built-artifacts/assets/Private.SourceBuilt.Artifacts.$_artifactsver.tar.gz
-	https://globalcdn.nuget.org/packages/runtime.linux-musl-x64.microsoft.netcore.ilasm.6.0.0.nupkg
-	https://globalcdn.nuget.org/packages/runtime.linux-musl-arm64.microsoft.netcore.ilasm.6.0.0.nupkg
-	https://globalcdn.nuget.org/packages/runtime.linux-musl-arm.microsoft.netcore.ilasm.6.0.0.nupkg
+
+   musl:https://globalcdn.nuget.org/packages/runtime.linux-musl-x64.microsoft.netcore.ilasm.6.0.0.nupkg
+   musl:https://globalcdn.nuget.org/packages/runtime.linux-musl-arm64.microsoft.netcore.ilasm.6.0.0.nupkg
+   musl:https://globalcdn.nuget.org/packages/runtime.linux-musl-arm.microsoft.netcore.ilasm.6.0.0.nupkg
+
+  glibc:https://globalcdn.nuget.org/packages/runtime.linux-x64.microsoft.netcore.ilasm.6.0.0.nupkg
+  glibc:https://globalcdn.nuget.org/packages/runtime.linux-arm64.microsoft.netcore.ilasm.6.0.0.nupkg
+  glibc:https://globalcdn.nuget.org/packages/runtime.linux-arm.microsoft.netcore.ilasm.6.0.0.nupkg
 	$_extra_nupkgs
 	$_patches
 	"
@@ -83,8 +95,8 @@ makedepends_host="
 	libxml2-utils
 	linux-headers
 	lttng-ust-dev
-	musl-dev
-	musl-utils
+	${CLIBC}-dev
+	${CLIBC}-utils
 	openssl-dev
 	unzip
 	zip
@@ -191,10 +203,10 @@ prepare() {
 		ln -s "$_logdir"/${i##*\/} "$builddir"/src/${i##*\/}/artifacts/log
 	done
 
-	unzip -po "$srcdir"/runtime.linux-musl-$_dotnet_arch.microsoft.netcore.ilasm.*.nupkg runtimes/linux-musl-$_dotnet_arch/native/ilasm > $_cli_root/ilasm
+	unzip -po "$srcdir"/runtime.linux$_musl-$_dotnet_arch.microsoft.netcore.ilasm.*.nupkg runtimes/linux$_musl-$_dotnet_arch/native/ilasm > $_cli_root/ilasm
 	chmod +x "$_cli_root"/ilasm
 
-	tar -xf "$srcdir"/dotnet-sdk-$_pkgver_macro*$_dotnet_arch.noextract -C "$_cli_root" --no-same-owner
+	tar -xf "$srcdir"/dotnet-sdk-$_bootstrapver-linux$_musl-$_dotnet_arch.noextract -C "$_cli_root" --no-same-owner
 
 	for i in $_extra_nupkgs; do
 		local filename=${i/::*}
@@ -318,7 +330,7 @@ _aspnetcore() {
 	msg "[$(date)] Build aspnetcore version $_aspnetver"
 	cd "$builddir"/src/aspnetcore
 	local args="
-		--os-name linux-musl
+		--os-name linux$_musl
 		-arch $_dotnet_target
 		-c Release
 		-no-build-nodejs
@@ -326,7 +338,7 @@ _aspnetcore() {
 		/consoleLoggerParameters:ShowTimestamp
 		/p:GitCommitHash=$(grep GitCommitHash "$builddir"/git-info/aspnetcore.props | sed -E 's|</?GitCommitHash>||g' | tr -d ' ')
 		/p:DotNetAssetRootUrl=file://$_downloaddir/
-		/p:BuildOSName=linux-musl
+		/p:BuildOSName=linux$_musl
 		"
 	# x86 crossgen broken
 	case $CARCH in
@@ -342,7 +354,7 @@ _aspnetcore() {
 		$_nuget push $i --source="$_packagesdir"
 	done
 	mkdir -p "$_downloaddir"/aspnetcore/Runtime/$_aspnetver_ns
-	cp artifacts/installers/*/aspnetcore-runtime-internal-*-linux-musl-$_dotnet_target.tar.gz "$_downloaddir"/aspnetcore/Runtime/$_aspnetver_ns
+	cp artifacts/installers/*/aspnetcore-runtime-internal-*-linux$_musl-$_dotnet_target.tar.gz "$_downloaddir"/aspnetcore/Runtime/$_aspnetver_ns
 	cp artifacts/installers/*/aspnetcore_base_runtime.version "$_downloaddir"/aspnetcore/Runtime/$_aspnetver_ns
 }
 
@@ -355,8 +367,8 @@ _installer() {
 		-c Release
 		-bl
 		/consoleLoggerParameters:ShowTimestamp
-		/p:OSName=linux-musl
-		/p:HostOSName=linux-musl
+		/p:OSName=linux$_musl
+		/p:HostOSName=linux$_musl
 		/p:Architecture=$_dotnet_target
 		/p:CoreSetupBlobRootUrl=file://$_downloaddir/
 		/p:DotnetToolsetBlobRootUrl=file://$_downloaddir/
@@ -441,7 +453,7 @@ bootstrap() {
 		runtime.*.Microsoft.NETCore.DotNetHostPolicy.*.nupkg
 		runtime.*.Microsoft.NETCore.DotNetHostResolver.*.nupkg
 		runtime.*.Microsoft.NETCore.DotNetAppHost.*.nupkg
-		Microsoft.AspNetCore.App.Runtime.linux-musl-*.*.nupkg
+		Microsoft.AspNetCore.App.Runtime.linux$_musl-*.*.nupkg
 		"
 
 	# copies artifacts to artifacts dir for use by future dotnet builds
@@ -501,10 +513,16 @@ sha512sums="
 3b6f37aee5698d7ef794c74a6d914b914f0220346a2f37e66e4a29db63e284747d02856ea6cd461c76f2a9e18ab047f40cc739e7f8227d69ea7316bce2020201  dotnet-sdk-6.0.116-linux-musl-x64.noextract
 dd3ec888e0d6644f2d6ef17ca7ce540d62226bb459cc0bbfe938229e757a8f4a10fc314a078f9898143c2271b8a70de77ffbdaecfa8c4c87921421e729f53a64  dotnet-sdk-6.0.116-linux-musl-arm64.noextract
 a35480c68e9f156a33225e80dc166db3a2fbe860f0f35497357fa6b5594df16dad9cbc8b5a7569ee4b6262070e100bf3c9d57721c68bac5bfc83abf61e4ace5d  dotnet-sdk-6.0.116-linux-musl-arm.noextract
+7294b767482647ca89d4198345584a2a3bd81e6e67ca151924e9ded268091a2e4146c09f9b53061312dcf2a087535afa7ad039d84cb6d221a2108040b0b45dbd  dotnet-sdk-6.0.116-linux-x64.noextract
+eabf20e6ab121419651c7a476c453eeb542fc6a85c57abe8ac1856e1896a91acd635be88e711665f17587ccff0b586d4ea6abdbbfc223610c53b3ea26d25577f  dotnet-sdk-6.0.116-linux-arm64.noextract
+7cfacf44b1f7f955b72059bf58ecb7fa7212531a7ec6db0e4b14505cd8bb6935294e83728d828b94770fd4bc8fe789afedbb4442cb2425538deecb18bfae417c  dotnet-sdk-6.0.116-linux-arm.noextract
 64fffa28143c28ceefbae08e8086746e177a11242f6a5b778bc5597190748c9d3e869020d7d3f4b74efaad7fbb73258765e227c9bdd098501fdbbc7e7e6ec05b  Private.SourceBuilt.Artifacts.6.0.112.noextract
 0eb771d7e23607a256f209c958a8025af6a7c1e20948b244f2903941aad5e1c0f130a9285ee29086d6188090e8692f5f129329a88da54d3f0a7e7e5b7e4257ef  runtime.linux-musl-x64.microsoft.netcore.ilasm.6.0.0.nupkg
 5ad26a79b5ba3ebdc6932dde50218d2c0669377dcb628debbb448e0dfc5d001d7e07b121f18ecd50b667ab372e10ec0bfe166a6e2103faf2f824995fdad0c355  runtime.linux-musl-arm64.microsoft.netcore.ilasm.6.0.0.nupkg
 2a24e56ddf0f3e3ef7cb64523b7c6ebf02b91a73287c342783eb66e43a9bbe0cd23eb4b26f435e6b194bf1a40017e6aae60333ff087b18657672b243e8c8ce76  runtime.linux-musl-arm.microsoft.netcore.ilasm.6.0.0.nupkg
+ef7f547a09c18e2e05bc8bb9a10027f55cc2b5ab9214d11209c9bdb04f953a61fb676b0d2e52d1dbe20cc1f5a12bc779d026f972fa4b1fcd327cde225f9f3334  runtime.linux-x64.microsoft.netcore.ilasm.6.0.0.nupkg
+fca97adda43f65d2948c814d81219126d36a896278812080b77e17870cdea8999efd6c0e151514b798543d7c7b2ce59cc004a1f4202c84fbe01277e45a4d0964  runtime.linux-arm64.microsoft.netcore.ilasm.6.0.0.nupkg
+b47da5662108aaab6c52df4d584c2cd5209c821279d181f4847ae7867d3588054f2b72c3c97a843cc8060cf9a067055e776328d2f060699fb6de7f9c455e7eb4  runtime.linux-arm.microsoft.netcore.ilasm.6.0.0.nupkg
 a24efb7578e2020e17c877ffe00b49f8f476b0845fdc55c16404008a9566d8628a72c2208bd23df745c88592ebe9c922b0cf1bc1f95f834b539bbcc2cbf516c5  system.reactive.core.4.1.1.nupkg
 42779a7bf1004fe0f7054cfa4f09f49d7f2a57c0543ec994ffbd54fb349abb508295476098ed35d60e9676be8bcc15aa8a9ec5c814cd1e058357530b5cdfb2b6  roslyn_57003-mono-namedmutex.patch
 cf40e37b4adfc61e24e3b48a397b4d813726d190f271869d946035279bf662a694a0fca448f5ae06ad2bb2300595223109ad64f60f65dac5cddf9308e12147a3  roslyn_revert-lift-version-codeanalysis.patch
