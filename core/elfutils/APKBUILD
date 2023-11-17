@@ -3,8 +3,8 @@
 
 pkgname=elfutils
 pkgver=0.190
-pkgrel=0
-pkgdesc="ELF/DWARF files management tools"
+pkgrel=1
+pkgdesc="Utilities and DSOs to handle ELF files and DWARF data"
 url="https://sourceware.org/elfutils/"
 arch="all"
 license="GPL-3.0-or-later AND ( GPL-2.0-or-later OR LGPL-3.0-or-later )"
@@ -31,7 +31,7 @@ musl)
 		musl-libintl"
 ;;
 esac
-subpackages="libelf libelf-static $pkgname-dev $pkgname-doc"
+subpackages="libelf $pkgname-dev $pkgname-doc"
 source="https://sourceware.org/elfutils/ftp/$pkgver/elfutils-$pkgver.tar.bz2
 	fix-aarch64_fregs.patch
 	fix-uninitialized.patch
@@ -91,6 +91,11 @@ libelf() {
 	mkdir -p "$subpkgdir"/usr/lib
 	mv "$pkgdir"/usr/lib/*.so.* "$subpkgdir"/usr/lib/
 	mv "$pkgdir"/usr/lib/*-*.so "$subpkgdir"/usr/lib/
+}
+
+dev() {
+	default_dev
+	provides="libelf-static=$pkgver-r$pkgrel"  # for backward compatibility (Alpine <3.19)
 }
 
 sha512sums="
