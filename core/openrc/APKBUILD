@@ -2,7 +2,7 @@
 # /sbin/init.
 
 pkgname=openrc
-pkgver=0.51
+pkgver=0.52.1
 _ver=${pkgver/_git*/}
 pkgrel=1
 pkgdesc="OpenRC dependency-based init system"
@@ -148,9 +148,6 @@ package() {
 	# openrc upstream removed service(8) for whatever reason, put it back
 	ln -s rc-service "$pkgdir"/usr/sbin/service
 
-	# remove deprecated /sbin/runscript to avoid conflict with minicom
-	rm "$pkgdir"/usr/sbin/runscript
-
 	mkdir -p "$pkgdir"/etc/runlevels/boot
 
 	# setup getty on tty1 as a service, replace agetty with busybox/getty
@@ -178,7 +175,7 @@ _agetty_openrc() {
 }
 
 sha512sums="
-2844e54c90abf8c2f515d8033f9fe3bd51f7e1026d73488c5fe81c6bfbe5fc2df904aefedee729a3300476805495fb59e3c88f0e77df6c5127b0bcf4034b4843  openrc-0.51.tar.gz
+741f3f0752217b9ce159d00362d688738c5a84512ddd30c44f4f7f451d7950315a5e1de79eaf5e7b1cf6539a04f59600fbe82cc2a6ad966b735c2eb4d4f35717  openrc-0.52.1.tar.gz
 257861f5f0562e9b9a9fccebae474bd75c4bb51f005a2b8132fd551f061f65863de46c5bc4437f137b4a9d3ca741f9de9274bfa7b418eda70497ed4b5fd3056d  0001-call-sbin-mkmntdirs-in-localmount-OpenRC-service.patch
 0bd69d9e8e9c321a5e67cf924be07b9dd0b58801143c18f74bebf442958fc878e46a65f07cc2842566a8c3434e788ef3ca0c90c607de6b10931f01324bfc1b11  0003-rc-pull-in-sysinit-and-boot-as-stacked-levels-when-n.patch
 71a743bf969110a27259405ef4b4dc4fad608b8e49039fd6afb1b1486d0f1dfccc3ef5275410fa3d6d1554ccee59c5a3424be4f2919e14453ebb709282c588a7  0004-make-consolefont-service-compatible-with-busyboxs-se.patch
