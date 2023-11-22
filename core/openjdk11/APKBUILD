@@ -9,7 +9,7 @@ _java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 11"
 
 pkgname=${_java_pkg_name}11
 pkgver=${_java_ver/+/_p}
-pkgrel=2
+pkgrel=3
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
@@ -139,6 +139,7 @@ package() {
 _jre_cds() {
 	pkgdesc="$_java_name (JRE Class Data Sharing archives)"
 	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	provides="openjdk11-jre-cds=$pkgver-r$pkgrel"
 
 	rm -rf "$pkgdir/$_java_home/lib/server/*.jsa"
 	"$pkgdir/$_java_home/bin/java" -server -Xshare:dump
