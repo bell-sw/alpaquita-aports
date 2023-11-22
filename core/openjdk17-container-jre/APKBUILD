@@ -9,7 +9,7 @@ _java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK ${_java_maj_ver} Container JRE (S
 
 pkgname=${_java_pkg_name}${_java_maj_ver}-container-jre
 pkgver=${_java_ver/+/_p}
-pkgrel=1
+pkgrel=2
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
@@ -54,6 +54,7 @@ package() {
 _cds() {
 	pkgdesc="$_java_name (Class Data Sharing archives)"
 	depends="$pkgname=$pkgver-r$pkgrel"
+	provides="openjdk${_java_maj_ver}-container-jre-cds=${pkgver}-r${pkgrel}"
 
 	rm -rf "$pkgdir/$_java_home/lib/server/*.jsa"
 	"$pkgdir/$_java_home/bin/java" -server -XX:+UseCompressedOops -Xshare:dump
