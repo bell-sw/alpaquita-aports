@@ -1,0 +1,51 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a06ccc0..ea58f81 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -24,14 +24,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/scripts/cmake)
+ 
+ option(ADA_BENCHMARKS "Build benchmarks" OFF)
+ 
+-# We use Google Benchmark, but it does not build under several 32-bit systems.
+-if((BUILD_TESTING OR ADA_BENCHMARKS) AND (CMAKE_SIZEOF_VOID_P EQUAL 8))
+-  include(${PROJECT_SOURCE_DIR}/cmake/import.cmake)
+-  import_dependency(simdjson simdjson/simdjson 14d927128ba14e13913fc0e7c2cf538790bd1622)
+-  add_dependency(simdjson)
+-  import_dependency(gtest google/googletest 797b0ad2a3a45608ecf5c67e6e289d377a3521ca)
+-  add_dependency(gtest)
+-endif()
++find_package(GTest)
+ 
+ if (BUILD_TESTING AND NOT EMSCRIPTEN)
+   message(STATUS "The tests are enabled.")
+diff --git a/tools/CMakeLists.txt b/tools/CMakeLists.txt
+index 92c73ec..05450ea 100644
+--- a/tools/CMakeLists.txt
++++ b/tools/CMakeLists.txt
+@@ -1 +1,6 @@
+-add_subdirectory(cli)
+\ No newline at end of file
++add_subdirectory(cli)
++target_link_libraries(adaparse PRIVATE ada)
++target_include_directories(adaparse PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>")
++
++find_package(cxxopts)
++target_link_libraries(adaparse PRIVATE cxxopts::cxxopts)
+diff --git a/tools/cli/CMakeLists.txt b/tools/cli/CMakeLists.txt
+index a770557..d7e7ff2 100644
+--- a/tools/cli/CMakeLists.txt
++++ b/tools/cli/CMakeLists.txt
+@@ -2,11 +2,8 @@ add_executable(adaparse adaparse.cpp line_iterator.h)
+ target_link_libraries(adaparse PRIVATE ada)
+ target_include_directories(adaparse PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>")
+ 
+-include(${PROJECT_SOURCE_DIR}/cmake/import.cmake)
+-import_dependency(cxxopts jarro2783/cxxopts eb78730)
+-add_dependency(cxxopts)
+-import_dependency(fmt fmtlib/fmt a337011)
+-add_dependency(fmt)
++find_package(cxxopts)
++find_package(fmt)
+ target_link_libraries(adaparse PRIVATE cxxopts::cxxopts fmt::fmt)
+ 
+ if(MSVC OR MINGW)
