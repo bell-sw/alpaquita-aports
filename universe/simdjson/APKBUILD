@@ -1,0 +1,33 @@
+pkgname=simdjson
+pkgver=3.6.0
+pkgrel=0
+pkgdesc="Parsing gigabytes of JSON per second"
+url="https://simdjson.org"
+arch="all"
+license="Apache-2.0"
+# tests take a very long time to compile and require downloading other JSON parsers
+options="!check"
+makedepends="cmake samurai"
+subpackages="$pkgname-static $pkgname-dev"
+source="https://github.com/simdjson/simdjson/archive/v$pkgver/simdjson-$pkgver.tar.gz"
+
+build() {
+	cmake -B builddir -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DBUILD_SHARED_LIBS=ON
+	cmake -B builddir-static -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_BUILD_TYPE=Release
+	cmake --build builddir
+	cmake --build builddir-static
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install builddir
+	DESTDIR="$pkgdir" cmake --install builddir-static
+}
+
+sha512sums="
+9e99093ac9f2d6490684210c2e8d80e6817e5b9fb391cd30494c0536cd3a3220623eeeac4af7aff604d73f558c2dffa07c8e17d2524f2b9b1904b1e2c91b8c81  simdjson-3.6.0.tar.gz
+"
