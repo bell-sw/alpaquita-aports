@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.37.0
-pkgrel=6
+pkgrel=7
 _glibcver=${pkgver%.*}
 _patch_ver="glibc-2.37-45-gb4e23c75ae"
 pkgdesc="GNU C Library"
@@ -104,6 +104,17 @@ package() {
 	ln -sf usr/lib "$pkgdir"/lib
 	ln -sf usr/lib64 "$pkgdir"/lib64
 	ln -sf usr/sbin $pkgdir/sbin
+
+	mkdir -p "$pkgdir"/usr/lib/locale
+
+	local l
+	for l in C en_US; do
+		msg "Generating $l.utf8 locale"
+		I18NPATH="$pkgdir"/usr/share/i18n \
+		"$pkgdir"/usr/lib/ld-linux-${CARCH/_/-}.so.2 --library-path "$pkgdir"/usr/lib \
+			"$pkgdir"/usr/bin/localedef --prefix "$pkgdir" --no-archive \
+			--input $l --charmap UTF-8 $l.utf8
+	done
 }
 
 locales() {
@@ -123,7 +134,7 @@ locales() {
 		"$builddir"/localedata/SUPPORTED >> "$subpkgdir"/etc/locale.gen
 
 	grep -Ev "^(#|SUPPORTED-LOCALES)" "$builddir"/localedata/SUPPORTED | \
-		tr -d '\' | tr '/' ' ' > "$subpkgdir"/usr/share/i18n/SUPPORTED
+		tr -d '\\' | tr '/' ' ' > "$subpkgdir"/usr/share/i18n/SUPPORTED
 }
 
 nscd() {
@@ -145,17 +156,7 @@ utils() {
 	depends=""
 
 	amove usr/bin
-
 	ln -sf usr/bin $subpkgdir/bin
-
-	msg "Generating default locale C.UTF-8"
-
-	mkdir -p $subpkgdir/usr/lib/locale
-	I18NPATH=$builddir/localedata \
-	$pkgdir/usr/lib/ld-linux-${CARCH/_/-}.so.2 --library-path $pkgdir/usr/lib \
-	$subpkgdir/bin/localedef -i C -f UTF-8 \
-		--prefix $subpkgdir \
-		C.UTF-8
 }
 
 dev() {
@@ -171,6 +172,6 @@ f799c9668124479497cf1744674fa3c01e1e446736b15d8cd074406b26be1f9b964edf217f979e57
 2e6dbe2373c1b0e61413a23832f15a4a891aa3769afdff052ca5885f306c1ecc2ccd86f5c6fd5a91325809c59f7e39bb99e0afe1844eddf6c1fe22bf33cce657  1000-delocalize-sh-scripts.patch
 73bfefd8a1366f3bc7bbfd3f34b599b49f48278f783eb2837a414eb914ac3ae9995fe4e9fec58b9d1da1eb6ed36ccc889257ffc54031f1731e041dc18e096e6f  ld.so.conf
 47a686c2fda0f32a1e9e975f723ed96ab8125619541cf8711fa80d94428862be77c46d06f5ff17f6a978eb22c9f86929ee9bf79888e6f824beeb023f78512151  locale.gen.in
-7f4e96d99f98da0074e8020efd574b5080b3364ba014e74c3fc262af685180f92a6a08f2681c0ce8b0b78a103cafe753943836943db20fe9064ad5f380b35de0  locale-gen
+14dd69e1eb42b3dc3e67eaf96938fe2bc9895b14e820b2a53a9a6f540a5224b2797d28585473bf4c6b1cd398c2e08d8571113db93a6ba7474e04c0b699104629  locale-gen
 519f6d7fd227b2ceeda345bd2ca48146d961655fbff6a3d709d7726f64eef2ceedf55943b1e71b802b79309ef4dfe9b99251a5073a1c9169db3ac6a788b244d5  ldconfig.trigger.c
 "

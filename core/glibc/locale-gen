@@ -93,10 +93,12 @@ if [ -z "$1" ] && [ -z "$KEEP" ]; then
         rm -rf /usr/lib/locale/locale-archive || true
         for dir in /usr/lib/locale/*; do
                 [ -e "$dir" ] || continue
-                if [ "${dir#/usr/lib/locale/}" = C.UTF-8 ]; then
-                        # owned by libc-bin
+                case "${dir#/usr/lib/locale/}" in
+		    C.utf8|en_US.utf8)
+                        # owned by glibc
                         continue
-                fi
+			;;
+                esac
                 rm -rf "$dir" 2>/dev/null || true
         done
 fi
