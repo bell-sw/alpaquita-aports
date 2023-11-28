@@ -345,6 +345,9 @@ build() {
 		--with-sdk "$_cli_root" \
 		--with-packages "$_artifactsdir" \
 		-- $args
+
+	# XXX: hail mary
+	"$_cli_root"/dotnet build-server shutdown
 }
 
 check() {
@@ -420,6 +423,9 @@ check() {
 	if [ $ERROR ]; then
 		msg "Check error reported"
 	fi
+
+	# XXX: hail mary
+	dotnet build-server shutdown
 }
 
 package() {
