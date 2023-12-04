@@ -10,6 +10,20 @@ for i in "$@"; do
 	# skip backup kernel
 	[ "$backup_vmlinuz" ] && [ "vmlinuz-$krel" = "$backup_vmlinuz" ] && continue
 
-	echo "Generate modules.* in $krel"
-	/sbin/depmod $krel
+	if [ -e "$i"/modules.order ]; then
+		echo "Generate modules.* in $krel"
+		/sbin/depmod $krel
+	else
+		#clean up on uninstall
+		rm -f "$i"/modules.alias \
+			"$i"/modules.builtin.alias.bin \
+			"$i"/modules.dep \
+			"$i"/modules.devname \
+			"$i"/modules.symbols \
+			"$i"/modules.alias.bin \
+			"$i"/modules.builtin.bin \
+			"$i"/modules.dep.bin \
+			"$i"/modules.softdep \
+			"$i"/modules.symbols.bin
+	fi
 done
