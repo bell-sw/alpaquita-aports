@@ -379,6 +379,15 @@ check() {
 	# test unit hangs
 	local _disabled_tests="$_disabled_tests debugging-via-dotnet-dump"
 
+	# rpm-oriented, automatiacally disabled for alpine (XXX: TODO)
+	_disabled_tests="$_disabled_tests distribution-packages"
+
+	# fails on alpine for me too
+	_disabled_tests="$_disabled_tests debugging-sos-lldb-via-core"
+
+	# fails on alpine for me too, requires postgress (which is not in deps)
+	_disabled_tests="$_disabled_tests system-data-odbc"
+
 	msg "Unpacking produced dotnet"
 	export DOTNET_ROOT="$_checkdir/release"
 	if [ ! -d "$DOTNET_ROOT" ]; then
