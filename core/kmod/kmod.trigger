@@ -25,5 +25,6 @@ for i in "$@"; do
 			"$i"/modules.dep.bin \
 			"$i"/modules.softdep \
 			"$i"/modules.symbols.bin
+		rmdir "$i" 2>/dev/null || :
 	fi
 done
