@@ -3,7 +3,7 @@
 
 pkgname=grub
 pkgver=2.06
-pkgrel=19
+pkgrel=20
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
 arch="all !s390x"
@@ -45,6 +45,7 @@ _FEDORA_RELEASE="2.06-102.fc38"
 # 1101..    : distro specific patches
 
 source="https://ftp.gnu.org/gnu/grub/grub-$pkgver.tar.xz
+	update-grub
 	grub-xen-host_grub.cfg
 	sbat.distro.csv
 
@@ -348,6 +349,8 @@ package() {
 
 	mkdir -p "$pkgdir"/usr/share/bash-completion
 	mv "$pkgdir"/etc/bash_completion.d "$pkgdir"/usr/share/bash-completion/completions
+
+	install -D -m755 "$srcdir"/update-grub "$pkgdir"/usr/sbin/update-grub
 }
 
 bios() {
@@ -495,6 +498,7 @@ bashcomp() {
 
 sha512sums="
 4f11c648f3078567e53fc0c74d5026fdc6da4be27d188975e79d9a4df817ade0fe5ad2ddd694238a07edc45adfa02943d83c57767dd51548102b375e529e8efe  grub-2.06.tar.xz
+85b3c56670fb0aaaf831cc6d7ca45faeb68b844cb17cfd6f9b51c2473f0b153cfa7b26ff8bf00a88b2ed3e0ae69a1e8f735256e6cecc91e959169606e2abf887  update-grub
 4e7394e0fff6772c89683039ccf81099ebbfe4f498e6df408977a1488fd59389b6e19afdbf0860ec271e2b2aea0df7216243dcc8235d1ca3af0e7f4d0a9d60a4  grub-xen-host_grub.cfg
 aa79c0c659c40ad200000315fb1d5d410f6e99f5f2c65f10d84a82a89ba4fbbe2bb39727b0c48c1a00455bf3b5badf1789cd8b67c4d42e7f2b400ccf2290e166  sbat.distro.csv
 c1601f2c2293da193c9ca76191a2934c16138ac30d9eec24a0a50454dbf4f28094875eb45f33b297fcef689c16ac1e2f2f584d49601733a1da8632aa96f9bfe3  0004-Add-support-for-Linux-EFI-stub-loading.patch
