@@ -1,0 +1,34 @@
+pkgname=rdfind
+pkgver=1.6.0
+pkgrel=0
+pkgdesc="Redundant data find - a program that finds duplicate files"
+url="http://rdfind.pauldreik.se"
+arch="all"
+license="GPL-2.0 "
+makedepends="nettle-dev automake autoconf libtool"
+subpackages="$pkgname-doc"
+source="https://rdfind.pauldreik.se/$pkgname-$pkgver.tar.gz
+	disable-makefile-test-failing.patch"
+
+prepare() {
+	default_prepare
+	./bootstrap.sh
+}
+
+build() {
+	./configure	--prefix=/usr
+	make -s
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir/" install
+}
+
+sha512sums="
+21d135551bd2d71a71dfe1e4faece6e980db3df18f34433b7b0a5da9e21ccc9067337892025afa9b4b1fd6069732a144b5b7b8e0441cbc9821a71a8b934cced1  rdfind-1.6.0.tar.gz
+ab53fabe698ed9fa31f31ed4828ce8f8b5582412a8ad97d2706aac3d1f6b21150ac8a73443e89c18a26b479b1cb4139e640d5c08c463cd01c7387dc311d10f1d  disable-makefile-test-failing.patch
+"
