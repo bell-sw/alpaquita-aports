@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.37.0
-pkgrel=7
+pkgrel=8
 _glibcver=${pkgver%.*}
 _patch_ver="glibc-2.37-45-gb4e23c75ae"
 pkgdesc="GNU C Library"
@@ -23,7 +23,7 @@ source="
 	ldconfig.trigger.c
 "
 builddir="$srcdir/glibc-$_glibcver"
-options="!libc_musl lib64 ldpath-recursive !check"
+options="!libc_musl lib64 ldpath-recursive !check !annobin"
 triggers="$pkgname-utils.trigger=/usr/lib:/usr/lib64:/usr/local/lib"
 subpackages="
 	$pkgname-dbg
@@ -164,6 +164,8 @@ dev() {
 
 	amove usr/lib/libc.so
 	amove usr/lib/libm.so
+
+	strip --strip-debug "$subpkgdir"/usr/lib/*crt*.o
 }
 
 sha512sums="
