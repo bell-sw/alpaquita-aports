@@ -3,7 +3,7 @@
 
 pkgname=ifupdown-ng
 pkgver=0.12.1
-pkgrel=3
+pkgrel=4
 pkgdesc="network configuration tools"
 url="https://github.com/ifupdown-ng/ifupdown-ng"
 arch="all"
@@ -22,7 +22,6 @@ subpackages="
 	$pkgname-ethtool
 	$pkgname-batman
 	$pkgname-wifi
-	$pkgname-openrc
 "
 source="https://distfiles.ariadne.space/ifupdown-ng/ifupdown-ng-$pkgver.tar.xz
 	01-add-onlink-to-default-route.patch
@@ -118,15 +117,6 @@ wifi() {
 	install_if="$pkgname $depends"
 
 	amove usr/libexec/ifupdown-ng/wifi
-}
-
-openrc() {
-	pkgdesc="ifupdown-ng openrc init scripts"
-	install_if="$pkgname openrc"
-	replaces="openrc"
-
-	install -D -m755 "$builddir"/dist/openrc/networking.initd "$subpkgdir"/etc/init.d/networking
-	install -D -m644 "$builddir"/dist/openrc/networking.confd "$subpkgdir"/etc/conf.d/networking
 }
 
 sha512sums="
