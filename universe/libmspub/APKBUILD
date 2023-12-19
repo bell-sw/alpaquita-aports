@@ -1,6 +1,6 @@
 pkgname=libmspub
 pkgver=0.1.4
-pkgrel=20
+pkgrel=21
 pkgdesc="Import filter and tools for MS Publisher files"
 url="https://wiki.documentfoundation.org/DLP/Libraries/libmspub"
 arch="all"
@@ -9,7 +9,7 @@ depends_dev="boost-dev librevenge-dev zlib-dev icu-dev libwpd-dev libwpg-dev"
 makedepends="$depends_dev doxygen"
 subpackages="$pkgname-dev $pkgname-doc $pkgname-tools"
 source="https://dev-www.libreoffice.org/src/libmspub/libmspub-$pkgver.tar.xz
-	musl.patch
+	0100-fix-missing-include-stdint.patch
 	"
 
 prepare() {
@@ -40,5 +40,7 @@ tools() {
 	mv "$pkgdir"/usr/bin "$subpkgdir"/usr
 }
 
-sha512sums="7275f890645961b3fd56df4584788962e8c064fe3f99f5834c6ba6177ce76d00d544fbe9a25b7ab2f4180d2f3a90c609fe0bb68d61ea24e95b086190390fff31  libmspub-0.1.4.tar.xz
-b3fe5c911b04e8fadab0dd0af8e60b05fc7ab80f727c0ea8675c9c1ebde316295a45ce38febfd38a17c5d766129202a7c4cb04fcc192a8034150d46602529d69  musl.patch"
+sha512sums="
+7275f890645961b3fd56df4584788962e8c064fe3f99f5834c6ba6177ce76d00d544fbe9a25b7ab2f4180d2f3a90c609fe0bb68d61ea24e95b086190390fff31  libmspub-0.1.4.tar.xz
+c846b92328d675c8432c631ddc09c4c6a36fb2a9f5615b6d8ff8bef03e5099b64ad01c3b1efaaf94889cafff93e1bfe8e7b77a8c98560bc6d227fb3602928b05  0100-fix-missing-include-stdint.patch
+"
