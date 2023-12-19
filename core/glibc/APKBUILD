@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.37.0
-pkgrel=8
+pkgrel=9
 _glibcver=${pkgver%.*}
 _patch_ver="glibc-2.37-45-gb4e23c75ae"
 pkgdesc="GNU C Library"
@@ -46,16 +46,24 @@ subpackages="
 #   2.37.0-r0:
 #     - CVE-2023-25139
 
-build() {
-	${CC:-${CROSS_COMPILE}gcc} ${CPPFLAGS} ${CFLAGS} \
-		${LDFLAGS} "$srcdir"/ldconfig.trigger.c -o ldconfig.trigger
 
-	mkdir glibc-build
-	cd glibc-build
+_build()
+{
+	local isa="$1"
+	local extra_cflags=""
+	local build_path="glibc-build"
+
+	if [ -n "$isa" ]; then
+		build_path="${build_path}-${isa}"
+		extra_cflags="-march=${isa}"
+	fi
+
+	mkdir $build_path
+	cd $build_path
 
 	echo "rootsbindir=/usr/sbin" >> configparms
 
-	CFLAGS="-O3 -pipe -g"
+	CFLAGS="-O3 -pipe -g $extra_cflags"
 	CPPFLAGS="$CFLAGS"
 	LDFLAGS="-Wl,--as-needed,-O2,--sort-common"
 	../configure \
@@ -77,11 +85,32 @@ build() {
 		--with-pkgversion="$VENDOR_DISTRO_NAME Linux" \
 		libc_cv_slibdir=/usr/lib
 	make
+	cd ..
+}
+
+build() {
+	${CC:-${CROSS_COMPILE}gcc} ${CPPFLAGS} ${CFLAGS} \
+		${LDFLAGS} "$srcdir"/ldconfig.trigger.c -o ldconfig.trigger
+
+	_build
+	_build x86-64-v3
 }
 
 check() {
 	cd glibc-build
 	make check
+}
+
+_install_hwcaps()
+{
+	local isa="$1"
+	local i hwpath="${subpkgdir:-$pkgdir}/usr/lib/glibc-hwcaps/$isa"
+
+	mkdir -p "$hwpath"
+
+	for i in libc.so.6 math/libm.so.6; do
+		cp -L $builddir/glibc-build-$isa/$i "$hwpath"/
+	done
 }
 
 package() {
@@ -115,6 +144,8 @@ package() {
 			"$pkgdir"/usr/bin/localedef --prefix "$pkgdir" --no-archive \
 			--input $l --charmap UTF-8 $l.utf8
 	done
+
+	_install_hwcaps x86-64-v3
 }
 
 locales() {
