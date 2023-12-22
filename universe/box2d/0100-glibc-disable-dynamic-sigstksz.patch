@@ -1,0 +1,20 @@
+On glibc, if _GNU_SOURCE is defined, _DYNAMIC_STACK_SIZE_SOURCE is defined as
+well.  Since libstdc++ is used here, _GNU_SOURCE is defined by default, see
+[1].  This leads to the following issue:
+
+  box2d-2.4.1/unit-test/doctest.h:4022:47: error: size of array 'altStackMem' is not an integral constant-expression
+   4022 |         static char             altStackMem[4 * SIGSTKSZ];
+        |
+
+[1] https://gcc.gnu.org/onlinedocs/libstdc++/faq.html#faq.predefined
+
+--- a/unit-test/doctest.h
++++ b/unit-test/doctest.h
+@@ -2725,6 +2725,7 @@
+ #include <exception>
+ #include <stdexcept>
+ #ifdef DOCTEST_CONFIG_POSIX_SIGNALS
++#undef __USE_DYNAMIC_STACK_SIZE
+ #include <csignal>
+ #endif // DOCTEST_CONFIG_POSIX_SIGNALS
+ #include <cfloat>

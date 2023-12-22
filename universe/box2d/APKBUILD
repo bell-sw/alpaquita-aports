@@ -1,6 +1,6 @@
 pkgname=box2d
 pkgver=2.4.1
-pkgrel=2
+pkgrel=3
 pkgdesc="2D Physics Engine for Games"
 url="https://box2d.org/"
 arch="all"
@@ -15,7 +15,9 @@ makedepends="
 	ninja
 	"
 subpackages="$pkgname-doc $pkgname-dev"
-source="$pkgname-$pkgver.tar.gz::https://github.com/erincatto/box2d/archive/v$pkgver.tar.gz"
+source="$pkgname-$pkgver.tar.gz::https://github.com/erincatto/box2d/archive/v$pkgver.tar.gz
+	glibc:0100-glibc-disable-dynamic-sigstksz.patch
+	"
 
 build() {
 	if [ "$CBUILD" != "$CHOST" ]; then
@@ -45,4 +47,5 @@ package() {
 
 sha512sums="
 d900f925b77906777719c91488bdc5e2df1ad1f4a8ca39a574229f5e57070e3a843bdd7530e817112605fde6d82145c872d8afdfc65b84531a73199098c81162  box2d-2.4.1.tar.gz
+b9af0204f37a8bd05cfbb48bba60d7b7a1336efdb8a7cc07b75371eee9ef4c4162dfb744e54762d8dfdc43e3ee3d46f5915218eca9013fb41170df095edc3089  0100-glibc-disable-dynamic-sigstksz.patch
 "
