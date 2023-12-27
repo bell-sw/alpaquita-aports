@@ -1,0 +1,27 @@
+From 787f0743c485803ea0736b7974d67e832b37c1ce Mon Sep 17 00:00:00 2001
+From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
+Date: Wed, 27 Dec 2023 16:58:59 +0300
+Subject: [PATCH] tests: run abuild with exported APKBUILD=
+
+If there is an exported non-empty variable $APKBUILD, its value will override
+the default APKBUILD file path './APKBUILD' which tests rely on.
+---
+ test/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/test/Makefile b/test/Makefile
+index 17a0937..f93ab5a 100644
+--- a/test/Makefile
++++ b/test/Makefile
+@@ -26,7 +26,7 @@ $(repos):
+ 	@rm -f repos.out
+ 	@cd $@ &&\
+ 		for i in */APKBUILD; do \
+-			( cd $${i%/*} && REPODEST="$$PWD/../.." abuild -R ) \
++			( cd $${i%/*} && REPODEST="$$PWD/../.." APKBUILD= abuild -R ) \
+ 				>> ../repos.out 2>&1 || { cat ../repos.out >&2; exit 1; } \
+ 		done
+ 
+-- 
+2.42.1
+
