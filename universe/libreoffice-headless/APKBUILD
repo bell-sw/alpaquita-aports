@@ -1,10 +1,10 @@
-pkgname=libreoffice
+pkgname=libreoffice-headless
 # "fresh" version. before, we used to package still, but community/ is only
 # supported for 6 months and fresh works perfectly okay for that, while being
 # more up to date and needing fewer dependency workarounds.
 pkgver=7.6.3.2
-pkgrel=1
-pkgdesc="LibreOffice - Meta package for the full office suite"
+pkgrel=2
+pkgdesc="LibreOffice (headless build) - Meta package for the full office suite"
 url="https://www.libreoffice.org/"
 # missing openjdk17 on riscv64
 # armhf disabled due to requiring armv6k as minimum arm architecture
@@ -121,6 +121,7 @@ source="https://download.documentfoundation.org/libreoffice/src/$_v/libreoffice-
 	0100-Adjust-links-and-wrapper-scripts-in-bin-for-a-headle.patch
 	"
 options="!check" # todo, huge testsuite, not much value, ..
+builddir="$srcdir/libreoffice-$pkgver"
 
 # secfixes:
 #   7.3.6.2-r0:
@@ -157,7 +158,7 @@ add_lang() {
 	local pkglang="${3:-$1}"
 	subpackages="$subpackages $pkgname-lang-$1:_lang_$1"
 	languages="$languages ${pkglang/_/-}"
-	eval "_lang_$1() { pkgdesc=\"LibreOffice - $2 language pack\"; depends=\"\"; _split lang_${pkglang}; }"
+	eval "_lang_$1() { pkgdesc=\"LibreOffice (headless build) - $2 language pack\"; depends=\"\"; _split lang_${pkglang}; }"
 }
 
 add_lang en_us "English (US)" en_US
@@ -273,8 +274,8 @@ _split() {
 }
 
 base() {
-	pkgdesc="LibreOffice - Database frontend"
-	depends="libreoffice-common"
+	pkgdesc="LibreOffice (headless build) - Database frontend"
+	depends="$pkgname-common"
 	_split base
 
 	mkdir -p "$subpkgdir"/usr/lib/libreoffice/share/xdg
@@ -282,8 +283,8 @@ base() {
 }
 
 calc() {
-	pkgdesc="LibreOffice - Spreadsheet"
-	depends="libreoffice-common"
+	pkgdesc="LibreOffice (headless build) - Spreadsheet"
+	depends="$pkgname-common"
 	_split calc
 
 	mkdir -p "$subpkgdir"/usr/lib/libreoffice/share/xdg
@@ -291,8 +292,8 @@ calc() {
 }
 
 common() {
-	pkgdesc="LibreOffice - Common files"
-	depends="libreoffice-lang-en_us"
+	pkgdesc="LibreOffice (headless build) - Common files"
+	depends="$pkgname-lang-en_us"
 	_split common
 
 	# The .desktop files for each app should be in the corrosponding subpackage
@@ -324,8 +325,8 @@ common() {
 }
 
 draw() {
-	pkgdesc="LibreOffice - Drawing application"
-	depends="libreoffice-common"
+	pkgdesc="LibreOffice (headless build) - Drawing application"
+	depends="$pkgname-common"
 	_split draw
 
 	mkdir -p "$subpkgdir"/usr/lib/libreoffice/share/xdg
@@ -333,8 +334,8 @@ draw() {
 }
 
 impress() {
-	pkgdesc="LibreOffice - Presentation application"
-	depends="libreoffice-common"
+	pkgdesc="LibreOffice (headless build) - Presentation application"
+	depends="$pkgname-common"
 	_split impress
 
 	mkdir -p "$subpkgdir"/usr/lib/libreoffice/share/xdg
@@ -347,8 +348,8 @@ libreofficekit() {
 }
 
 math() {
-	pkgdesc="LibreOffice - Equation editor"
-	depends="libreoffice-common"
+	pkgdesc="LibreOffice (headless build) - Equation editor"
+	depends="$pkgname-common"
 	_split math
 
 	mkdir -p "$subpkgdir"/usr/lib/libreoffice/share/xdg
@@ -356,14 +357,14 @@ math() {
 }
 
 postgres() {
-	pkgdesc="LibreOffice - Connector for PostgreSQL database"
-	depends="libreoffice-base"
+	pkgdesc="LibreOffice (headless build) - Connector for PostgreSQL database"
+	depends="$pkgname-base"
 	_split postgresql
 }
 
 writer() {
-	pkgdesc="LibreOffice - Word Processor"
-	depends="libreoffice-common"
+	pkgdesc="LibreOffice (headless build) - Word Processor"
+	depends="$pkgname-common"
 	_split writer
 
 	mkdir -p "$subpkgdir"/usr/lib/libreoffice/share/xdg
