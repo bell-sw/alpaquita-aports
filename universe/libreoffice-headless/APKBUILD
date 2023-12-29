@@ -3,7 +3,7 @@ pkgname=libreoffice-headless
 # supported for 6 months and fresh works perfectly okay for that, while being
 # more up to date and needing fewer dependency workarounds.
 pkgver=7.6.3.2
-pkgrel=2
+pkgrel=3
 pkgdesc="LibreOffice (headless build) - Meta package for the full office suite"
 url="https://www.libreoffice.org/"
 # missing openjdk17 on riscv64
@@ -117,8 +117,6 @@ source="https://download.documentfoundation.org/libreoffice/src/$_v/libreoffice-
 	musl:musl-stacksize.patch
 	musl:musl-libintl.patch
 	icu74.patch
-
-	0100-Adjust-links-and-wrapper-scripts-in-bin-for-a-headle.patch
 	"
 options="!check" # todo, huge testsuite, not much value, ..
 builddir="$srcdir/libreoffice-$pkgver"
@@ -322,6 +320,19 @@ common() {
 
 	# link to helper imported from main uno.py
 	ln -sfv /usr/lib/libreoffice/program/unohelper.py "$subpkgdir/$sitedir"/uno/unohelper.py
+
+	# this wrapper script is useless for a headless build
+	rm "$subpkgdir/usr/bin/lofromtemplate"
+
+	# The 'soffice' wrapper shell script is not installed in case of
+	# building without X support. Note we can't directly invoke
+	# 'soffice.bin', since it expects to be restarted in some cases.
+	# 'oosplash' is supposed to handle such cases.
+	cat > "$subpkgdir/usr/lib/libreoffice/program/soffice" <<-'EOF'
+	#!/bin/sh
+	exec "$(dirname $(realpath "$0"))/oosplash" "$@"
+	EOF
+	chmod +x "$subpkgdir/usr/lib/libreoffice/program/soffice"
 }
 
 draw() {
@@ -383,5 +394,4 @@ a322cda7f9bb8e191033b41d1076208c5edfbf8a0ef1d0c2a210b5be61d75a8918c3530db246fb7c
 3364062dac89722d6ec738a254e2296f4f6e0426e689e16be59fa1bcc504aea4a183859f82277f1409c25965b08655d1e643cef4dff03d96aba1fa4bfc2feb06  musl-stacksize.patch
 d99d074e89e2713a3b6a56fa60d9d989ca6eefc8884ccbf88cb16c7b09da6dde4ba4ebc6a4d8408b61a08088df7cb1bcda60738f91e5569179fc45d7e9b901a3  musl-libintl.patch
 9f96ca0fde7014fcdef8a974f6e3fc4e3360186fedbaa3c65e29196384fca066cc819536695c614a904f3add80b8ee004f6588ab4fd32e52f69b655fe72fa885  icu74.patch
-b6014611773cf5b13cb8908e4ee716d617b260c1ab0c284ca74514d592184f1c02291f5117994302962169b8f2376474304ccd58735162fd6eb94fcc073012e5  0100-Adjust-links-and-wrapper-scripts-in-bin-for-a-headle.patch
 "
