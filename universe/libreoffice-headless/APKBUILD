@@ -3,7 +3,7 @@ pkgname=libreoffice-headless
 # supported for 6 months and fresh works perfectly okay for that, while being
 # more up to date and needing fewer dependency workarounds.
 pkgver=7.6.4.1
-pkgrel=1
+pkgrel=2
 pkgdesc="LibreOffice (headless build) - Meta package for the full office suite"
 url="https://www.libreoffice.org/"
 # missing openjdk17 on riscv64
@@ -86,7 +86,7 @@ subpackages="
 	$pkgname-math
 	$pkgname-connector-postgres
 	$pkgname-writer
-	libreofficekit
+	libreofficekit::noarch
 	$pkgname-bash-completion
 	"
 depends="
@@ -98,7 +98,6 @@ depends="
 	$pkgname-math
 	$pkgname-connector-postgres
 	$pkgname-writer
-	libreofficekit
 	"
 _addsrcurl="https://dev-www.libreoffice.org/src"
 case $pkgver in
@@ -363,6 +362,8 @@ impress() {
 }
 
 libreofficekit() {
+	pkgdesc="Access LibreOffice functionality through C/C++ without UNO"
+	depends=
 	mkdir -p "$subpkgdir"/usr/include
 	cp -a "$builddir"/include/LibreOfficeKit "$subpkgdir"/usr/include
 }
