@@ -1,0 +1,23 @@
+pkgname=lua-resty-lrucache
+pkgver=0.13
+pkgrel=1
+pkgdesc="Lua-land LRU Cache based on LuaJIT FFI"
+url="https://github.com/openresty/lua-resty-lrucache"
+# luajit
+arch="noarch !ppc64le !riscv64"
+license="BSD-2-Clause"
+depends="luajit"
+source="$pkgname-$pkgver-2.tar.gz::https://github.com/openresty/lua-resty-lrucache/archive/v$pkgver/lua-resty-lrucache-$pkgver.tar.gz"
+options="!check"  # FIXME: tests require OpenResty and additional dependencies
+
+package() {
+	make install DESTDIR="$pkgdir" LUA_LIB_DIR="/usr/share/lua/common"
+
+	echo 'rock_manifest = {}' > rock_manifest
+	install -D -m 644 rock_manifest \
+		"$pkgdir"/usr/lib/luarocks/rocks-common/$pkgname/$pkgver-1
+}
+
+sha512sums="
+d6491acdca5d7b02feef1bf7fafb31798ae3194ad759a9ba87e895ef4e71268a2785291504f73e07e6872bed0d30147ca5e2cd0a0250db11f0a361af43426dfe  lua-resty-lrucache-0.13-2.tar.gz
+"
