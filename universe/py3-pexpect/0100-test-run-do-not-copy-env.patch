@@ -1,0 +1,19 @@
+We use BASH_XTRACEFD environment variable when running abuild in our CI
+infrastructure.  And when this test runs bash, it fails with the following
+error:
+
+  BASH_XTRACEFD: 10: invalid value for trace file descriptor
+
+So let's not copy environment variables at all.
+
+--- a/tests/test_run.py
++++ b/tests/test_run.py
+@@ -59,7 +59,7 @@
+     prep_subprocess_out = staticmethod(lambda x: x)
+ 
+     def setUp(self):
+-        self.runenv = os.environ.copy()
++        self.runenv = {}
+         self.runenv['PS1'] = 'GO:'
+         super(RunFuncTestCase, self).setUp()
+ 
