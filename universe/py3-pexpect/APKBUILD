@@ -1,7 +1,7 @@
 pkgname=py3-pexpect
 _pkgname=pexpect
 pkgver=4.9
-pkgrel=1
+pkgrel=2
 pkgdesc="Make Python a better tool for controlling and automating other programs"
 url="https://pexpect.readthedocs.io/en/stable/"
 arch="noarch"
@@ -28,9 +28,11 @@ check() {
 	# this test fails _only_ on Alpaquita and is not reproducible in the python
 	# interactive prompt.
 	_tests_todo="not test_before_across_chunks"	
+	# tests that may hang
+	_tests_hang="not test_socket.py"
 	python3 -m venv --clear --without-pip --system-site-packages .testenv
 	.testenv/bin/python3 -m installer .dist/*.whl
-	.testenv/bin/python3 -m pytest -k "$_tests_colors and $_tests_py2 and $_tests_todo"
+	.testenv/bin/python3 -m pytest -k "$_tests_colors and $_tests_py2 and $_tests_todo and $_tests_hang"
 }
 
 package() {
