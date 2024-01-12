@@ -1,0 +1,37 @@
+pkgname=libpsl
+pkgver=0.21.2
+pkgrel=1
+pkgdesc="C library for the Publix Suffix List"
+url="https://rockdaboot.github.io/libpsl"
+arch="all"
+license="MIT"
+depends_dev="$pkgname-utils=$pkgver-r$pkgrel"
+makedepends="python3 libidn2-dev libunistring-dev meson"
+subpackages="$pkgname-static $pkgname-utils $pkgname-dev $pkgname-doc"
+source="https://github.com/rockdaboot/libpsl/releases/download/$pkgver/libpsl-$pkgver.tar.gz"
+
+build() {
+	abuild-meson \
+		--default-library=both \
+		-Db_lto=true \
+		. output
+	meson compile -C output
+}
+
+check() {
+	meson test --no-rebuild --print-errorlogs -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+utils() {
+	pkgdesc="$pkgdesc (utils)"
+
+	amove usr/bin
+}
+
+sha512sums="
+f1df72220bf4391d4701007100b0df66c833a2cbcb7481c9d13f0b9e0cad3b66d2d15d4b976e5bad60d2ad1540355112fa1acb07aa925c241d2d7cd20681c71d  libpsl-0.21.2.tar.gz
+"
