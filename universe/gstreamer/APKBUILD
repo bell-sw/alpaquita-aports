@@ -1,6 +1,6 @@
 pkgname=gstreamer
 pkgver=1.22.8
-pkgrel=0
+pkgrel=1
 pkgdesc="GStreamer streaming media framework"
 url="https://gstreamer.freedesktop.org"
 arch="all"
@@ -22,6 +22,7 @@ subpackages="
 	$pkgname-doc
 	$pkgname-tools
 	$pkgname-lang
+	$pkgname-ptp-helper:ptp_helper
 	"
 source="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-$pkgver.tar.xz"
 # setcap: gst-ptp-helper
@@ -80,6 +81,13 @@ tools() {
 	depends="pkgconfig"
 
 	amove usr/bin
+}
+
+ptp_helper() {
+	pkgdesc="$pkgdesc (ptp helper)"
+	install_if="$pkgname=$pkgver-r$pkgrel"
+
+	amove usr/libexec/gstreamer-*/gst-ptp-helper
 }
 
 sha512sums="
