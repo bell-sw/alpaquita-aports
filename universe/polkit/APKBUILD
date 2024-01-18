@@ -1,5 +1,5 @@
 pkgname=polkit
-pkgver=123
+pkgver=124
 pkgrel=0
 pkgdesc="Application development toolkit for controlling system-wide privileges"
 url="https://www.freedesktop.org/wiki/Software/polkit/"
@@ -35,6 +35,7 @@ subpackages="
 source="https://gitlab.freedesktop.org/polkit/polkit/-/archive/$pkgver/polkit-$pkgver.tar.bz2
 	alpine-polkit.pam
 	polkit.initd
+	logind_dep.patch
 	"
 
 # secfixes:
@@ -59,6 +60,7 @@ _build() {
 		-Dtests="$(want_check && echo true || echo false)" \
 		-Dman=true \
 		-Dsystemdsystemunitdir=/trash \
+		-Dpam_prefix=/etc/pam.d \
 		"$@" \
 		. "$outdir"
 	meson compile -C "$outdir"
@@ -190,7 +192,8 @@ openrc() {
 }
 
 sha512sums="
-4306363d3ed7311243de462832199bd10ddda35e36449104daff0895725d8189b07a4c88340f28607846fdf761c23470da2d43288199c46aa816426384124bb6  polkit-123.tar.bz2
+db520882b0bedf1c96052570bf4c55d7e966d8172f6d26acf0791d98c4b911fce5ee39e6d830f06122ac8df33c6b43c252cdb7ba3a54523804824ebf355405dc  polkit-124.tar.bz2
 f5102dc00d390b3a3c957b62e1712db778c7ffb7378f3d8e816c0757c11a308c5d5303e42595b0d6add9839247c773880cd34e56afacc89eb6efaadf9aae7826  alpine-polkit.pam
 251a682da170f8f4eb33ecb27fb1392c8560a17375c2f873ceef0649ca2b0894b68ed7209e1b3716bb2c4c817b57f470d5a326fd26ec1c90615bfd9a1c5be288  polkit.initd
+d93b47cbb0a490fba030dfc2a02ddc5e9271856a7b962ccb5dc3a110e7dcbd4361dbaaf62cf02a3d53f3568cf227485c14a3b9ca30536a3d3be29c4e4a48da37  logind_dep.patch
 "
