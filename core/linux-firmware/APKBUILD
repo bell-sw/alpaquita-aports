@@ -40,10 +40,6 @@ _firmware_modules="3com acenic adaptec advansys amd amd-ucode amdgpu ar3k ath10k
 	rtl_nic rtlwifi rtw89 wfx tehuti ti-connectivity tigon ttusb-budget
 	ueagle-atm vicam vxge"
 
-case "$CARCH" in
-	arm*|aarch64) _folders="$_folders qcom";;
-esac
-
 subpackages="$pkgname-other::noarch $pkgname-none::noarch $pkgname-extra-modules:extra_modules:noarch"
 depends="linux-firmware-other=$pkgver-r$pkgrel"
 for i in $_folders; do
@@ -147,7 +143,7 @@ other() {
 	for i in "$pkgdir"/lib/firmware/*; do
 		[ -d "$i" ] && leftover="$leftover $(basename $i)"
 	done
-	if [ "$leftover" != "" -a "$leftover" != " qcom" ]; then
+	if [ "$leftover" != "" ]; then
 		local fixed
 		error "Not all subfolders have been moved to subpackages!"
 		error "Fix this by adjusting _folders as follows:"
@@ -166,7 +162,6 @@ other() {
 
 	# Not used, qlcnic driver is not enabled
 	rm -f "$subpkgdir"/lib/firmware/phanfw.bin
-	rm -rf "$subpkgdir"/lib/firmware/qcom
 }
 
 none() {
