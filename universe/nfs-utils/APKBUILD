@@ -1,6 +1,6 @@
 pkgname=nfs-utils
 pkgver=2.6.4
-pkgrel=0
+pkgrel=1
 pkgdesc="kernel-mode NFS"
 url="https://linux-nfs.org/"
 arch="all"
@@ -48,6 +48,7 @@ source="https://www.kernel.org/pub/linux/utils/nfs-utils/$pkgver/nfs-utils-$pkgv
 	nfs.exports
 	nfsclient.initd
 	nfsclient.confd
+	nfsidmap.request-key.conf
 	"
 
 build() {
@@ -91,6 +92,9 @@ package() {
 			"$pkgdir"/etc/init.d/${file%.*} ;;
 		esac
 	done
+
+	mkdir -p "$pkgdir"/etc/request-key.d
+	install -Dm644 "$srcdir"/nfsidmap.request-key.conf "$pkgdir"/etc/request-key.d/
 }
 
 dev() {
@@ -143,4 +147,5 @@ bc11b073735ee86c96b9c249ee187f4d16329c279a4e26760875059d2b5fa1d510ef3e4df5ee9dfb
 70f96bb3a465ee0fa857a6e511051ca3ced9f5a5d1e6b8b32eec843a2067f2475d8979c724a3661de0a2b078eef143f55d75ed184d823841d9de5038da91fb91  nfs.exports
 6c85c496ef93a8a2d3ad3919ecc55bae7c341998f4482fe4b17d88d987df17cabcc17274a3a8eb52c80ed6afc32d58c6774ae01209baaf6b30bd7a3803c2a244  nfsclient.initd
 f12e67728ac4e76357685e2fe38bd7f6fcd90064165758ffeca145e6962ac44d4ff9d8d57e18cc6925a6ada8e95ad8321e9fc355931a804dd455aae1e4850e92  nfsclient.confd
+204e2219b0e74fe6e16673d117018fedfdf4760602fb659e5d3dbd31101313333003ed0b89f47b1ffd7e4847f5111cc5ca85f6a0b6c8bf8ab0f1f2240ba32900  nfsidmap.request-key.conf
 "
