@@ -5,7 +5,7 @@
 
 pkgname=musl-default
 pkgver=1.2.4_git20230717
-pkgrel=6
+pkgrel=7
 pkgdesc="the musl c library (libc) implementation"
 url="https://musl.libc.org/"
 arch="all"
@@ -181,6 +181,13 @@ libintl() {
 	mkdir -p "$subpkgdir"/usr/include
 	mv "$pkgdir"/usr/include/libintl.h \
 		"$subpkgdir"/usr/include/
+}
+
+dev() {
+	default_dev
+
+	# for backwards compatibility
+	provides="libc-dev=$pkgver-r$pkgrel"
 }
 
 sha512sums="
