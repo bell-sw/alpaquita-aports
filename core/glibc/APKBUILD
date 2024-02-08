@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.37.0
-pkgrel=10
+pkgrel=11
 _glibcver=${pkgver%.*}
 _patch_ver="glibc-2.37-59-g2b58cba076"
 pkgdesc="GNU C Library"
@@ -190,12 +190,18 @@ utils() {
 	pkgdesc="$pkgdesc (various programs)"
 	depends=""
 
+	# for backwards compatibility
+	provides="libc-utils=$pkgver-r$pkgrel"
+
 	amove usr/bin
 	ln -sf usr/bin $subpkgdir/bin
 }
 
 dev() {
 	default_dev
+
+	# for backwards compatibility
+	provides="libc-dev=$pkgver-r$pkgrel"
 
 	amove usr/lib/libc.so
 	amove usr/lib/libm.so
