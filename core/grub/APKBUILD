@@ -5,7 +5,7 @@ pkgname=grub
 # NOTE: After upgrading or applying a fix, please rebuild the following aport:
 # - grub-efi-signed
 pkgver=2.12
-pkgrel=1
+pkgrel=2
 _deb_peimage_ver="2.12-2"
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
@@ -232,7 +232,7 @@ package() {
 
 bios() {
 	pkgdesc="$pkgdesc (BIOS version)"
-	depends="$pkgname"
+	depends="$pkgname=$pkgver-r$pkgrel"
 	amove 'usr/lib/grub/*-pc'
 }
 
@@ -245,7 +245,7 @@ _grub_gen_earlyconf() {
 
 efi() {
 	pkgdesc="$pkgdesc (EFI version)"
-	depends="$pkgname"
+	depends="$pkgname=$pkgver-r$pkgrel"
 	amove 'usr/lib/grub/*-efi'
 
 	local _cd_modules="\
@@ -327,25 +327,25 @@ xenhost() {
 
 qemu_mips() {
 	pkgdesc="$pkgdesc (QEMU MIPS version)"
-	depends="$pkgname"
+	depends="$pkgname=$pkgver-r$pkgrel"
 	amove 'usr/lib/grub/*-qemu_mips'
 }
 
 ieee1275() {
 	pkgdesc="$pkgdesc (IEEE1275 version)"
-	depends="$pkgname powerpc-utils"
+	depends="$pkgname=$pkgver-r$pkgrel powerpc-utils"
 	amove 'usr/lib/grub/*-ieee1275'
 }
 
 emu() {
 	pkgdesc="$pkgdesc (EMU version)"
-	depends="$pkgname"
+	depends="$pkgname=$pkgver-r$pkgrel"
 	amove 'usr/lib/grub/*-emu'
 }
 
 mkfont() {
 	pkgdesc="$pkgdesc (mkfont utility)"
-	depends="$pkgname"
+	depends="$pkgname=$pkgver-r$pkgrel"
 	amove usr/bin/grub-mkfont
 }
 
