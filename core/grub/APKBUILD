@@ -5,7 +5,7 @@ pkgname=grub
 # NOTE: After upgrading or applying a fix, please rebuild the following aport:
 # - grub-efi-signed
 pkgver=2.12
-pkgrel=3
+pkgrel=4
 _deb_peimage_ver="2.12-2"
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
@@ -246,7 +246,7 @@ _grub_gen_earlyconf() {
 efi() {
 	pkgdesc="$pkgdesc (EFI version)"
 	depends="$pkgname=$pkgver-r$pkgrel"
-	amove 'usr/lib/grub/*-efi'
+	amove 'usr/lib/grub/*-efi' 'etc/grub.d/*_bli' 'etc/grub.d/*_uefi-firmware'
 
 	local _cd_modules="\
 		all_video cat configfile disk echo fat gzio halt help \
