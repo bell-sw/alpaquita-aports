@@ -135,24 +135,6 @@ package() {
 	ln -sf usr/sbin $pkgdir/sbin
 }
 
-dev() {
-	# libc-dev is for backwards compatibility
-	provides="musl-dev=1 libc-dev=1"
-	replaces="musl-perf-dev"
-
-	default_dev
-
-	strip --strip-debug "$subpkgdir"/usr/lib/*crt*.o
-}
-
-dbg() {
-	provides="musl-dbg=1"
-	replaces="musl-perf-dbg"
-	depends="$pkgname=$pkgver-r$pkgrel"
-
-	default_dbg
-}
-
 utils() {
 	# for backwards compatibility
 	provides="libc-utils=$pkgver-r$pkgrel"
@@ -183,6 +165,24 @@ libintl() {
 	mkdir -p "$subpkgdir"/usr/include
 	mv "$pkgdir"/usr/include/libintl.h \
 		"$subpkgdir"/usr/include/
+}
+
+dev() {
+	# libc-dev is for backwards compatibility
+	provides="musl-dev=1 libc-dev=1"
+	replaces="musl-perf-dev"
+
+	default_dev
+
+	strip --strip-debug "$subpkgdir"/usr/lib/*crt*.o
+}
+
+dbg() {
+	provides="musl-dbg=1"
+	replaces="musl-perf-dbg"
+	depends="$pkgname=$pkgver-r$pkgrel"
+
+	default_dbg
 }
 
 sha512sums="
