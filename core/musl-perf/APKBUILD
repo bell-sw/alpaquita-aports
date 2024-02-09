@@ -125,6 +125,20 @@ package() {
 	ln -sf usr/sbin $pkgdir/sbin
 }
 
+# currently we don't want by default any NLS
+# and use GNU gettext where needed. the plan is to migrate to
+# musl gettext() later on as fully as possible.
+libintl() {
+	provides="musl-libintl=1"
+	replaces="musl-default-libintl"
+	depends="$pkgname=$pkgver-r$pkgrel"
+
+	pkgdesc="musl libintl.h header"
+	mkdir -p "$subpkgdir"/usr/include
+	mv "$pkgdir"/usr/include/libintl.h \
+		"$subpkgdir"/usr/include/
+}
+
 dev() {
 	# libc-dev is for backwards compatibility
 	provides="musl-dev=1 libc-dev=1"
@@ -141,20 +155,6 @@ dbg() {
 	depends="$pkgname=$pkgver-r$pkgrel"
 
 	default_dbg
-}
-
-# currently we don't want by default any NLS
-# and use GNU gettext where needed. the plan is to migrate to
-# musl gettext() later on as fully as possible.
-libintl() {
-	provides="musl-libintl=1"
-	replaces="musl-default-libintl"
-	depends="$pkgname=$pkgver-r$pkgrel"
-
-	pkgdesc="musl libintl.h header"
-	mkdir -p "$subpkgdir"/usr/include
-	mv "$pkgdir"/usr/include/libintl.h \
-		"$subpkgdir"/usr/include/
 }
 
 sha512sums="
