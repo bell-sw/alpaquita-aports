@@ -6,11 +6,21 @@ _pkgname="${_java_pkgname}-nik"
 _nikmajor=22
 _javamajor=17
 _javaver=17.0.10
+
+# These are the tips of release/graal-vm/22.3 branches in
+# the corresponding repositories as of 2024-02-12
+_hash_graal="43cbf4c37b39c536caff7855b8178bcc41aef21f"
+_hash_graaljs="40982c78789fe2cc14df7e78790b4bcfa88b8fd9"
+_hash_graalpython="b9a35009367130e1128b627411b34d3700fa4f06"
+_hash_fastr="a9ebce23dcf689c989b13a3af688b3a6447e1fc3"
+_hash_truffleruby="ebcafc94e86c93995ff2d4e17b8f5056819bac57"
+_date_truffleruby="2022-12-12"
+
+# mx version used for the build
 _mxver=6.9.10
-_oldpkgver=22.3.1
 
 pkgname=$_pkgname-$_nikmajor-$_javamajor
-pkgver=22.3.3
+pkgver=22.3.5
 pkgrel=0
 pkgdesc="$VENDOR_JAVA_NAME Native Image Kit $pkgver (Java $_javamajor)"
 url="$VENDOR_URL"
@@ -59,14 +69,19 @@ subpackages="
 
 provides="openjdk-nik-22-17=$pkgver-r$pkgrel"
 
+# NB: we used to use the name "mx-6.9.10.tar.gz" for the repacked mx
+# archive in an older version of this package, so we need to rename
+# the archive we now get from github to avoid name collision.
 source="
-	${VENDOR_URL/\/\//\/\/download.}graalvm/graal-$pkgver.tar.gz
-	${VENDOR_URL/\/\//\/\/download.}graalvm/graaljs-$pkgver.tar.gz
-	${VENDOR_URL/\/\//\/\/download.}graalvm/graalpython-$pkgver.tar.gz
-	${VENDOR_URL/\/\//\/\/download.}graalvm/truffleruby-$_oldpkgver.tar.gz
-	${VENDOR_URL/\/\//\/\/download.}graalvm/fastr-$_oldpkgver.tar.gz
-	${VENDOR_URL/\/\//\/\/download.}graalvm/mx-$_mxver.tar.gz
+	graal-$_hash_graal.tar.gz::https://github.com/oracle/graal/archive/$_hash_graal.tar.gz
+	graaljs-$_hash_graaljs.tar.gz::https://github.com/oracle/graaljs/archive/$_hash_graaljs.tar.gz
+	graalpython-$_hash_graalpython.tar.gz::https://github.com/oracle/graalpython/archive/$_hash_graalpython.tar.gz
+	fastr-$_hash_fastr.tar.gz::https://github.com/oracle/fastr/archive/$_hash_fastr.tar.gz
+	truffleruby-$_hash_truffleruby.tar.gz::https://github.com/oracle/truffleruby/archive/$_hash_truffleruby.tar.gz
 
+	mx-6.9.10-github.tar.gz::https://github.com/graalvm/mx/archive/refs/tags/6.9.10.tar.gz
+
+	0000-graal-version-dev-to-release.patch
 	0001-graal-musl-libc-support.patch
 	0002-graal-enable-jvmci.patch
 	0003-graal-disable-watchdog.patch
@@ -77,10 +92,15 @@ source="
 	0008-graal-missing-includes.patch
    musl:0009-graal-musl-lfs64.patch
 	0010-graal-jcesecurity-identity-wrapper.patch
+	0011-graal-enable-awt-swing.patch
+	0012-graal-enable-awt-swing-support.patch
+	0013-graal-enable-awt-swing-substitute.patch
 
+	0000-graaljs-version-dev-to-release.patch
 	0001-graaljs-gyp-fix-node-build-failure-with-long-build-directory.patch
 	0002-graaljs-missing-includes.patch
 
+	0000-graalpython-version-dev-to-release.patch
 	0001-graalpython-add-ssizet-includes.patch
 
 	0001-truffleruby-librt-fix.patch
@@ -105,14 +125,16 @@ sonameprefix="$pkgname:"
 unpack() {
 	default_unpack
 
-	# some sources are still from 22.3.1, move them to 22.3.2
-	mv liberica-nik-$_oldpkgver/* -t liberica-nik-$pkgver
-	rmdir liberica-nik-$_oldpkgver
+	mkdir -p "$builddir"
 
-	local curbuilddir=$(readlink -f *-nik-$pkgver)
-	if [ "$curbuilddir" != "$builddir" ]; then
-		mv "$curbuilddir" "$builddir"
-	fi
+	# rename the directories to their basenames, dropping git refs
+	mv graal-$_hash_graal             "$builddir"/graal
+	mv graaljs-$_hash_graaljs         "$builddir"/graaljs
+	mv graalpython-$_hash_graalpython "$builddir"/graalpython
+	mv fastr-$_hash_fastr             "$builddir"/fastr
+	mv truffleruby-$_hash_truffleruby "$builddir"/truffleruby
+
+	mv mx-$_mxver                     "$builddir"/mx
 }
 
 prepare() {
@@ -145,8 +167,8 @@ build() {
 	mkdir ../../nik-core
 	cp -aR $(mx graalvm-home)/* ../../nik-core/
         
-	export TRUFFLERUBY_COMMIT_SHA=56ecb196a559ba921d395ff1b3e4f1f8c3ab8580
-	export TRUFFLERUBY_COMMIT_DATE=2022-07-13
+	export TRUFFLERUBY_COMMIT_SHA="$_hash_truffleruby"
+	export TRUFFLERUBY_COMMIT_DATE="$_date_truffleruby"
 	export FASTR_RELEASE=true
 	export FASTR_NO_RECOMMENDED=true
 	export FASTR_BUNDLE_DEPENDENCIES=
@@ -248,12 +270,13 @@ _ruby() {
 }
 
 sha512sums="
-85616495c4364bff92a22a378541fe5125c44dc9de028e7b1595296a8ff7264bc000583f336c5e12a4d82b065d2bc32c62b43f9b1fa5ba973bf623b76c498eb9  graal-22.3.3.tar.gz
-bde7e99c9e0d80ba3693d7e2dd4029fbfdd3d4a37e211abc31cd5266f41015416c1f51f635619d0d483e2a1e887ba1d533e6687bdec0ad4af79531e43cfee86a  graaljs-22.3.3.tar.gz
-0b759ddac1f787fadbfb601c8219d3d66a45b671c33c703d5c749145cbdc92b5bd6b804bdb945079914b369443adb358e8413f61d2a5a8eeb07ce27931a82d52  graalpython-22.3.3.tar.gz
-a9293f18b0069ee92a31170694f1f7f7c50dec7cd794d004a5f533d7641fc83ff3f4c4ff847f63539e6a675b600b99cd66ad16472fc8ff380f8bdbda3a78f2e9  truffleruby-22.3.1.tar.gz
-24c861ffa9ee6a773da6a7046357b03de647f6053f5a00a4e2637da3b3fcc2a26913350cb2a52b965696f6ad369f054714d10f1e19235a57b25a116f3778b399  fastr-22.3.1.tar.gz
-12fa8a59b26f4cdb14af77991261feab3dd0013bc0777609c6d03fee6107594127d2aa98b5abaa9c16c5b7cc905970c272b89778f5669c41234cdb40c8503793  mx-6.9.10.tar.gz
+f046478a67ddb86aa29ba5f72e1399e05c9bb946583ed4218b54a1cd05100a4e6ff3900d8401d22ec754651550a82e972c3eb32e695f4fda26015047bad626a0  graal-43cbf4c37b39c536caff7855b8178bcc41aef21f.tar.gz
+a84495595955c76bc54abc623762e5b0d05573a7082d7f107b5c6c98728def00b4c84c0e1222725d0bb2181d5cb7483535374fa9074782b36e71157a9639dedb  graaljs-40982c78789fe2cc14df7e78790b4bcfa88b8fd9.tar.gz
+83e6c8c8463ac385580f458b1fff32324e5f4532fdcaf3c37cba8f091d0ed363363462cabdb103c78c5fc9c285ade9a67bda26336122ff760747990fe5f184da  graalpython-b9a35009367130e1128b627411b34d3700fa4f06.tar.gz
+2b98d830bbf5970e3bbadbc46c213c1c1e5464c1225813c5d11b3705e9657fb02c2b66ab559142db173dabe627e30fc6b3e8d61ecdff514642fb4ff6e2c643f0  fastr-a9ebce23dcf689c989b13a3af688b3a6447e1fc3.tar.gz
+527290f60e67a3807e8a4803948bb19d762f5b47f0137d8930cce2e21aba03c849e9700f5d3f07b2fdbc9b4ca97611fdb3e1934e66660f6c3916af32e3d3ed87  truffleruby-ebcafc94e86c93995ff2d4e17b8f5056819bac57.tar.gz
+6065f7929acc5df19c7e94f506e552e65ac325930a6c052fde8e99594ef206eb721b3326943fd5a533d0c357ad7655387782c5005f9fed83ad6f9f6f3a871f9a  mx-6.9.10-github.tar.gz
+7e5516d3ec31550f56a4c8e2aa8e745b57a6e5e1bc2245feef25e0024ee26b6f06ecdc5ea1d03d7e3a7635fa92180c0dfa79567d073ed5d26ff0601d94cb6f03  0000-graal-version-dev-to-release.patch
 7b7b77d1c987d5e08331e80ef18cb10baea744dd520f02ebd5058f8c2b2c455d2c65984d2ef2cc477164e6c638d9a18026dacbdb0bf2dc31cf500714b1a331f4  0001-graal-musl-libc-support.patch
 254d6bc15b6058017b0e1ae03b74501263b2b378f9c8b3664c661ac9218de410dc837e2e23c050d18b3ff988aaa35757721fbff034331616db608416853078bd  0002-graal-enable-jvmci.patch
 f48fe9eb922cdbd76a2ab429c684104db8f330899fc1eb802d4e8260e77221b910f8f6fc3177adcf286f1a8c1f3c1d13b17df947a693691bacb97c15515cc3ef  0003-graal-disable-watchdog.patch
@@ -264,8 +287,13 @@ ac4979e81dac50dad0891a060602502dc546607fa938ddf41d7936a0991d7cbd40b7afd37d043fcb
 42566a3ecc356942cd9fb6b695a0e496e680c4363065819447dc236b0e3775c65203d07feb378d21065cfdbd8e5e588d8a31225d642cca188595b570556d3645  0008-graal-missing-includes.patch
 06bd6102b18b14c97652b8e7ea4930b83fc2c04a84d47c1b694c9f9b7162cc0b78776ecdaf76b16683185ba5723f5f9fc961820d87c33ed6c8cf86d0a51fe27f  0009-graal-musl-lfs64.patch
 b6a9d6d19b6987c07c26a1a2783cc38230f5d9c0555248b9d57de187cb5a265272b8dfb9e01d82721795ec48e7f118899e7f2276e91f0ba24e200a00ad4b932c  0010-graal-jcesecurity-identity-wrapper.patch
+f9eec3bccd18403175f91cdf8b4f7b323aaa64d398879b644b9a8f7319485525ecbeef426cb8affed9e01a5b5d4fd6531df0b372f760c4c498f7b3797625878f  0011-graal-enable-awt-swing.patch
+fa05f824a71bf56b636026f50bc30148041aeba9662893db795bb01675d9e44cd49347ac02616ce0bb863e01d90170ab1aa6e7f338e092850e23862358c0fcba  0012-graal-enable-awt-swing-support.patch
+65aeaf368aeabffa8e2816644bf7fe8254cc7b4e55f3d463adef192e55b165de5b190c252b7c07af314a9e3a8cffb77f0f9ccedf0b901f05eb985dc14ea8456a  0013-graal-enable-awt-swing-substitute.patch
+00365c483c1821e0b0739dfdb63fef6b49cb23d915f21197c662141e0490bcc6f023fb011499ef9a4b6c0b6402ddc5c42f6267adfaf0fde006598ffd5660f0bf  0000-graaljs-version-dev-to-release.patch
 7954925fb8d349369c0874913fc8e4ef77f3dddfcf52c80b8d5d66378783a67d13e8782f6837939b4951bafdf4c9f119092896c9658b4a4b2e12b19643bd97ac  0001-graaljs-gyp-fix-node-build-failure-with-long-build-directory.patch
 ae92017913cb7fb7e17f86f214a1fc9097c667347cbc5d8b763f1aa74892d67ff0be5b051422ba83b748c99912260651be1ea18feef7bb63bd0c04a3e07cf6cd  0002-graaljs-missing-includes.patch
+27a7020972bdfb58b4d524b08375e49bfc67a18ece377e3fff17a14cb56d4592b61de434424244259e46700121fe6dbf8516a3efc64753a238d03cc95ee79502  0000-graalpython-version-dev-to-release.patch
 443899decf1b0932cc14d3275e503c361e4e419569365a339bfb32b34cf776d0448cb73381828320e8e1b5fa6fe26b04e8c3b125c59b29f436329ff06e30272d  0001-graalpython-add-ssizet-includes.patch
 a252ade8bcdb0224584ff75111f33900de7087b6b9fb3f08f61e30cf21f0141413e37a9d5a734c1f51958631a1c872e3be434e0e1ddd249b17d34269b181464f  0001-truffleruby-librt-fix.patch
 486cd3d50a256baa5484dc95140ce7c78a72b354f3c7f0d78a8ecf9282f3478fb617d4b5434ef6fd8a6d84143ac263e93e0b10c07f6c22387800cd97e74c8d72  0002-truffleruby-allow-build-from-sources-out-of-the-vcs.patch

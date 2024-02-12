@@ -1,0 +1,329 @@
+diff --git a/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/JavaAWTSubstitutions.java b/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/JavaAWTSubstitutions.java
+index 49011552793..830296f15c4 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/JavaAWTSubstitutions.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/JavaAWTSubstitutions.java
+@@ -38,7 +38,8 @@ import com.oracle.svm.core.annotate.Delete;
+ import com.oracle.svm.core.annotate.Substitute;
+ import com.oracle.svm.core.annotate.TargetClass;
+ 
+-@Platforms(Platform.LINUX.class)
++import com.oracle.svm.core.jdk.JDK17OrLater;
++
+ @SuppressWarnings({"static-method", "unused"})
+ public final class JavaAWTSubstitutions {
+     // Checkstyle: stop
+@@ -75,6 +76,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms({Platform.LINUX.class, Platform.DARWIN.class})
+     @TargetClass(className = "sun.font.FileFontStrike")
+     static final class Target_sun_font_FileFontStrike {
+ 
+@@ -96,6 +98,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.awt.FontConfiguration")
+     static final class Target_sun_awt_FontConfiguration {
+ 
+@@ -115,11 +118,13 @@ public final class JavaAWTSubstitutions {
+         protected native void setFontConfiguration();
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     // Used in Target_sun_font_FcFontConfiguration#init()
+     @TargetClass(className = "sun.font.FontConfigManager", innerClass = "FcCompFont")
+     static final class Target_sun_font_FontConfigManager_FcCompFont {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     private static final class SunFontManagerEnabled implements BooleanSupplier {
+ 
+         @Override
+@@ -129,11 +134,13 @@ public final class JavaAWTSubstitutions {
+ 
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     // Used in Target_sun_font_FcFontConfiguration#init()
+     @TargetClass(className = "sun.font.SunFontManager", onlyWith = SunFontManagerEnabled.class)
+     static final class Target_sun_font_SunFontManager {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     // Used in Target_sun_font_FcFontConfiguration#init()
+     @TargetClass(className = "sun.awt.FcFontManager")
+     static final class Target_sun_awt_FcFontManager {
+@@ -142,6 +149,7 @@ public final class JavaAWTSubstitutions {
+         public synchronized native Target_sun_font_FontConfigManager getFontConfigManager();
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     // Used in Target_sun_font_FcFontConfiguration#init()
+     @TargetClass(className = "sun.font.FontConfigManager")
+     static final class Target_sun_font_FontConfigManager {
+@@ -154,6 +162,7 @@ public final class JavaAWTSubstitutions {
+         native void populateFontConfig(Target_sun_font_FontConfigManager_FcCompFont[] fcInfo);
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     // Used in Target_sun_font_FcFontConfiguration#init()
+     @TargetClass(className = "sun.font.FontUtilities")
+     static final class Target_sun_font_FontUtilities {
+@@ -162,6 +171,7 @@ public final class JavaAWTSubstitutions {
+         public static native boolean debugFonts();
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.font.FcFontConfiguration")
+     static final class Target_sun_font_FcFontConfiguration {
+         // Accessed from #init() - original field is private
+@@ -237,6 +247,7 @@ public final class JavaAWTSubstitutions {
+      * To prevent AWT linkage error that happens with 'awt_headless' in headless mode, we substitute
+      * native methods that depend on 'awt_xawt' library in the call-tree.
+      */
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.awt.X11.XToolkit", onlyWith = IsHeadless.class)
+     static final class Target_sun_awt_X11_XToolkit {
+ 
+@@ -266,6 +277,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "java.awt.Window", onlyWith = IsHeadless.class)
+     static final class Target_java_awt_Window {
+ 
+@@ -285,6 +297,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.awt.X11.XWindow", onlyWith = IsHeadless.class)
+     static final class Target_sun_awt_X11_XWindow {
+ 
+@@ -294,11 +307,13 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.awt.X11.XBaseWindow", onlyWith = IsHeadless.class)
+     @Delete
+     static final class Target_sun_awt_X11_XBaseWindow {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.awt.X11.XlibWrapper", onlyWith = IsHeadless.class)
+     static final class Target_sun_awt_X11_XlibWrapper {
+ 
+@@ -567,6 +582,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.java2d.xr.XRBackendNative", onlyWith = IsHeadless.class)
+     static final class Target_sun_java2d_xr_XRBackendNative {
+ 
+@@ -697,6 +713,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.awt.X11InputMethodBase", onlyWith = IsHeadless.class)
+     static final class Target_sun_awt_X11InputMethodBase {
+ 
+@@ -731,6 +748,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.awt.UNIXToolkit", onlyWith = IsHeadless.class)
+     static final class Target_sun_awt_UNIXToolkit {
+ 
+@@ -762,6 +780,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.awt.X11GraphicsConfig", onlyWith = IsHeadless.class)
+     static final class Target_sun_awt_X11GraphicsConfig {
+ 
+@@ -781,10 +800,12 @@ public final class JavaAWTSubstitutions {
+      *                                                 ^
+      * </pre>
+      */
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "java.awt.peer.ComponentPeer", onlyWith = IsHeadless.class)
+     static final class Target_java_awt_peer_ComponentPeer {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "java.awt.AWTEvent", onlyWith = IsHeadless.class)
+     static final class Target_java_awt_AWTEvent {
+ 
+@@ -794,6 +815,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.java2d.opengl.OGLSurfaceData", onlyWith = IsHeadless.class)
+     static final class Target_sun_java2d_opengl_OGLSurfaceData {
+ 
+@@ -819,6 +841,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.java2d.opengl.OGLRenderQueue", onlyWith = IsHeadless.class)
+     static final class Target_sun_java2d_opengl_OGLRenderQueue {
+ 
+@@ -828,6 +851,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.awt.X11.XTaskbarPeer", onlyWith = IsHeadless.class)
+     static final class Target_sun_awt_X11_XTaskbarPeer {
+ 
+@@ -837,6 +861,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.awt.X11.XDesktopPeer", onlyWith = IsHeadless.class)
+     static final class Target_sun_awt_X11_XDesktopPeer {
+ 
+@@ -846,6 +871,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.awt.X11.GtkFileDialogPeer", onlyWith = IsHeadless.class)
+     static final class Target_sun_awt_X11_GtkFileDialogPeer {
+ 
+@@ -876,6 +902,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.awt.X11.XRobotPeer", onlyWith = IsHeadless.class)
+     static final class Target_sun_awt_X11_XRobotPeer {
+ 
+@@ -885,6 +912,7 @@ public final class JavaAWTSubstitutions {
+         }
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.awt.X11.XInputMethod", onlyWith = IsHeadless.class)
+     static final class Target_sun_awt_X11_XInputMethod {
+ 
+@@ -900,62 +928,74 @@ public final class JavaAWTSubstitutions {
+      * enough - we must @Delete these classes to prevent linker errors.
+      */
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.java2d.loops.DrawGlyphListAA", onlyWith = FontsDisabled.class)
+     @Delete(value = FontsDisabled.FONTS_DISABLED_REASON)
+     static final class Target_sun_java2d_loops_DrawGlyphListAA {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.java2d.loops.DrawGlyphList", onlyWith = FontsDisabled.class)
+     @Delete(value = FontsDisabled.FONTS_DISABLED_REASON)
+     static final class Target_sun_java2d_loops_DrawGlyphList {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.java2d.loops.DrawGlyphListLCD", onlyWith = FontsDisabled.class)
+     @Delete(value = FontsDisabled.FONTS_DISABLED_REASON)
+     static final class Target_sun_java2d_loops_DrawGlyphListLCD {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.font.SunLayoutEngine", onlyWith = FontsDisabled.class)
+     @Delete(value = FontsDisabled.FONTS_DISABLED_REASON)
+     static final class Target_sun_font_SunLayoutEngine {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.font.FreetypeFontScaler", onlyWith = FontsDisabled.class)
+     @Delete(value = FontsDisabled.FONTS_DISABLED_REASON)
+     static final class Target_sun_font_FreetypeFontScaler {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.font.NativeFont", onlyWith = FontsDisabled.class)
+     @Delete(value = FontsDisabled.FONTS_DISABLED_REASON)
+     static final class Target_sun_font_NativeFont {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.font.StrikeCache", onlyWith = FontsDisabled.class)
+     @Delete(value = FontsDisabled.FONTS_DISABLED_REASON)
+     static final class Target_sun_font_StrikeCache {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.font.NativeStrikeDisposer", onlyWith = FontsDisabled.class)
+     @Delete(value = FontsDisabled.FONTS_DISABLED_REASON)
+     static final class Target_sun_font_NativeStrikeDisposer {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.font.NativeStrike", onlyWith = FontsDisabled.class)
+     @Delete(value = FontsDisabled.FONTS_DISABLED_REASON)
+     static final class Target_sun_font_NativeStrike {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.font.SunFontManager", onlyWith = FontsDisabled.class)
+     @Delete(value = FontsDisabled.FONTS_DISABLED_REASON)
+     static final class Target_sun_font_SunFontManagerDeleted {
+     }
+ 
++    @Platforms(Platform.LINUX.class)
+     @TargetClass(className = "sun.font.NullFontScaler", onlyWith = FontsDisabled.class)
+     @Delete(value = FontsDisabled.FONTS_DISABLED_REASON)
+     static final class Target_sun_font_NullFontScaler {
+     }
+ 
+     // To support headless mode
++    @Platforms(Platform.LINUX.class)
+     static class IsHeadless implements BooleanSupplier {
+         @Override
+         public boolean getAsBoolean() {
+@@ -964,6 +1004,7 @@ public final class JavaAWTSubstitutions {
+     }
+     // Checkstyle: resume
+ 
++    @Platforms(Platform.LINUX.class)
+     static class FontsDisabled implements BooleanSupplier {
+         @Override
+         public boolean getAsBoolean() {
+@@ -973,4 +1014,24 @@ public final class JavaAWTSubstitutions {
+         public static final String FONTS_DISABLED_REASON = "AWT uses fontconfig to implement font related functionality on Linux. All fontconfig uses happen through dlsym which doesn't work in a static executable. " +
+                         "Try avoiding the use of this class in the project or turn off static executable generation.";
+     }
++
++    @Platforms(Platform.DARWIN.class)
++    @TargetClass(className = "sun.font.CStrikeDisposer")
++    static final class Target_sun_font_CStrikeDisposer {
++
++        @Substitute
++        private void freeNativeScalerContext(long pContext) {
++            throw new UnsupportedOperationException();
++        }
++    }
++
++    @Platforms(Platform.DARWIN.class)
++    @TargetClass(className = "sun.java2d.metal.MTLSurfaceData", onlyWith = JDK17OrLater.class)
++    static final class Target_sun_java2d_metal_MTLSurfaceData {
++
++        @Substitute
++        protected boolean initFlipBackbuffer(long pData) {
++            throw new UnsupportedOperationException();
++        }
++    }
+ }
