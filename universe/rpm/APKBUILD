@@ -1,6 +1,6 @@
 pkgname=rpm
 pkgver=4.19.1.1
-pkgrel=0
+pkgrel=1
 case $pkgver in
 	*.*.*.*)	_majorver=${pkgver%.*.*} ;;
 	*.*.*)		_majorver=${pkgver%.*} ;;
@@ -41,6 +41,10 @@ makedepends="
 	"
 options="!check" # tests require running a podman/bubblewrap container
 subpackages="$pkgname-dev $pkgname-doc $pkgname-lang py3-rpm:py_rpm"
+
+# annocheck depends on rpm-libs
+subpackages="$subpackages $pkgname-libs"
+
 source="https://ftp.osuosl.org/pub/rpm/releases/rpm-$_majorver.x/rpm-$pkgver.tar.bz2
 	fix-glibc-glob.patch
 	"
