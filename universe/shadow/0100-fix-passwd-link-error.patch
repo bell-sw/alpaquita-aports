@@ -1,4 +1,4 @@
-From 07b9778c0b353a0369d1064b1309046418fe32df Mon Sep 17 00:00:00 2001
+From c5059bc0d587582a44d6047bc701222ea145549e Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Wed, 6 Sep 2023 13:35:37 +0000
 Subject: [PATCH] fix passwd link error
@@ -13,31 +13,31 @@ be linked with -lcrypt.
  2 files changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/src/Makefile.am b/src/Makefile.am
-index 585a0b7..8a40ee4 100644
+index b6cb09e..931712d 100644
 --- a/src/Makefile.am
 +++ b/src/Makefile.am
-@@ -125,7 +125,7 @@ login_LDADD    = $(LDADD) $(LIBPAM) $(LIBAUDIT) $(LIBCRYPT_NOPAM) $(LIBSKEY) $(L
+@@ -123,7 +123,7 @@ login_LDADD    = $(LDADD) $(LIBPAM) $(LIBAUDIT) $(LIBCRYPT_NOPAM) $(LIBSKEY) $(L
  newgrp_LDADD   = $(LDADD) $(LIBAUDIT) $(LIBCRYPT) $(LIBECONF)
  newusers_LDADD = $(LDADD) $(LIBPAM) $(LIBAUDIT) $(LIBSELINUX) $(LIBCRYPT) $(LIBECONF) -ldl
  nologin_LDADD  =
--passwd_LDADD   = $(LDADD) $(LIBPAM) $(LIBCRACK) $(LIBAUDIT) $(LIBSELINUX) $(LIBCRYPT_NOPAM) $(LIBECONF) -ldl
-+passwd_LDADD   = $(LDADD) $(LIBPAM) $(LIBCRACK) $(LIBAUDIT) $(LIBSELINUX) $(LIBCRYPT) $(LIBECONF) -ldl
+-passwd_LDADD   = $(LDADD) $(LIBPAM) $(LIBAUDIT) $(LIBSELINUX) $(LIBCRYPT_NOPAM) $(LIBECONF) -ldl
++passwd_LDADD   = $(LDADD) $(LIBPAM) $(LIBAUDIT) $(LIBSELINUX) $(LIBCRYPT) $(LIBECONF) -ldl
  pwck_LDADD     = $(LDADD) $(LIBAUDIT) $(LIBSELINUX) $(LIBECONF)
  pwconv_LDADD   = $(LDADD) $(LIBAUDIT) $(LIBSELINUX) $(LIBECONF)
  pwunconv_LDADD = $(LDADD) $(LIBAUDIT) $(LIBSELINUX) $(LIBECONF)
 diff --git a/src/Makefile.in b/src/Makefile.in
-index 2f69a40..6e84eb2 100644
+index 9f26971..b935adb 100644
 --- a/src/Makefile.in
 +++ b/src/Makefile.in
-@@ -693,7 +693,7 @@ login_LDADD = $(LDADD) $(LIBPAM) $(LIBAUDIT) $(LIBCRYPT_NOPAM) $(LIBSKEY) $(LIBM
+@@ -687,7 +687,7 @@ login_LDADD = $(LDADD) $(LIBPAM) $(LIBAUDIT) $(LIBCRYPT_NOPAM) $(LIBSKEY) $(LIBM
  newgrp_LDADD = $(LDADD) $(LIBAUDIT) $(LIBCRYPT) $(LIBECONF)
  newusers_LDADD = $(LDADD) $(LIBPAM) $(LIBAUDIT) $(LIBSELINUX) $(LIBCRYPT) $(LIBECONF) -ldl
  nologin_LDADD = 
--passwd_LDADD = $(LDADD) $(LIBPAM) $(LIBCRACK) $(LIBAUDIT) $(LIBSELINUX) $(LIBCRYPT_NOPAM) $(LIBECONF) -ldl
-+passwd_LDADD = $(LDADD) $(LIBPAM) $(LIBCRACK) $(LIBAUDIT) $(LIBSELINUX) $(LIBCRYPT) $(LIBECONF) -ldl
+-passwd_LDADD = $(LDADD) $(LIBPAM) $(LIBAUDIT) $(LIBSELINUX) $(LIBCRYPT_NOPAM) $(LIBECONF) -ldl
++passwd_LDADD = $(LDADD) $(LIBPAM) $(LIBAUDIT) $(LIBSELINUX) $(LIBCRYPT) $(LIBECONF) -ldl
  pwck_LDADD = $(LDADD) $(LIBAUDIT) $(LIBSELINUX) $(LIBECONF)
  pwconv_LDADD = $(LDADD) $(LIBAUDIT) $(LIBSELINUX) $(LIBECONF)
  pwunconv_LDADD = $(LDADD) $(LIBAUDIT) $(LIBSELINUX) $(LIBECONF)
 -- 
-2.25.1
+2.44.0
 
