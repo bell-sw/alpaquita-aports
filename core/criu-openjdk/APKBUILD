@@ -1,0 +1,79 @@
+pkgname=criu-openjdk
+pkgver=1.4
+pkgrel=0
+pkgdesc="Checkpoint and Restore in Userspace"
+url="http://criu.org/"
+arch="x86_64"
+license="GPL-2.0-only"
+
+# make test requires py3-protobuf that we don't have packaged yet
+options="!check"
+# options="checkroot"
+
+# XXX: criu wants lz4io as a library and so it build its own copy
+_lz4_version=1.9.4
+
+makedepends="
+	libcap-dev
+	libnet-dev
+	libnet-static
+	libnl3-dev
+	libnl3-static
+	protobuf-c-dev
+	protobuf-dev
+	python3
+	"
+
+# checkdepends="
+# 	libaio-dev
+# 	py3-yaml
+# 	py3-protobuf
+# 	"
+
+source="
+	http://packages.bell-sw.com/alpaquita/distfiles/checkpointrestore-criu-bell-sw-release-$pkgver-ga.tar.bz2
+	criu-lz4-$_lz4_version.tar.gz::https://github.com/lz4/lz4/archive/v$_lz4_version.tar.gz
+
+	features.patch
+	lz4-drop-in.patch
+	musl-support.patch
+	"
+
+builddir="$srcdir/checkpointrestore-criu-bell-sw-release-$pkgver-ga"
+
+unpack() {
+	# unpack both criu and lz4 in srcdir
+	default_unpack
+
+	# move lz4 into the location criu wants it
+	rmdir "$builddir/lz4"	# empty placeholder (git module)
+	mv lz4-$_lz4_version "$builddir/lz4"
+}
+
+build() {
+	local verbose
+	# verbose="-w V=1"	# uncomment if necessary
+
+	make $verbose WERROR=0
+}
+
+package() {
+	# openjdk needs just the criu binary and it expects it in its
+	# own libdir.  install the binary (shared by different jdk
+	# versions) in libexec and let the jdk packages pick it from
+	# there, creating the necessary link in their post-install
+	# script.
+	#
+	# in case we might also need to install criu-ns later, use a
+	# subdir in libexec so that we have our options open.
+	mkdir -p "$pkgdir"/usr/libexec/$pkgname
+	cp "$builddir"/criu/criu "$pkgdir"/usr/libexec/$pkgname/
+}
+
+sha512sums="
+642db7213e4f0b1ec0af963c1a5021b32bc4a9875afee14a8fd3c1f6eb3b3d986c29f146867e61fe9dd38d60da880044d941ed08fcc0d979038f6cd7bebb4beb  checkpointrestore-criu-bell-sw-release-1.4-ga.tar.bz2
+043a9acb2417624019d73db140d83b80f1d7c43a6fd5be839193d68df8fd0b3f610d7ed4d628c2a9184f7cde9a0fd1ba9d075d8251298e3eb4b3a77f52736684  criu-lz4-1.9.4.tar.gz
+f80b861acb883a5060f798864d39b192c827ebfd1a0f60a8503707e159a3b51b4e67072402a5acffbe769f9a51f480ec5c3e0cf18d125e9a0703e777f75348f9  features.patch
+2c13de6f028125ea08ddb2f699b7170e53e732a8c0c037d66a0711f08e2d23539438950091b9671b661094ea128a0cd498d290d839a1d279e910f0c0da609892  lz4-drop-in.patch
+cd1f95f11b55466fe7173f22a0315b98fe5a487d3488750449aad04485fe7bb34a907b14651c5d7e74b04b5248a34d8a9ff3fb32efc4f2225a058192c53c1552  musl-support.patch
+"

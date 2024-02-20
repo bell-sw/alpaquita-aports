@@ -1,0 +1,29 @@
+--- a/Makefile
++++ b/Makefile
+@@ -101,6 +101,7 @@
+ 
+ #
+ # Independent options for all tools.
++DEFINES			+= -D_LARGEFILE64_SOURCE
+ DEFINES			+= -D_FILE_OFFSET_BITS=64
+ DEFINES			+= -D_GNU_SOURCE
+ 
+--- a/criu/arch/x86/include/asm/thread_pointer.h
++++ b/criu/arch/x86/include/asm/thread_pointer.h
+@@ -19,6 +19,16 @@
+ #ifndef _SYS_THREAD_POINTER_H
+ #define _SYS_THREAD_POINTER_H
+ 
++#if !defined(__GNUC_PREREQ)
++#ifdef __GNUC__
++#define __GNUC_PREREQ(x, y)	\
++    ((__GNUC__ > (x)) || (__GNUC__ == (x) && __GNUC_MINOR__ >= (y)))
++#else
++#define __GNUC_PREREQ(x, y)   0
++#endif
++#endif	/* !__GNUC_PREREQ */
++
++
+ static inline void *__criu_thread_pointer(void)
+ {
+ #if __GNUC_PREREQ(11, 1)

@@ -1,0 +1,147 @@
+Don't let the makefile run configure-like feature detection checks at
+build time and pick up random features based on what happens to be
+installed in the build environment.
+
+
+--- a/Makefile.config
++++ b/Makefile.config
+@@ -2,57 +2,57 @@ include $(__nmk_dir)utils.mk
+ include $(__nmk_dir)msg.mk
+ include scripts/feature-tests.mak
+ 
+-ifeq ($(call try-cc,$(FEATURE_TEST_LIBBSD_DEV),-lbsd),true)
+-        LIBS_FEATURES	+= -lbsd
+-        FEATURE_DEFINES	+= -DCONFIG_HAS_LIBBSD
+-else
+-        $(info Note: Building without setproctitle() and strlcpy() support.)
+-        $(info $(info)      To enable these features, please install libbsd-devel (RPM) / libbsd-dev (DEB).)
+-endif
+-
+-ifeq ($(call pkg-config-check,libselinux),y)
+-        LIBS_FEATURES	+= -lselinux
+-        FEATURE_DEFINES	+= -DCONFIG_HAS_SELINUX
+-endif
+-
+-ifeq ($(call pkg-config-check,libbpf),y)
+-        LIBS_FEATURES	+= -lbpf
+-        FEATURE_DEFINES	+= -DCONFIG_HAS_LIBBPF
+-        export CONFIG_HAS_LIBBPF := y
+-endif
+-
+-ifeq ($(call pkg-config-check,libdrm),y)
+-        export CONFIG_AMDGPU := y
+-        $(info Note: Building criu with amdgpu_plugin.)
+-else
+-        $(info Note: Building criu without amdgpu_plugin.)
+-        $(info Note: libdrm and libdrm_amdgpu are required to build amdgpu_plugin.)
+-endif
+-
+-ifeq ($(NO_GNUTLS)x$(call pkg-config-check,gnutls),xy)
+-        LIBS_FEATURES	+= -lgnutls
+-        export CONFIG_GNUTLS := y
+-        FEATURE_DEFINES	+= -DCONFIG_GNUTLS
+-else
+-        $(info Note: Building without GnuTLS support)
+-endif
+-
+-ifeq ($(call pkg-config-check,libnftables),y)
+-        LIB_NFTABLES	:= $(shell $(PKG_CONFIG) --libs libnftables)
+-        ifeq ($(call try-cc,$(FEATURE_TEST_NFTABLES_LIB_API_0),$(LIB_NFTABLES)),true)
+-                LIBS_FEATURES	+= $(LIB_NFTABLES)
+-                FEATURE_DEFINES	+= -DCONFIG_HAS_NFTABLES_LIB_API_0
+-        else ifeq ($(call try-cc,$(FEATURE_TEST_NFTABLES_LIB_API_1),$(LIB_NFTABLES)),true)
+-                LIBS_FEATURES	+= $(LIB_NFTABLES)
+-                FEATURE_DEFINES	+= -DCONFIG_HAS_NFTABLES_LIB_API_1
+-        else
+-                $(warning Warn: you have libnftables installed but it has incompatible API)
+-                $(warning Warn: Building without nftables support)
+-        endif
+-else
+-        $(warning Warn: you have no libnftables installed)
+-        $(warning Warn: Building without nftables support)
+-endif
++# ifeq ($(call try-cc,$(FEATURE_TEST_LIBBSD_DEV),-lbsd),true)
++#         LIBS_FEATURES	+= -lbsd
++#         FEATURE_DEFINES	+= -DCONFIG_HAS_LIBBSD
++# else
++#         $(info Note: Building without setproctitle() and strlcpy() support.)
++#         $(info $(info)      To enable these features, please install libbsd-devel (RPM) / libbsd-dev (DEB).)
++# endif
++
++# ifeq ($(call pkg-config-check,libselinux),y)
++#         LIBS_FEATURES	+= -lselinux
++#         FEATURE_DEFINES	+= -DCONFIG_HAS_SELINUX
++# endif
++
++# ifeq ($(call pkg-config-check,libbpf),y)
++#         LIBS_FEATURES	+= -lbpf
++#         FEATURE_DEFINES	+= -DCONFIG_HAS_LIBBPF
++#         export CONFIG_HAS_LIBBPF := y
++# endif
++
++# ifeq ($(call pkg-config-check,libdrm),y)
++#         export CONFIG_AMDGPU := y
++#         $(info Note: Building criu with amdgpu_plugin.)
++# else
++#         $(info Note: Building criu without amdgpu_plugin.)
++#         $(info Note: libdrm and libdrm_amdgpu are required to build amdgpu_plugin.)
++# endif
++
++# ifeq ($(NO_GNUTLS)x$(call pkg-config-check,gnutls),xy)
++#         LIBS_FEATURES	+= -lgnutls
++#         export CONFIG_GNUTLS := y
++#         FEATURE_DEFINES	+= -DCONFIG_GNUTLS
++# else
++#         $(info Note: Building without GnuTLS support)
++# endif
++
++# ifeq ($(call pkg-config-check,libnftables),y)
++#         LIB_NFTABLES	:= $(shell $(PKG_CONFIG) --libs libnftables)
++#         ifeq ($(call try-cc,$(FEATURE_TEST_NFTABLES_LIB_API_0),$(LIB_NFTABLES)),true)
++#                 LIBS_FEATURES	+= $(LIB_NFTABLES)
++#                 FEATURE_DEFINES	+= -DCONFIG_HAS_NFTABLES_LIB_API_0
++#         else ifeq ($(call try-cc,$(FEATURE_TEST_NFTABLES_LIB_API_1),$(LIB_NFTABLES)),true)
++#                 LIBS_FEATURES	+= $(LIB_NFTABLES)
++#                 FEATURE_DEFINES	+= -DCONFIG_HAS_NFTABLES_LIB_API_1
++#         else
++#                 $(warning Warn: you have libnftables installed but it has incompatible API)
++#                 $(warning Warn: Building without nftables support)
++#         endif
++# else
++#         $(warning Warn: you have no libnftables installed)
++#         $(warning Warn: Building without nftables support)
++# endif
+ 
+ export LIBS += $(LIBS_FEATURES)
+ 
+@@ -61,18 +61,18 @@ CONFIG_FILE = .config
+ $(CONFIG_FILE):
+ 	touch $(CONFIG_FILE)
+ 
+-ifeq ($(ARCH),x86)
+-# CONFIG_COMPAT is only for x86 now, no need for compile-test other archs
+-ifeq ($(call try-asm,$(FEATURE_TEST_X86_COMPAT)),true)
+-        export CONFIG_COMPAT := y
+-        FEATURE_DEFINES	+= -DCONFIG_COMPAT
+-else
+-        $(info Note: Building without ia32 C/R, missed ia32 support in gcc)
+-        $(info $(info)      That may be related to missing gcc-multilib in your)
+-        $(info $(info)      distribution or you may have Debian with buggy toolchain)
+-        $(info $(info)      (issue https://github.com/checkpoint-restore/criu/issues/315))
+-endif
+-endif
++# ifeq ($(ARCH),x86)
++# # CONFIG_COMPAT is only for x86 now, no need for compile-test other archs
++# ifeq ($(call try-asm,$(FEATURE_TEST_X86_COMPAT)),true)
++#         export CONFIG_COMPAT := y
++#         FEATURE_DEFINES	+= -DCONFIG_COMPAT
++# else
++#         $(info Note: Building without ia32 C/R, missed ia32 support in gcc)
++#         $(info $(info)      That may be related to missing gcc-multilib in your)
++#         $(info $(info)      distribution or you may have Debian with buggy toolchain)
++#         $(info $(info)      (issue https://github.com/checkpoint-restore/criu/issues/315))
++# endif
++# endif
+ 
+ export DEFINES += $(FEATURE_DEFINES)
+ export CFLAGS += $(FEATURE_DEFINES)
