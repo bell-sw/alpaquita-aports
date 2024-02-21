@@ -2,7 +2,7 @@
 
 pkgname=db
 pkgver=5.3.28
-pkgrel=5
+pkgrel=6
 pkgdesc="The Berkeley DB embedded database system"
 url="https://www.oracle.com/technology/software/products/berkeley-db/index.html"
 arch="all"
@@ -11,6 +11,8 @@ options="!check"  # "check target not available"
 subpackages="$pkgname-dev $pkgname-doc $pkgname-utils $pkgname-c++:cxx"
 source="https://download.oracle.com/berkeley-db/db-$pkgver.tar.gz
 	atomic.patch
+
+	0100-CVE-2019-2708.patch
 	"
 
 prepare() {
@@ -58,4 +60,5 @@ cxx() {
 sha512sums="
 e91bbe550fc147a8be7e69ade86fdb7066453814971b2b0223f7d17712bd029a8eff5b2b6b238042ff6ec1ffa6879d44cb95c5645a922fee305c26c3eeaee090  db-5.3.28.tar.gz
 e9fedc5b870b95fe772a8121fca8b3642327d960441fe40a1090375efd37eec397a508e6e9100c2817c02bb4380421eb8ea400aeb060fe46a8bdac83a1abfbeb  atomic.patch
+4acf964fd2ad6016485cb9242f2c1d8c35021b72e6fb5b2177484522b489ffb95b771839b2c6edb03ae79f4af2a934c0a613a81ba6e03154df4f8d2186be6f48  0100-CVE-2019-2708.patch
 "
