@@ -1,14 +1,15 @@
 pkgname=criu-openjdk
 pkgver=1.4
-pkgrel=1
+pkgrel=2
 pkgdesc="Checkpoint and Restore in Userspace"
-url="http://criu.org/"
+url="https://github.com/openjdk/crac"
 arch="x86_64"
 license="GPL-2.0-only"
 
 # annobin interferes with criu and must be disabled
+# yes, openjdk-crac officially requires criu to be installed setuid
 # make test requires py3-protobuf that we don't have packaged yet
-options="!annobin !check"
+options="!annobin suid !check"
 # options="checkroot"
 
 # XXX: criu wants lz4io as a library and so it build its own copy
@@ -67,8 +68,8 @@ package() {
 	#
 	# in case we might also need to install criu-ns later, use a
 	# subdir in libexec so that we have our options open.
-	mkdir -p "$pkgdir"/usr/libexec/$pkgname
-	cp "$builddir"/criu/criu "$pkgdir"/usr/libexec/$pkgname/
+	install -d "$pkgdir"/usr/libexec/$pkgname
+	install -m 4755 "$builddir"/criu/criu "$pkgdir"/usr/libexec/$pkgname/criu
 }
 
 sha512sums="
