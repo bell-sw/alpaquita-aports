@@ -132,7 +132,7 @@ check() {
 
 package() {
 	mkdir srcjdk
-	tar --strip-components=1 -xf build/linux-*-release/bundles/*_bin.tar.gz -C srcjdk
+	tar -C srcjdk -xf build/linux-*-release/bundles/*_bin.tar.gz --no-same-owner --strip-components=1
 
 	local _modules=$(srcjdk/bin/java --list-modules | sed "s/@${_java_ver%+*}//" | tr '\n' ',')
 	srcjdk/bin/jlink \
@@ -278,7 +278,7 @@ _demos() {
 	provides="openjdk17-lite-demos=$pkgver-r$pkgrel"
 
 	mkdir -p "$subpkgdir/$_java_home"
-	tar --strip-components=1 -xf "$builddir"/build/linux-*-release/bundles/*_bin-tests-demos.tar.gz -C "$subpkgdir/$_java_home"
+	tar -C "$subpkgdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-tests-demos.tar.gz --no-same-owner --strip-components=1
 }
 
 _src() {
@@ -297,7 +297,7 @@ _dbg() {
 
 	local debugdir="$subpkgdir/usr/lib/debug"
 	mkdir -p "$debugdir/$_java_home"
-	tar --strip-components=1 -xf "$builddir"/build/linux-*-release/bundles/*_bin-symbols.tar.gz -C "$debugdir/$_java_home"
+	tar -C "$debugdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-symbols.tar.gz --no-same-owner --strip-components=1
 }
 
 _jdk_all() {
