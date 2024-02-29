@@ -155,7 +155,7 @@ check() {
 
 package() {
 	mkdir -p "$pkgdir/$_java_home"
-	tar --strip-components=1 -xf build/linux-*-release/bundles/*_bin.tar.gz -C "$pkgdir/$_java_home"
+	tar -C "$pkgdir/$_java_home" -xf build/linux-*-release/bundles/*_bin.tar.gz --no-same-owner --strip-components=1
 }
 
 _jre_cds() {
@@ -288,7 +288,7 @@ _demos() {
 	provides="openjdk17-crac-demos=$pkgver-r$pkgrel"
 
 	mkdir -p "$subpkgdir/$_java_home"
-	tar --strip-components=1 -xf "$builddir"/build/linux-*-release/bundles/*_bin-tests-demos.tar.gz -C "$subpkgdir/$_java_home"
+	tar -C "$subpkgdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-tests-demos.tar.gz --no-same-owner --strip-components=1
 }
 
 _src() {
@@ -307,7 +307,7 @@ _dbg() {
 
 	local debugdir="$subpkgdir/usr/lib/debug"
 	mkdir -p "$debugdir/$_java_home"
-	tar --strip-components=1 -xf "$builddir"/build/linux-*-release/bundles/*_bin-symbols.tar.gz -C "$debugdir/$_java_home"
+	tar -C "$debugdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-symbols.tar.gz --no-same-owner --strip-components=1
 }
 
 _libs_static() {
@@ -316,7 +316,7 @@ _libs_static() {
 	provides="openjdk17-crac-libs-static=$pkgver-r$pkgrel"
 
 	mkdir -p "$subpkgdir/$_java_home/lib"
-	tar --strip-components=1 -xf "$builddir"/build/linux-*-release/bundles/*_bin-static-libs.tar.gz -C "$subpkgdir/$_java_home"
+	tar -C "$subpkgdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-static-libs.tar.gz --no-same-owner --strip-components=1
 }
 
 sha512sums="
