@@ -1,12 +1,11 @@
-
 # Description: standartd C Library designed for Linux. Designed to allow
 # efficient static linking and to have realtime-quality robustness by avoiding
 # race conditions, internal failures on resource exhaustion and various other
 # bad worst-case behaviors present in existing implementations.
 
 pkgname=musl-perf
-pkgver=1.2.4_git20230717
-pkgrel=9
+pkgver=1.2.5
+pkgrel=0
 pkgdesc="the musl c library (libc) implementation (optimized for performance)"
 url="https://musl.libc.org/"
 arch="x86_64"
@@ -29,11 +28,7 @@ case "$BOOTSTRAP" in
 nocc)	pkgname="$pkgname-dev"; subpackages="";;
 nolibc) ;;
 esac
-_commit="83b858f83b658bd34eca5d8ad4d145f673ae7e5e"
-source="musl-$_commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$_commit.tar.gz
-	remove-dns-63-records-limit.patch
-	0001-elf.h-add-typedefs-for-Elf-_Relr.patch
-	0002-remove-non-prototype-declaration-of-basename-from-st.patch
+source="https://musl.libc.org/releases/musl-$pkgver.tar.gz
 
 	0100-ldso-dynlink-add-ifunc-support.patch
 	0101-support-ifunc-in-static-linking.patch
@@ -51,8 +46,6 @@ source="musl-$_commit.tar.gz::https://git.musl-libc.org/cgit/musl/snapshot/$_com
 #     - CVE-2019-14697
 #   1.1.15-r4:
 #     - CVE-2016-8859
-
-builddir="$srcdir"/$_commit
 
 prepare() {
 	default_prepare
@@ -158,10 +151,7 @@ dbg() {
 }
 
 sha512sums="
-29c8b33565f2f7aeacf274e8029b94dc515c569f2e3fc27acb0cf8254e22d6248bf0948076f2c2887ba0495ff2e2db59f760d69d2b4ee6697fea4cda1adf9136  musl-83b858f83b658bd34eca5d8ad4d145f673ae7e5e.tar.gz
-088620aeeea1a407a103728f839d21c10c830820e1dae970edd70282534758d7fdb6d1d2d2761ccecac7a3e56ffb79c7b7085f3fe80a01d324d7bc0d94bb15f7  remove-dns-63-records-limit.patch
-b1f5c1b849f7ec8de6a5f619476f560ea6bf02aad2becfb4e35873d05e01777d5447992b96b0c7f2903c2d8ff094c06927a6ff85f2f006e2441af52fe98c5c42  0001-elf.h-add-typedefs-for-Elf-_Relr.patch
-e4e04e7f5dd8c5eac90070c42562d224f71dc3d0888054734e708da1a4f33ed442365d240e0d53f41a4f4f946b8c7407b16a6212913e17ccb80a242c1fa04a1b  0002-remove-non-prototype-declaration-of-basename-from-st.patch
+7bb7f7833923cd69c7a1a9b8a5f1784bfd5289663eb6061dcd43d583e45987df8a68a1be05d75cc1c88a3f5b610653d1a70f4a9cff4d8f7fd41ae73ee058c17c  musl-1.2.5.tar.gz
 26fa733450c3b9f0e84668c6ae48b218a34de233f9d8cd2cf239648b825c9e9fcad1e91b02802605628be2c971cc64e5c90e7fca5ccbea9f370672cf9c71b3b4  0100-ldso-dynlink-add-ifunc-support.patch
 476fd0214911edbc4e36114c6c2a32ccb3e85d776e2de0427bbfd7ac1aaf46e6b1c3e00bd83cd998380c7db83b2a67ac3e6d840867472131eae69a1ce99d5a86  0101-support-ifunc-in-static-linking.patch
 5ed91362c40f18bf1af4c744a234c828e3c4979ecbc21f8dbf0d8b96c9d7662615163a9ce13372249f5be7472366c6e8f68e6f984c0172d6a22b21e8161cd07c  0102-Makefile-link-glibc-string-lib.patch
