@@ -1,6 +1,6 @@
 pkgname=rpm
 pkgver=4.19.1.1
-pkgrel=1
+pkgrel=2
 case $pkgver in
 	*.*.*.*)	_majorver=${pkgver%.*.*} ;;
 	*.*.*)		_majorver=${pkgver%.*} ;;
@@ -10,6 +10,7 @@ pkgdesc="Redhat Package Management utilities (RPM)"
 url="https://rpm.org/"
 arch="all"
 license="GPL-2.0-or-later LGPL-2.0-or-later"
+depends="$pkgname-scripts"
 _luaver=5.4
 depends_dev="
 	acl-dev
@@ -40,7 +41,14 @@ makedepends="
 	zstd-dev
 	"
 options="!check" # tests require running a podman/bubblewrap container
-subpackages="$pkgname-dev $pkgname-doc $pkgname-lang py3-rpm:py_rpm"
+
+subpackages="
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-lang
+	py3-rpm:py_rpm
+	$pkgname-scripts::noarch
+	"
 
 # annocheck depends on rpm-libs
 subpackages="$subpackages $pkgname-libs"
@@ -102,6 +110,23 @@ py_rpm() {
 	provides="py-rpm=$pkgver-r$pkgrel" # Backwards compatibility
 
 	amove usr/lib/python3*
+}
+
+scripts() {
+	pkgdesc="Bash and Perl helper scripts for RPM"
+	depends="bash perl"
+
+	amove usr/lib/rpm/brp-compress \
+		usr/lib/rpm/check-prereqs \
+		usr/lib/rpm/check-rpaths-worker \
+		usr/lib/rpm/find-lang.sh \
+		usr/lib/rpm/fontconfig.prov \
+		usr/lib/rpm/ocamldeps.sh \
+		usr/lib/rpm/perl.prov \
+		usr/lib/rpm/perl.req \
+		usr/lib/rpm/pkgconfigdeps.sh \
+		usr/lib/rpm/rpm_macros_provides.sh \
+		usr/lib/rpm/sysusers.sh
 }
 
 sha512sums="
