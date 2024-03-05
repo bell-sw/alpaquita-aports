@@ -3,7 +3,7 @@
 
 pkgname=fuse
 pkgver=2.9.9
-pkgrel=4
+pkgrel=5
 pkgdesc="Simple interface for userspace filesystems"
 url="https://github.com/libfuse/libfuse/"
 arch="all"
@@ -20,6 +20,11 @@ source="https://github.com/libfuse/libfuse/releases/download/fuse-$pkgver/fuse-$
 # secfixes:
 #   2.9.8-r0:
 #     - CVE-2018-10906
+
+prepare() {
+ 	default_prepare
+	update_config_sub
+}
 
 build() {
 	autoreconf -f -i
