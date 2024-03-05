@@ -9,7 +9,7 @@ _glibcver=${pkgver%.*}
 _patch_ver="glibc-2.37-100-gf4de99ea83"
 pkgdesc="GNU C Library"
 url="https://www.gnu.org/software/libc"
-arch="x86_64"
+arch="x86_64 aarch64"
 license="GPL-2.0 LGPL-2.0"
 depends_dev="linux-headers"
 makedepends="bison perl python3 texinfo gawk grep sed coreutils"
@@ -104,7 +104,10 @@ build() {
 		${LDFLAGS} "$srcdir"/ldconfig.trigger.c -o ldconfig.trigger
 
 	_build
-	_build x86-64-v3
+
+	if [ "$CARCH" = 'x86_64' ]; then
+		_build x86-64-v3
+	fi
 }
 
 check() {
@@ -125,6 +128,13 @@ _install_hwcaps()
 }
 
 package() {
+	local ld_linux
+
+	case "$CARCH" in
+	aarch64)	ld_linux=ld-linux-aarch64.so.1 ;;
+	x86_64)		ld_linux=ld-linux-x86-64.so.2 ;;
+	esac
+
 	install -D -m755 ldconfig.trigger $pkgdir/usr/sbin/ldconfig.trigger
 
 	cd glibc-build
@@ -140,7 +150,7 @@ package() {
 
 	install -m644 ../posix/gai.conf "$pkgdir"/etc/gai.conf
 
-	ln -sf ../lib/ld-linux-x86-64.so.2 "$pkgdir"/usr/lib64/
+	ln -sf ../lib/$ld_linux "$pkgdir"/usr/lib64/
 	ln -sf usr/lib "$pkgdir"/lib
 	ln -sf usr/lib64 "$pkgdir"/lib64
 	ln -sf usr/sbin $pkgdir/sbin
@@ -151,12 +161,14 @@ package() {
 	for l in C en_US; do
 		msg "Generating $l.utf8 locale"
 		I18NPATH="$pkgdir"/usr/share/i18n \
-		"$pkgdir"/usr/lib/ld-linux-${CARCH/_/-}.so.2 --library-path "$pkgdir"/usr/lib \
+		"$pkgdir"/usr/lib/$ld_linux --library-path "$pkgdir"/usr/lib \
 			"$pkgdir"/usr/bin/localedef --prefix "$pkgdir" --no-archive \
 			--input $l --charmap UTF-8 $l.utf8
 	done
 
-	_install_hwcaps x86-64-v3
+	if [ "$CARCH" = 'x86_64' ]; then
+		_install_hwcaps x86-64-v3
+	fi
 }
 
 locales() {
@@ -211,7 +223,11 @@ dev() {
 	provides="libc-dev=$pkgver-r$pkgrel"
 
 	amove usr/lib/libc.so
-	amove usr/lib/libm.so
+
+	# the libm.so linker script seems to be specific only to x86_64
+	if [ "$CARCH" = 'x86_64' ]; then
+		amove usr/lib/libm.so
+	fi
 
 	strip --strip-debug "$subpkgdir"/usr/lib/*crt*.o
 }
