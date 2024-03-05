@@ -24,7 +24,7 @@ source="
 "
 builddir="$srcdir/glibc-$_glibcver"
 options="!libc_musl lib64 ldpath-recursive !check !annobin"
-triggers="$pkgname-utils.trigger=/usr/lib:/usr/lib64:/usr/local/lib"
+[ "$BOOTSTRAP" != "nolibc" ] && triggers="$pkgname-utils.trigger=/usr/lib:/usr/lib64:/usr/local/lib"
 subpackages="
 	$pkgname-dbg
 	$pkgname-nscd
@@ -57,12 +57,12 @@ subpackages="
 #   2.37.0-r0:
 #     - CVE-2023-25139
 
-
 _build()
 {
 	local isa="$1"
 	local extra_cflags=""
 	local build_path="glibc-build"
+	local bootstrap_configure
 
 	if [ -n "$isa" ]; then
 		build_path="${build_path}-${isa}"
@@ -74,10 +74,17 @@ _build()
 
 	echo "rootsbindir=/usr/sbin" >> configparms
 
+	case "$BOOTSTRAP" in
+	# for linux headers
+	nolibc)	bootstrap_configure="--with-headers=$CBUILDROOT/usr/include" ;;
+	*)	bootstrap_configure="" ;;
+	esac
+
 	CFLAGS="-O3 -pipe -g $extra_cflags"
 	CPPFLAGS="$CFLAGS"
 	LDFLAGS="-Wl,--as-needed,-O2,--sort-common"
 	../configure \
+		--build=$CBUILD \
 		--host=$CHOST \
 		--prefix=/usr \
 		--libdir=/usr/lib \
@@ -94,13 +101,14 @@ _build()
 		--disable-werror \
 		--with-bugurl="$VENDOR_BUG_REPORT_URL" \
 		--with-pkgversion="$VENDOR_DISTRO_NAME Linux" \
+		$bootstrap_configure \
 		libc_cv_slibdir=/usr/lib
 	make
 	cd ..
 }
 
 build() {
-	${CC:-${CROSS_COMPILE}gcc} ${CPPFLAGS} ${CFLAGS} \
+	[ "$BOOTSTRAP" != "nolibc" ] && ${CC:-${CROSS_COMPILE}gcc} ${CPPFLAGS} ${CFLAGS} \
 		${LDFLAGS} "$srcdir"/ldconfig.trigger.c -o ldconfig.trigger
 
 	_build
@@ -135,7 +143,8 @@ package() {
 	x86_64)		ld_linux=ld-linux-x86-64.so.2 ;;
 	esac
 
-	install -D -m755 ldconfig.trigger $pkgdir/usr/sbin/ldconfig.trigger
+	[ "$BOOTSTRAP" != "nolibc" ] \
+		&& install -D -m755 ldconfig.trigger $pkgdir/usr/sbin/ldconfig.trigger
 
 	cd glibc-build
 
@@ -155,16 +164,18 @@ package() {
 	ln -sf usr/lib64 "$pkgdir"/lib64
 	ln -sf usr/sbin $pkgdir/sbin
 
-	mkdir -p "$pkgdir"/usr/lib/locale
+	if [ -z "$BOOTSTRAP" ]; then
+		mkdir -p "$pkgdir"/usr/lib/locale
 
-	local l
-	for l in C en_US; do
-		msg "Generating $l.utf8 locale"
-		I18NPATH="$pkgdir"/usr/share/i18n \
-		"$pkgdir"/usr/lib/$ld_linux --library-path "$pkgdir"/usr/lib \
-			"$pkgdir"/usr/bin/localedef --prefix "$pkgdir" --no-archive \
-			--input $l --charmap UTF-8 $l.utf8
-	done
+		local l
+		for l in C en_US; do
+			msg "Generating $l.utf8 locale"
+			I18NPATH="$pkgdir"/usr/share/i18n \
+			"$pkgdir"/usr/lib/$ld_linux --library-path "$pkgdir"/usr/lib \
+				"$pkgdir"/usr/bin/localedef --prefix "$pkgdir" --no-archive \
+				--input $l --charmap UTF-8 $l.utf8
+		done
+	fi
 
 	if [ "$CARCH" = 'x86_64' ]; then
 		_install_hwcaps x86-64-v3
