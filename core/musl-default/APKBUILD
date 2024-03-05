@@ -126,10 +126,12 @@ package() {
 		EOF
 		chmod 755 "$pkgdir"/usr/bin/ldd
 
-		local i
-		for i in getconf getent iconv ; do
-			cp $i "$pkgdir"/usr/bin/
-		done
+		if [ "$BOOTSTRAP" != "nolibc" ]; then
+			local i
+			for i in getconf getent iconv ; do
+				cp $i "$pkgdir"/usr/bin/
+			done
+		fi
 	fi
 
 	local dir
