@@ -5,7 +5,7 @@
 
 pkgname=musl-default
 pkgver=1.2.5
-pkgrel=2
+pkgrel=3
 pkgdesc="the musl c library (libc) implementation"
 url="https://musl.libc.org/"
 arch="all"
@@ -132,9 +132,11 @@ package() {
 		done
 	fi
 
-	ln -sf usr/lib "$pkgdir"/lib
-	ln -sf usr/bin $pkgdir/bin
-	ln -sf usr/sbin $pkgdir/sbin
+	local dir
+	for dir in lib bin sbin; do
+		mkdir -p "$pkgdir"/usr/$dir
+		ln -sf usr/$dir "$pkgdir"/$dir
+	done
 }
 
 utils() {
@@ -149,8 +151,8 @@ utils() {
 	replaces="libiconv"
 	license="MIT AND BSD-2-Clause AND GPL-2.0-or-later"
 
-	mkdir -p "$subpkgdir"/usr/sbin
-	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+	mkdir -p "$subpkgdir"/usr/sbin "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/* "$subpkgdir"/usr/bin/
 
 	install -D -m755 "$srcdir"/ldconfig "$subpkgdir"/usr/sbin
 }
