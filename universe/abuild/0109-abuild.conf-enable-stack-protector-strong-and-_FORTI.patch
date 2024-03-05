@@ -49,7 +49,7 @@ index 2be636e..72e2937 100644
  
 +hardening_check()
 +{
-+	if options_has "!annobin" || [ "${subpkgarch:-$pkgarch}" = "noarch" ]; then
++	if options_has "!annobin" || [ "${subpkgarch:-$pkgarch}" = "noarch" ] || [ -n "$ABUILD_DISABLE_ANNOBIN" ]; then
 +		return 0
 +	fi
 +
@@ -110,9 +110,9 @@ index 2be636e..72e2937 100644
 +remove_cflags()
 +{
 +	local f="$@"
-+	export CFLAGS="${CFLAGS/$f/}"
-+	export CXXFLAGS="${CXXFLAGS/$f/}"
-+	export CPPFLAGS="${CPPFLAGS/$f/}"
++	export CFLAGS="${CFLAGS//$f/}"
++	export CXXFLAGS="${CXXFLAGS//$f/}"
++	export CPPFLAGS="${CPPFLAGS//$f/}"
 +}
 +
 +if options_has "!annobin" || [ -n "$ABUILD_DISABLE_ANNOBIN" ] ; then
