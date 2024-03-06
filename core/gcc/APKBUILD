@@ -288,7 +288,16 @@ build() {
 		_symvers="--disable-symvers"
 		;;
 	glibc)
-		_libc_configure="--enable-cet"
+		# Since libssp and libsanitizer are compiled for a target arch,
+		# it's needed to put their objects to separate packages as it's
+		# done for libstdc++ for example.  But we are going to use a
+		# cross GCC only to build a temporary bootstrap environment for
+		# now.  So let's simply disable these features since they are
+		# not really necessary for this task.
+		[ "$CHOST" != "$CTARGET" ] \
+			&& _libc_configure="--disable-libssp --disable-libsanitizer"
+
+		_libc_configure="$_libc_configure --enable-cet"
 		;;
 	esac
 
