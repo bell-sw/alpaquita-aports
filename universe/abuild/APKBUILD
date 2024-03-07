@@ -18,8 +18,10 @@ depends="
 	pkgconf
 	scanelf
 	tar
-	annobin
 	"
+if [ "$CBUILD" = "$CHOST" ]; then
+	depends="$depends annobin"
+fi
 makedepends_build="pkgconfig scdoc"
 makedepends_host="openssl-dev>3 zlib-dev"
 makedepends="$makedepends_host $makedepends_build"
