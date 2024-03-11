@@ -191,9 +191,16 @@ options="net" # Required for running tests
 #     - CVE-2021-22897
 
 build() {
+	local cross_configure=
+
+	# the ca-cert path detection is skipped when cross-compiling
+	[ "$CBUILD" != "$CHOST" ] \
+		&& cross_configure='--with-ca-bundle=/etc/ssl/certs/ca-certificates.crt'
+
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
+		$cross_configure \
 		--prefix=/usr \
 		--enable-ares \
 		--enable-ipv6 \
