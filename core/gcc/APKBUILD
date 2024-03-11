@@ -500,6 +500,17 @@ EOF
 		mkdir -p "$pkgdir"/usr/lib/bfd-plugins
 		ln -s /$_gcclibexec/liblto_plugin.so "$pkgdir/usr/lib/bfd-plugins/"
 	fi
+
+	# Do some magic to make gcc include limits.h provided by glibc when
+	# cross-compiling, see:
+	# 	https://www.linuxfromscratch.org/lfs/faq.html#m4-mb-len-max-wrong
+	# 	https://www.linuxfromscratch.org/lfs/view/development/chapter05/gcc-pass1.html
+	if [ "$CBUILD" != "$CHOST" ] && [ "$CTARGET_LIBC" = 'glibc' ]; then
+		cat >"$pkgdir/$_gcclibdir/include/limits.h" \
+			"$pkgdir/$_gcclibdir/plugin/include/limitx.h" \
+			"$pkgdir/$_gcclibdir/plugin/include/glimits.h" \
+			"$pkgdir/$_gcclibdir/plugin/include/limity.h"
+	fi
 }
 
 libatomic() {
