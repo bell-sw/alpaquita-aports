@@ -12,7 +12,7 @@ _pkgsnap="${pkgver##*_git}"
 [ "$CHOST" != "$CTARGET" ] && _target="-$CTARGET_ARCH" || _target=""
 
 pkgname="$pkgname$_target"
-pkgrel=1
+pkgrel=2
 pkgdesc="The GNU Compiler Collection"
 url="https://gcc.gnu.org"
 arch="all"
@@ -52,6 +52,7 @@ if [ "$CHOST" != "$CTARGET" ]; then
 	if [ "$BOOTSTRAP" = nolibc ]; then
 		LANG_CXX=false
 		LANG_ADA=false
+		LANG_D=false
 		_libgcc=false
 		_builddir="$srcdir/build-cross-pass2"
 	else
@@ -60,7 +61,6 @@ if [ "$CHOST" != "$CTARGET" ]; then
 	LANG_OBJC=false
 	LANG_GO=false
 	LANG_FORTRAN=false
-	LANG_D=false
 	LANG_JIT=false
 	_libgomp=false
 	_libatomic=false
@@ -102,7 +102,6 @@ elif [ "$CBUILD" != "$CHOST" ]; then
 	LANG_OBJC=false
 	LANG_GO=false
 	LANG_FORTRAN=false
-	LANG_D=false
 	LANG_JIT=false
 
 	STRIP_FOR_TARGET=${CROSS_COMPILE}strip
@@ -150,9 +149,14 @@ if $LANG_CXX; then
 	_languages="$_languages,c++"
 fi
 if $LANG_D; then
-	subpackages="$subpackages libgphobos::$CTARGET_ARCH gcc-gdc$_target:gdc"
+	subpackages="$subpackages libgphobos::$CTARGET_ARCH libgphobos-dev$_target:libgphobos_dev gcc-gdc$_target:gdc"
 	_languages="$_languages,d"
-	makedepends_build="$makedepends_build libucontext-dev gcc-gdc-bootstrap"
+	makedepends_build="$makedepends_build libucontext-dev"
+	if [ "$CBUILD" = "$CTARGET" ]; then
+		makedepends_build="$makedepends_build gcc-gdc-bootstrap"
+	else
+		makedepends_build="$makedepends_build gcc-gdc$_cross"
+	fi
 fi
 if $LANG_OBJC; then
 	subpackages="$subpackages libobjc::$CTARGET_ARCH gcc-objc$_target:objc"
@@ -629,13 +633,24 @@ libgphobos() {
 	depends=
 
 	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/libgdruntime.so.* "$subpkgdir"/usr/lib/
-	mv "$pkgdir"/usr/lib/libgphobos.so.*  "$subpkgdir"/usr/lib/
+	mv "$pkgdir"/usr/${_target:+$CTARGET/}lib/libgdruntime.so.* "$subpkgdir"/usr/lib/
+	mv "$pkgdir"/usr/${_target:+$CTARGET/}lib/libgphobos.so.*  "$subpkgdir"/usr/lib/
+}
+
+libgphobos_dev() {
+	pkgdesc="D programming language standard library for GCC (development files)"
+	depends=
+
+	amove usr/${_target:+$CTARGET/}lib/libgdruntime.a \
+		usr/${_target:+$CTARGET/}lib/libgdruntime.so \
+		usr/${_target:+$CTARGET/}lib/libgphobos.a \
+		usr/${_target:+$CTARGET/}lib/libgphobos.so \
+		usr/${_target:+$CTARGET/}lib/libgphobos.spec
 }
 
 gdc() {
 	pkgdesc="GCC-based D language compiler"
-	depends="gcc=$_gccrel libgphobos=$_gccrel musl:musl-dev"
+	depends="gcc=$_gccrel libgphobos=$_gccrel libgphobos-dev$_target=$_gccrel musl:musl-dev"
 	depends="$depends libucontext-dev"
 	provides="gcc-gdc-bootstrap=$_gccrel"
 
@@ -648,13 +663,10 @@ gdc() {
 	# without installing the compiler
 	mv "$pkgdir/$_gcclibexec/d21" "$subpkgdir/$_gcclibexec/"
 	mv "$pkgdir"/$_gcclibdir/include/d/* "$subpkgdir"/$_gcclibdir/include/d/
-	mv "$pkgdir"/usr/lib/libgdruntime.a "$subpkgdir"/usr/lib/
-	mv "$pkgdir"/usr/lib/libgdruntime.so "$subpkgdir"/usr/lib/
-	mv "$pkgdir"/usr/lib/libgphobos.a "$subpkgdir"/usr/lib/
-	mv "$pkgdir"/usr/lib/libgphobos.so "$subpkgdir"/usr/lib/
-	mv "$pkgdir"/usr/lib/libgphobos.spec "$subpkgdir"/usr/lib/
 	mv "$pkgdir"/usr/bin/$CTARGET-gdc "$subpkgdir"/usr/bin/
-	mv "$pkgdir"/usr/bin/gdc "$subpkgdir"/usr/bin/
+	if [ "$CHOST" = "$CTARGET" ]; then
+		mv "$pkgdir"/usr/bin/gdc "$subpkgdir"/usr/bin/
+	fi
 }
 
 libgo() {
