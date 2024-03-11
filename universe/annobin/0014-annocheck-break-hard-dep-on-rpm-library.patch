@@ -1,0 +1,154 @@
+From 9f8f7835b537a14f6ebe63eb993df5303db761e5 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Mon, 11 Mar 2024 13:17:42 +0000
+Subject: [PATCH] annocheck: break hard dep on rpm library
+
+---
+ annocheck/annocheck.c  | 16 ++++++++++++++++
+ configure              |  9 +--------
+ gcc-plugin/config.h.in |  2 ++
+ 3 files changed, 19 insertions(+), 8 deletions(-)
+
+diff --git a/annocheck/annocheck.c b/annocheck/annocheck.c
+index 115dc24..cc5d650 100644
+--- a/annocheck/annocheck.c
++++ b/annocheck/annocheck.c
+@@ -16,7 +16,9 @@
+ #include "annocheck.h"
+ #include "config.h"
+ #include <limits.h>
++#ifdef HAVE_RPMLIB
+ #include <rpm/rpmlib.h>
++#endif
+ #include <dirent.h>
+ #include <sys/stat.h>
+ #include <elfutils/libdwelf.h>
+@@ -1559,6 +1561,7 @@ process_file (const char * filename)
+       return einfo (WARN, "'%s' has negative size, probably it is too large", filename);
+     }
+ 
++#ifdef HAVE_RPMLIB
+ #ifndef LIBANNOCHECK
+   /* If the file is an RPM hand it off for separate processing.  */
+ 
+@@ -1593,12 +1596,17 @@ process_file (const char * filename)
+       /* If we could not process this as an RPM file, try treating it as an ELF file.  */
+     }
+ #endif /* not LIBANNOCHECK */
++#endif /* HAVE_RPMLIB */
+ 
+   Elf * elf = elf_begin (fd, ELF_C_READ, NULL);
+   if (elf == NULL)
+     {
+       close (fd);
++#ifdef HAVE_RPMLIB
+       return einfo (WARN, "Unable to parse %s - maybe it is not an RPM or ELF file ?", filename);
++#else
++      return einfo (WARN, "Unable to parse %s - maybe it is not an ELF file ?", filename);
++#endif
+     }
+ 
+   bool ret = process_elf (filename, fd, elf);
+@@ -1868,7 +1876,9 @@ usage (void)
+   einfo (INFO, "Runs various scans on the given files");
+   einfo (INFO, "Useage: %s [options] <file(s)>", CURRENT_COMPONENT_NAME);
+   einfo (INFO, " Options are:");
++#ifdef HAVE_RPMLIB
+   einfo (INFO, "   --debug-rpm=<RPM>       [Find separate dwarf debug information in <RPM>]");
++#endif
+   einfo (INFO, "   --debug-file=<FILE>     [Find separate dwarf debug information in <FILE>]");
+   einfo (INFO, "   --debug-dir=<DIR>       [Look in <DIR> for separate dwarf debug information files]");
+   einfo (INFO, "   -h | --help             [Display this message & exit]");
+@@ -2077,6 +2087,7 @@ process_command_line (uint argc, const char * argv[])
+ 			   debug_path, parameter);
+ 		  debug_path = parameter;
+ 		}
++#ifdef HAVE_RPMLIB
+ 	      else if (const_strneq (arg, "debug-rpm") || const_strneq (arg, "debugrpm"))
+ 		{
+ 		  if (debug_rpm != NULL)
+@@ -2084,6 +2095,7 @@ process_command_line (uint argc, const char * argv[])
+ 			   debug_rpm, parameter);
+ 		  debug_rpm = parameter;
+ 		}
++#endif
+ 	      else if (const_strneq (arg, "debug-file") || const_strneq (arg, "debugfile"))
+ 		{
+ 		  set_debug_file (parameter);
+@@ -2101,8 +2113,10 @@ process_command_line (uint argc, const char * argv[])
+ 		     we recurse into a directory, the path will remain valid.  */
+ 		  if (parameter == argv[a-1])
+ 		    tmp = concat (orig_arg, " ", getcwd (NULL, 0), "/", parameter, NULL);
++#ifdef HAVE_RPMLIB
+ 		  else if (debug_rpm == parameter)
+ 		    tmp = concat ("--debug-rpm=", getcwd (NULL, 0), "/", parameter, NULL);
++#endif
+ 		  else if (debug_path == parameter)
+ 		    tmp = concat ("--debug-dir=", getcwd (NULL, 0), "/", parameter, NULL);
+ 		  else /* debug_file == parameter  */
+@@ -2272,11 +2286,13 @@ main (int argc, const char ** argv)
+       return EXIT_FAILURE;
+     }
+ 
++#ifdef HAVE_RPMLIB
+   if (rpmReadConfigFiles (NULL, NULL) != 0)
+     {
+       einfo (FAIL, "Could not initialise librpm");
+       return EXIT_FAILURE;
+     }
++#endif
+ 
+   if (! process_command_line (argc, argv))
+     return EXIT_FAILURE;
+diff --git a/configure b/configure
+index 10dd92e..8e6487f 100755
+--- a/configure
++++ b/configure
+@@ -17919,12 +17919,9 @@ fi
+ # Check for rpmlib availability.
+ ac_fn_cxx_check_header_mongrel "$LINENO" "rpm/rpmlib.h" "ac_cv_header_rpm_rpmlib_h" "$ac_includes_default"
+ if test "x$ac_cv_header_rpm_rpmlib_h" = xyes; then :
+-
+-else
+-  as_fn_error $? "\"Required header 'rpm/rpmlib.h' not found.\"" "$LINENO" 5
++  $as_echo "#define HAVE_RPMLIB 1" >>confdefs.h
+ fi
+ 
+-
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for rpmReadPackageFile in -lrpm" >&5
+ $as_echo_n "checking for rpmReadPackageFile in -lrpm... " >&6; }
+ if ${ac_cv_lib_rpm_rpmReadPackageFile+:} false; then :
+@@ -17963,8 +17960,6 @@ fi
+ $as_echo "$ac_cv_lib_rpm_rpmReadPackageFile" >&6; }
+ if test "x$ac_cv_lib_rpm_rpmReadPackageFile" = xyes; then :
+   RPMLIBS="-lrpm"
+-else
+-  as_fn_error $? "\"Required library 'rpm' not found." "$LINENO" 5
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for rpmConfigDir in -lrpmio" >&5
+@@ -18005,8 +18000,6 @@ fi
+ $as_echo "$ac_cv_lib_rpmio_rpmConfigDir" >&6; }
+ if test "x$ac_cv_lib_rpmio_rpmConfigDir" = xyes; then :
+   RPMLIBS="$RPMLIBS -lrpmio"
+-else
+-  as_fn_error $? "\"Required library 'rpmio' not found." "$LINENO" 5
+ fi
+ 
+ 
+diff --git a/gcc-plugin/config.h.in b/gcc-plugin/config.h.in
+index 4532037..1d5436f 100644
+--- a/gcc-plugin/config.h.in
++++ b/gcc-plugin/config.h.in
+@@ -15,6 +15,8 @@
+ /* Define to 1 if debuginfod is enabled. */
+ #undef HAVE_LIBDEBUGINFOD
+ 
++#undef HAVE_RPMLIB
++
+ /* Define to 1 if you have the <memory.h> header file. */
+ #undef HAVE_MEMORY_H
+ 
+-- 
+2.25.1
+
