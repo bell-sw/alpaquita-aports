@@ -4,7 +4,7 @@
 
 pkgname=busybox
 pkgver=1.36.1
-pkgrel=22
+pkgrel=23
 pkgdesc="Modular toolbox of common UNIX utilities"
 url="https://busybox.net/"
 arch="all"
@@ -309,7 +309,7 @@ EOF
 
 extras() {
 	pkgdesc="Additional binaries of Busybox"
-	depends="$pkgname"
+	depends="$pkgname=$pkgver-r$pkgrel"
 	install -Dm755 "$_dyndir_extras"/busybox "$subpkgdir"/usr/bin/busybox-extras
 
 	# Install a list of symlinks installed by busybox-extras.  This is useful for
@@ -323,7 +323,7 @@ extras() {
 
 suid() {
 	pkgdesc="suid binaries of Busybox"
-	depends="$pkgname"
+	depends="$pkgname=$pkgver-r$pkgrel"
 
 	cd "$_dyndir"
 	mkdir -p "$subpkgdir"/usr/bin
