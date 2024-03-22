@@ -2,14 +2,13 @@ pkgname=libreoffice-headless
 # "fresh" version. before, we used to package still, but community/ is only
 # supported for 6 months and fresh works perfectly okay for that, while being
 # more up to date and needing fewer dependency workarounds.
-pkgver=7.6.4.1
-pkgrel=4
+pkgver=7.6.7.2
+pkgrel=0
 pkgdesc="LibreOffice (headless build) - Meta package for the full office suite"
 url="https://www.libreoffice.org/"
-# missing openjdk17 on riscv64
 # armhf disabled due to requiring armv6k as minimum arm architecture
 # ppc64le: hangs forever in build on builders
-arch="all !ppc64le !s390x !riscv64 !armhf"
+arch="all !ppc64le !s390x !armhf"
 license="MPL-2.0"
 makedepends="
 	abseil-cpp-dev
@@ -117,13 +116,13 @@ source="https://download.documentfoundation.org/libreoffice/src/$_v/libreoffice-
 	musl:musl-stacksize.patch
 	musl:musl-libintl.patch
 	icu74.patch
-
-	0100-tdf-158302-fix-build-against-system-libxml-2.12.patch
 	"
 options="!check" # todo, huge testsuite, not much value, ..
 builddir="$srcdir/libreoffice-$pkgver"
 
 # secfixes:
+#   7.6.7.2-r0:
+#     - CVE-2024-3044
 #   7.3.6.2-r0:
 #     - CVE-2022-3140
 #   7.2.7.2-r0:
@@ -393,7 +392,7 @@ writer() {
 }
 
 sha512sums="
-dbfc0cc8aa68e26c89da12156046ccf18201759c0e67757ce259a1150934ad7e2d914837701731fbe00aeab9a2f8c996619eb0892b7907de8012fdd7421da0f6  libreoffice-7.6.4.1.tar.xz
+443d818f35d9cac1af3a911f031b0b8f455eb28afa1a563ee3551b3285810f3b7b19265a64f853eef07e0c550c5d81f95e2774db46bd9dfee7b9aee029eb3747  libreoffice-7.6.7.2.tar.xz
 722aa814c33a34bfffe6c0201b0035cc3b65854a0ba9ae2f51620a89d68019353e2c306651b35bca337186b22b2e9865ef3c5e3df8e9328006f882e4577f8c85  dtoa-20180411.tgz
 e22561a4e634e388e11f95b3005bc711e543013d314f6aaeda34befb2c673aea2d71a717d8822bc8fa85bdc8409945ba2ad91a1bac4f8cb5303080de01a5f60e  frozen-1.1.1.tar.gz
 1bb45c9a8f36fc3098d872f952151fb3a8314291c8d6c1b68d7b8170c062fd71d30fff389f344a957878c7d3dde6f5a913ea88e7d8d197e5e3fdd96b90b6e84f  pdfium-5778.tar.bz2
@@ -404,5 +403,4 @@ a322cda7f9bb8e191033b41d1076208c5edfbf8a0ef1d0c2a210b5be61d75a8918c3530db246fb7c
 3364062dac89722d6ec738a254e2296f4f6e0426e689e16be59fa1bcc504aea4a183859f82277f1409c25965b08655d1e643cef4dff03d96aba1fa4bfc2feb06  musl-stacksize.patch
 d99d074e89e2713a3b6a56fa60d9d989ca6eefc8884ccbf88cb16c7b09da6dde4ba4ebc6a4d8408b61a08088df7cb1bcda60738f91e5569179fc45d7e9b901a3  musl-libintl.patch
 9f96ca0fde7014fcdef8a974f6e3fc4e3360186fedbaa3c65e29196384fca066cc819536695c614a904f3add80b8ee004f6588ab4fd32e52f69b655fe72fa885  icu74.patch
-42ca23213f9c9829caf1a7af676878b069264473d6c0fa41b09b2f96117d85fbc0eafa9696733094c0264d476a8c941564f312348fe8844642e4b65ea9920157  0100-tdf-158302-fix-build-against-system-libxml-2.12.patch
 "
