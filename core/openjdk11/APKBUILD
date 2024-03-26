@@ -13,13 +13,16 @@ pkgrel=1
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
-arch="x86_64"
+arch="aarch64 x86_64"
 options="!strip !tracedeps ldpath-recursive !annobin"
 depends="
 	$pkgname-jmods=$pkgver-r$pkgrel
 	$pkgname-doc=$pkgver-r$pkgrel
 	$pkgname-jdk=$pkgver-r$pkgrel
 	"
+
+# NB: openjdk11-bootstrap is added to makedepends separately, only if
+# not bootstrapping the first package from prebuilt binaries
 makedepends="
 	alsa-lib-dev
 	automake
@@ -46,7 +49,6 @@ makedepends="
 	sed
 	zip
 	zlib-dev
-	openjdk11-bootstrap>=11.0.15
 	"
 
 subpackages="
@@ -92,6 +94,42 @@ _jre_tools="
 	unpack200
 	"
 
+if [ ! "$BOOTSTRAP" ]; then
+	# normal build - build with openjdk11-bootstrap, provided by a
+	# previous version of this package
+	makedepends="$makedepends
+		openjdk11-bootstrap>=11.0.15
+		"
+fi
+
+_add_bootstrap() {
+	local -; set -u
+	local url=$1
+	local sum=$2
+	local name="$(filename_from_uri $url)"
+	source="$source $url"
+	sha512sums="$(printf '%s\n''%s  %s\n' "$sha512sums" $sum $name)"
+}
+
+init_sources() {
+	[ "$BOOTSTRAP" ] && case "$CARCH:$CLIBC" in
+	    aarch64:musl)
+		_add_bootstrap \
+		    "https://download.bell-sw.com/java/11.0.22+12/bellsoft-jdk11.0.22+12-linux-aarch64-musl.tar.gz" \
+		    "8ad0d6cbbd5459cfedbf8e009574a266095d8ab7a0de7b2f885dfd45acefbd465ebd0a1c1fef6b9594c86ff6a48e367f7b75461fa5d60793c300b61118aa68f1"
+		;;
+	    aarch64:glibc)
+		_add_bootstrap \
+		    "https://download.bell-sw.com/java/11.0.22+12/bellsoft-jdk11.0.22+12-linux-aarch64.tar.gz" \
+		    "2813730bde821eecacf0dc13f4998e27ef6633d6d3777023f999fb23c6d8d6c2e4649477295caee439159f7708a9790104b4ddae70aa294c5e81b3565fc9495e"
+		;;
+	    *)
+		error "Unexpected target: ${CARCH} ${CLIBC}"
+		exit 1
+	esac
+	default_init_sources
+}
+
 build() {
 
 	if [ -z "$JOBS" ]; then
@@ -99,7 +137,12 @@ build() {
 	fi
 
 	local _cflags="-fstack-protector-strong -D_FORTIFY_SOURCE=2"
-	local _boot_jdk=$(echo /usr/lib/jvm/java-11-* | awk '{ print $1 }')
+	local _boot_jdk
+	if [ ! "$BOOTSTRAP" ]; then
+		_boot_jdk="$(echo /usr/lib/jvm/java-11-* | awk '{ print $1 }')"
+	else
+		_boot_jdk="$(echo "$srcdir"/jdk-11*)" # there can be only one
+	fi
 
 	[ "$CLIBC" = 'musl' ] && _cflags="$_cflags -D_LARGEFILE64_SOURCE"
 
@@ -120,8 +163,26 @@ build() {
 		--with-extra-ldflags=$LDFLAGS \
 		--disable-warnings-as-errors \
 		--with-zlib=system \
-		--with-boot-jdk=$_boot_jdk
-	MAKEFLAGS='' make product-bundles
+		--with-boot-jdk="$_boot_jdk"
+
+	# The output (stdout and stderr) from the latest build is
+	# always stored in $BUILD/build.log.  The previous build log
+	# is stored as build.log.old.  This means that it is not
+	# necessary to redirect the build output yourself if you want
+	# to process it.
+
+	# You can increase the verbosity of the log file, by the LOG
+	# control variable to make.  If you want to see the command
+	# lines used in compilations, use LOG=cmdlines.  To increase
+	# the general verbosity, use LOG=info, LOG=debug or LOG=trace.
+	# Both of these can be combined with cmdlines, e.g.
+	# LOG=info,cmdlines.  The debug log level will show most shell
+	# commands executed by make, and trace will show all.  Beware
+	# that both these log levels will produce a massive build log!
+	local verbose
+	#verbose="LOG=cmdlines" # uncomment and change if/as necessary
+
+	MAKEFLAGS='' make $verbose product-bundles
 }
 
 check() {
