@@ -15,13 +15,16 @@ pkgrel=0
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
-arch="x86_64"
+arch="aarch64 x86_64"
 options="!strip !tracedeps ldpath-recursive !annobin"
 annocheck_skip="libwaiters.so"
 depends="
 	$pkgname-doc=$pkgver-r$pkgrel
 	$pkgname-jdk=$pkgver-r$pkgrel
 	"
+
+# NB: openjdk8-bootstrap is added to makedepends separately, only if
+# not bootstrapping the first package from prebuilt binaries
 makedepends="
 	alsa-lib-dev
 	autoconf
@@ -46,7 +49,6 @@ makedepends="
 	sed
 	zip
 	zlib-dev
-	openjdk8-bootstrap>=8u333
 	"
 
 subpackages="
@@ -72,7 +74,9 @@ source="
 	musl:portola-8-jdk.patch
 	musl:portola-8-jdk-execvp.patch
 	musl:portola-8-hotspot-disable-werror.patch
+	musl:portola-8-hotspot-aarch64.patch
 	gcc11.patch
+  glibc:JDK-8294031.patch
 	readme.txt.template
 	HelloJava.java
 	"
@@ -109,6 +113,42 @@ esac
 
 ldpath="$_java_home/jre/lib"
 
+if [ ! "$BOOTSTRAP" ]; then
+	# normal build - build with openjdk8-bootstrap, provided by a
+	# previous version of this package
+	makedepends="$makedepends
+		openjdk8-bootstrap>=8u333
+		"
+fi
+
+_add_bootstrap() {
+	local -; set -u
+	local url=$1
+	local sum=$2
+	local name="$(filename_from_uri $url)"
+	source="$source $url"
+	sha512sums="$(printf '%s\n''%s  %s\n' "$sha512sums" $sum $name)"
+}
+
+init_sources() {
+	[ "$BOOTSTRAP" ] && case "$CARCH:$CLIBC" in
+	    aarch64:musl)
+		_add_bootstrap \
+		    "https://download.bell-sw.com/java/8u402+7/bellsoft-jdk8u402+7-linux-aarch64-musl.tar.gz" \
+		    "0f94c2d7fd1dd4277afa6aefc4d6ee00ed2e15bda10e70c64102a4e7ef21b9b1edcf1359a61470097c3d48bd817950ca26c4988a3c4563820e616b36543477b3"
+		;;
+	    aarch64:glibc)
+		_add_bootstrap \
+		    "https://download.bell-sw.com/java/8u402+7/bellsoft-jdk8u402+7-linux-aarch64.tar.gz" \
+		    "04f02fcee83eb43ad3d212b2f2fad4d6c791066f9ff07e9370b9711c3600b6f2998a7e5b815d2cfdd6d874139558d4ed8bc3f58db576aae7afa8803e92c0b243"
+		;;
+	    *)
+		error "Unexpected target: ${CARCH} ${CLIBC}"
+		exit 1
+	esac
+	default_init_sources
+}
+
 build() {
 
 	if [ -z "$JOBS" ]; then
@@ -122,26 +162,46 @@ build() {
 	JOBS=1
 
 	local _cflags="-fstack-protector-strong -D_FORTIFY_SOURCE=2"
-	local _boot_jdk=$(echo /usr/lib/jvm/java-8-* | awk '{ print $1 }')
+	local _boot_jdk
+	if [ ! "$BOOTSTRAP" ]; then
+		_boot_jdk="$(echo /usr/lib/jvm/java-8-* | awk '{ print $1 }')"
+	else
+		_boot_jdk="$(echo "$srcdir"/jdk8u*)" # there can be only one
+	fi
 
 	[ "$CLIBC" = 'musl' ] && _cflags="$_cflags -D_LARGEFILE64_SOURCE"
 
 	CFLAGS='' CXXFLAGS='' LDFLAGS=''
 	bash ./configure \
+		--with-jvm-variants='server' \
 		--enable-jfr \
-		--with-extra-ldflags="-static-libstdc++ -static-libgcc" \
-		--with-extra-cflags="$_cflags -Wformat-overflow=0 -Wno-error=nonnull" \
-		--with-jvm-variants=server \
-		--with-native-debug-symbols=external \
-		--with-milestone=fcs \
 		--with-update-version=$_java_uver \
 		--with-build-number=b0$_java_bnum \
-		--with-vendor-name=${VENDOR_NAME} \
-		--with-vendor-url=${VENDOR_URL} \
-		--with-vendor-bug-url=${VENDOR_BUG_REPORT_URL} \
-		--with-vendor-vm-bug-url=${VENDOR_BUG_REPORT_URL} \
-		--with-boot-jdk=$_boot_jdk
-	MAKEFLAGS='' make images
+		--with-milestone=fcs \
+		--with-vendor-name="$VENDOR_NAME" \
+		--with-vendor-url="$VENDOR_URL" \
+		--with-vendor-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-vendor-vm-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-extra-cflags="$_cflags -Wformat-overflow=0 -Wno-error=nonnull" \
+		--with-extra-ldflags="-static-libstdc++ -static-libgcc" \
+		--with-native-debug-symbols=external \
+		--with-boot-jdk="$_boot_jdk"
+
+	# Q: I want to see the output of the commands that make runs,
+	#    like in the old build.  How do I do that?
+	#
+	# A: You specify the `LOG` variable to make.  There are
+	#    several log levels:
+	#
+	# warn  -- Default and very quiet.
+	# info  -- Shows more progress information than warn.
+	# debug -- Echos all command lines and prints all macro calls
+	#            for compilation definitions.
+	# trace -- Echos all $(shell) command lines as well.
+	local verbose
+	verbose="LOG=debug" # uncomment and change if/as necessary
+
+	MAKEFLAGS='' make $verbose images
 }
 
 check() {
@@ -329,7 +389,9 @@ af5a882b54f69a4530ce12bb61c30795f5b89bc9a5084738afafad6fe7ca3a565f52d51b07df1340
 28f644e591b86022653a73e263e21f7676a583410535b1251fc5cd053a3817fdf5a007d19879ece0ee7887f1de23a3ea6660d5b3e1d2c5a95686890e79dd1834  portola-8-jdk.patch
 c5dc99a4027b2a4d07c0a0fb0979f82ce6a21a4b4dc0b21f6d38b0609e2f65a3412648494e03a2a3e66fe0f527f8bdcf0e71aada852eea4cd0ee4a4dc4b616fd  portola-8-jdk-execvp.patch
 2c3e35dd1a6774fdc67b2906b539027e6cc1e907e85e8d76b23276d4aa7ec98b3b62c01d94cdce18aa05766a1e90eeaa074a12d31e8b3a6fc3c5c5bdea8976e7  portola-8-hotspot-disable-werror.patch
+f00d02410c1a76dffc3f788d28ab14c0fc9616fc07b5a08facc6d828468227f4766004dce13b75a282fbc6b932a9134ac62677406d91519943bb38dae8952a95  portola-8-hotspot-aarch64.patch
 a713282569ba20e6b2cfa6090fd82faef0a73461a8616c291425aae51b9366be453f66f8fe8b2c8631e92491cd5b58db2a9609fdf03cfc71f7ea4cca0633c7ef  gcc11.patch
+9c40354f5efa351015b2161e28214140789be7a981413ce81da6dc9a038e6b5719ae08f74fd326d013a3d11aa0b70d3a72d747354a86ffd77adee07ab2bc74e9  JDK-8294031.patch
 38edd959b1e1880c1b2663c27ec31708538a43e75889209530209c0328e52ddc8eeb92ebe03e2b51b5440c41354316e55897d0d21d04ceff0b488a97242de5d4  readme.txt.template
 508cc8511fecee2288f41dc009834d444785ddd4129acfabefeae03ab75a26088bc7e8a60548dac58c6d18865d994e5ad8fa340cac20ba3cc838434dc7cbbcde  HelloJava.java
 "
