@@ -1,0 +1,25 @@
+From a5cefac6ab0bda709134f4188584cab5e8b23d4f Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 26 Mar 2024 09:21:04 +0000
+Subject: [PATCH] 98-distro-iso: install missing umount
+
+---
+ modules.d/98distro-iso/module-setup.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/modules.d/98distro-iso/module-setup.sh b/modules.d/98distro-iso/module-setup.sh
+index ec8c742d..686fcb8c 100755
+--- a/modules.d/98distro-iso/module-setup.sh
++++ b/modules.d/98distro-iso/module-setup.sh
+@@ -12,7 +12,7 @@ depends() {
+ install() {
+     instmods squashfs loop iso9660 ata_piix sr-mod sd-mod usb-storage
+ 
+-    inst_multiple apk
++    inst_multiple apk umount
+ 
+     mkdir -p "$initdir"/etc/apk/keys
+     cp /etc/apk/keys/* "$initdir"/etc/apk/keys/
+-- 
+2.25.1
+
