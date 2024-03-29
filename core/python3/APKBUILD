@@ -104,6 +104,7 @@ build() {
 	# note: raised from 1 as we ran into some stack limit on x86_64 too
 	# sometimes, but not recursion
 	local stacksize=0x200000
+	local bootstrap_configure=
 
 	# -Os overwrites --enable-optimizations
 	export CFLAGS_NODIST="${CFLAGS/-Os/} -DTHREAD_STACK_SIZE=$stacksize"
@@ -114,9 +115,16 @@ build() {
 	# we set them via NODIST to not propagate them and duplicate them to modules
 	unset LDFLAGS CFLAGS CXXFLAGS CPPFLAGS
 
+	# In case of bootstrapping, we may use glibc that's cross-compiled and
+	# therefore doesn't provide any locales.  Lack of locales causes a
+	# segfault during readline initialization.
+	[ -n "$BOOTSTRAP" ] && [ "$CLIBC" = 'glibc' ] \
+		&& bootstrap_configure="--without-readline"
+
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
+		$bootstrap_configure \
 		--prefix=/usr \
 		--enable-ipv6 \
 		--enable-loadable-sqlite-extensions \
