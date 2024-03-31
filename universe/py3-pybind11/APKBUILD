@@ -1,0 +1,71 @@
+pkgname=py3-pybind11
+_pkgname=pybind11
+pkgver=2.11.1
+pkgrel=0
+pkgdesc="Seamless operability between C++11 and Python"
+url="https://github.com/pybind/pybind11"
+arch="noarch"
+license="MPL-2.0"
+makedepends="
+	boost-dev
+	cmake
+	py3-gpep517
+	py3-setuptools
+	py3-wheel
+	python3-dev
+	samurai
+	"
+checkdepends="
+	catch2
+	py3-pytest
+	"
+subpackages="$pkgname-dev $pkgname-pyc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/pybind/pybind11/archive/v$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces="py-pybind11" # Backwards compatibility
+provides="py-pybind11=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	# fails with lto due to fortify-headers
+	export CXXFLAGS="$CXXFLAGS -U_FORTIFY_SOURCE"
+
+	python3 setup.py build
+
+	if [ "$CBUILD" != "$CHOST" ]; then
+		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+	CXXFLAGS="$CXXFLAGS -flto=auto" \
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=None \
+		-DPYTHON_EXECUTABLE=/usr/bin/python3 \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DUSE_PYTHON_INCLUDE_DIR=FALSE \
+		$CMAKE_CROSSOPTS
+	cmake --build build
+
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+dev() {
+	depends_dev="$pkgname=$pkgver-r$pkgrel"
+	amove usr/share/cmake
+	default_dev
+}
+
+sha512sums="
+ed1512ff0bca3bc0a45edc2eb8c77f8286ab9389f6ff1d5cb309be24bc608abbe0df6a7f5cb18c8f80a3bfa509058547c13551c3cd6a759af708fd0cdcdd9e95  py3-pybind11-2.11.1.tar.gz
+"
