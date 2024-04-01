@@ -1,22 +1,46 @@
 # Description: provides CLI tools and a library for data compression and
 # decompression.
 
+# NB: This package is still called 5.6.1 to make apk think it's an
+# upgrade, but the contents of this package is downgraded to be built
+# from v5.2.5 as obtained with git archive from git.tukaani.org repo.
+
 pkgname=xz
-pkgver=5.6.1
-pkgrel=1
+pkgver=5.6.1_p525
+pkgrel=0
 pkgdesc="Data compression utilities for XZ and LZMA"
-url="https://xz.tukaani.org/xz-utils/"
+url="https://tukaani.org/"
 arch="all"
-license="GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later"
+license="GPL-2.0-or-later AND Public-Domain AND LGPL-2.1-or-later"
 depends_dev="$pkgname=$pkgver-r$pkgrel"
 subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-libs"
-source="https://github.com/tukaani-project/xz/releases/download/v$pkgver/xz-$pkgver.tar.xz"
+source="
+	http://packages.bell-sw.com/alpaquita/distfiles/xz-5.2.5-tukaani.tar.gz
+	xzgrep-ZDI-CAN-16587.patch
+	"
+
+builddir="$srcdir"/$pkgname-5.2.5
+
+# NB: we use git archive output that doesn't have any autotools stuff
+# so we need to regenerate it before we can build the package
+makedepends="
+	autoconf
+	automake
+	gettext-dev
+	git
+	libtool
+	po4a
+	"
 
 # secfixes:
+#   5.6.1_p525-r0:
+#     - CVE-2024-3094
 #   5.2.5-r1:
 #     - CVE-2022-1271
 
 build() {
+	./autogen.sh 		# auto stuff not in git, recreate
+
 	# compression utility
 	CFLAGS="$CFLAGS -O3" \
 	./configure \
@@ -47,8 +71,17 @@ check() {
 
 package() {
 	make DESTDIR="$pkgdir" install
+
+	# NB: we rename the library to liblzma.so.5.6.1 so that the
+	# libs package provides so:liblzma.so.5=5.6.1 Otherwise apk
+	# gets confused when a package that has greater version
+	# provides an .so that has a lesser version.
+	mv "$pkgdir"/usr/lib/liblzma.so.5.2.5 "$pkgdir"/usr/lib/liblzma.so.5.6.1
+	ln -sf liblzma.so.5.6.1 "$pkgdir"/usr/lib/liblzma.so.5
+	ln -sf liblzma.so.5     "$pkgdir"/usr/lib/liblzma.so
 }
 
 sha512sums="
-a8b6d2e58eb61609a64b182e868c47aaf722d34f87bad3a9598c94ad96fb3357477959a95bb215c1dac59b8c84453cf00dc23669d13358f4aeb5123526f741f2  xz-5.6.1.tar.xz
+dd6fa147a839b8f8c30105dabee033d638e60288181619920b56ca258f810a2938a76862a83d33acc00a893b9fcd7568ec5b75171a27d3409dde86cf12e353bd  xz-5.2.5-tukaani.tar.gz
+52b16268e333399444f433a11ccf3a9b020a6914ed23fc8e082128fec596011d7c6863d47414d4c0f245d20ebed4b3a50b422599b4b88d66f6c6eb2e74b9a939  xzgrep-ZDI-CAN-16587.patch
 "
