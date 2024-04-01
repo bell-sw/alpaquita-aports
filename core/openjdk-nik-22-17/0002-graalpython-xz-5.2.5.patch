@@ -1,0 +1,88 @@
+Downgrade bundled XZ to 5.2.5, the version that doesn't have
+_any_ commits from the XZ backdoor author.
+
+--- a/graalpython/mx.graalpython/suite.py
++++ b/graalpython/mx.graalpython/suite.py
+@@ -107,12 +107,12 @@
+                 "version": "1.8",
+             },
+         },
+-        "XZ-5.2.6": {
++        "XZ-5.2.5": {
+             "urls": [
+-                "https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/xz-5.2.6.tar.gz",
++                "https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/xz-5.2.5.tar.gz",
+             ],
+             "packedResource": True,
+-            "sha1": "1b1acd2e62203a7abceee6f573f1a96cdf5fbc8f",
++            "sha1": "fa2ae4db119f639a01b02f99f1ba671ece2828eb",
+         },
+         "BOUNCYCASTLE-PROVIDER": {
+             "sha1": "46a080368d38b428d237a59458f9bc915222894d",
+@@ -454,14 +454,14 @@
+                 "sulong:SULONG_HOME",
+                 "sulong:SULONG_LEGACY",
+                 "sulong:SULONG_BOOTSTRAP_TOOLCHAIN",
+-                "XZ-5.2.6",
++                "XZ-5.2.5",
+                 "BZIP2",
+             ],
+             "buildEnv": {
+                 "TRUFFLE_H_INC": "<path:SULONG_LEGACY>/include",
+                 "ARCH": "<arch>",
+                 "OS": "<os>",
+-                "XZ-5.2.6": "<path:XZ-5.2.6>",
++                "XZ-5.2.5": "<path:XZ-5.2.5>",
+                 "BZIP2": "<path:BZIP2>",
+             },
+         },
+--- a/graalpython/graalpython/com.oracle.graal.python.cext/setup.py
++++ b/graalpython/graalpython/com.oracle.graal.python.cext/setup.py
+@@ -588,7 +588,7 @@
+         build_nativelibsupport(capi_home,
+                                 subdir="lzma",
+                                 libname="liblzmasupport",
+-                                deps=[LZMADepedency("lzma", "xz==5.2.6", "XZ-5.2.6")],
++                                deps=[LZMADepedency("lzma", "xz==5.2.5", "XZ-5.2.5")],
+                                 extra_link_args=["-Wl,-rpath,%s/lib/%s/" % (relative_rpath, SOABI)])
+         build_libpython(capi_home)
+         build_builtin_exts(capi_home)
+--- a/graalpython/graalpython/com.oracle.graal.python.cext/lzma/config.h
++++ b/graalpython/graalpython/com.oracle.graal.python.cext/lzma/config.h
+@@ -109,7 +109,7 @@
+ #define TUKLIB_CPUCORES_SCHED_GETAFFINITY 1
+ #define TUKLIB_FAST_UNALIGNED_ACCESS 1
+ #define TUKLIB_PHYSMEM_SYSCONF 1
+-#define VERSION "5.2.6"
++#define VERSION "5.2.5"
+ #ifndef _DARWIN_USE_64_BIT_INODE
+ # define _DARWIN_USE_64_BIT_INODE 1
+ #endif
+--- a/graalpython/graalpython/com.oracle.graal.python.cext/lzma/Makefile
++++ a/graalpython/graalpython/com.oracle.graal.python.cext/lzma/Makefile
+@@ -63,12 +63,12 @@
+ LIB_NAME=liblzma.5.dylib
+ LIB_LINK=-Wl,-install_name -Wl,@rpath/$(LIB_NAME)
+ SYM_LIB1=liblzma.dylib
+-SYM_LIB2=liblzma.5.2.6.dylib
++SYM_LIB2=liblzma.5.2.5.dylib
+ else
+ LIB_NAME=liblzma.so.5
+ LIB_LINK=-Wl,-soname -Wl,$(LIB_NAME)
+ SYM_LIB1=liblzma.so
+-SYM_LIB2=liblzma.so.5.2.6
++SYM_LIB2=liblzma.so.5.2.5
+ endif
+ 
+ CC=clang
+--- a/graalpython/THIRD_PARTY_LICENSE.txt
++++ b/graalpython/THIRD_PARTY_LICENSE.txt
+@@ -343,7 +343,7 @@
+ License. See the org/apache/LICENSE file for details.
+ ================================================================================
+ 
+-xz 5.2.6
++xz 5.2.5
+ 
+ https://git.tukaani.org/?p=xz.git;a=blob;f=COPYING
+ 1
