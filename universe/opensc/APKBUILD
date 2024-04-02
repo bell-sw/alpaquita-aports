@@ -1,7 +1,7 @@
 pkgname=opensc
 _realname=OpenSC
 pkgver=0.25.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Open source smart card tools and middleware"
 url="https://github.com/OpenSC/OpenSC"
 arch="all"
@@ -85,6 +85,11 @@ package() {
 
 	install -Dm644 src/tools/pkcs11-register.desktop \
 		-t "$pkgdir"/etc/xdg/autostart/
+}
+
+dev() {
+	default_dev
+	amove usr/lib/pkcs11
 }
 
 bashcomp() {
