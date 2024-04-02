@@ -294,8 +294,18 @@ build() {
 		# cross GCC only to build a temporary bootstrap environment for
 		# now.  So let's simply disable these features since they are
 		# not really necessary for this task.
-		[ "$CHOST" != "$CTARGET" ] \
-			&& _libc_configure="--disable-libssp --disable-libsanitizer"
+		if [ "$CHOST" != "$CTARGET" ] ; then
+			_libc_configure="--disable-libssp --disable-libsanitizer"
+		# glibc supports stack protector for ages, but the GCC
+		# configure stage cannot properly detect whether a target libc
+		# supports stack protector in case of cross-compilation.  This
+		# leads to dynamic linking with libssp.so whenever we use a
+		# cross-compiled GCC with the -fstack-protector-strong option.
+		# So explicitly disable libssp to avoid unwanted dependency on
+		# libssp.so.
+		elif [ "$CBUILD" != "$CHOST" ]; then
+			_libc_configure="--disable-libssp"
+		fi
 
 		_libc_configure="$_libc_configure --enable-cet"
 		;;
