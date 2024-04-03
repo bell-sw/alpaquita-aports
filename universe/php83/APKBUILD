@@ -22,14 +22,10 @@
 
 pkgname=php83
 pkgver=8.3.4
-pkgrel=1
+pkgrel=2
 _apiver=20230831
 _suffix=${pkgname#php}
-# Is this package the default (latest) PHP version?
-_default_php="yes"
 provides="$pkgname-cli php-cli php"  # for backward compatibility
-# priority of community/php82 is 70
-provider_priority=100
 pkgdesc="The PHP$_suffix language runtime engine"
 url="https://www.php.net/"
 arch="all"
@@ -109,8 +105,13 @@ source="php-$pkgver.tar.xz::https://php.net/distributions/php-$pkgver.tar.xz
 	fix-tests-devserver.patch
 	phpinfo-avif.patch
 	fix-lfs64.patch
+
+	0100-bug52820_no_proxy.patch
 	"
 builddir="$srcdir/php-$pkgver"
+
+# ffi.so: rpath '/usr/lib/../lib'
+annocheck_skip="ffi.so"
 
 _libdir="/usr/lib/$pkgname"
 _extension_dir="$_libdir/modules"
@@ -393,9 +394,7 @@ package() {
 	find "$pkgdir" -name '.*' -print0 | xargs -0 rm -rf
 	rmdir "$pkgdir"/var/run
 
-	if [ "$_default_php" = yes ]; then
-		ln -s php$_suffix "$pkgdir"/usr/bin/php
-	fi
+	ln -s php$_suffix "$pkgdir"/usr/bin/php
 
 	install -D -m 755 sapi/apache2handler/mod_php$_suffix.so \
 		"$pkgdir"/usr/lib/apache2/mod_php$_suffix.so
@@ -413,10 +412,8 @@ dev() {
 		usr/bin/phpize$_suffix \
 		$_libdir/build
 
-	if [ "$_default_php" = yes ]; then
-		ln -s phpize$_suffix "$subpkgdir"/usr/bin/phpize
-		ln -s php-config$_suffix "$subpkgdir"/usr/bin/php-config
-	fi
+	ln -s phpize$_suffix "$subpkgdir"/usr/bin/phpize
+	ln -s php-config$_suffix "$subpkgdir"/usr/bin/php-config
 }
 
 doc() {
@@ -446,9 +443,7 @@ phpdbg() {
 
 	amove usr/bin/phpdbg$_suffix
 
-	if [ "$_default_php" = yes ]; then
-		ln -s phpdbg$_suffix "$subpkgdir"/usr/bin/phpdbg
-	fi
+	ln -s phpdbg$_suffix "$subpkgdir"/usr/bin/phpdbg
 }
 
 embed() {
@@ -467,9 +462,7 @@ litespeed() {
 
 	amove usr/bin/lsphp$_suffix
 
-	if [ "$_default_php" = yes ]; then
-		ln -s lsphp$_suffix "$subpkgdir"/usr/bin/lsphp
-	fi
+	ln -s lsphp$_suffix "$subpkgdir"/usr/bin/lsphp
 }
 
 cgi() {
@@ -478,9 +471,7 @@ cgi() {
 
 	amove usr/bin/php-cgi$_suffix
 
-	if [ "$_default_php" = yes ]; then
-		ln -s php-cgi$_suffix "$subpkgdir"/usr/bin/php-cgi
-	fi
+	ln -s php-cgi$_suffix "$subpkgdir"/usr/bin/php-cgi
 }
 
 fpm() {
@@ -512,9 +503,7 @@ pear() {
 	mkdir -p "$subpkgdir"/usr/bin
 	local file; for file in pecl pear peardev; do
 		mv "$pkgdir"/usr/bin/$file "$subpkgdir"/usr/bin/$file$_suffix
-		if [ "$_default_php" = yes ]; then
-			ln -s $file$_suffix "$subpkgdir"/usr/bin/$file
-		fi
+		ln -s $file$_suffix "$subpkgdir"/usr/bin/$file
 	done
 
 	amove etc/$pkgname/pear.conf usr/share
@@ -534,10 +523,8 @@ phar() {
 
 	amove usr/bin/phar$_suffix.phar usr/bin/phar$_suffix
 
-	if [ "$_default_php" = yes ]; then
-		ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar.phar
-		ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar
-	fi
+	ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar.phar
+	ln -s phar.phar$_suffix "$subpkgdir"/usr/bin/phar
 }
 
 _extension() {
@@ -604,7 +591,9 @@ _extensions_by_load_order() {
 	for name in $_extensions; do
 		list="$list $(_extension_load_order $name);$name"
 	done
-	printf '%s\n' $list | sort -t ';' -k 1 | sed -E 's/\d+;//'
+	# Unlike Alpine, we use '[0-9]' instead of '\d' since glibc doesn't
+	# understand the '\d' character class.
+	printf '%s\n' $list | sort -t ';' -k 1 | sed -E 's/[0-9]+;//'
 }
 
 sha512sums="
@@ -623,4 +612,5 @@ ec206639d076ddac6c2d1db697a5428ed3be979157db39417af7fbe6ab837e8dc00315ae0e55aea4
 1b64a7cef9e81387f955cb60ffa4e3d2277b4f6072e9328d779c0d447c202c8ee9dff0d8d8c34abc82c150311f51c4e9316a3b72a383ca6c9a6e683bc5b349a0  fix-tests-devserver.patch
 8833c5c6f5225f5e85a9cd842274e4e6b2f55dc572a13bdb3066c624f82c9f39fa07cb2f8f242092ff814f61f0cb8abaa792b1f93c16ad341f1a8dec05a6ca2d  phpinfo-avif.patch
 4228737f7417d14a750c8ebdf7c07bf89d4b254ed41c27934260db2f52b2d2e03cf677329180f1c886043975eab6a78e8fd7826d107cdddf6b10ba4cee07c643  fix-lfs64.patch
+c755528407b9f997c325d5b3225af0fbf3c59ae1745eacb8c589ba636058ac4137e25a7cd31ff143def222497d274246c65a34ee2ee7459a10bc3f42d5c0cfe3  0100-bug52820_no_proxy.patch
 "
