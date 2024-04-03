@@ -1,4 +1,4 @@
-From a019ba2492ce98ee78c0ace75a8e9a3dcf9a54ed Mon Sep 17 00:00:00 2001
+From 2e1255d0bb0819280a1b432d5efab2bd885fbc8f Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 26 Dec 2023 10:27:22 +0000
 Subject: [PATCH] database: verify old file onwers with fallback paths
@@ -14,10 +14,10 @@ Fix it for system symlinks: lib, bin and sbin.
  1 file changed, 76 insertions(+), 2 deletions(-)
 
 diff --git a/src/database.c b/src/database.c
-index 5ec7f7d..3b091cf 100644
+index 7355bc8..c590cb4 100644
 --- a/src/database.c
 +++ b/src/database.c
-@@ -2734,9 +2734,56 @@ static void apk_db_purge_pkg(struct apk_database *db,
+@@ -2739,9 +2739,56 @@ static void apk_db_purge_pkg(struct apk_database *db,
  	}
  }
  
@@ -75,7 +75,7 @@ index 5ec7f7d..3b091cf 100644
  {
  	struct apk_db_dir_instance *diri;
  	struct apk_db_dir *dir;
-@@ -2746,6 +2793,7 @@ static void apk_db_migrate_files(struct apk_database *db,
+@@ -2751,6 +2798,7 @@ static void apk_db_migrate_files(struct apk_database *db,
  	struct hlist_node *dc, *dn, *fc, *fn;
  	unsigned long hash;
  	char name[PATH_MAX], tmpname[TMPNAME_MAX];
@@ -83,7 +83,7 @@ index 5ec7f7d..3b091cf 100644
  	int cstype, r;
  
  	hlist_for_each_entry_safe(diri, dc, dn, &ipkg->owned_dirs, pkg_dirs_list) {
-@@ -2767,6 +2815,32 @@ static void apk_db_migrate_files(struct apk_database *db,
+@@ -2772,6 +2820,32 @@ static void apk_db_migrate_files(struct apk_database *db,
  			ofile = (struct apk_db_file *) apk_hash_get_hashed(
  				&db->installed.files, APK_BLOB_BUF(&key), hash);
  
@@ -116,7 +116,7 @@ index 5ec7f7d..3b091cf 100644
  			/* We want to compare checksums only if one exists
  			 * in db, and the file is in a protected path */
  			cstype = APK_CHECKSUM_NONE;
-@@ -2970,7 +3044,7 @@ int apk_db_install_pkg(struct apk_database *db, struct apk_package *oldpkg,
+@@ -2976,7 +3050,7 @@ int apk_db_install_pkg(struct apk_database *db, struct apk_package *oldpkg,
  			apk_pkg_uninstall(db, newpkg);
  			goto ret_r;
  		}
@@ -126,5 +126,5 @@ index 5ec7f7d..3b091cf 100644
  
  	if (oldpkg != NULL && oldpkg != newpkg && oldpkg->ipkg != NULL) {
 -- 
-2.25.1
+2.43.0
 
