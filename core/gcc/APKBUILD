@@ -296,15 +296,15 @@ build() {
 		# not really necessary for this task.
 		if [ "$CHOST" != "$CTARGET" ] ; then
 			_libc_configure="--disable-libssp --disable-libsanitizer"
-		# glibc supports stack protector for ages, but the GCC
+		# glibc has supported stack protector for ages, but the GCC
 		# configure stage cannot properly detect whether a target libc
 		# supports stack protector in case of cross-compilation.  This
 		# leads to dynamic linking with libssp.so whenever we use a
 		# cross-compiled GCC with the -fstack-protector-strong option.
-		# So explicitly disable libssp to avoid unwanted dependency on
-		# libssp.so.
+		# To make GCC think the target libc supports stack protector,
+		# let's override a corresponding autoconf cache variable.
 		elif [ "$CBUILD" != "$CHOST" ]; then
-			_libc_configure="--disable-libssp"
+			export gcc_cv_libc_provides_ssp=yes
 		fi
 
 		_libc_configure="$_libc_configure --enable-cet"
@@ -344,6 +344,7 @@ build() {
 	echo "  libc_configure=$_libc_configure"
 	echo "  cross_configure=$_cross_configure"
 	echo "  bootstrap_configure=$_bootstrap_configure"
+	echo "  gcc_cv_libc_provides_ssp=$gcc_cv_libc_provides_ssp"
 	echo ""
 
 	local version="$VENDOR_DISTRO_NAME $pkgver"
