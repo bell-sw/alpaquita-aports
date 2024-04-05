@@ -151,14 +151,19 @@ package() {
 
 	cp "$pkgdir"/etc/conf.d/agetty "$pkgdir"/etc/conf.d/agetty.tty1
 	sed -i 's,#baud=.*,baud="38400",' "$pkgdir"/etc/conf.d/agetty.tty1
+	install -Dm755 "$pkgdir"/usr/share/openrc/support/deptree2dot/deptree2dot \
+		-t "$pkgdir"/usr/bin/
+	rm -r "$pkgdir"/usr/share/openrc/support/deptree2dot/deptree2dot
+}
+
+doc() {
+	default_doc
+	amove usr/share/openrc/support
 }
 
 tools() {
 	depends="perl"
-
-	mkdir -p "$subpkgdir"/usr/bin
-	mv "$pkgdir"/usr/share/openrc/support/deptree2dot/deptree2dot \
-		"$subpkgdir"/usr/bin/
+	amove usr/bin/deptree2dot
 }
 
 _agetty_openrc() {
