@@ -4,7 +4,7 @@
 pkgname=glib
 pkgver=2.80.0
 _gi_version=1.80.1
-pkgrel=2
+pkgrel=3
 pkgdesc="Common C routines used by GTK+ and others"
 url="https://developer.gnome.org/glib/"
 arch="all"
@@ -69,6 +69,7 @@ build() {
 	meson setup \
 		--default-library=shared \
 		--prefix="$_prefix" \
+		--libdir="$_prefix/lib" \
 		-Dman-pages=disabled \
 		-Dlibmount=disabled \
 		-Dtests=false \
@@ -82,6 +83,7 @@ build() {
 	meson setup \
 		--pkg-config-path="$_prefix"/lib/pkgconfig \
 		--prefix="$_prefix" \
+		--libdir="$_prefix/lib" \
 		-Dbuild_introspection_data=false \
 		-Dcairo=disabled \
 		-Ddoctool=disabled \
@@ -97,6 +99,7 @@ build() {
 		--pkg-config-path="$_prefix"/lib/pkgconfig \
 		--default-library=both \
 		--prefix=/usr \
+		--libdir=/usr/lib \
 		-Dman-pages=enabled \
 		-Dlibmount=enabled \
 		-Dtests="$(want_check && echo true || echo false)" \
