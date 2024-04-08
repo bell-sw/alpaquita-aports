@@ -5,7 +5,7 @@ pkgname=grub
 # NOTE: After upgrading or applying a fix, please rebuild the following aport:
 # - grub-efi-signed
 pkgver=2.06
-pkgrel=24
+pkgrel=25
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
 arch="all !s390x"
@@ -22,7 +22,7 @@ subpackages="
 	$pkgname-doc
 	$pkgname-mkfont
 	$pkgname-mount
-	$pkgname-bash-completion:bashcomp:noarch
+	$pkgname-bash-completion
 	"
 
 # currently grub only builds on x86*, aarch64 and ppc* systems
@@ -492,14 +492,6 @@ mount() {
 	depends=""
 	mkdir -p $subpkgdir/usr/bin
 	mv $pkgdir/usr/bin/grub-mount $subpkgdir/usr/bin/
-}
-
-bashcomp() {
-	depends=""
-	pkgdesc="Bash completions for $pkgname"
-	install_if="$pkgname=$pkgver-r$pkgrel bash-completion"
-
-	amove usr/share/bash-completion/completions
 }
 
 sha512sums="
