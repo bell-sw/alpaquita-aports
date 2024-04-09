@@ -1,0 +1,39 @@
+From 0739cfb991b51e2ed52d30348a72c8a3af4384eb Mon Sep 17 00:00:00 2001
+From: Denis Kononenko <denis.kononenko@bell-sw.com>
+Date: Mon, 27 Mar 2023 14:38:29 +0000
+Subject: [PATCH] Allow build from sources out of the version control system
+
+---
+ .../processor/BuildInformationProcessor.java       | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/src/processor/java/org/truffleruby/processor/BuildInformationProcessor.java b/src/processor/java/org/truffleruby/processor/BuildInformationProcessor.java
+index 806df4090a..525618102e 100644
+--- a/truffleruby/src/processor/java/org/truffleruby/processor/BuildInformationProcessor.java
++++ b/truffleruby/src/processor/java/org/truffleruby/processor/BuildInformationProcessor.java
+@@ -58,12 +58,18 @@ public class BuildInformationProcessor extends TruffleRubyProcessor {
+         try {
+             trufflerubyHome = findHome();
+             buildName = System.getenv("TRUFFLERUBY_BUILD_NAME");
+-            fullRevision = runCommand("git rev-parse HEAD")
+-                    .orElseThrow(() -> new Error("git rev-parse command failed"));
++            fullRevision = System.getenv("TRUFFLERUBY_COMMIT_SHA");
++            if (fullRevision == null || fullRevision.isEmpty()) {
++                fullRevision = runCommand("git rev-parse HEAD")
++                        .orElseThrow(() -> new Error("git rev-parse command failed"));
++            }
+             shortRevision = fullRevision.substring(0, 8);
+             isDirty = runCommand("git diff --quiet").isEmpty();
+-            compileDate = runCommand("git log -1 --date=short --pretty=format:%cd")
+-                    .orElseThrow(() -> new Error("git log command failed"));
++            compileDate = System.getenv("TRUFFLERUBY_COMMIT_DATE");
++            if (compileDate == null || compileDate.isEmpty()) {
++                compileDate = runCommand("git log -1 --date=short --pretty=format:%cd")
++                        .orElseThrow(() -> new Error("git log command failed"));
++            }
+             copyrightYear = Integer.parseInt(compileDate.split("\\-")[0]);
+             kernelMajorVersion = findKernelMajorVersion();
+         } catch (Throwable e) {
+-- 
+2.38.1
+
