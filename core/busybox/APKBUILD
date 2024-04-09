@@ -4,7 +4,7 @@
 
 pkgname=busybox
 pkgver=1.36.1
-pkgrel=29
+pkgrel=30
 pkgdesc="Modular toolbox of common UNIX utilities"
 url="https://busybox.net/"
 arch="all"
@@ -13,8 +13,7 @@ depends="glibc:glibc-utils"
 makedepends_build="perl"
 makedepends_host="linux-headers openssl-dev>3"
 # Only build with utmps support if we are not bootstraping.
-# skalibs-static is needed for utmps-static
-[ -z "$BOOTSTRAP" ] && makedepends_host="$makedepends_host utmps-dev utmps-static skalibs-static"
+[ -z "$BOOTSTRAP" ] && makedepends_host="$makedepends_host utmps-dev utmps-static"
 makedepends="$makedepends_build $makedepends_host"
 checkdepends="zip"
 install="$pkgname.post-install $pkgname.post-upgrade
