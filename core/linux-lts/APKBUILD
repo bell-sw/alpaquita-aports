@@ -37,7 +37,10 @@ _config=${config:-config-lts.${CARCH}}
 source="https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$_kernver.tar.xz
 	config-lts.x86_64
 	config-lts-debug.x86_64
+	config-lts.aarch64
 	extramods
+	extramods.x86_64
+	extramods.aarch64
 	x509.genkey
 	../shim/bellsoft-uefi-ca.pem
 
@@ -173,10 +176,11 @@ _move_extra_modules() {
 	local _extra_path="${srcdir}/extra_modules_${_buildflavor}"
 	local _mods_path="$_outdir/lib/modules/${_abi_release}/kernel"
 	local _extramods="$(cat "$srcdir"/extramods)"
+	local _extramods_arch="$(test -f "$srcdir"/extramods.$CARCH && cat "$srcdir"/extramods.$CARCH)"
 	local _dir_name _mod_path _m _c _src _dst
 	local err=0
 
-	for _m in $_extramods; do
+	for _m in $_extramods $_extramods_arch; do
 		_c="${_m:0:1}"
 
 		case "$_c" in
@@ -196,8 +200,10 @@ _move_extra_modules() {
 		fi
 
 		mkdir -p "$_dst"
-		mv -f "$_src" "$_dst"
+		mv -f "$_src" "$_dst" || err=1
 	done
+
+	return $err
 }
 
 _package() {
@@ -327,7 +333,10 @@ sha512sums="
 a0c057a702563871fd05067874727e978e266d64db8769ea8dcfec7e81f7f1a6d0100cfe1ab47b4dbda743503fe1187ae92b4c7ce96fe3fc2fe833beb6e2458b  patch-6.1.84.xz
 40ab8c51616be3a4a1e3295a62be87430458e59ac5d036942b8cb3df262c0657ee3a0abd4321190aded5a30c6553571f917618d786e2c32eb55166555c8499d4  config-lts.x86_64
 008183b8509be9798772a57cde465050ddb1d7d9025595f2bc7f4a80e18ec624609db28e872a5004c22f86b5fdcb4e2ecb7866a791e1761b870add35fc61a622  config-lts-debug.x86_64
-1f25004a998bd423b77df13e22a23317866a7a36acaed5de01d50ad8d601cc7937cfb4487c1e5cbc8ed9356b7b04d356c5b6d2290eeaba161f0c7b859a272af7  extramods
+2571d3207a0fd147d74a3750f199fe112812278391fcaf6832aaf46be014c01101b831160e28ee930ee9b97851ffbbc7c38f17551fec47126d651b2dabfdb9de  config-lts.aarch64
+89f8fc8046612424d3b6ecd813f1ce991d8ce8d06d0c374b59bedf558993a83a40b5d6f863940ae4e505080bba5c723afa846f767a1db6439fa0d132aa7fd403  extramods
+8b8ea3b0294787c6276f027cca3a109ebf8ddca7fd412a6e1d041c6010a8b4801b6eb97b948448567154141f8e5650ad870485719e8599bce8b29b1777dd0d75  extramods.x86_64
+f6c9c08b8a2e228fa1a0a01963f058a97cd0e8acf29c51bc1a45aff96a06defea77a5023264043156c83e7cea7b776643eb446f10b53c70fc009d22190652c04  extramods.aarch64
 8ab1221f07d35b710da7e27d6e443ca303e03b69f29a21d2a8fef236a48e0b95b5521cd1e4adb1046d048a37a9d52989e5a5c55647da6f57f1ba7bb69230ce4f  x509.genkey
 304d6a2d2c25af142b2cf2222079ebf59b8174f0825840dfc88e60016e5fcfe12973e0a250b4172ff7ea77cdb014cb5fec1a474965fee97478a6dcd0cbe6bdd3  bellsoft-uefi-ca.pem
 3e3d21971766bd7cbb840349ff89b280e4da0997b4a4210cf337bf294739827a833aa91da846703aa040231e5228c6e39fefaa51c639f46b4bb2084bd9cecc56  0100-efi-Add-an-EFI_SECURE_BOOT-flag-to-indicate-secure-b.patch
