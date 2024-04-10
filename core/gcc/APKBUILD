@@ -12,7 +12,7 @@ _pkgsnap="${pkgver##*_git}"
 [ "$CHOST" != "$CTARGET" ] && _target="-$CTARGET_ARCH" || _target=""
 
 pkgname="$pkgname$_target"
-pkgrel=2
+pkgrel=3
 pkgdesc="The GNU Compiler Collection"
 url="https://gcc.gnu.org"
 arch="all"
@@ -650,7 +650,7 @@ libgphobos_dev() {
 
 gdc() {
 	pkgdesc="GCC-based D language compiler"
-	depends="gcc=$_gccrel libgphobos=$_gccrel libgphobos-dev$_target=$_gccrel musl:musl-dev"
+	depends="gcc=$_gccrel libgphobos=$_gccrel libgphobos-dev$_target=$_gccrel $CLIBC-dev"
 	depends="$depends libucontext-dev"
 	provides="gcc-gdc-bootstrap=$_gccrel"
 
