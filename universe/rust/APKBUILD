@@ -2,7 +2,7 @@ pkgname=rust
 pkgver=1.77.0
 _llvmver=17
 _bootver=1.76.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Rust Programming Language toolchain"
 url="https://www.rust-lang.org/"
 arch="all"
@@ -78,7 +78,7 @@ subpackages="
 	"
 source="https://static.rust-lang.org/dist/rustc-$pkgver-src.tar.xz
 	alpine-move-py-scripts-to-share.patch
-	alpaquita-target.patch
+	alpine-target.patch
 	do-not-install-libunwind-source.patch
 	musl:gcc-eh-libunwind.patch
 	install-template-shebang.patch
@@ -89,6 +89,8 @@ source="https://static.rust-lang.org/dist/rustc-$pkgver-src.tar.xz
 	revert-rustc_codegen_ssa-use-try_canonicalize-in-rpath.patch
 	system-wasm-ld.patch
 	check-rustc
+
+	0100-Add-Alpaquita-targets.patch
 	"
 builddir="$srcdir/rustc-$pkgver-src"
 
@@ -451,7 +453,7 @@ _mv() {
 sha512sums="
 59f19d9def93b613ac72925625e6662622f445506489b8f1cd405d037c28becd53ae1446b46edfd63734f6f236af2dc326a57a184f01bc10d497c96227f09034  rustc-1.77.0-src.tar.xz
 9de9d7ad05584e3cafddedcac409a4605a1d67e82260220deb3efd965603ee3148062b081c0cd736e50d82daad3a723fb6a7493fdf4dddfe36288645425a7946  alpine-move-py-scripts-to-share.patch
-f773202c44c877b042c30c9d94b421fd8b8da1cd1cfbd4db04338b97295f889050ca6ecae5d9dd06770244d1701c7864328d8d5eee12e20826c0900a2927003f  alpaquita-target.patch
+8b146dabe9cebfd5fcd916a9ece8ce1eefe27c410bf63f896b5f3c327fe41184fe77034ee604d385ace8fd61eac94469134967a51e3bdd9dece4d2428f42e21f  alpine-target.patch
 b4f09270f4e1677975d12447be9960271b00ffb8ab55987864c306fa45b8f70bdb82fd89e5fa7ad1cf604a1c91fbac8f3753b29dc98e10e7f47edf13d9071d77  do-not-install-libunwind-source.patch
 d4531905520b3fc699fbf57b267130bdbca94e2773a710e8b4c618ae3895149312934dd92d1988860c6dd102af50e05264b49a01662d5621c26de3604c753d6a  gcc-eh-libunwind.patch
 b283d31cc8d6559aa639d44f776e97c2a1e0f23c717b6784e549861b881555bd467fa6023180866aae81a9a58c5f83e306940ee645f3c6733a1bdef6130036c9  install-template-shebang.patch
@@ -462,4 +464,5 @@ da5ea8ea2360ba6fdc2b3f29063baf978af19f7ff106d0511912b1357e1e613dae0417d3b55fb2aa
 74c0d14a68c2d7355f15ec3704d387556ad337e4991831e94951906d17aeb60387d20586a63cf6cdc62b46c60e1874340a250196ec2b3e75c268af1c41fae7e9  revert-rustc_codegen_ssa-use-try_canonicalize-in-rpath.patch
 5216e083a1709b3ecbbdeaaaf0e112ec88e7534952fdadf834ce864b55768e15d7d181c14127d4ef39f66ca2a94dd40eddb2c4ab297081d75e5f3a09dcbcfa56  system-wasm-ld.patch
 c31fdfe8a9b3411576c75da46645cf0465b9053000a2ab49cf9b2f2733f679d6d33acbf236d67a20e14935d094a685453b7f1840180249f39d610fd0902c3125  check-rustc
+ccfbcc91b01a1488f944b2a77b9d9f430f79d8839f9d483639714838e263fd8277a54f9855faf752bf617f47550c64be5e55c4dfbf7fa21293500f26f1309306  0100-Add-Alpaquita-targets.patch
 "

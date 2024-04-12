@@ -1,0 +1,112 @@
+From 78fdfe1ebed38008806b70a624a05d3804d84a82 Mon Sep 17 00:00:00 2001
+From: Stanislav Kholmanskikh <stanislav.kholmanskikh@bell-sw.com>
+Date: Fri, 12 Apr 2024 12:54:49 +0000
+Subject: [PATCH] Add Alpaquita targets
+
+---
+ compiler/rustc_target/src/spec/mod.rs               |  5 +++++
+ .../src/spec/targets/aarch64_alpaquita_linux_gnu.rs | 13 +++++++++++++
+ .../spec/targets/aarch64_alpaquita_linux_musl.rs    | 13 +++++++++++++
+ .../src/spec/targets/x86_64_alpaquita_linux_gnu.rs  | 13 +++++++++++++
+ .../src/spec/targets/x86_64_alpaquita_linux_musl.rs | 13 +++++++++++++
+ 5 files changed, 57 insertions(+)
+ create mode 100644 compiler/rustc_target/src/spec/targets/aarch64_alpaquita_linux_gnu.rs
+ create mode 100644 compiler/rustc_target/src/spec/targets/aarch64_alpaquita_linux_musl.rs
+ create mode 100644 compiler/rustc_target/src/spec/targets/x86_64_alpaquita_linux_gnu.rs
+ create mode 100644 compiler/rustc_target/src/spec/targets/x86_64_alpaquita_linux_musl.rs
+
+diff --git a/compiler/rustc_target/src/spec/mod.rs b/compiler/rustc_target/src/spec/mod.rs
+index cf22148f2..57783389a 100644
+--- a/compiler/rustc_target/src/spec/mod.rs
++++ b/compiler/rustc_target/src/spec/mod.rs
+@@ -1397,6 +1397,11 @@ macro_rules! supported_targets {
+ }
+ 
+ supported_targets! {
++    ("aarch64-alpaquita-linux-gnu", aarch64_alpaquita_linux_gnu),
++    ("aarch64-alpaquita-linux-musl", aarch64_alpaquita_linux_musl),
++    ("x86_64-alpaquita-linux-gnu", x86_64_alpaquita_linux_gnu),
++    ("x86_64-alpaquita-linux-musl", x86_64_alpaquita_linux_musl),
++
+     ("i586-alpine-linux-musl", i586_alpine_linux_musl),
+     ("x86_64-alpine-linux-musl", x86_64_alpine_linux_musl),
+     ("aarch64-alpine-linux-musl", aarch64_alpine_linux_musl),
+diff --git a/compiler/rustc_target/src/spec/targets/aarch64_alpaquita_linux_gnu.rs b/compiler/rustc_target/src/spec/targets/aarch64_alpaquita_linux_gnu.rs
+new file mode 100644
+index 000000000..c17d5f1e9
+--- /dev/null
++++ b/compiler/rustc_target/src/spec/targets/aarch64_alpaquita_linux_gnu.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::aarch64_unknown_linux_gnu::target();
++
++    base.llvm_target = "aarch64-alpaquita-linux-gnu".into();
++    base.options.vendor = "alpaquita".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+diff --git a/compiler/rustc_target/src/spec/targets/aarch64_alpaquita_linux_musl.rs b/compiler/rustc_target/src/spec/targets/aarch64_alpaquita_linux_musl.rs
+new file mode 100644
+index 000000000..d633dc8f9
+--- /dev/null
++++ b/compiler/rustc_target/src/spec/targets/aarch64_alpaquita_linux_musl.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::aarch64_unknown_linux_musl::target();
++
++    base.llvm_target = "aarch64-alpaquita-linux-musl".into();
++    base.options.vendor = "alpaquita".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+diff --git a/compiler/rustc_target/src/spec/targets/x86_64_alpaquita_linux_gnu.rs b/compiler/rustc_target/src/spec/targets/x86_64_alpaquita_linux_gnu.rs
+new file mode 100644
+index 000000000..f39bdfd80
+--- /dev/null
++++ b/compiler/rustc_target/src/spec/targets/x86_64_alpaquita_linux_gnu.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::x86_64_unknown_linux_gnu::target();
++
++    base.llvm_target = "x86_64-alpaquita-linux-gnu".into();
++    base.options.vendor = "alpaquita".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+diff --git a/compiler/rustc_target/src/spec/targets/x86_64_alpaquita_linux_musl.rs b/compiler/rustc_target/src/spec/targets/x86_64_alpaquita_linux_musl.rs
+new file mode 100644
+index 000000000..1eeb31399
+--- /dev/null
++++ b/compiler/rustc_target/src/spec/targets/x86_64_alpaquita_linux_musl.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::x86_64_unknown_linux_musl::target();
++
++    base.llvm_target = "x86_64-alpaquita-linux-musl".into();
++    base.options.vendor = "alpaquita".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+-- 
+2.44.0
+

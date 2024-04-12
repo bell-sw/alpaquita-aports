@@ -1,0 +1,192 @@
+From: Shiz <hi@shiz.me>
+Updated by Rasmus Thomsen <oss@cogitri.dev> on 28th of July 2019
+Updated again by Ariadne Conill <ariadne@dereferenced.org> on 31 October 2020
+Date: Thu, 20 Aug 2017 01:52:36 +0200
+Last-Updated: Sat, 28 Oct 2017 20:23:00 +0200
+Subject: [PATCH] Add Alpine targets
+
+This adds `$arch-alpine-linux-musl` targets to Rust to encode our toolchain
+and distribution-specific quirks instead of polluting the main musl target of
+`$arch-unknown-linux-musl`.
+
+--- /dev/null
++++ rustc-1.48.0-src/compiler/rustc_target/src/spec/targets/aarch64_alpine_linux_musl.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::aarch64_unknown_linux_musl::target();
++
++    base.llvm_target = "aarch64-alpine-linux-musl".into();
++    base.options.vendor = "alpine".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+--- /dev/null
++++ rustc-1.48.0-src/compiler/rustc_target/src/spec/targets/armv6_alpine_linux_musleabihf.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::arm_unknown_linux_musleabihf::target();
++
++    base.llvm_target = "armv6-alpine-linux-musleabihf".into();
++    base.options.vendor = "alpine".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+--- /dev/null
++++ rustc-1.48.0-src/compiler/rustc_target/src/spec/targets/armv7_alpine_linux_musleabihf.rs
+@@ -0,0 +1,14 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::armv7_unknown_linux_musleabihf::target();
++
++    base.llvm_target = "armv7-alpine-linux-musleabihf".into();
++    base.options.vendor = "alpine".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++    base.options.features = "+v7,+vfp3,-d32,+thumb-mode,+thumb2".into();
++
++    base
++}
+--- /dev/null
++++ rustc-1.48.0-src/compiler/rustc_target/src/spec/targets/i586_alpine_linux_musl.rs
+@@ -0,0 +1,14 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::i686_unknown_linux_musl::target();
++
++    base.options.cpu = "pentium4".into();
++    base.llvm_target = "i586-alpine-linux-musl".into();
++    base.options.vendor = "alpine".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+--- rustc-1.48.0-src.orig/compiler/rustc_target/src/spec/mod.rs
++++ rustc-1.48.0-src/compiler/rustc_target/src/spec/mod.rs
+@@ -1397,6 +1397,16 @@
+ }
+ 
+ supported_targets! {
++    ("i586-alpine-linux-musl", i586_alpine_linux_musl),
++    ("x86_64-alpine-linux-musl", x86_64_alpine_linux_musl),
++    ("aarch64-alpine-linux-musl", aarch64_alpine_linux_musl),
++    ("armv6-alpine-linux-musleabihf", armv6_alpine_linux_musleabihf),
++    ("armv7-alpine-linux-musleabihf", armv7_alpine_linux_musleabihf),
++    ("powerpc-alpine-linux-musl", powerpc_alpine_linux_musl),
++    ("powerpc64-alpine-linux-musl", powerpc64_alpine_linux_musl),
++    ("powerpc64le-alpine-linux-musl", powerpc64le_alpine_linux_musl),
++    ("s390x-alpine-linux-musl", s390x_alpine_linux_musl),
++    ("riscv64-alpine-linux-musl", riscv64_alpine_linux_musl),
+     ("x86_64-unknown-linux-gnu", x86_64_unknown_linux_gnu),
+     ("x86_64-unknown-linux-gnux32", x86_64_unknown_linux_gnux32),
+     ("i686-unknown-linux-gnu", i686_unknown_linux_gnu),
+--- /dev/null
++++ rustc-1.48.0-src/compiler/rustc_target/src/spec/targets/powerpc64_alpine_linux_musl.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::powerpc64_unknown_linux_musl::target();
++
++    base.llvm_target = "powerpc64-alpine-linux-musl".into();
++    base.options.vendor = "alpine".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+--- /dev/null
++++ rustc-1.48.0-src/compiler/rustc_target/src/spec/targets/powerpc64le_alpine_linux_musl.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::powerpc64le_unknown_linux_musl::target();
++
++    base.llvm_target = "powerpc64le-alpine-linux-musl".into();
++    base.options.vendor = "alpine".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+--- /dev/null
++++ rustc-1.48.0-src/compiler/rustc_target/src/spec/targets/powerpc_alpine_linux_musl.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::powerpc_unknown_linux_musl::target();
++
++    base.llvm_target = "powerpc-alpine-linux-musl".into();
++    base.options.vendor = "alpine".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+--- /dev/null
++++ rustc-1.48.0-src/compiler/rustc_target/src/spec/targets/s390x_alpine_linux_musl.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::s390x_unknown_linux_musl::target();
++
++    base.llvm_target = "s390x-alpine-linux-musl".into();
++    base.options.vendor = "alpine".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+--- /dev/null
++++ rustc-1.48.0-src/compiler/rustc_target/src/spec/targets/x86_64_alpine_linux_musl.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::x86_64_unknown_linux_musl::target();
++
++    base.llvm_target = "x86_64-alpine-linux-musl".into();
++    base.options.vendor = "alpine".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
+--- /dev/null
++++ rustc-1.52.1-src/compiler/rustc_target/src/spec/targets/riscv64_alpine_linux_musl.rs
+@@ -0,0 +1,13 @@
++use crate::spec::Target;
++
++pub fn target() -> Target {
++    let mut base = super::riscv64gc_unknown_linux_musl::target();
++
++    base.llvm_target = "riscv64-alpine-linux-musl".into();
++    base.options.vendor = "alpine".into();
++    base.options.crt_static_default = false;
++    base.options.static_position_independent_executables = true;
++    base.options.need_rpath = true;
++
++    base
++}
