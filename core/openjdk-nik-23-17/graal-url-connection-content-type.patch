@@ -1,0 +1,265 @@
+diff --git a/substratevm/mx.substratevm/suite.py b/substratevm/mx.substratevm/suite.py
+index 64fb2e9caa3..904af18ebad 100644
+--- a/graal/substratevm/mx.substratevm/suite.py
++++ b/graal/substratevm/mx.substratevm/suite.py
+@@ -256,6 +256,7 @@ suite = {
+                 "java.base" : [
+                     "sun.invoke.util",
+                     "sun.net",
++                    "sun.net.www",
+                     "sun.nio.ch",
+                     "sun.reflect.annotation",
+                     "sun.reflect.generics.factory",
+diff --git a/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/resources/ResourceURLConnection.java b/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/resources/ResourceURLConnection.java
+index affe85220cc..14714b2bc07 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/resources/ResourceURLConnection.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/resources/ResourceURLConnection.java
+@@ -30,15 +30,29 @@ import java.io.FileNotFoundException;
+ import java.io.IOException;
+ import java.io.InputStream;
+ import java.net.URL;
+-import java.net.URLConnection;
++import java.text.SimpleDateFormat;
++import java.util.Date;
+ import java.util.List;
++import java.util.Locale;
++import java.util.Map;
++import java.util.TimeZone;
+ 
+ import com.oracle.svm.core.jdk.JavaNetSubstitutions;
+ import com.oracle.svm.core.jdk.Resources;
+ 
++import sun.net.www.MessageHeader;
++import sun.net.www.URLConnection;
++
+ public final class ResourceURLConnection extends URLConnection {
+ 
++    private static final String CONTENT_LENGTH = "content-length";
++    private static final String CONTENT_TYPE = "content-type";
++    private static final String TEXT_PLAIN = "text/plain";
++    private static final String LAST_MODIFIED = "last-modified";
++
+     private byte[] data;
++    private boolean isDirectory = false;
++    private boolean initializedHeaders = false;
+ 
+     public ResourceURLConnection(URL url) {
+         super(url);
+@@ -63,6 +77,7 @@ public final class ResourceURLConnection extends URLConnection {
+         ResourceStorageEntry entry = Resources.get(module, resourceName);
+         if (entry != null) {
+             List<byte[]> bytes = entry.getData();
++            isDirectory = entry.isDirectory();
+             String urlRef = url.getRef();
+             int index = 0;
+             if (urlRef != null) {
+@@ -99,21 +114,74 @@ public final class ResourceURLConnection extends URLConnection {
+ 
+     @Override
+     public long getContentLengthLong() {
+-        /*
+-         * Operations that depend on being connected will implicitly perform the connection, if
+-         * necessary.
+-         */
+-        connect();
+-        return data != null ? data.length : -1L;
++        initializeHeaders();
++        return super.getContentLengthLong();
+     }
+ 
+     @Override
+     public long getLastModified() {
+-        /*
+-         * Operations that depend on being connected will implicitly perform the connection, if
+-         * necessary.
+-         */
++        initializeHeaders();
++        return super.getLastModified();
++    }
++
++    @Override
++    public String getHeaderField(String name) {
++        initializeHeaders();
++        return super.getHeaderField(name);
++    }
++
++    @Override
++    public Map<String, List<String>> getHeaderFields() {
++        initializeHeaders();
++        return super.getHeaderFields();
++    }
++
++    @Override
++    public String getHeaderField(int n) {
++        initializeHeaders();
++        return super.getHeaderField(n);
++    }
++
++    @Override
++    public int getContentLength() {
++        initializeHeaders();
++        return super.getContentLength();
++    }
++
++    @Override
++    public String getHeaderFieldKey(int n) {
++        initializeHeaders();
++        return super.getHeaderFieldKey(n);
++    }
++
++    @Override
++    public MessageHeader getProperties() {
++        initializeHeaders();
++        return super.getProperties();
++    }
++
++    private void initializeHeaders() {
+         connect();
+-        return Resources.singleton().getLastModifiedTime();
++        if (!initializedHeaders) {
++            if (!isDirectory) {
++                String contentType = guessContentTypeFromName(url.getPath());
++                if (contentType != null) {
++                    properties.add(CONTENT_TYPE, contentType);
++                }
++
++                if (data != null) {
++                    properties.add(CONTENT_LENGTH, String.valueOf(data.length));
++                }
++
++                long lastModified = Resources.singleton().getLastModifiedTime();
++                Date date = new Date(lastModified);
++                SimpleDateFormat fo = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US);
++                fo.setTimeZone(TimeZone.getTimeZone("GMT"));
++                properties.add(LAST_MODIFIED, fo.format(date));
++            } else {
++                properties.add(CONTENT_TYPE, TEXT_PLAIN);
++            }
++            initializedHeaders = true;
++        }
+     }
+ }
+diff --git a/substratevm/src/com.oracle.svm.test/src/com/oracle/svm/test/NativeImageResourceTest.java b/substratevm/src/com.oracle.svm.test/src/com/oracle/svm/test/NativeImageResourceTest.java
+index 3a0f485fbfc..7ab48593926 100644
+--- a/graal/substratevm/src/com.oracle.svm.test/src/com/oracle/svm/test/NativeImageResourceTest.java
++++ b/graal/substratevm/src/com.oracle.svm.test/src/com/oracle/svm/test/NativeImageResourceTest.java
+@@ -28,6 +28,8 @@ package com.oracle.svm.test;
+ import static com.oracle.svm.test.NativeImageResourceUtils.RESOURCE_DIR;
+ import static com.oracle.svm.test.NativeImageResourceUtils.RESOURCE_FILE_1;
+ import static com.oracle.svm.test.NativeImageResourceUtils.RESOURCE_FILE_2;
++import static com.oracle.svm.test.NativeImageResourceUtils.RESOURCE_FILE_3;
++import static com.oracle.svm.test.NativeImageResourceUtils.RESOURCE_FILE_4;
+ import static com.oracle.svm.test.NativeImageResourceUtils.compareTwoURLs;
+ import static com.oracle.svm.test.NativeImageResourceUtils.resourceNameToURL;
+ 
+@@ -35,6 +37,7 @@ import java.io.IOException;
+ import java.io.InputStream;
+ import java.net.MalformedURLException;
+ import java.net.URL;
++import java.net.URLConnection;
+ import java.util.Enumeration;
+ import java.util.List;
+ import java.util.stream.Collectors;
+@@ -185,4 +188,64 @@ public class NativeImageResourceTest {
+             Assert.fail("IOException in module.getResourceAsStream(): " + e.getMessage());
+         }
+     }
++
++    /**
++     * <p>
++     * Check URLConnection content type.
++     * </p>
++     *
++     * <p>
++     * <b>Description: </b> Test inspired by issues: </br>
++     * <ol>
++     * <li><a href="https://github.com/oracle/graal/issues/6394">6394</a></li>
++     * </ol>
++     * </p>
++     */
++    @Test
++    public void testResourceURLConnectionContentType() {
++        try {
++            URL url1 = resourceNameToURL(RESOURCE_FILE_2, true);
++            URLConnection conn1 = url1.openConnection();
++            Assert.assertNull(conn1.getHeaderField(null));
++            Assert.assertEquals("text/plain", conn1.getHeaderField("content-type"));
++            Assert.assertEquals("text/plain", conn1.getHeaderField("Content-Type"));
++            Assert.assertEquals("text/plain", conn1.getContentType());
++
++            URL url2 = resourceNameToURL(RESOURCE_FILE_3, true);
++            URLConnection conn2 = url2.openConnection();
++            Assert.assertNull(conn2.getHeaderField(null));
++            Assert.assertEquals("text/html", conn2.getHeaderField("content-type"));
++            Assert.assertEquals("text/html", conn2.getHeaderField("Content-Type"));
++            Assert.assertEquals("text/html", conn2.getContentType());
++
++            URL url3 = resourceNameToURL(RESOURCE_FILE_4, true);
++            URLConnection conn3 = url3.openConnection();
++            Assert.assertEquals("text/html", conn3.getContentType());
++        } catch (IOException e) {
++            Assert.fail("IOException in url.openConnection(): " + e.getMessage());
++        }
++    }
++
++    /**
++     * <p>
++     * Check various URLConnection header fields.
++     * </p>
++     */
++    @Test
++    public void testResourceURLConnectionHeaderFields() {
++        try {
++            URL url = resourceNameToURL(RESOURCE_FILE_3, true);
++            URLConnection conn = url.openConnection();
++
++            Assert.assertNotEquals(0, conn.getLastModified());
++            Assert.assertEquals(24, conn.getContentLength());
++            Assert.assertEquals(24, conn.getContentLengthLong());
++
++            Assert.assertEquals("text/html", conn.getHeaderField(0));
++            Assert.assertEquals("content-type", conn.getHeaderFieldKey(0));
++            Assert.assertEquals(3, conn.getHeaderFields().size());
++        } catch (IOException e) {
++            Assert.fail("IOException in url.openConnection(): " + e.getMessage());
++        }
++    }
+ }
+diff --git a/substratevm/src/com.oracle.svm.test/src/com/oracle/svm/test/NativeImageResourceUtils.java b/substratevm/src/com.oracle.svm.test/src/com/oracle/svm/test/NativeImageResourceUtils.java
+index fd07acecc45..0c2d6e6d7b9 100644
+--- a/graal/substratevm/src/com.oracle.svm.test/src/com/oracle/svm/test/NativeImageResourceUtils.java
++++ b/graal/substratevm/src/com.oracle.svm.test/src/com/oracle/svm/test/NativeImageResourceUtils.java
+@@ -44,6 +44,8 @@ public class NativeImageResourceUtils {
+     public static final String RESOURCE_DIR = "/resources";
+     public static final String RESOURCE_FILE_1 = RESOURCE_DIR + "/resource-test1.txt";
+     public static final String RESOURCE_FILE_2 = RESOURCE_DIR + "/resource-test2.txt";
++    public static final String RESOURCE_FILE_3 = RESOURCE_DIR + "/resource-test3.html";
++    public static final String RESOURCE_FILE_4 = RESOURCE_DIR + "/resource-test4.output";
+ 
+     // Register resources.
+     public static final class TestFeature implements Feature {
+@@ -54,6 +56,8 @@ public class NativeImageResourceUtils {
+             RuntimeResourceAccess.addResource(resourceModule, RESOURCE_DIR.substring(1));
+             RuntimeResourceAccess.addResource(resourceModule, RESOURCE_FILE_1.substring(1));
+             RuntimeResourceAccess.addResource(resourceModule, RESOURCE_FILE_2.substring(1));
++            RuntimeResourceAccess.addResource(resourceModule, RESOURCE_FILE_3.substring(1));
++            RuntimeResourceAccess.addResource(resourceModule, RESOURCE_FILE_4.substring(1));
+ 
+             /** Needed for {@link #testURLExternalFormEquivalence()} */
+             for (Module module : ModuleLayer.boot().modules()) {
+diff --git a/substratevm/src/com.oracle.svm.test/src/resources/resource-test3.html b/substratevm/src/com.oracle.svm.test/src/resources/resource-test3.html
+new file mode 100644
+index 00000000000..215af276077
+--- /dev/null
++++ b/graal/substratevm/src/com.oracle.svm.test/src/resources/resource-test3.html
+@@ -0,0 +1 @@
++<html> HTML Text </html>
+\ No newline at end of file
+diff --git a/substratevm/src/com.oracle.svm.test/src/resources/resource-test4.output b/substratevm/src/com.oracle.svm.test/src/resources/resource-test4.output
+new file mode 100644
+index 00000000000..bc3e6fe5340
+--- /dev/null
++++ b/graal/substratevm/src/com.oracle.svm.test/src/resources/resource-test4.output
+@@ -0,0 +1 @@
++<html> More HTML Text </html>
+\ No newline at end of file

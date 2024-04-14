@@ -1,0 +1,25 @@
+diff --git a/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/VM.java b/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/VM.java
+index 7775770de9a..77059313b6d 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/VM.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/VM.java
+@@ -46,17 +46,17 @@ public final class VM {
+ 
+     @Platforms(Platform.HOSTED_ONLY.class)
+     public static String getSupportUrl() {
+-        return System.getProperty("org.graalvm.supporturl", "https://graalvm.org/support");
++        return System.getProperty("org.graalvm.supporturl", System.getProperty("java.vendor.url.bug", "https://graalvm.org/support"));
+     }
+ 
+     @Platforms(Platform.HOSTED_ONLY.class)
+     public static String getVendor() {
+-        return System.getProperty("org.graalvm.vendor", "GraalVM Community");
++        return System.getProperty("org.graalvm.vendor", System.getProperty("java.vendor", "GraalVM Community"));
+     }
+ 
+     @Platforms(Platform.HOSTED_ONLY.class)
+     public static String getVendorUrl() {
+-        return System.getProperty("org.graalvm.vendorurl", "https://www.graalvm.org/");
++        return System.getProperty("org.graalvm.vendorurl", System.getProperty("java.vendor.url", "https://www.graalvm.org/"));
+     }
+ 
+     public static String getVendorVersion() {

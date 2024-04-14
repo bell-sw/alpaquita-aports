@@ -1,0 +1,559 @@
+diff --git a/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/darwin/DarwinThreadCpuTimeSupport.java b/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/darwin/DarwinThreadCpuTimeSupport.java
+index e43d0cab8d2..f6f79d6b269 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/darwin/DarwinThreadCpuTimeSupport.java
++++ b/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/darwin/DarwinThreadCpuTimeSupport.java
+@@ -24,6 +24,7 @@
+  */
+ package com.oracle.svm.core.posix.darwin;
+ 
++import org.graalvm.nativeimage.IsolateThread;
+ import org.graalvm.nativeimage.StackValue;
+ import org.graalvm.nativeimage.c.type.CIntPointer;
+ 
+@@ -36,6 +37,7 @@ import com.oracle.svm.core.posix.headers.darwin.DarwinPthread;
+ import com.oracle.svm.core.posix.headers.darwin.DarwinThreadInfo;
+ import com.oracle.svm.core.posix.headers.darwin.DarwinThreadInfo.thread_basic_info_data_t;
+ import com.oracle.svm.core.thread.ThreadCpuTimeSupport;
++import com.oracle.svm.core.thread.VMThreads;
+ import com.oracle.svm.core.thread.VMThreads.OSThreadHandle;
+ 
+ @AutomaticallyRegisteredImageSingleton(ThreadCpuTimeSupport.class)
+@@ -48,6 +50,12 @@ final class DarwinThreadCpuTimeSupport implements ThreadCpuTimeSupport {
+         return getThreadCpuTime(pthread, includeSystemTime);
+     }
+ 
++    @Override
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    public long getThreadCpuTime(IsolateThread isolateThread, boolean includeSystemTime) {
++        return getThreadCpuTime(VMThreads.findOSThreadHandleForIsolateThread(isolateThread), includeSystemTime);
++    }
++
+     /**
+      * Returns the thread CPU time. Based on <link href=
+      * "https://github.com/openjdk/jdk/blob/612d8c6cb1d0861957d3f6af96556e2739283800/src/hotspot/os/bsd/os_bsd.cpp#L2344">os::thread_cpu_time</link>.
+@@ -56,9 +64,8 @@ final class DarwinThreadCpuTimeSupport implements ThreadCpuTimeSupport {
+      * @param includeSystemTime if {@code true} includes both system and user time, if {@code false}
+      *            returns user time.
+      */
+-    @Override
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    public long getThreadCpuTime(OSThreadHandle osThreadHandle, boolean includeSystemTime) {
++    private long getThreadCpuTime(OSThreadHandle osThreadHandle, boolean includeSystemTime) {
+         int threadsMachPort = DarwinPthread.pthread_mach_thread_np((pthread_t) osThreadHandle);
+         CIntPointer sizePointer = UnsafeStackValue.get(Integer.BYTES);
+         sizePointer.write(DarwinThreadInfo.THREAD_INFO_MAX());
+diff --git a/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/LinuxLibCHelper.java b/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/LinuxLibCHelper.java
+new file mode 100644
+index 00000000000..9961b0ad3a6
+--- /dev/null
++++ b/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/LinuxLibCHelper.java
+@@ -0,0 +1,38 @@
++/*
++ * Copyright (c) 2023, 2023, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++package com.oracle.svm.core.posix.linux;
++
++import org.graalvm.nativeimage.c.function.CFunction;
++import org.graalvm.nativeimage.c.function.CFunction.Transition;
++import org.graalvm.nativeimage.c.function.CLibrary;
++
++@CLibrary(value = "libchelper", requireStatic = true)
++public class LinuxLibCHelper {
++    @CFunction(transition = Transition.NO_TRANSITION)
++    public static native int getThreadId();
++
++    @CFunction(transition = Transition.NO_TRANSITION)
++    public static native long getThreadUserTimeSlow(int tid);
++}
+diff --git a/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/LinuxThreadCpuTimeSupport.java b/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/LinuxThreadCpuTimeSupport.java
+index b2680ff7a86..24e35a3d1cd 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/LinuxThreadCpuTimeSupport.java
++++ b/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/linux/LinuxThreadCpuTimeSupport.java
+@@ -24,6 +24,7 @@
+  */
+ package com.oracle.svm.core.posix.linux;
+ 
++import org.graalvm.nativeimage.IsolateThread;
+ import org.graalvm.nativeimage.StackValue;
+ import org.graalvm.nativeimage.c.type.CIntPointer;
+ 
+@@ -35,9 +36,13 @@ import com.oracle.svm.core.posix.headers.Time.timespec;
+ import com.oracle.svm.core.posix.headers.linux.LinuxPthread;
+ import com.oracle.svm.core.posix.headers.linux.LinuxTime;
+ import com.oracle.svm.core.thread.ThreadCpuTimeSupport;
++import com.oracle.svm.core.thread.VMThreads;
++import com.oracle.svm.core.thread.VMThreads.OSThreadId;
+ import com.oracle.svm.core.thread.VMThreads.OSThreadHandle;
+ import com.oracle.svm.core.util.TimeUtils;
+ 
++import org.graalvm.nativeimage.CurrentIsolate;
++
+ @AutomaticallyRegisteredImageSingleton(ThreadCpuTimeSupport.class)
+ final class LinuxThreadCpuTimeSupport implements ThreadCpuTimeSupport {
+ 
+@@ -45,9 +50,21 @@ final class LinuxThreadCpuTimeSupport implements ThreadCpuTimeSupport {
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     public long getCurrentThreadCpuTime(boolean includeSystemTime) {
+         if (!includeSystemTime) {
+-            return -1;
++            int tid = (int) VMThreads.findOSThreadIdForIsolateThread(CurrentIsolate.getCurrentThread()).rawValue();
++            return LinuxLibCHelper.getThreadUserTimeSlow(tid);
+         }
+-        return getThreadCpuTimeImpl(LinuxTime.CLOCK_THREAD_CPUTIME_ID());
++        return fastThreadCpuTime(LinuxTime.CLOCK_THREAD_CPUTIME_ID());
++    }
++
++    @Override
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    public long getThreadCpuTime(IsolateThread isolateThread, boolean includeSystemTime) {
++        if (!includeSystemTime) {
++            int tid = (int) VMThreads.findOSThreadIdForIsolateThread(isolateThread).rawValue();
++            return LinuxLibCHelper.getThreadUserTimeSlow(tid);
++        }
++
++        return getThreadCpuTime(VMThreads.findOSThreadHandleForIsolateThread(isolateThread));
+     }
+ 
+     /**
+@@ -55,24 +72,18 @@ final class LinuxThreadCpuTimeSupport implements ThreadCpuTimeSupport {
+      * "https://github.com/openjdk/jdk/blob/612d8c6cb1d0861957d3f6af96556e2739283800/src/hotspot/os/linux/os_linux.cpp#L4956">fast_cpu_time</link>.
+      *
+      * @param osThreadHandle the pthread
+-     * @param includeSystemTime if {@code true} includes both system and user time, if {@code false}
+-     *            returns user time.
+      */
+-    @Override
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    public long getThreadCpuTime(OSThreadHandle osThreadHandle, boolean includeSystemTime) {
+-        if (!includeSystemTime) {
+-            return -1;
+-        }
++    private long getThreadCpuTime(OSThreadHandle osThreadHandle) {
+         CIntPointer threadsClockId = StackValue.get(Integer.BYTES);
+         if (LinuxPthread.pthread_getcpuclockid((pthread_t) osThreadHandle, threadsClockId) != 0) {
+             return -1;
+         }
+-        return getThreadCpuTimeImpl(threadsClockId.read());
++        return fastThreadCpuTime(threadsClockId.read());
+     }
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    private static long getThreadCpuTimeImpl(int clockId) {
++    private static long fastThreadCpuTime(int clockId) {
+         timespec time = UnsafeStackValue.get(timespec.class);
+         if (LinuxTime.NoTransitions.clock_gettime(clockId, time) != 0) {
+             return -1;
+diff --git a/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/thread/PosixVMThreads.java b/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/thread/PosixVMThreads.java
+index b0d2e8596b0..fe2b62eb7e4 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/thread/PosixVMThreads.java
++++ b/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/thread/PosixVMThreads.java
+@@ -45,6 +45,11 @@ import com.oracle.svm.core.posix.pthread.PthreadVMLockSupport;
+ import com.oracle.svm.core.thread.VMThreads;
+ import com.oracle.svm.core.util.TimeUtils;
+ 
++import com.oracle.svm.core.LibCHelper;
++import com.oracle.svm.core.os.IsDefined;
++import com.oracle.svm.core.util.VMError;
++import com.oracle.svm.core.posix.linux.LinuxLibCHelper;
++
+ @AutomaticallyRegisteredImageSingleton(VMThreads.class)
+ public final class PosixVMThreads extends VMThreads {
+ 
+@@ -57,6 +62,11 @@ public final class PosixVMThreads extends VMThreads {
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     @Override
+     protected OSThreadId getCurrentOSThreadId() {
++        if (IsDefined.isLinux()) {
++            int result = LinuxLibCHelper.getThreadId();
++            VMError.guarantee(result != -1, "SYS_gettid failed");
++            return WordFactory.signed(result);
++        }
+         return Pthread.pthread_self();
+     }
+ 
+diff --git a/substratevm/src/com.oracle.svm.core.windows/src/com/oracle/svm/core/windows/WindowsThreadCpuTimeSupport.java b/substratevm/src/com.oracle.svm.core.windows/src/com/oracle/svm/core/windows/WindowsThreadCpuTimeSupport.java
+index b04de4dfbd3..7ca379a477a 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.windows/src/com/oracle/svm/core/windows/WindowsThreadCpuTimeSupport.java
++++ b/graal/substratevm/src/com.oracle.svm.core.windows/src/com/oracle/svm/core/windows/WindowsThreadCpuTimeSupport.java
+@@ -24,6 +24,7 @@
+  */
+ package com.oracle.svm.core.windows;
+ 
++import org.graalvm.nativeimage.IsolateThread;
+ import org.graalvm.nativeimage.StackValue;
+ import org.graalvm.word.UnsignedWord;
+ import org.graalvm.word.WordFactory;
+@@ -31,6 +32,7 @@ import org.graalvm.word.WordFactory;
+ import com.oracle.svm.core.Uninterruptible;
+ import com.oracle.svm.core.feature.AutomaticallyRegisteredImageSingleton;
+ import com.oracle.svm.core.thread.ThreadCpuTimeSupport;
++import com.oracle.svm.core.thread.VMThreads;
+ import com.oracle.svm.core.thread.VMThreads.OSThreadHandle;
+ import com.oracle.svm.core.windows.headers.Process;
+ import com.oracle.svm.core.windows.headers.WinBase.FILETIME;
+@@ -46,6 +48,13 @@ final class WindowsThreadCpuTimeSupport implements ThreadCpuTimeSupport {
+         return getThreadCpuTime((OSThreadHandle) hThread, includeSystemTime);
+     }
+ 
++
++    @Override
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    public long getThreadCpuTime(IsolateThread isolateThread, boolean includeSystemTime) {
++        return getThreadCpuTime(VMThreads.findOSThreadHandleForIsolateThread(isolateThread), includeSystemTime);
++    }
++
+     /**
+      * Returns the thread CPU time. Based on <link href=
+      * "https://github.com/openjdk/jdk/blob/612d8c6cb1d0861957d3f6af96556e2739283800/src/hotspot/os/windows/os_windows.cpp#L4618">os::thread_cpu_time</link>.
+@@ -54,9 +63,8 @@ final class WindowsThreadCpuTimeSupport implements ThreadCpuTimeSupport {
+      * @param includeSystemTime if {@code true} includes both system and user time, if {@code false}
+      *            returns user time.
+      */
+-    @Override
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    public long getThreadCpuTime(OSThreadHandle osThreadHandle, boolean includeSystemTime) {
++    private long getThreadCpuTime(OSThreadHandle osThreadHandle, boolean includeSystemTime) {
+         FILETIME create = StackValue.get(FILETIME.class);
+         FILETIME exit = StackValue.get(FILETIME.class);
+         FILETIME kernel = StackValue.get(FILETIME.class);
+diff --git a/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/PlatformThreads.java b/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/PlatformThreads.java
+index d22e987f66a..6462bb5f8aa 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/PlatformThreads.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/PlatformThreads.java
+@@ -241,7 +241,7 @@ public abstract class PlatformThreads {
+             while (isolateThread.isNonNull()) {
+                 Thread javaThread = PlatformThreads.currentThread.get(isolateThread);
+                 if (javaThread != null && JavaThreads.getThreadId(javaThread) == javaThreadId) {
+-                    return ThreadCpuTimeSupport.getInstance().getThreadCpuTime(VMThreads.findOSThreadHandleForIsolateThread(isolateThread), includeSystemTime);
++                    return ThreadCpuTimeSupport.getInstance().getThreadCpuTime(isolateThread, includeSystemTime);
+                 }
+                 isolateThread = VMThreads.nextThread(isolateThread);
+             }
+diff --git a/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/ThreadCpuTimeSupport.java b/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/ThreadCpuTimeSupport.java
+index 1fba2499b8f..fa98004f942 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/ThreadCpuTimeSupport.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/ThreadCpuTimeSupport.java
+@@ -25,9 +25,9 @@
+ package com.oracle.svm.core.thread;
+ 
+ import com.oracle.svm.core.Uninterruptible;
+-import com.oracle.svm.core.thread.VMThreads.OSThreadHandle;
+ import org.graalvm.compiler.api.replacements.Fold;
+ import org.graalvm.nativeimage.ImageSingletons;
++import org.graalvm.nativeimage.IsolateThread;
+ 
+ /**
+  * Support for getting thread execution time.
+@@ -46,14 +46,14 @@ public interface ThreadCpuTimeSupport {
+     long getCurrentThreadCpuTime(boolean includeSystemTime);
+ 
+     /**
+-     * Returns the {@code osThreadHandle} thread CPU time.
++     * Returns the {@code isolateThread} thread CPU time.
+      *
+-     * @param osThreadHandle the OS thread handle
++     * @param isolateThread existing context for the current thread.
+      * @param includeSystemTime if {@code true} includes both system and user time, if {@code false}
+      *            returns user time.
+      */
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    long getThreadCpuTime(OSThreadHandle osThreadHandle, boolean includeSystemTime);
++    long getThreadCpuTime(IsolateThread isolateThread, boolean includeSystemTime);
+ 
+     @Fold
+     static ThreadCpuTimeSupport getInstance() {
+diff --git a/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/VMThreads.java b/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/VMThreads.java
+index 8f7abe154e1..e943ae2f48a 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/VMThreads.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/VMThreads.java
+@@ -595,6 +595,11 @@ public abstract class VMThreads {
+         return OSThreadHandleTL.get(isolateThread);
+     }
+ 
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    public static OSThreadId findOSThreadIdForIsolateThread(IsolateThread isolateThread) {
++        return OSThreadIdTL.get(isolateThread);
++    }
++
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     public static void guaranteeOwnsThreadMutex(String message) {
+         THREAD_MUTEX.guaranteeIsOwner(message);
+diff --git a/substratevm/src/com.oracle.svm.native.libchelper/src/getThreadId.c b/substratevm/src/com.oracle.svm.native.libchelper/src/getThreadId.c
+new file mode 100644
+index 00000000000..4e60f087cf8
+--- /dev/null
++++ b/graal/substratevm/src/com.oracle.svm.native.libchelper/src/getThreadId.c
+@@ -0,0 +1,43 @@
++/*
++ * Copyright (c) 2023, 2023, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2023, 2023, BELLSOFT. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation. Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++#ifdef __linux__
++
++#include <sys/syscall.h>
++#include <sys/types.h>
++
++/*
++ * Based on os::Linux::gettid() from jdk-20-ga, see
++ * https://github.com/openjdk/jdk20/blob/82749901b1497f524e53e47c45708c8e4a63c8b9/src/hotspot/os/linux/os_linux.cpp#L361
++ *
++ * syscall() uses varargs, so we can't use @CFunction.
++ */
++pid_t getThreadId() {
++  return (pid_t)syscall(SYS_gettid);
++}
++
++#endif
++
+diff --git a/substratevm/src/com.oracle.svm.native.libchelper/src/getThreadUserTime.c b/substratevm/src/com.oracle.svm.native.libchelper/src/getThreadUserTime.c
+new file mode 100644
+index 00000000000..81890e3f2fd
+--- /dev/null
++++ b/graal/substratevm/src/com.oracle.svm.native.libchelper/src/getThreadUserTime.c
+@@ -0,0 +1,85 @@
++/*
++ * Copyright (c) 2023, 2023, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2023, 2023, BELLSOFT. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation. Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++#ifdef __linux__
++
++#include <stdio.h>
++#include <string.h>
++#include <sys/types.h>
++#include <unistd.h>
++
++/*
++ * Returns the thread user time.
++ * Based on slow_thread_cpu_time(...) from jdk-20-ga, see
++ * https://github.com/openjdk/jdk/blob/df6cf1e41d0fc2dd5f5c094f66c7c8969cf5548d/src/hotspot/os/linux/os_linux.cpp#L5032
++ */
++long getThreadUserTimeSlow(pid_t tid) {
++  char *s;
++  char stat[2048];
++  int statlen;
++  char proc_name[64];
++  int count;
++  long sys_time, user_time;
++  char cdummy;
++  int idummy;
++  long ldummy;
++  FILE *fp;
++
++  static long clock_tics_per_sec = -1;
++
++  if (clock_tics_per_sec == -1) {
++    clock_tics_per_sec = sysconf(_SC_CLK_TCK);
++  }
++
++  snprintf(proc_name, 64, "/proc/self/task/%d/stat", tid);
++  fp = fopen(proc_name, "re");
++  if (fp == NULL) return -1;
++  statlen = fread(stat, 1, 2047, fp);
++  stat[statlen] = '\0';
++  fclose(fp);
++
++  // Skip pid and the command string. Note that we could be dealing with
++  // weird command names, e.g. user could decide to rename java launcher
++  // to "java 1.4.2 :)", then the stat file would look like
++  //                1234 (java 1.4.2 :)) R ... ...
++  // We don't really need to know the command string, just find the last
++  // occurrence of ")" and then start parsing from there. See bug 4726580.
++  s = strrchr(stat, ')');
++  if (s == NULL) return -1;
++
++  // Skip blank chars
++  do { s++; } while (s && isspace(*s));
++
++  count = sscanf(s,"%c %d %d %d %d %d %lu %lu %lu %lu %lu %lu %lu",
++                 &cdummy, &idummy, &idummy, &idummy, &idummy, &idummy,
++                 &ldummy, &ldummy, &ldummy, &ldummy, &ldummy,
++                 &user_time, &sys_time);
++  if (count != 13) return -1;
++
++  return user_time * (1000000000 / clock_tics_per_sec);
++}
++
++#endif
+diff --git a/substratevm/src/com.oracle.svm.test/src/com/oracle/svm/test/jmx/ThreadCpuTimeTest.java b/substratevm/src/com.oracle.svm.test/src/com/oracle/svm/test/jmx/ThreadCpuTimeTest.java
+new file mode 100644
+index 00000000000..f5438e50bd7
+--- /dev/null
++++ b/graal/substratevm/src/com.oracle.svm.test/src/com/oracle/svm/test/jmx/ThreadCpuTimeTest.java
+@@ -0,0 +1,112 @@
++/*
++ * Copyright (c) 2023, 2023, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2023, 2023, BELLSOFT. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++package com.oracle.svm.test.jmx;
++
++import static org.junit.Assert.assertTrue;
++
++import java.lang.management.ManagementFactory;
++import java.lang.management.ThreadMXBean;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.atomic.AtomicReference;
++
++import org.junit.Test;
++
++public class ThreadCpuTimeTest {
++    private static final int TIMEOUT = 10000;
++    private final AtomicReference<Throwable> exception = new AtomicReference<>();
++    private final CountDownLatch testLatch = new CountDownLatch(1);
++    private final CountDownLatch threadLatch = new CountDownLatch(1);
++
++    @Test
++    public void testThreadCpuTime() throws Throwable {
++        Thread thread;
++        try {
++            thread = new Thread(new ThreadCpuTimeRunnable());
++            thread.start();
++
++            testLatch.await();
++            checkThreadCpuTime(getThreadId(thread), false);
++        } finally {
++            threadLatch.countDown();
++        }
++
++        thread.join();
++        if (exception.get() != null) {
++            throw exception.get();
++        }
++    }
++
++    private static void checkThreadCpuTime(long tid, boolean checkCurrentThread) {
++        ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
++        assertTrue("Thread CPU time is not supported",
++                threadMXBean.isThreadCpuTimeSupported());
++
++        if (checkCurrentThread) {
++            assertTrue("Current thread CPU time is less or equal to zero",
++                    threadMXBean.getCurrentThreadCpuTime() > 0);
++            assertTrue("Current thread user time is less or equal to zero",
++                    threadMXBean.getCurrentThreadUserTime() > 0);
++        }
++
++        assertTrue("Thread CPU time is less or equal to zero",
++                threadMXBean.getThreadCpuTime(tid) > 0);
++        assertTrue("Thread user time is less or equal to zero",
++                threadMXBean.getThreadUserTime(tid) > 0);
++    }
++
++    /* Can be removed when we drop the JDK 17 support. */
++    @SuppressWarnings("deprecation")
++    private static long getThreadId(Thread thread) {
++        return thread.getId();
++    }
++
++    private class ThreadCpuTimeRunnable implements Runnable {
++        @Override
++        public void run() {
++            try {
++                work();
++            } catch (Throwable e) {
++                exception.set(e);
++            }
++        }
++    }
++
++    private void work() throws InterruptedException {
++        try {
++            ThreadMXBean mxBean = ManagementFactory.getThreadMXBean();
++            long timeout = System.currentTimeMillis() + TIMEOUT;
++            while (timeout > System.currentTimeMillis() &&
++                    (mxBean.getCurrentThreadCpuTime() == 0 || mxBean.getCurrentThreadUserTime() == 0)) {
++                /* Nothing to do. */
++            }
++            checkThreadCpuTime(getThreadId(Thread.currentThread()), true);
++        } finally {
++            testLatch.countDown();
++        }
++
++        threadLatch.await();
++    }
++}

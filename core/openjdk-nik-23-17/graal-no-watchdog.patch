@@ -1,0 +1,13 @@
+diff --git a/sdk/mx.sdk/mx_sdk_vm_impl.py b/sdk/mx.sdk/mx_sdk_vm_impl.py
+index 88d530ac414..dda7343354f 100644
+--- a/graal/sdk/mx.sdk/mx_sdk_vm_impl.py
++++ b/graal/sdk/mx.sdk/mx_sdk_vm_impl.py
+@@ -1228,6 +1228,8 @@ class NativePropertiesBuildTask(mx.ProjectBuildTask):
+                 '-H:+AssertInitializationSpecifiedForAllClasses',
+                 '-H:+EnforceMaxRuntimeCompileMethods',
+                 '-Dorg.graalvm.version={}'.format(_suite.release_version()),
++                '-H:-DeadlockWatchdogExitOnTimeout',
++                '-H:DeadlockWatchdogInterval=0'
+             ]
+             if _debug_images():
+                 build_args += ['-ea', '-O0', '-H:+PreserveFramePointer', '-H:-DeleteLocalSymbols']

@@ -1,0 +1,91 @@
+diff --git a/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/SecuritySubstitutions.java b/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/SecuritySubstitutions.java
+index f4fead83b3e..1ce6682b13d 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/SecuritySubstitutions.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/SecuritySubstitutions.java
+@@ -26,6 +26,7 @@ package com.oracle.svm.core.jdk;
+ 
+ import static com.oracle.svm.core.snippets.KnownIntrinsics.readCallerStackPointer;
+ 
++import java.lang.ref.ReferenceQueue;
+ import java.lang.reflect.Constructor;
+ import java.lang.reflect.InvocationTargetException;
+ import java.net.URL;
+@@ -43,6 +44,7 @@ import java.security.Provider;
+ import java.security.SecureRandom;
+ import java.util.List;
+ import java.util.Map;
++import java.util.function.BooleanSupplier;
+ import java.util.function.Predicate;
+ 
+ import org.graalvm.compiler.serviceprovider.JavaVersionUtil;
+@@ -355,6 +357,10 @@ final class Target_javax_crypto_JceSecurity {
+     @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.Reset) //
+     private static Map<Provider, Object> verifyingProviders;
+ 
++    @Alias //
++    @TargetElement(onlyWith = JDK17OrLater.class) //
++    private static ReferenceQueue<Object> queue;
++
+     @Substitute
+     static void verifyProvider(URL codeBase, Provider p) {
+         throw JceSecurityUtil.shouldNotReach("javax.crypto.JceSecurity.verifyProviderJar(URL, Provider)");
+@@ -368,7 +374,9 @@ final class Target_javax_crypto_JceSecurity {
+     @Substitute
+     static Exception getVerificationResult(Provider p) {
+         /* Start code block copied from original method. */
+-        Object o = verificationResults.get(JceSecurityUtil.providerKey(p));
++        /* The verification results map key is an identity wrapper object. */
++        Object key = new Target_javax_crypto_JceSecurity_WeakIdentityWrapper(p, queue);
++        Object o = verificationResults.get(key);
+         if (o == PROVIDER_VERIFIED) {
+             return null;
+         } else if (o != null) {
+@@ -393,15 +401,11 @@ final class Target_javax_crypto_JceSecurity {
+     }
+ }
+ 
+-@TargetClass(className = "javax.crypto.JceSecurity", innerClass = "IdentityWrapper", onlyWith = JDK17OrLater.class)
++@TargetClass(className = "javax.crypto.JceSecurity", innerClass = "WeakIdentityWrapper", onlyWith = JDK17OrLater.class)
+ @SuppressWarnings({"unused"})
+-final class Target_javax_crypto_JceSecurity_IdentityWrapper {
+-    @Alias //
+-    Provider obj;
+-
++final class Target_javax_crypto_JceSecurity_WeakIdentityWrapper {
+     @Alias //
+-    Target_javax_crypto_JceSecurity_IdentityWrapper(Provider obj) {
+-        this.obj = obj;
++    Target_javax_crypto_JceSecurity_WeakIdentityWrapper(Provider obj, ReferenceQueue<Object> queue) {
+     }
+ }
+ 
+@@ -432,14 +436,6 @@ class JceSecurityAccessor {
+ 
+ final class JceSecurityUtil {
+ 
+-    static Object providerKey(Provider p) {
+-        if (JavaVersionUtil.JAVA_SPEC <= 11) {
+-            return p;
+-        }
+-        /* Starting with JDK 17 the verification results map key is an identity wrapper object. */
+-        return new Target_javax_crypto_JceSecurity_IdentityWrapper(p);
+-    }
+-
+     static RuntimeException shouldNotReach(String method) {
+         throw VMError.shouldNotReachHere(method + " is reached at runtime. " +
+                         "This should not happen. The contents of JceSecurity.verificationResults " +
+diff --git a/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/SecurityServicesFeature.java b/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/SecurityServicesFeature.java
+index d5c4e9ea3db..cb728b25ae1 100644
+--- a/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/SecurityServicesFeature.java
++++ b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/SecurityServicesFeature.java
+@@ -888,8 +888,8 @@ public class SecurityServicesFeature extends JNIRegistrationUtil implements Inte
+          * For JDK 17 and later, the verification cache is an IdentityWrapper -> Verification result
+          * ConcurrentHashMap. The IdentityWrapper contains the actual provider in the 'obj' field.
+          */
+-        Class<?> identityWrapper = loader.findClassOrFail("javax.crypto.JceSecurity$IdentityWrapper");
+-        Field providerField = ReflectionUtil.lookupField(identityWrapper, "obj");
++        Class<?> identityWrapper = loader.findClassOrFail("java.lang.ref.Reference");
++        Field providerField = ReflectionUtil.lookupField(identityWrapper, "referent");
+ 
+         Predicate<Object> listRemovalPredicate = wrapper -> {
+             try {

@@ -1,0 +1,58 @@
+diff --git a/com.oracle.truffle.r.native/gnur/patch/src/main/format.c b/com.oracle.truffle.r.native/gnur/patch/src/main/format.c
+index 902dd6514f..55e3c1df5e 100644
+--- a/fastr/com.oracle.truffle.r.native/gnur/patch/src/main/format.c
++++ b/fastr/com.oracle.truffle.r.native/gnur/patch/src/main/format.c
+@@ -119,6 +119,15 @@ void formatLogical(const int *x, R_xlen_t n, int *fieldwidth)
+     }
+ }
+ 
++attribute_hidden int *LOGICAL0(SEXP x) {
++    return (int *) STDVEC_DATAPTR(x);
++}
++
++
++attribute_hidden Rcomplex *COMPLEX0(SEXP x) {
++    return (Rcomplex *) STDVEC_DATAPTR(x);
++}
++
+ void formatLogicalS(SEXP x, R_xlen_t n, int *fieldwidth) {
+     *fieldwidth = 1;
+     int tmpfieldwidth = 1;
+@@ -187,8 +196,8 @@ void formatIntegerS(SEXP x, R_xlen_t n, int *fieldwidth)
+        ALTINTEGER_MIN/MAX will give us the wrong thing
+        anyway */
+     if(n == XLENGTH(x) && KNOWN_SORTED(sorted)) {
+-	tmpmin = ALTINTEGER_MIN(x, TRUE);
+-	tmpmax = ALTINTEGER_MAX(x, TRUE);
++        tmpmin = NULL;
++        tmpmax = NULL;
+ 	naflag = KNOWN_NA_1ST(sorted) ?
+ 	    INTEGER_ELT(x, 0) == NA_INTEGER :
+ 	    INTEGER_ELT(x, XLENGTH(x) - 1) == NA_INTEGER;
+diff --git a/com.oracle.truffle.r.native/gnur/patch/src/main/sort.c b/com.oracle.truffle.r.native/gnur/patch/src/main/sort.c
+index b8cb247e23..f2cabca9b4 100644
+--- a/fastr/com.oracle.truffle.r.native/gnur/patch/src/main/sort.c
++++ b/fastr/com.oracle.truffle.r.native/gnur/patch/src/main/sort.c
+@@ -1564,19 +1564,7 @@ SEXP attribute_hidden do_rank(SEXP call, SEXP op, SEXP args, SEXP rho)
+ 
+ SEXP attribute_hidden do_xtfrm(SEXP call, SEXP op, SEXP args, SEXP rho)
+ {
+-    SEXP fn, prargs, ans;
+-
+-    checkArity(op, args);
+-    check1arg(args, call, "x");
+-
+-    /* DispatchOrEval internal generic: xtfrm */
+-    if(DispatchOrEval(call, op, "xtfrm", args, rho, &ans, 0, 1)) return ans;
+-    /* otherwise dispatch the default method */
+-    PROTECT(fn = findFun(install("xtfrm.default"), rho));
+-    PROTECT(prargs = promiseArgs(args, R_GlobalEnv));
+-    SET_PRVALUE(CAR(prargs), CAR(args));
+-    ans = applyClosure(call, fn, prargs, rho, R_NilValue);
+-    UNPROTECT(2);
+-    return ans;
+-
++    printf("FATAL ERROR\n");
++    printf("UNIMPLEMENTED: do_xtfrm\n");
++    exit(1);
+ }

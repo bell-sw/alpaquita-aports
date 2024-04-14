@@ -1,0 +1,13 @@
+diff --git a/src/main/c/cext/extconf.rb b/src/main/c/cext/extconf.rb
+index cb2d2df191..b3d2fe9975 100644
+--- a/truffleruby/src/main/c/cext/extconf.rb
++++ b/truffleruby/src/main/c/cext/extconf.rb
+@@ -32,7 +32,7 @@ $INCFLAGS << ' -I$(top_srcdir)'
+ 
+ # libruby depends on librt on Linux, and C extensions like date rely on that because they then
+ # automatically depend on librt (e.g., for clock_gettime).
+-$LIBS << '-lrt' if Truffle::Platform.linux?
++$LIBS << ' -lrt' if Truffle::Platform.linux?
+ 
+ if Truffle::Platform.darwin?
+   # Set the install_name of libtruffleruby on macOS, so mkmf executables linking to it
