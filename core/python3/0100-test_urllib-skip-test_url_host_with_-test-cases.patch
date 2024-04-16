@@ -1,4 +1,4 @@
-From 4a5b39dfd00e95b900a51f806a7e91c929e1087d Mon Sep 17 00:00:00 2001
+From 2faafd6eb1f545e240fcea7343680eda827731f6 Mon Sep 17 00:00:00 2001
 From: Stanislav Kholmanskikh <stanislav.kholmanskikh@bell-sw.com>
 Date: Wed, 21 Sep 2022 12:31:37 +0300
 Subject: [PATCH] test_urllib: skip test_url_host_with_* test cases
@@ -27,10 +27,10 @@ irrespectively of *_proxy variables, which is good and as it should be.
  1 file changed, 4 insertions(+)
 
 diff --git a/Lib/test/test_urllib.py b/Lib/test/test_urllib.py
-index 82f1d9d..fd28d14 100644
+index 2df74f5e6f..c3f2f421cd 100644
 --- a/Lib/test/test_urllib.py
 +++ b/Lib/test/test_urllib.py
-@@ -425,6 +425,8 @@ class urlopen_HttpTests(unittest.TestCase, FakeHTTPMixin, FakeFTPMixin):
+@@ -425,6 +425,8 @@ def test_url_path_with_newline_header_injection_rejected(self):
          finally:
              self.unfakehttp()
  
@@ -39,7 +39,7 @@ index 82f1d9d..fd28d14 100644
      @unittest.skipUnless(ssl, "ssl module required")
      def test_url_host_with_control_char_rejected(self):
          for char_no in list(range(0, 0x21)) + [0x7f]:
-@@ -442,6 +444,8 @@ class urlopen_HttpTests(unittest.TestCase, FakeHTTPMixin, FakeFTPMixin):
+@@ -442,6 +444,8 @@ def test_url_host_with_control_char_rejected(self):
              finally:
                  self.unfakehttp()
  
@@ -49,5 +49,5 @@ index 82f1d9d..fd28d14 100644
      def test_url_host_with_newline_header_injection_rejected(self):
          self.fakehttp(b"HTTP/1.1 200 OK\r\n\r\nHello.")
 -- 
-2.37.3
+2.25.1
 
