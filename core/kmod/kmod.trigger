@@ -13,7 +13,7 @@ for i in "$@"; do
 	if [ -e "$i"/modules.order ]; then
 		echo "Generate modules.* in $krel"
 		/sbin/depmod $krel
-	else
+	elif [ -d "$i" ]; then
 		#clean up on uninstall
 		rm -f "$i"/modules.alias \
 			"$i"/modules.builtin.alias.bin \
