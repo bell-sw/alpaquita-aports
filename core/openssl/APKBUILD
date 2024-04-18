@@ -4,7 +4,7 @@
 pkgname=openssl
 pkgver=3.3.0
 _abiver=${pkgver%.*.*}
-pkgrel=0
+pkgrel=1
 pkgdesc="Toolkit for general-purpose cryptography and secure communication (v.3)"
 url="https://www.openssl.org/"
 arch="all"
@@ -198,6 +198,7 @@ _libcrypto() {
 
 _libssl() {
 	pkgdesc="SSL shared libraries"
+	depends="libcrypto$_abiver=$pkgver-r$pkgrel"
 
 	mkdir -p "$subpkgdir"/usr/lib
 	mv "$pkgdir"/usr/lib/libssl* "$subpkgdir"/usr/lib/
