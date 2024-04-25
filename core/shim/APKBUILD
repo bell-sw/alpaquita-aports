@@ -1,6 +1,6 @@
 pkgname=shim
 pkgver=15.8
-pkgrel=0
+pkgrel=1
 pkgdesc="shim, a first-stage UEFI bootloader"
 url="https://github.com/rhboot/shim"
 arch="x86_64"
@@ -9,7 +9,6 @@ makedepends="gcc make elfutils-dev xxd dos2unix efivar-dev"
 source="https://github.com/rhboot/shim/releases/download/$pkgver/shim-$pkgver.tar.bz2
 	bellsoft-uefi-ca.der
 	sbat.distro.csv
-	0001-enable-disable-checking-for-NX-Compatible-4K-Alignme.patch
 "
 builddir="$srcdir/$pkgname-$pkgver"
 subpackages="$pkgname-utils $pkgname-dbg"
@@ -36,13 +35,11 @@ prepare() {
 }
 
 build() {
-	make POST_PROCESS_PE_FLAGS="-n" \
-	     VENDOR_CERT_FILE=bellsoft-uefi-ca.der
+	make VENDOR_CERT_FILE=bellsoft-uefi-ca.der
 }
 
 package() {
-	make POST_PROCESS_PE_FLAGS="-n" \
-	     VENDOR_CERT_FILE=bellsoft-uefi-ca.der \
+	make VENDOR_CERT_FILE=bellsoft-uefi-ca.der \
 	     DESTDIR=$pkgdir \
 	     EFIDIR="$VENDOR_DISTRO" \
 	     install
@@ -71,5 +68,4 @@ sha512sums="
 30b3390ae935121ea6fe728d8f59d37ded7b918ad81bea06e213464298b4bdabbca881b30817965bd397facc596db1ad0b8462a84c87896ce6c1204b19371cd1  shim-15.8.tar.bz2
 711e3df4aa78b82339aa2a5a9d6b5b4d5a93b157b12ca59c97e58ed2c4f2e09ab1a14476f399e95337ea17b1a40f269d070d5023f4a24a91364b22bbc8cedc13  bellsoft-uefi-ca.der
 287a279bd4c0619c0630295ba7a7d06b23313e7e96a2de48a7d29e1b02a2d4cd3cee503a7a8725df34bbb19bedc97902404f24242133eef79b192a9190c47d1b  sbat.distro.csv
-8573c834a01ef4f016f7e270d9fccbe100a9e3a2d9537d6e7f5541e6e15914e56c515496beda2583a7d4a450ff009a608648b86f3afb4ab808b50be711b2e32e  0001-enable-disable-checking-for-NX-Compatible-4K-Alignme.patch
 "
