@@ -1,0 +1,135 @@
+pkgname=rpm
+pkgver=4.19.1.1
+pkgrel=2
+case $pkgver in
+	*.*.*.*)	_majorver=${pkgver%.*.*} ;;
+	*.*.*)		_majorver=${pkgver%.*} ;;
+	*.*)		_majorver=$pkgver ;;
+esac
+pkgdesc="Redhat Package Management utilities (RPM)"
+url="https://rpm.org/"
+arch="all"
+license="GPL-2.0-or-later LGPL-2.0-or-later"
+depends="$pkgname-scripts"
+_luaver=5.4
+depends_dev="
+	acl-dev
+	binutils-dev
+	bzip2-dev
+	file-dev
+	libarchive-dev
+	libcap-dev
+	lua$_luaver-dev
+	openssl-dev
+	popt-dev
+	sqlite-dev
+	xz-dev
+	zlib-dev
+	"
+makedepends="
+	$depends_dev
+	bash
+	cmake
+	elfutils-dev
+	gawk
+	gettext-dev
+	graphviz
+	libtool
+	py3-setuptools
+	python3-dev
+	readline-dev
+	zstd-dev
+	"
+options="!check" # tests require running a podman/bubblewrap container
+
+subpackages="
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-lang
+	py3-rpm:py_rpm
+	$pkgname-scripts::noarch
+	"
+
+# annocheck depends on rpm-libs
+subpackages="$subpackages $pkgname-libs"
+
+source="https://ftp.osuosl.org/pub/rpm/releases/rpm-$_majorver.x/rpm-$pkgver.tar.bz2
+	fix-glibc-glob.patch
+	"
+
+# secfixes:
+#   4.18.0-r0:
+#     - CVE-2021-35937
+#     - CVE-2021-35938
+#     - CVE-2021-35939
+#   4.17.1-r0:
+#     - CVE-2021-3521
+#   4.16.1.3-r0:
+#     - CVE-2021-3421
+#     - CVE-2021-20271
+#     - CVE-2021-20266
+
+prepare() {
+	default_prepare
+
+	# Switch to sqlite db by default, including during build-time tests
+	sed -i -e "/_db_backend/ s/@DB_BACKEND@/sqlite/g" macros.in
+}
+
+build() {
+	export CFLAGS="$CFLAGS -flto=auto"
+
+	cmake -B _build \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DENABLE_PYTHON=ON \
+		-DENABLE_SQLITE=ON \
+		-DENABLE_BDB_RO=ON \
+		-DENABLE_NLS=ON \
+		-DENABLE_PLUGINS=OFF \
+		-DENABLE_TESTSUITE="$(want_check && echo ON || echo OFF)" \
+		-DLUA_LIBRARIES="$(pkg-config --variable=libdir lua$_luaver)/liblua.so" \
+		-DLUA_INCLUDE_DIR="$(pkg-config --variable=includedir lua$_luaver)" \
+		-DWITH_ARCHIVE=ON \
+		-DWITH_INTERNAL_OPENPGP=ON \
+		-DWITH_OPENSSL=ON \
+		-DWITH_AUDIT=OFF \
+		-DWITH_SELINUX=OFF
+	cmake --build _build
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install _build
+}
+
+py_rpm() {
+	pkgdesc="Python3 bindings for RPM"
+
+	replaces="py-rpm" # Backwards compatibility
+	provides="py-rpm=$pkgver-r$pkgrel" # Backwards compatibility
+
+	amove usr/lib/python3*
+}
+
+scripts() {
+	pkgdesc="Bash and Perl helper scripts for RPM"
+	depends="bash perl"
+
+	amove usr/lib/rpm/brp-compress \
+		usr/lib/rpm/check-prereqs \
+		usr/lib/rpm/check-rpaths-worker \
+		usr/lib/rpm/find-lang.sh \
+		usr/lib/rpm/fontconfig.prov \
+		usr/lib/rpm/ocamldeps.sh \
+		usr/lib/rpm/perl.prov \
+		usr/lib/rpm/perl.req \
+		usr/lib/rpm/pkgconfigdeps.sh \
+		usr/lib/rpm/rpm_macros_provides.sh \
+		usr/lib/rpm/sysusers.sh
+}
+
+sha512sums="
+3364c453c29903c144a3680ceca7a17426eb085c288b6313fb7e857a42a5e0a965f623882e0f58e633f8b8770e839d9df9f7653d99c73759af5c89d0a981908d  rpm-4.19.1.1.tar.bz2
+2db5afbbc25088f1c64cf9d34e1823faefaa4bd39729a406123129407019eac4964733a20645815221a5abfa304afb3655219d261b18876ed4bef1cac5aaeed1  fix-glibc-glob.patch
+"
