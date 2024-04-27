@@ -3,12 +3,13 @@ pkgver=1.9.2
 pkgrel=13
 pkgdesc="EFI tools"
 url="https://git.kernel.org/pub/scm/linux/kernel/git/jejb/efitools.git"
-arch="x86_64"
+# riscv64: fails to build
+# others: limited by sbsigntool
+arch="all !armhf !s390x !ppc64le !mips !mips64 !riscv64"
 license="(GPL-2.0-only AND LGPL-2.1-or-later) WITH OpenSSL-Exception"
-options="!check" # no testsuite
+options="!annobin !check" # no testsuite
 # efi-readvar requires mount(8) with -l option
 depends="mount"
-options="!annobin"
 makedepends="gnu-efi-dev<3.0.17 gnu-efi<3.0.17 openssl-dev>3 perl-file-slurp help2man sbsigntool"
 subpackages="$pkgname-doc"
 source="https://git.kernel.org/pub/scm/linux/kernel/git/jejb/efitools.git/snapshot/efitools-$pkgver.tar.gz
