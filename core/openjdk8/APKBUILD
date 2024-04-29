@@ -3,8 +3,8 @@
 # specifications.
 
 _java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
-_java_uver=402
-_java_bnum=7
+_java_uver=412
+_java_bnum=9
 
 _java_ver=8u$_java_uver+$_java_bnum
 _java_name="${VENDOR_NAME} ${VENDOR_JAVA_NAME} JDK 8"
@@ -57,7 +57,6 @@ subpackages="
 	$pkgname-src:_src:noarch
 	$pkgname-jre-doc:_jre_doc:noarch
 	$pkgname-doc:_doc:noarch
-	$pkgname-jre-cds:_jre_cds
 	$pkgname-jre-no-deps:_jre_no_deps
 	$pkgname-jre:_jre
 	$pkgname-jdk-no-deps:_jdk_no_deps
@@ -199,7 +198,7 @@ build() {
 	#            for compilation definitions.
 	# trace -- Echos all $(shell) command lines as well.
 	local verbose
-	verbose="LOG=debug" # uncomment and change if/as necessary
+	#verbose="LOG=debug" # uncomment and change if/as necessary
 
 	MAKEFLAGS='' make $verbose images
 }
@@ -272,18 +271,6 @@ _doc() {
 	"
 	mkdir -p "$subpkgdir/$_java_home/"
 	mv "$pkgdir/$_java_home/man" "$subpkgdir/$_java_home/"
-}
-
-_jre_cds() {
-	pkgdesc="$_java_name (JRE Class Data Sharing archives)"
-	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
-
-	rm -f "$pkgdir/$_java_home/jre/lib/amd64/server"/*.jsa
-	"$pkgdir/$_java_home/bin/java" -server -Xshare:dump
-
-	mkdir -p "$subpkgdir/$_java_home/jre/lib/amd64/server"
-	mv "$pkgdir/$_java_home/jre/lib/amd64/server"/*.jsa \
-		"$subpkgdir/$_java_home/jre/lib/amd64/server"
 }
 
 _jre_no_deps() {
@@ -381,7 +368,7 @@ _dbg() {
 }
 
 sha512sums="
-a0a27194e52b5699e44c15f8e0fd65eb22777e8a6ea9e6e69aa6c455ae27096b40cb24a161e951d9df14819c8d7fb7a7e906aa2822ab76181b4bdcd4c4bd84b7  bellsoft-jdk8u402+7-src.tar.gz
+238203fb54948dc8e385312a055efe8a18123060817d8be6ca9c44eb59137f2509543b796b408cf57e2985c6768be1f5c60b27e441ab86e94d7aacaa51ee0754  bellsoft-jdk8u412+9-src.tar.gz
 57f0ad3e50e7106009873738b6fc4bde5073013c5adcba494a9ffa04bf4446473844bb1d2e68569a6eb9dc8af9ecf8f554b21c86aa02e0674cff37aadcba794b  portola-8.patch
 0d315662fd9ed49fe54fdba9d9d487808ce88c82e16a61108ff807fb08b553333f17494b9e59d71fc5b2620e5caaa87f80cf73e7305e823350e757d8f4a9d5fd  portola-8-hotspot.patch
 f7a815d23589a4d17b9c166d8c30b702776222d39d95f5547a3dea83e4d1d974461638da37d75d9d0ada9b033a7a9cc31a4742f7ddfdef3cd487dd3f47689b8a  portola-8-hotspot-sa.patch
