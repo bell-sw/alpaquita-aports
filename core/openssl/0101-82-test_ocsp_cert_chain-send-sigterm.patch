@@ -1,0 +1,13 @@
+For some reason, SIGHUP is ignored in our CI.
+
+--- a/test/recipes/82-test_ocsp_cert_chain.t
++++ b/test/recipes/82-test_ocsp_cert_chain.t
+@@ -133,7 +133,7 @@
+     ok($resp == 1, "check s_server sent ocsp response");
+ 
+     waitpid($s_client_pid, 0);
+-    kill 'HUP', $s_server_pid, $ocsp_pid;
++    kill 'TERM', $s_server_pid, $ocsp_pid;
+ }
+ 
+ run_test();
