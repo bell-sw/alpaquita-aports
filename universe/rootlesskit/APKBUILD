@@ -1,0 +1,47 @@
+pkgname=rootlesskit
+pkgver=2.1.0
+pkgrel=0
+pkgdesc="Linux-native fake root for implementing rootless containers"
+url="https://github.com/rootless-containers/rootlesskit"
+arch="all"
+license="Apache-2.0"
+depends="shadow-subids iproute2-minimal"
+makedepends="go"
+subpackages="
+	$pkgname-docker-proxy:_docker_proxy
+	$pkgname-doc
+	"
+source="$pkgname-$pkgver.tar.gz::https://github.com/rootless-containers/rootlesskit/archive/refs/tags/v$pkgver.tar.gz"
+options="net" # fetch dependencies
+
+export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
+
+build() {
+	mkdir -v build
+	go build -v \
+		-ldflags "-X github.com/rootless-containers/rootlesskit/pkg/version.Version=$pkgver" \
+		-o build ./cmd/...
+}
+
+check() {
+	# fork/exec /proc/self/exe: operation not permitted
+	# shellcheck disable=2046
+	go test $(go list ./... | grep -v pkg/port/builtin)
+}
+
+package() {
+	install -Dm755 build/* -t "$pkgdir"/usr/bin/
+	install -Dm644 docs/*.md -t "$pkgdir"/usr/share/doc/$pkgname
+}
+
+_docker_proxy() {
+	pkgdesc="$pkgdesc - Docker proxy"
+	install_if="$pkgname=$pkgver-r$pkgrel docker-engine"
+	amove usr/bin/rootlesskit-docker-proxy
+}
+
+sha512sums="
+004cf6d27562e538609417783bcd28d13a71c7913cea0ff77a71be3184cdf4ddc96ca89a94a71e8ec0cf8fced745672a825b925110b20844c82feda6ba35b01e  rootlesskit-2.1.0.tar.gz
+"
