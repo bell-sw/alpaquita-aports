@@ -1,0 +1,91 @@
+pkgname=nftables
+pkgver=1.0.9
+pkgrel=2
+pkgdesc="Netfilter tables userspace tools"
+url="https://netfilter.org/projects/nftables"
+arch="all"
+license="GPL-2.0-or-later"
+makedepends="
+	asciidoc
+	bison
+	docbook2x
+	flex
+	gmp-dev
+	jansson-dev
+	libmnl-dev
+	libnftnl-dev
+	ncurses-dev
+	py3-gpep517
+	py3-setuptools
+	py3-wheel
+	readline-dev
+	"
+install="$pkgname.post-upgrade"
+subpackages="
+	$pkgname-static
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-openrc
+	py3-$pkgname-pyc
+	py3-$pkgname:_py3:noarch
+	"
+source="https://netfilter.org/projects/nftables/files/nftables-$pkgver.tar.xz
+	nftables.confd
+	nftables.initd
+	nftables.nft
+	"
+options="!check"
+
+prepare() {
+	default_prepare
+	update_config_sub
+
+	sed -i '1i#include "config.h"' "$builddir"/src/proto.c
+}
+
+build() {
+	CONFIG_MAN=y DB2MAN=docbook2x-man ./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/usr/share \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--disable-python \
+		--enable-static=yes \
+		--with-json \
+		--with-cli=readline
+	make
+
+	cd py
+	gpep517 build-wheel \
+		--wheel-dir "$builddir"/.dist \
+		--output-fd 3 3>&1 >&2
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+
+	install -Dm755 "$srcdir"/$pkgname.initd "$pkgdir"/etc/init.d/$pkgname
+	install -Dm644 "$srcdir"/$pkgname.confd "$pkgdir"/etc/conf.d/$pkgname
+	install -Dm644 "$srcdir"/nftables.nft "$pkgdir"/etc/nftables.nft
+	install -dm755 "$pkgdir"/etc/nftables.d
+	install -dm750 "$pkgdir"/var/lib/nftables
+}
+
+_py3() {
+	pkgdesc="$pkgdesc (Python interface)"
+	depends="$pkgname=$pkgver-r$pkgrel"
+
+	amove usr/lib/python3*
+}
+
+sha512sums="
+dc34099658e283d9fd4d06264b593710121074558305ea23ab298c5f6a6b564a826f186241b6e106fbaa4e11160cf77e68bb52b4ce401b28d8d2e403cd4b88e8  nftables-1.0.9.tar.xz
+5a298ea01df60b434791fea94306d5b14f7ce684329e4122cc78bb52d1c272fcc48b06eaae154fd082c05f7030792fe42e73814caf3c7be3c446bb265fe25642  nftables.confd
+93a4d3109e3b7d36bcd0901755e1ee4dba3b5555deddc5eecdee2ccbcce15c08f122bf8f1c879c3f696f6a5a13d283536a0ff5e1af82289c3263b6aeb9d116d0  nftables.initd
+b524c124a11f870ae789d5ad05de8a49d365d6c2cb3cd94c21669c5ae0e453481c671a1700ee6518372b10c491b50c5d81ea59fa941092a9161d1b13be7a13b6  nftables.nft
+"

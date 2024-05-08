@@ -1,0 +1,157 @@
+#!/sbin/openrc-run
+
+extra_commands="checkconfig panic save"
+extra_started_commands="reload reset"
+
+description="Manage nftable based firewall."
+description_checkconfig="Check validity of rulesets on disk without applying changes."
+description_panic="Immediately drop all packets on all interfaces."
+description_reload="Clear current rulesets and load rulesets from the ruleset files."
+description_save="Save nftables state or ruleset to disk."
+description_reset="Reset stateful objects (counters and quotas)."
+
+# Uppercase variables are there for backward compatibility (Alpine <3.8).
+: ${rules_file:=${NFTABLES_SAVE:-"/etc/nftables.nft"}}
+: ${save_objects:="ruleset"}  # "ruleset" is for backward compatibility (Alpine <3.17)
+: ${save_options:=${SAVE_OPTIONS:-}}
+: ${save_on_stop:=${SAVE_ON_STOP:-"no"}}
+: ${enable_forwarding:="no"}
+
+if [ "$save_objects" = 'ruleset' ]; then
+	: ${save_file:="$rules_file"}
+else
+	: ${save_file:="/var/lib/nftables/state.nft"}
+fi
+
+nft=nft
+
+# Add ip netns if configured to run in a netns namespace
+if [ -n "$netns" ]; then
+	test -e /run/netns/$netns || ip netns add $netns
+	nft="ip netns exec $netns $nft"
+fi
+
+depend() {
+	need localmount
+	after sysctl
+	before net
+	provide firewall
+}
+
+start_pre() {
+	checkkernel && checkconfig
+}
+
+start() {
+	ebegin "Loading nftables rules and starting firewall"
+
+	$nft -f "$rules_file"
+	eend $? || return 1
+
+	if yesno "$enable_forwarding"; then
+		ebegin "Enabling forwarding"
+		forwarding 1
+		eend $? || return 1
+	fi
+}
+
+stop() {
+	if yesno "$save_on_stop"; then
+		save || return 1
+	fi
+
+	if yesno "$enable_forwarding"; then
+		ebegin "Disabling forwarding"
+		forwarding 0
+		eend $?
+	fi
+
+	ebegin "Stopping firewall"
+	$nft flush ruleset
+	eend $?
+}
+
+reload() {
+	# This condition is mainly for backward compatibility (Alpine <3.17).
+	if yesno "$save_on_stop" && [ "$save_objects" != 'ruleset' ]; then
+		save || return 1
+	fi
+	start
+}
+
+panic() {
+	checkkernel || return 1
+
+	if service_started "$RC_SVCNAME"; then
+		rc-service "$RC_SVCNAME" stop
+	fi
+
+	ebegin "Dropping all packets"
+	$nft -f /dev/stdin <<-EOF
+		flush ruleset
+		table inet filter {
+		    chain input { type filter hook input priority 0; policy drop; }
+		    chain forward { type filter hook forward priority 0; policy drop; }
+		    chain output { type filter hook output priority 0; policy drop; }
+		}
+	EOF
+	eend $?
+}
+
+save() {
+	[ "$RC_CMD" = 'save' ] && ebegin "Saving nftables state"
+
+	checkpath -q -d "${save_file%/*}"
+	checkpath -q -m 0600 -F -f "$save_file.tmp"
+
+	local rc=0
+	local type; for type in $save_objects; do
+		[ "$type" = 'ruleset' ] && echo 'flush ruleset' >> "$save_file.tmp"
+		$nft $save_options list $type >> "$save_file.tmp" || rc=$?
+	done
+
+	[ $rc -eq 0 ] && mv "$save_file.tmp" "$save_file"
+
+	[ "$RC_CMD" = 'save' ] && eend $rc
+
+	return $rc
+}
+
+reset() {
+	ebegin "Resetting stateful objects"
+
+	local rc=0 type
+	for type in counters quotas; do
+		$nft reset $type >/dev/null || rc=$?
+	done
+
+	eend $rc
+}
+
+checkconfig() {
+	if [ ! -f "$rules_file" ]; then
+		eerror "Rules files $rules_file does not exist!"
+		return 1
+	fi
+	$nft -c -f "$rules_file"
+}
+
+checkkernel() {
+	if ! $nft list tables >/dev/null 2>&1; then
+		eerror "Your kernel lacks nftables support, please load"
+		eerror "appropriate modules and try again."
+		return 1
+	fi
+	return 0
+}
+
+forwarding() {
+	/sbin/sysctl -qw net.ipv4.ip_forward=$1 || return 1
+
+	if /sbin/sysctl -eq net.ipv6.conf.all.forwarding >/dev/null; then
+		/sbin/sysctl -qw \
+			net.ipv6.conf.default.forwarding=$1 \
+			net.ipv6.conf.all.forwarding=$1 || return 1
+	fi
+	return 0
+}

@@ -1,0 +1,36 @@
+# Configuration for /etc/init.d/nftables
+
+# Location of the nftables rules file to load on the service start.
+#rules_file="/etc/nftables.nft"
+
+# Whether to save the state of stateful objects (or full ruleset, see
+# $save_objects) on the service stopping.
+#save_on_stop="no"
+
+# File path where to save the nftables state on the service stopping.
+# Defaults to $rules_file if $save_objects is "ruleset".
+#save_file="/var/lib/nftables/state.nft"
+
+# A space-separated list of stateful objects to save on the service stop.
+#
+# If you want to save the full ruleset, set it to "ruleset" (that's the default
+# value, for backward compatibility). Please note that this is discouraged;
+# it's highly recommended to write nftable rules by hand and organize them in
+# files /etc/nftables.d/<name>.nft (included by /etc/nftables.nft).
+save_objects="counters limits quotas"
+
+# Options to pass to nft on save.
+#save_options=""
+
+# Enable IPv4/IPv6 forwarding with the rules?
+# Note: If you want to enable forwarding only on selected interfaces,
+# keep this disabled and enable forwarding using /etc/sysctl.conf.
+#enable_forwarding="no"
+
+# If you need to log nftables messages as soon as nftables starts,
+# AND your logger does NOT depend on the network, then you may wish
+# to uncomment the next line.
+# If your logger depends on the network, and you uncomment this line
+# you will create an unresolvable circular dependency during startup.
+# After commenting or uncommenting this line, you must run 'rc-update -u'.
+#rc_use="logger"
