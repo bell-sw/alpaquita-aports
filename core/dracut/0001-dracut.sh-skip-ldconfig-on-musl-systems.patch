@@ -1,4 +1,4 @@
-From 28be195e57675773db786e6b02361a0257fb3e67 Mon Sep 17 00:00:00 2001
+From 31d30c3d35012ebe0ee71f410a038676df761aef Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Wed, 29 Dec 2021 14:44:55 +0300
 Subject: [PATCH] dracut.sh: skip ldconfig on musl systems
@@ -8,7 +8,7 @@ Subject: [PATCH] dracut.sh: skip ldconfig on musl systems
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/dracut.sh b/dracut.sh
-index 60ac46f4..b33dd32b 100755
+index 60ac46f4..ece152c5 100755
 --- a/dracut.sh
 +++ b/dracut.sh
 @@ -2226,7 +2226,7 @@ if [[ $kernel_only != yes ]]; then
@@ -16,7 +16,7 @@ index 60ac46f4..b33dd32b 100755
  fi
  
 -if [[ $kernel_only != yes ]]; then
-+if [[ $kernel_only != yes ]] && [[ ! -f /lib/ld-musl-x86_64.so.1 ]]; then
++if [[ $kernel_only != yes ]] && [[ ! -f /lib/ld-musl-${DRACUT_ARCH:-$(uname -m)}.so.1 ]]; then
      # make sure that library links are correct and up to date
      for f in "$dracutsysrootdir"/etc/ld.so.conf "$dracutsysrootdir"/etc/ld.so.conf.d/*; do
          [[ -f $f ]] && inst_simple "${f#$dracutsysrootdir}"
