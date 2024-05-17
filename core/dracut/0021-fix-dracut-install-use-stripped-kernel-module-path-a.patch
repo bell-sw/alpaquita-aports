@@ -1,0 +1,76 @@
+From 1b1530bf9665825b8b34e4734365bd69ed765c5c Mon Sep 17 00:00:00 2001
+From: runsisi <runsisi@hust.edu.cn>
+Date: Sat, 6 Aug 2022 10:15:48 +0800
+Subject: [PATCH] fix(dracut-install): use stripped kernel module path as hash
+ key
+
+in install_dependent_modules we use &path[kerneldirlen] as the key for inserting,
+let's do the same for checking.
+
+otherwise installing kernel module has circular dependency from a custom kernel
+module directory will cause infinite recursion and segfault.
+
+$ grep ipmi kbuilt/lib/modules/5.10.121/modules.dep
+kernel/drivers/char/ipmi/ipmi_msghandler.ko:
+kernel/drivers/char/ipmi/ipmi_devintf.ko: kernel/drivers/char/ipmi/ipmi_msghandler.ko
+
+$ grep ipmi kbuilt/lib/modules/5.10.121/modules.softdep
+softdep ipmi_msghandler post: ipmi_devintf
+
+$ ./dracut-install -D /tmp --kerneldir ~/working/kernel/linux-5.10.121/kbuilt/lib/modules/5.10.121 -m ipmi-devintf
+Segmentation fault (core dumped)
+
+(gdb) b install_dependent_modules
+Breakpoint 1 at 0x7db0: file src/install/dracut-install.c, line 1513.
+(gdb) bt
+#0  install_dependent_modules (modlist=0x0) at src/install/dracut-install.c:1513
+#1  0x000055555555c027 in install_dependent_modules (modlist=modlist@entry=0x555555579e90) at src/install/dracut-install.c:1553
+#2  0x000055555555bf1c in install_dependent_modules (modlist=0x5555555799d0) at src/install/dracut-install.c:1548
+#3  0x000055555555c034 in install_dependent_modules (modlist=modlist@entry=0x55555557a3f0) at src/install/dracut-install.c:1554
+#4  0x000055555555bf1c in install_dependent_modules (modlist=0x555555579d60) at src/install/dracut-install.c:1548
+#5  0x000055555555c034 in install_dependent_modules (modlist=modlist@entry=0x55555557b170) at src/install/dracut-install.c:1554
+#6  0x000055555555bf1c in install_dependent_modules (modlist=0x55555557a0f0) at src/install/dracut-install.c:1548
+#7  0x000055555555c034 in install_dependent_modules (modlist=modlist@entry=0x555555575320) at src/install/dracut-install.c:1554
+#8  0x000055555555bf1c in install_dependent_modules (modlist=0x55555557ab30) at src/install/dracut-install.c:1548
+#9  0x000055555555c034 in install_dependent_modules (modlist=modlist@entry=0x55555557dd60) at src/install/dracut-install.c:1554
+#10 0x000055555555bf1c in install_dependent_modules (modlist=0x55555557b640) at src/install/dracut-install.c:1548
+#11 0x000055555555c034 in install_dependent_modules (modlist=modlist@entry=0x55555557e0f0) at src/install/dracut-install.c:1554
+#12 0x000055555555bf1c in install_dependent_modules (modlist=0x55555557b9d0) at src/install/dracut-install.c:1548
+#13 0x000055555555c034 in install_dependent_modules (modlist=modlist@entry=0x555555574340) at src/install/dracut-install.c:1554
+#14 0x000055555555bf1c in install_dependent_modules (modlist=0x55555557cf70) at src/install/dracut-install.c:1548
+#15 0x000055555555c034 in install_dependent_modules (modlist=modlist@entry=0x5555555768d0) at src/install/dracut-install.c:1554
+#16 0x000055555555bf1c in install_dependent_modules (modlist=0x55555557d750) at src/install/dracut-install.c:1548
+#17 0x000055555555c034 in install_dependent_modules (modlist=modlist@entry=0x55555557e700) at src/install/dracut-install.c:1554
+#18 0x000055555555bf1c in install_dependent_modules (modlist=0x55555557de90) at src/install/dracut-install.c:1548
+#19 0x000055555555c034 in install_dependent_modules (modlist=modlist@entry=0x555555581c90) at src/install/dracut-install.c:1554
+#20 0x000055555555bf1c in install_dependent_modules (modlist=0x555555571e60) at src/install/dracut-install.c:1548
+#21 0x000055555555c034 in install_dependent_modules (modlist=modlist@entry=0x55555556b620) at src/install/dracut-install.c:1554
+#22 0x000055555555bf1c in install_dependent_modules (modlist=0x555555583000) at src/install/dracut-install.c:1548
+#23 0x000055555555c034 in install_dependent_modules (modlist=modlist@entry=0x55555556b640) at src/install/dracut-install.c:1554
+#24 0x000055555555bf1c in install_dependent_modules (modlist=0x555555571b40) at src/install/dracut-install.c:1548
+#25 0x000055555555c034 in install_dependent_modules (modlist=modlist@entry=0x555555574100) at src/install/dracut-install.c:1554
+#26 0x000055555555c4b0 in install_module (mod=mod@entry=0x555555573bc0) at src/install/dracut-install.c:1617
+#27 0x000055555555c93d in install_modules (argc=argc@entry=1, argv=argv@entry=0x7fffffffd6e0) at src/install/dracut-install.c:1952
+#28 0x000055555555862a in main (argc=<optimized out>, argv=0x7fffffffd6a8) at src/install/dracut-install.c:2090
+
+Signed-off-by: runsisi <runsisi@hust.edu.cn>
+---
+ src/install/dracut-install.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/install/dracut-install.c b/src/install/dracut-install.c
+index c19fb5f3..c79cb83c 100644
+--- a/src/install/dracut-install.c
++++ b/src/install/dracut-install.c
+@@ -1546,7 +1546,7 @@ static int install_dependent_modules(struct kmod_list *modlist)
+                 if (check_hashmap(items_failed, path))
+                         return -1;
+ 
+-                if (check_hashmap(items, path)) {
++                if (check_hashmap(items, &path[kerneldirlen])) {
+                         continue;
+                 }
+ 
+-- 
+2.25.1
+
