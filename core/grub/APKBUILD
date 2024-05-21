@@ -5,7 +5,7 @@ pkgname=grub
 # NOTE: After upgrading or applying a fix, please rebuild the following aport:
 # - grub-efi-signed
 pkgver=2.12
-pkgrel=4
+pkgrel=5
 _deb_peimage_ver="2.12-2"
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
@@ -321,8 +321,11 @@ efi() {
 
 xenhost() {
 	pkgdesc="$pkgdesc (XEN host version)"
+	mkdir -p $subpkgdir/usr/lib/grub-xen
+	mv $pkgdir/*-xen.bin $subpkgdir/usr/lib/grub-xen/
+
 	# pick up result from xenhost_pvh build as well
-	amove '*-xen.bin' '*-xen_pvh.bin'
+	mv $pkgdir/*-xen_pvh.bin $subpkgdir/usr/lib/grub-xen/
 }
 
 qemu_mips() {
