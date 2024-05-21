@@ -23,11 +23,16 @@ checkdepends="
 	python3-dev
 	"
 subpackages="$pkgname-pyc"
-[ -n "BOOTSTRAP" ] && options="!check" # To break a cyclic dependency on py3-pytest
 source="$_pkgname-$pkgver.tar.gz::https://github.com/python-poetry/poetry-core/archive/$pkgver.tar.gz
 	musl:fix-musl.patch
 	"
 builddir="$srcdir/$_pkgname-$pkgver"
+
+if [ -n "BOOTSTRAP" ]; then
+    # break a cyclic dependency on py3-pytest
+    options="${options+$options }!check"
+fi
+
 
 build() {
 	gpep517 build-wheel \
