@@ -1,0 +1,30 @@
+pkgname=passt
+pkgver=2024.05.10
+_commit=7288448
+_tag=${pkgver//./_}.$_commit
+pkgrel=0
+pkgdesc="Plug A Simple Socket Transport"
+url="https://passt.top/"
+arch="all"
+license="BSD-3-Clause AND GPL-2.0-or-later"
+makedepends="coreutils-fmt linux-headers"
+subpackages="$pkgname-doc"
+source="https://passt.top/passt/snapshot/passt-$_tag.tar.gz
+	basename.patch"
+builddir="$srcdir/$pkgname-$_tag"
+# complicated test setup, requires qemu and a lot of VM images
+options="!check"
+
+build() {
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" prefix=/usr install
+	install -Dm644 LICENSES/*.txt -t "$pkgdir"/usr/share/licenses/$pkgname/
+}
+
+sha512sums="
+6661fa94be85f062b8a39a554d0f99e8edbbcca03656d190adae13ccd5589fda871f6bad94c42e66d7325164763d0d739d42590494aed5b240173b5ad39e5cf4  passt-2024_05_10.7288448.tar.gz
+d1493bb72fc07ed18986b1d5bbe69e3f30fe3fd229005e4a4ab5ef7ef0dfc0e39612758779f97bcd28331d8800e1c73a11a34fb598244b43e5aeedc96c1873b0  basename.patch
+"
