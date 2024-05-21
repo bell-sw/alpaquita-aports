@@ -1,0 +1,31 @@
+From 71848775af719b3b3ceec9b8f5bff29ff09a4ae9 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 21 May 2024 10:06:57 +0000
+Subject: [PATCH] distro-iso: also support
+ root={PARTLABEL=|UUID=|PARTUUID=|device path}
+
+---
+ modules.d/98distro-iso/parse-cmdline.sh | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/modules.d/98distro-iso/parse-cmdline.sh b/modules.d/98distro-iso/parse-cmdline.sh
+index 299cf8db..1ed87f4a 100755
+--- a/modules.d/98distro-iso/parse-cmdline.sh
++++ b/modules.d/98distro-iso/parse-cmdline.sh
+@@ -3,7 +3,12 @@
+ _iso_label=$(getargs root)
+ 
+ if [ "$_iso_label" ]; then
+-	root="/dev/disk/by-label/${_iso_label#LABEL=}"
++	root="$(label_uuid_to_dev $_iso_label)"
++
++	if [ -z "$root" ]; then
++		root="$_iso_label"
++	fi
++
+ 	echo '[ -e $root ]' > "$hookdir"/initqueue/finished/mediadisk.sh
+ 	rootok=1
+ fi
+-- 
+2.25.1
+
