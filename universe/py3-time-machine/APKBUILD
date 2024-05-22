@@ -1,0 +1,39 @@
+pkgname=py3-time-machine
+pkgver=2.14.1
+pkgrel=1
+pkgdesc="Python library for mocking the current time"
+url="https://github.com/adamchainz/time-machine"
+arch="all"
+license="MIT"
+depends="py3-dateutil"
+makedepends="
+	python3-dev
+	py3-setuptools
+	py3-gpep517
+	py3-wheel
+	"
+checkdepends="py3-pytest tzdata"
+subpackages="$pkgname-pyc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/adamchainz/time-machine/archive/refs/tags/$pkgver.tar.gz"
+builddir="$srcdir/time-machine-$pkgver"
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/*.whl
+	.testenv/bin/python3 -m pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+}
+
+sha512sums="
+42a127e2dc5a86e33896010e6d141fc9248fe685d3477ec71ec8a72315914cea99ae4a4d6623a59fd69505d935d2feadcfd831a7fff5617c3f98a93d48652ecf  py3-time-machine-2.14.1.tar.gz
+"
