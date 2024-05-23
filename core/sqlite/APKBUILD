@@ -2,7 +2,7 @@
 # self-contained, high-reliability, full-featured, SQL database engine.
 
 pkgname=sqlite
-# NOTE: pkgver needs to correspond with sqlite-tcl
+# NOTE: pkgver needs to correspond with sqlite-tools
 pkgver=3.45.3
 pkgrel=0
 pkgdesc="SQL database engine library"
@@ -63,12 +63,13 @@ _amalgamation="-DSQLITE_ENABLE_FTS3_PARENTHESIS \
 	-DSQLITE_MAX_VARIABLE_NUMBER=250000"
 
 prepare() {
-	if [ -f "$startdir"/../sqlite-tcl/APKBUILD ]; then
+	if [ -f "$startdir"/../sqlite-tools/APKBUILD ]; then
 		(
 		_sqlitever=$pkgver
-		. "$startdir"/../sqlite-tcl/APKBUILD
+		# shellcheck disable=SC1093
+		. "$startdir"/../sqlite-tools/APKBUILD
 		if [ "$_sqlitever" != "$pkgver" ]; then
-			warning "sqlite-tcl version mismatch ($_sqlitever != $pkgver)"
+			warning "sqlite-tools version mismatch ($_sqlitever != $pkgver)"
 		fi
 		)
 	fi
