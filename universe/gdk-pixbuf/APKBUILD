@@ -1,6 +1,6 @@
 pkgname=gdk-pixbuf
 pkgver=2.42.12
-pkgrel=1
+pkgrel=2
 pkgdesc="GTK+ image loading library"
 url="https://wiki.gnome.org/Projects/GdkPixbuf"
 arch="all"
@@ -24,6 +24,7 @@ case "$CARCH" in
 x86|arm*)
 	# https://gitlab.gnome.org/GNOME/gdk-pixbuf/-/issues/215
 	options="$options !check"
+	;;
 esac
 
 # secfixes:
@@ -43,6 +44,8 @@ build() {
 		-Db_lto=true \
 		-Dinstalled_tests=false \
 		-Dothers=enabled \
+		-Dtiff=enabled \
+		-Dintrospection=enabled \
 		-Dtests="$(want_check && echo true || echo false)" \
 		output .
 	meson compile -C output

@@ -1,10 +1,10 @@
 pkgname=libva
 pkgver=2.22.0
-pkgrel=0
+pkgrel=1
 pkgdesc="Video Acceleration (VA) API for Linux"
 url="https://01.org/linuxmedia"
 arch="all"
-options="!check"  # No test suite.
+options="!check" # No test suite.
 license="MIT"
 depends_dev="libx11-dev libxext-dev libxfixes-dev libdrm-dev"
 makedepends="$depends_dev meson wayland-dev"
@@ -25,8 +25,10 @@ prepare() {
 build() {
 	abuild-meson \
 		-Db_lto=true \
+		-Dwith_x11=yes \
 		-Dwith_glx=no \
 		-Dwith_wayland=yes \
+		-Dwith_win32=no \
 		builddir
 	meson compile -C builddir
 }

@@ -1,12 +1,13 @@
 pkgname=nvme-cli
 pkgver=2.10
-pkgrel=0
+pkgrel=1
 pkgdesc="NVM-Express user space tooling for Linux"
 arch="all"
 url="https://github.com/linux-nvme/nvme-cli"
 license="GPL-2.0-or-later"
 makedepends="
 	bash
+	json-c-dev
 	libnvme-dev
 	linux-headers
 	meson
@@ -32,6 +33,7 @@ build() {
 		-Db_lto=true \
 		-Ddocs=man \
 		-Dudevrulesdir=/usr/lib/udev/rules.d/ \
+		-Djson-c=enabled \
 		. output
 	meson compile -C output
 }

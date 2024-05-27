@@ -1,6 +1,6 @@
 pkgname=libnvme
 pkgver=1.10
-pkgrel=0
+pkgrel=1
 pkgdesc="C Library for NVM Express on Linux"
 url="https://github.com/linux-nvme/libnvme/"
 arch="all"
@@ -30,6 +30,9 @@ build() {
 	abuild-meson \
 		-Db_lto=true \
 		-Ddocs=false \
+		-Dpython=enabled \
+		-Dopenssl=enabled \
+		-Djson-c=enabled \
 		. output
 	meson compile -C output
 }
