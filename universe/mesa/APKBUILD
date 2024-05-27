@@ -1,6 +1,6 @@
 pkgname=mesa
 pkgver=24.1.0
-pkgrel=3
+pkgrel=4
 pkgdesc="Mesa DRI OpenGL library"
 url="https://www.mesa3d.org"
 arch="all"
@@ -122,6 +122,27 @@ x86)
 	;;
 esac
 
+case "$CARCH" in
+aarch64|x86|x86_64)
+	_rusticl=true
+	makedepends="
+		$makedepends
+		clang$_llvmver-dev
+		libclc-dev~$_llvmver
+		rust
+		rust-bindgen
+		spirv-llvm-translator-dev
+		"
+	subpackages="
+		$subpackages
+		$pkgname-rusticl
+		"
+	;;
+*)
+	_rusticl=false
+	;;
+esac
+
 build() {
 	# use -g1 to generate less debug info:
 	# 485 MiB -> ~80 MiB
@@ -159,9 +180,11 @@ build() {
 		-Degl=enabled \
 		-Dgallium-extra-hud=true \
 		-Dgallium-nine=true \
+		-Dgallium-rusticl=$_rusticl \
 		-Dgallium-va=enabled \
 		-Dgallium-vdpau=enabled \
 		-Dgallium-xa=enabled \
+		-Drust_std=2021 \
 		-Dvideo-codecs=all \
 		. output
 
@@ -238,6 +261,15 @@ libd3dadapter9() {
 	provider_priority=100
 
 	amove usr/lib/d3d/d3dadapter9.so*
+}
+
+rusticl() {
+	pkgdesc="Mesa OpenCL driver"
+	depends="mesa=$pkgver-r$pkgrel clang$_llvmver-headers libclc~$_llvmver"
+	provider_priority=100
+
+	amove usr/lib/libRusticlOpenCL.so.*
+	amove etc/OpenCL/vendors/
 }
 
 # Move links referencing the same file to the subpackage.
