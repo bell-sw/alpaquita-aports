@@ -6,6 +6,7 @@ pkgname=grub
 # - grub-efi-signed
 pkgver=2.12
 pkgrel=1
+_deb_peimage_ver="2.12-2"
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
 arch="all !s390x"
@@ -282,6 +283,7 @@ efi() {
 	sed -e "s,@PKGVER@,$pkgver,g" -e "s,@PKGREL@,$pkgrel," \
 		-e "s,@DISTRO@,$VENDOR_DISTRO,g" -e "s,@DISTRO_NAME@,$VENDOR_DISTRO_NAME,g" \
 		-e "s,@SUPPORT_URL@,$VENDOR_BUG_REPORT_URL,g" \
+		-e "s,@DEB_PEIMAGE_VER@,$_deb_peimage_ver,g" \
 		< "$srcdir"/sbat.distro.csv > "$builddir"/sbat.distro.csv
 
 	# create memdisk with fonts
@@ -366,7 +368,7 @@ mount() {
 sha512sums="
 761c060a4c3da9c0e810b0ea967e3ebc66baa4ddd682a503ae3d30a83707626bccaf49359304a16b3a26fc4435fe6bea1ee90be910c84de3c2b5485a31a15be3  grub-2.12.tar.xz
 85b3c56670fb0aaaf831cc6d7ca45faeb68b844cb17cfd6f9b51c2473f0b153cfa7b26ff8bf00a88b2ed3e0ae69a1e8f735256e6cecc91e959169606e2abf887  update-grub
-4ef20cb99053afcfcbb99fbd7d58254eb14f2493a63084ccd21839e6bf71baea20b827a5f60423ca3681282bb2bd8db0ea78c4d18baa8489ed5b799e8f4b3bc4  sbat.distro.csv
+f145c6cf9f1e7a8c9ee07be75f8984406899e75eb2d2eccbb654f559b3b361b35557563bfdc2434f2a52429b797f57696e532f7d53ac96dd9d68f3f91d1d98b5  sbat.distro.csv
 4e7394e0fff6772c89683039ccf81099ebbfe4f498e6df408977a1488fd59389b6e19afdbf0860ec271e2b2aea0df7216243dcc8235d1ca3af0e7f4d0a9d60a4  grub-xen-host_grub.cfg
 d45f416f7308f338cd187909207cd8329dcb21e22ab0573ae932110c3e108e4bafe6411ae22b5f87809bea39544660dcb03e3fea2c1c33492cd230fa6d3b2760  0001-Fix-grub-mkconfig-detection-of-linux-edge-virt.patch
 e1612f34d14644b30a63d9dc18a0eaf9617ef9f4aa6787c386e6304e15b4573f5149758936cac1ceffdb4e39f6a83e7e7c01a7ef3ed2f7bc974971ae0e2c644c  0002-ensure-grub-mkconfig-ignores-.apk-new-files.patch
