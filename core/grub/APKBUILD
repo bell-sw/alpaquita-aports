@@ -5,7 +5,7 @@ pkgname=grub
 # NOTE: After upgrading or applying a fix, please rebuild the following aport:
 # - grub-efi-signed
 pkgver=2.12
-pkgrel=0
+pkgrel=1
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
 arch="all !s390x"
@@ -54,6 +54,10 @@ source="https://ftp.gnu.org/gnu/grub/grub-$pkgver.tar.xz
 	0007-uefi-firmware-remove-fsetup-check.patch
 
 	0100-fs-xfs-Handle-non-continuous-data-blocks-in-director.patch
+
+	secure-boot/efi-use-peimage-shim.patch
+	secure-boot/loader-framework.patch
+	secure-boot/revert-efi-fallback-to-legacy.patch
 	"
 
 # secfixes:
@@ -248,7 +252,7 @@ efi() {
 	local _cd_modules="\
 		all_video cat configfile disk echo fat gzio halt help \
 		iso9660 linux ls memdisk normal part_gpt part_msdos \
-		reboot search search_label serial squash4 test true \
+		peimage reboot search search_label serial squash4 test true \
 		"
 
 	local _modules="$_cd_modules \
@@ -371,4 +375,7 @@ d8606bc2fc6b34e683fdba8b2a131b7d5bede907556c141a30be1d7475a65bf5e2266d577f7a0f0d
 474f3576b45f612de4b157f951fbd334d7e136275dd2640e2d3deac7c813e4e8a8809a3b798476eb51cb0a3dd42b52583f7fe526fc78e7638f4506861c98a062  0005-Alpine-Linux-fixes-for-menu.patch
 c0bea923acc6affd32e78a58685e847f24e26c501b5bbabee99cc6e25c5668263e61f0bf508a6741bd75fef891ca3229f9d746ef254c72d2cb8dca7c18f92f54  0007-uefi-firmware-remove-fsetup-check.patch
 2fa7d09419ce8179c961e939306c3de006e2d9088f75c572ae68002206b68e9acf9c4e332a378e30a7f8691ecb0c3fdc7834692950d5f1d6320209b340e6dce5  0100-fs-xfs-Handle-non-continuous-data-blocks-in-director.patch
+1b2e951c3089f5d73d6e34a6635f5d078c99dd90b50043ae848f23858bfe1ed6fb4662c2fff635e2ac22c7f847fa4304a841cf1a7e4429ddcb10285a2c9ef82c  efi-use-peimage-shim.patch
+aba93e2473a5144bdd0b6d03fb840f40448b5054505a560ef3e92e91b9191007b390702bc75a1fd422ac75fecb57d44a51c4425a77f2ab760d8b214427c4f8e1  loader-framework.patch
+a9603574d881980d78ee2441a549cb06c4b8c65b9bb3d9ccc19760bb9c87b15cb33bf2728a46a2b1a7f524ca002a1a488610db3c77e05a9c57b7e8c438817fd8  revert-efi-fallback-to-legacy.patch
 "
