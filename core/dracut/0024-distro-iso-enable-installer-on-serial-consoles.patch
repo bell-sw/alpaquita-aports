@@ -1,0 +1,98 @@
+From 6b4e5e7fec44803f44fde9036adfba9f59da5f46 Mon Sep 17 00:00:00 2001
+From: Stanislav Kholmanskikh <stanislav.kholmanskikh@bell-sw.com>
+Date: Sun, 2 Jun 2024 16:06:33 +0300
+Subject: [PATCH] distro-iso: enable installer on serial consoles
+
+---
+ modules.d/98distro-iso/mount-tmpfs.sh | 53 +++++++++++++++++++++++----
+ 1 file changed, 45 insertions(+), 8 deletions(-)
+
+diff --git a/modules.d/98distro-iso/mount-tmpfs.sh b/modules.d/98distro-iso/mount-tmpfs.sh
+index d082e16..d5e8960 100755
+--- a/modules.d/98distro-iso/mount-tmpfs.sh
++++ b/modules.d/98distro-iso/mount-tmpfs.sh
+@@ -41,7 +41,7 @@ _enable_serial_login() {
+ 
+ 	for i in $serial; do
+ 		grep -q "^$i:" "$NEWROOT/etc/inittab" && continue
+-		echo "$i::respawn:/usr/sbin/getty -L 115200 $i vt100" >> "$NEWROOT/etc/inittab"
++		echo "$i::askfirst:/usr/sbin/getty -L -n -l /usr/local/bin/login_as_root 115200 $i vt220" >> "$NEWROOT/etc/inittab"
+ 	done
+ }
+ 
+@@ -76,7 +76,7 @@ apk update --root $NEWROOT
+ apkflags="--initramfs-diskless-boot --quiet --no-network --clean-protected"
+ 
+ apk add $apkflags --root $NEWROOT distro-base distro-keys distro-installer \
+-	busybox distro-baselayout eudev e2fsprogs
++	busybox distro-baselayout eudev e2fsprogs tmux
+ 
+ umount $NEWROOT/sys $NEWROOT/proc $NEWROOT/dev
+ 
+@@ -102,20 +102,57 @@ else
+ 	_rc_add swclock boot
+ fi
+ 
+-# Enable auto login
+-sed -i -r 's,(^(tty[0-9]+)::respawn:).*,\1/usr/bin/login -f root,' \
+-	"$NEWROOT/etc/inittab"
++cat > "$NEWROOT/usr/local/bin/login_as_root" << EOD
++#!/bin/sh
++exec /usr/bin/login -f root
++EOD
++chmod +x "$NEWROOT/usr/local/bin/login_as_root"
+ cat > "$NEWROOT/etc/motd" << EOD
+ Welcome to BellSoft Alpaquita Linux!
+ 
+ EOD
+ cat > "$NEWROOT/root/.profile" << 'EOD'
+ export PS1="($(basename $(tty))) $PS1"
++
++if [ -z "$TMUX" ]; then
++    di_start="false"
++    tty_dev=$(tty)
++    case "$tty_dev" in
++        /dev/tty[0-9]*)
++            if [ "$tty_dev" = "/dev/tty1" ]; then
++                di_start="true"
++            fi
++            ;;
++        /dev/tty*)
++            # Usually the terminal size will be > than 80x25,
++            # so the installer will look better
++            resize
++
++            di_start="true"
++            di_args="${di_args} --no-colors"
++            ;;
++    esac
++
++    if $di_start; then
++        if [ "$(uname -m)" = "aarch64" ]; then
++            di_args="${di_args} --shim-unsigned"
++        fi
++
++        exec tmux new distro-installer -i --debug-log "installer_$$.log" ${di_args}
++    fi
++fi
++EOD
++
++cat > "$NEWROOT/root/.tmux.conf" << EOD
++# For backward-compatibility with installations via graphical terminals
++set -g status off
+ EOD
+ 
+-# Start the installer on boot
+-sed -i -r 's,^(#?(tty1::respawn:).*),\2/usr/bin/distro-installer -i -d,' \
+-	"$NEWROOT/etc/inittab"
++# Enable auto login
++sed -i -E 's,(^(tty[0-9]+)::respawn:.*),#\1,' "$NEWROOT/etc/inittab"
++for tty_dev in tty1 tty2 tty3 tty4; do
++	echo "${tty_dev}::respawn:/usr/sbin/getty -n -l /usr/local/bin/login_as_root 38400 ${tty_dev} linux" >> "$NEWROOT/etc/inittab"
++done
+ 
+ # Enable getty on the serial port
+ _enable_serial_login
+-- 
+2.44.0
+
