@@ -8,7 +8,7 @@ _javamajor=17
 
 pkgname=$_pkgname-$_nikmajor-$_javamajor
 pkgver=23.0.4
-pkgrel=0
+pkgrel=1
 
 # java version required for the build
 _javaver=17.0.11
@@ -16,11 +16,17 @@ _javaver=17.0.11
 
 # These are the tips of release/graal-vm/23.0 branches in
 # the corresponding repositories as of 2024-04-10
+#
+# The additional twist is that Oracle released their version of NIK
+# with graaljs from the 23.1 series without doing any git tagging or
+# anything, so we did this backport in our repo and provide custom
+# distfile.
 _hash_graal="0ab0b8ee4f1e6e17156f91a9897c061512cb2a9f"
-_hash_graaljs="68a2a2a1f218492240360135a03642cc5070cfef"
+#_hash_graaljs="68a2a2a1f218492240360135a03642cc5070cfef" # superseded
 _hash_graalpython="060d5709cf1fa5598b62ef56f2550cb8d4de4cf6"
 _hash_truffleruby="bd96fa823c214a04a5586c230e07671fd41bb0de"
 _date_truffleruby="2023-07-04"
+
 
 # fastr doesn't have the $pkgver tags, so instead use the head of the
 # corresponding release branch.
@@ -86,21 +92,11 @@ subpackages="
 provides="openjdk-nik-$_nikmajor-$_javamajor=$pkgver-r$pkgrel"
 
 _source_release="
-	graal-vm-ce-$pkgver.tar.gz::https://github.com/oracle/graal/archive/refs/tags/vm-ce-$pkgver.tar.gz
-	graaljs-vm-ce-$pkgver.tar.gz::https://github.com/oracle/graaljs/archive/refs/tags/vm-ce-$pkgver.tar.gz
-	graalpython-vm-ce-$pkgver.tar.gz::https://github.com/oracle/graalpython/archive/vm-ce-$pkgver.tar.gz
-	truffleruby-vm-$pkgver.tar.gz::https://github.com/oracle/truffleruby/archive/refs/tags/vm-$pkgver.tar.gz
-	"
-
-# for test builds, before the release is tagged
-if test "$_hash_graal"; then
-_source_release="
 	graal-$pkgver-$_hash_graal.tar.gz::https://github.com/oracle/graal/archive/$_hash_graal.tar.gz
-	graaljs-$pkgver-$_hash_graaljs.tar.gz::https://github.com/oracle/graaljs/archive/$_hash_graaljs.tar.gz
+	https://packages.bell-sw.com/alpaquita/distfiles/graaljs-graal-$pkgver.tar.xz
 	graalpython-$pkgver-$_hash_graalpython.tar.gz::https://github.com/oracle/graalpython/archive/$_hash_graalpython.tar.gz
 	truffleruby-$pkgver-$_hash_truffleruby.tar.gz::https://github.com/oracle/truffleruby/archive/$_hash_truffleruby.tar.gz
 	"
-fi
 
 _source_release="$_source_release
 	fastr-23.0-$_hash_fastr.tar.gz::https://github.com/oracle/fastr/archive/$_hash_fastr.tar.gz
@@ -163,23 +159,16 @@ unpack() {
 	mkdir -p "$builddir"
 
 	# rename the directories to their basenames, dropping git refs
-	if ! test "$_hash_graal"; then
-		mv graal-*$pkgver       "$builddir"/graal
-		mv graaljs-*$pkgver     "$builddir"/graaljs
-		mv graalpython-*$pkgver "$builddir"/graalpython
-		mv truffleruby-*$pkgver "$builddir"/truffleruby
-	else
-		mv graal-$_hash_graal             "$builddir"/graal
-		mv graaljs-$_hash_graaljs         "$builddir"/graaljs
-		mv graalpython-$_hash_graalpython "$builddir"/graalpython
-		mv truffleruby-$_hash_truffleruby "$builddir"/truffleruby
-	fi
+	mv graal-$_hash_graal             "$builddir"/graal
+	mv graaljs-*$pkgver               "$builddir"/graaljs
+	mv graalpython-$_hash_graalpython "$builddir"/graalpython
+	mv truffleruby-$_hash_truffleruby "$builddir"/truffleruby
 
 	# not in sync with the rest of them
-	mv fastr-$_hash_fastr   "$builddir"/fastr
+	mv fastr-$_hash_fastr             "$builddir"/fastr
 
 	# the build tool has its own tags
-	mv mx-$_mxver           "$builddir"/mx
+	mv mx-$_mxver                     "$builddir"/mx
 }
 
 prepare() {
@@ -317,7 +306,7 @@ _ruby() {
 
 sha512sums="
 4f10204acc05028fd8428b582636e8a3e7e3f981f5fdff12a5e34984204b8cbff93d1ec30e523ab9d50bcbb4923b3e5f4cdc8c40b1b36e6813898acdaaa0abd5  graal-23.0.4-0ab0b8ee4f1e6e17156f91a9897c061512cb2a9f.tar.gz
-69e2e615ecbafc86ce53d08d1afae181036c8ebaa06dad51ceae3f4fba2264de3b0d8377ecc1ce3e6fd1a0012a686f78e1c728f85760438957dc6b37e339941f  graaljs-23.0.4-68a2a2a1f218492240360135a03642cc5070cfef.tar.gz
+c89a64ccaf18501ea788d9bf22efe123946954ca4cd955d80ab530507b01b25e69e03e5dbe4bf928eae154858548d6c97d85bf20fadc4c8260004ec48e35a3cf  graaljs-graal-23.0.4.tar.xz
 a4c1c3e3c20b3741144bad53cc47351bcac58e6d64281ba10f96e200ff665b79005c004450f13c04a01f5e4104e9b726b69b9dc337aa80ec7be148832a8c77d8  graalpython-23.0.4-060d5709cf1fa5598b62ef56f2550cb8d4de4cf6.tar.gz
 3d96cc74c64ce729bb1aba264630e67e5bf24b68ca77cc394bc7dfa992d18046915260595c18eb44835d056a699c3fd3beca0d608456d773a6c190d522c7617f  truffleruby-23.0.4-bd96fa823c214a04a5586c230e07671fd41bb0de.tar.gz
 30e81d8d61d51066a16c2ec41bac88f5c213a2fc3ecfcce27472cefceaa8b2a1c4284e7110b86c0e70b5d33fbb289cf698964e03e127ff0bd1a732dc1fce7a8f  fastr-23.0-d89d59677c036697efb94eda6dde60423420756c.tar.gz
