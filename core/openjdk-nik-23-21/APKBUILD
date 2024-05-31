@@ -87,20 +87,46 @@ subpackages="
 
 provides="openjdk-nik-$_nikmajor-$_javamajor=$pkgver-r$pkgrel"
 
-_source_release="
-	graal-vm-ce-$pkgver.tar.gz::https://github.com/oracle/graal/archive/refs/tags/vm-ce-$pkgver.tar.gz
-	graaljs-vm-ce-$pkgver.tar.gz::https://github.com/oracle/graaljs/archive/refs/tags/vm-ce-$pkgver.tar.gz
-	graalpython-vm-ce-$pkgver.tar.gz::https://github.com/oracle/graalpython/archive/vm-ce-$pkgver.tar.gz
-	truffleruby-vm-$pkgver.tar.gz::https://github.com/oracle/truffleruby/archive/refs/tags/vm-$pkgver.tar.gz
-	"
 
-# for test builds, before the release is tagged
-if test "$_hash_graal"; then
-_source_release="
+_source_release=""
+
+if [ "$_hash_graal" ]; then
+_source_release="$_source_release
 	graal-$pkgver-$_hash_graal.tar.gz::https://github.com/oracle/graal/archive/$_hash_graal.tar.gz
+	"
+else
+_source_release="$_source_release
+	graal-vm-$pkgver.tar.gz::https://github.com/oracle/graal/archive/refs/tags/vm-$pkgver.tar.gz
+	"
+fi
+
+if [ "$_hash_graaljs" ]; then
+_source_release="$_source_release
 	graaljs-$pkgver-$_hash_graaljs.tar.gz::https://github.com/oracle/graaljs/archive/$_hash_graaljs.tar.gz
+	"
+else
+_source_release="$_source_release
+	graaljs-vm-$pkgver.tar.gz::https://github.com/oracle/graaljs/archive/refs/tags/vm-$pkgver.tar.gz
+	"
+fi
+
+if [ "$_hash_graalpython" ]; then
+_source_release="$_source_release
 	graalpython-$pkgver-$_hash_graalpython.tar.gz::https://github.com/oracle/graalpython/archive/$_hash_graalpython.tar.gz
+	"
+else
+_source_release="$_source_release
+	graalpython-vm-$pkgver.tar.gz::https://github.com/oracle/graalpython/archive/vm-$pkgver.tar.gz
+	"
+fi
+
+if [ "$_hash_truffleruby" ]; then
+_source_release="$_source_release
 	truffleruby-$pkgver-$_hash_truffleruby.tar.gz::https://github.com/oracle/truffleruby/archive/$_hash_truffleruby.tar.gz
+	"
+else
+_source_release="$_source_release
+	truffleruby-vm-$pkgver.tar.gz::https://github.com/oracle/truffleruby/archive/refs/tags/vm-$pkgver.tar.gz
 	"
 fi
 
@@ -159,19 +185,19 @@ unpack() {
 	mkdir -p "$builddir"
 
 	# rename the directories to their basenames, dropping git refs
-	if ! test "$_hash_graal"; then
-		mv graal-*$pkgver       "$builddir"/graal
-		mv graaljs-*$pkgver     "$builddir"/graaljs
-		mv graalpython-*$pkgver "$builddir"/graalpython
-		mv truffleruby-*$pkgver "$builddir"/truffleruby
-	else
-		mv graal-$_hash_graal             "$builddir"/graal
-		mv graaljs-$_hash_graaljs         "$builddir"/graaljs
-		mv graalpython-$_hash_graalpython "$builddir"/graalpython
-		mv truffleruby-$_hash_truffleruby "$builddir"/truffleruby
-	fi
+	[ "$_hash_graal" ] &&		mv graal-$_hash_graal             "$builddir"/graal
+	[ "$_hash_graal" ] ||		mv graal-*$pkgver                 "$builddir"/graal
 
-	# not in sync with the rest of them
+	[ "$_hash_graaljs" ] &&		mv graaljs-$_hash_graaljs         "$builddir"/graaljs
+	[ "$_hash_graaljs" ] ||		mv graaljs-*$pkgver               "$builddir"/graaljs
+
+	[ "$_hash_graalpython" ] &&	mv graalpython-$_hash_graalpython "$builddir"/graalpython
+	[ "$_hash_graalpython" ] ||	mv graalpython-*$pkgver           "$builddir"/graalpython
+
+	[ "$_hash_truffleruby" ] &&	mv truffleruby-$_hash_truffleruby "$builddir"/truffleruby
+	[ "$_hash_truffleruby" ] ||	mv truffleruby-*$pkgver           "$builddir"/truffleruby
+
+	# not in sync with the rest of them, always by hash
 	mv fastr-$_hash_fastr   "$builddir"/fastr
 
 	# the build tool has its own tags
