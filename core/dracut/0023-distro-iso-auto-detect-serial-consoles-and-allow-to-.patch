@@ -1,4 +1,4 @@
-From b111687f36583e47e4c2ff4293ba48799f1fb8b2 Mon Sep 17 00:00:00 2001
+From bf55bcc03bf5757a7dd4561d893789137e5e93d4 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 21 May 2024 10:13:22 +0000
 Subject: [PATCH] distro-iso: auto-detect serial consoles and allow to login
@@ -10,7 +10,7 @@ Subject: [PATCH] distro-iso: auto-detect serial consoles and allow to login
  2 files changed, 28 insertions(+), 3 deletions(-)
 
 diff --git a/modules.d/98distro-iso/module-setup.sh b/modules.d/98distro-iso/module-setup.sh
-index 686fcb8c..988d8c92 100755
+index 686fcb8c..cffec069 100755
 --- a/modules.d/98distro-iso/module-setup.sh
 +++ b/modules.d/98distro-iso/module-setup.sh
 @@ -12,7 +12,7 @@ depends() {
@@ -18,19 +18,19 @@ index 686fcb8c..988d8c92 100755
      instmods squashfs loop iso9660 ata_piix sr-mod sd-mod usb-storage
  
 -    inst_multiple apk umount
-+    inst_multiple apk umount stty grep
++    inst_multiple apk grep stty umount
  
      mkdir -p "$initdir"/etc/apk/keys
      cp /etc/apk/keys/* "$initdir"/etc/apk/keys/
 diff --git a/modules.d/98distro-iso/mount-tmpfs.sh b/modules.d/98distro-iso/mount-tmpfs.sh
-index 44a57abd..d73e987e 100755
+index 44a57abd..0439e1c0 100755
 --- a/modules.d/98distro-iso/mount-tmpfs.sh
 +++ b/modules.d/98distro-iso/mount-tmpfs.sh
 @@ -19,6 +19,32 @@ _rtc_exists() {
  	[ -e "$rtc" ]
  }
  
-+_get_serial_tty() {
++_get_serial_ttys() {
 +	local i name
 +
 +	for i in /sys/class/tty/*; do
@@ -47,7 +47,7 @@ index 44a57abd..d73e987e 100755
 +}
 +
 +_enable_serial_login() {
-+	local serial="$(_get_serial_tty)"
++	local serial="$(_get_serial_ttys)"
 +	local i
 +
 +	for i in $serial; do
