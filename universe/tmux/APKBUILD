@@ -1,0 +1,49 @@
+pkgname=tmux
+pkgver=3.4
+pkgrel=1
+pkgdesc="Tool to control multiple terminals from a single terminal"
+url="https://tmux.github.io"
+arch="all"
+license="ISC"
+depends="ncurses-terminfo-base"
+makedepends="bison libevent-dev ncurses-dev"
+subpackages="$pkgname-doc"
+source="https://github.com/tmux/tmux/releases/download/$pkgver/tmux-$pkgver.tar.gz"
+
+# secfixes:
+#   3.1c-r0:
+#     - CVE-2020-27347
+
+prepare() {
+	default_prepare
+	update_config_sub
+}
+
+build() {
+	CFLAGS="$CFLAGS -flto=auto" \
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--enable-sixel
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	install -D -m644 example_tmux.conf \
+		"$pkgdir"/usr/share/doc/$pkgname/examples/$pkgname.conf
+	install -Dm644 CHANGES README -t "$pkgdir"/usr/share/doc/$pkgname/
+}
+
+sha512sums="
+bd3880211d99d8ee15947000abf8a1832fdfa48b29b2df81b66d5969cf3f4e64e746f984f6139bfc57e3ebee7fe8dc7cbb6bccb779307607de6c376969fecbff  tmux-3.4.tar.gz
+"
