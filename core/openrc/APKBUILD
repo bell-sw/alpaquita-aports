@@ -4,14 +4,14 @@
 pkgname=openrc
 pkgver=0.54
 _ver=${pkgver/_git*/}
-pkgrel=1
+pkgrel=2
 pkgdesc="OpenRC dependency-based init system"
 url="https://github.com/OpenRC/openrc"
 arch="all"
 license="BSD-2-Clause"
 depends="ifupdown-any"
 makedepends_host="bsd-compat-headers libcap-dev linux-headers"
-makedepends_build="meson"
+makedepends_build="meson scdoc"
 checkdepends="sed"
 subpackages="
 	$pkgname-dbg
@@ -48,6 +48,8 @@ source="$pkgname-$pkgver.tar.gz::https://github.com/OpenRC/openrc/archive/$pkgve
 	sysctl.initd
 	machine-id.initd
 	test-networking.sh
+
+	modules.7.scd
 
 	0100-init.d-fsck.in-remove-C0-option.patch
 	0101-init.d-agetty-depend-on-hostname-to-show-in-prompt.patch
@@ -130,6 +132,10 @@ package() {
 	mkdir -p "$pkgdir"/usr/share/doc/$pkgname/
 	install -m644 ./*.md "$pkgdir"/usr/share/doc/$pkgname/
 
+	scdoc < "$srcdir/modules.7.scd" > modules.7
+	install -Dm644 modules.7 -t "$pkgdir/usr/share/man/man7/"
+	ln -s "/usr/share/man/man7/modules.7" "$pkgdir/usr/share/man/man7/modules-load.7"
+
 	# we use a virtual keymaps services to allow users to set their
 	# keymaps either with the OpenRC loadkeys service provided by
 	# the kbd aport or with the loadkmap service provided by the
@@ -197,6 +203,7 @@ a9e0c9fbc86dd084f2e73793dafc87c52fc28d13706e893b2199276d6893a3ca5e749498ecd0cd82
 59243bf054fc95d3fa37aa8ae5c4bf3b4fdfd8261d1f385a97f52f0d0fafd1ff3294f4bc65c1c0b116db30439f99ecd90445ef0ac8069f908ebc64dff46b743e  sysctl.initd
 0f2435fa48feddac991747b2d513db497eb9abc10e3fa152ac140ff14faa7f007f1fbeffd9c32d31869bd6d343451917f1928338b8d5cf3a7f46c028220c3ec7  machine-id.initd
 af17947aa3954e317dc06580da829200e0b0f2ddc37ce842c3fc7fc0d8ca2f40220e4f4665f61b4b5ec47c96416db0127e2ed979b9421bf21df89d4c4f998b7f  test-networking.sh
+edf23bbec3c67457f3039d193cd3a756a079ab080e5e3d87e724a1a0d9be86b82797bf2bf5280fbf33d1c60b98e3859d9d9c265f8119a84ccdcaa9937ab72296  modules.7.scd
 68905ab5fa852e3bfcd1a26b7211ad1e4e9abc7d9c8621649cb00a94c4797a62ce54abce10e4a8a92546c8fb344c4042bb4725cb8d1e759200c0b9e08fed9a97  0100-init.d-fsck.in-remove-C0-option.patch
 aaf51536d18188951fe20da1b4459ae8b976f7bb6a1927d5cace1c305037b40481c496d71e6677bad2bb2dbfdeefaa5d54b6f5e326ddd5b471d3ddfff440621c  0101-init.d-agetty-depend-on-hostname-to-show-in-prompt.patch
 2f55eb788c49a87031e2311dd549d720650b48b00bb562e1797e18b1a85f523525b50639d0601040a7f23574988d07b16cd603669ce1d90ee03d75b4fb37b608  0102-openrc-add-rc_quiet_openrc-for-openrc-binary.patch
