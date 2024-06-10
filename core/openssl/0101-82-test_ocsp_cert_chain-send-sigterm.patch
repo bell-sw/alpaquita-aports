@@ -1,13 +1,15 @@
 For some reason, SIGHUP is ignored in our CI.
 
+diff --git a/test/recipes/82-test_ocsp_cert_chain.t b/test/recipes/82-test_ocsp_cert_chain.t
+index a0c3737..826b77f 100644
 --- a/test/recipes/82-test_ocsp_cert_chain.t
 +++ b/test/recipes/82-test_ocsp_cert_chain.t
-@@ -133,7 +133,7 @@
-     ok($resp == 1, "check s_server sent ocsp response");
+@@ -121,7 +121,7 @@ sub run_test {
+     my $s_client_pid = open3(my $s_client_i, my $s_client_o, my $s_client_e = gensym, $shlib_wrap, $apps_openssl, @s_client_cmd);
  
      waitpid($s_client_pid, 0);
 -    kill 'HUP', $s_server_pid, $ocsp_pid;
 +    kill 'TERM', $s_server_pid, $ocsp_pid;
- }
  
- run_test();
+     ### the output from s_server that we want to check is written to its stderr
+     ###    cert_status: ocsp response sent:
