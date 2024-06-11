@@ -8,7 +8,7 @@ _javamajor=21
 
 pkgname=$_pkgname-$_nikmajor-$_javamajor
 pkgver=23.1.3
-pkgrel=1
+pkgrel=2
 
 # java version required for the build
 _javaver=21.0.3
@@ -78,6 +78,7 @@ options="!annobin !strip !check !tracedeps textrels ldpath-recursive"
 subpackages="
 	$pkgname-core:_core
 	$pkgname-native-image:_native_image
+	$pkgname-llvm-core:_llvm_core
 	$pkgname-llvm-toolchain:_llvm_toolchain
 	$pkgname-js:_js
 	$pkgname-nodejs:_nodejs
@@ -292,6 +293,14 @@ _native_image() {
 	_make_symlinks "$subpkgdir/$_java_home"
 }
 
+_llvm_core() {
+	pkgdesc="$pkgname (LLVM Runtime Core)"
+	provides="openjdk-nik-$_nikmajor-$_javamajor-llvm-core=$pkgver-r$pkgrel"
+	mkdir -p "$subpkgdir/$_java_home"
+	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/llvm-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
+	_make_symlinks "$subpkgdir/$_java_home"
+}
+
 _llvm_toolchain() {
 	pkgdesc="$pkgname (LLVM.org toolchain)"
 	depends="$pkgname-native-image=$pkgver-r$pkgrel"
@@ -321,7 +330,7 @@ _nodejs() {
 
 _python() {
 	pkgdesc="$pkgname (Graal.python)"
-	depends="$pkgname-native-image=$pkgver-r$pkgrel"
+	depends="$pkgname-native-image=$pkgver-r$pkgrel $pkgname-llvm-core=$pkgver-r$pkgrel"
 	provides="openjdk-nik-$_nikmajor-$_javamajor-python=$pkgver-r$pkgrel"
 	mkdir -p "$subpkgdir/$_java_home"
 	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/python-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
@@ -333,7 +342,7 @@ _python() {
 
 _ruby() {
 	pkgdesc="$pkgname (Graal.ruby)"
-	depends="$pkgname-native-image=$pkgver-r$pkgrel $pkgname-llvm-toolchain=$pkgver-r$pkgrel"
+	depends="$pkgname-llvm-toolchain=$pkgver-r$pkgrel $pkgname-llvm-core=$pkgver-r$pkgrel $pkgname-native-image=$pkgver-r$pkgrel"
 	provides="openjdk-nik-$_nikmajor-$_javamajor-ruby=$pkgver-r$pkgrel"
 	mkdir -p "$subpkgdir/$_java_home"
 	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/ruby-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
