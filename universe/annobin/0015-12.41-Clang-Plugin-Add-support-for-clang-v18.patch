@@ -1,0 +1,41 @@
+From 0805d06545e3a34588f95c88646ce973f89c7810 Mon Sep 17 00:00:00 2001
+From: Nick Clifton <nickc@redhat.com>
+Date: Tue, 27 Feb 2024 14:13:53 +0000
+Subject: [PATCH] 12.41: Clang Plugin: Add support for clang v18.
+
+---
+ clang-plugin/annobin.cpp | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/clang-plugin/annobin.cpp b/clang-plugin/annobin.cpp
+index 824864e..555c561 100644
+--- a/clang-plugin/annobin.cpp
++++ b/clang-plugin/annobin.cpp
+@@ -204,7 +204,9 @@ private:
+ 	(Context,
+ 	 TU,
+ 	 clang::StringLiteral::Create (Context, text,
+-#if CLANG_VERSION_MAJOR > 14
++#if CLANG_VERSION_MAJOR > 17
++				       clang::StringLiteralKind::Ordinary,
++#elif CLANG_VERSION_MAJOR > 14
+ 				       clang::StringLiteral::Ordinary,
+ #else
+ 				       clang::StringLiteral::Ascii,
+@@ -214,8 +216,12 @@ private:
+ 								     llvm::APInt (32, text.size () + 1),
+ #if CLANG_VERSION_MAJOR > 8
+ 								     nullptr,
+-#endif								     
++#endif
++#if CLANG_VERSION_MAJOR > 17
++								     clang::ArraySizeModifier::Normal,
++#else
+ 								     clang::ArrayType::Normal,
++#endif
+ 								     /*IndexTypeQuals*/ 0),
+ 				       SourceLocation ()),
+ 	 {},
+-- 
+2.25.1
+
