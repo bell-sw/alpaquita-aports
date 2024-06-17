@@ -376,6 +376,15 @@ _rustc_dev() {
 
 	amove $_rlibdir/lib*.rmeta \
 		$_rlibdir/lib*.so
+
+	# Do not provide libraries in dev that are already provided by main pkg in /usr/lib/.
+	# Otherwise, rustc-dev will conflict with rust package.
+	local i; for i in $pkgdir/usr/lib/lib*.so; do
+		local libname="${i##*/}"
+		if [ ! -h "$i" ] && [ -f "$subpkgdir"/$_rlibdir/$libname ]; then
+			ln -sf /usr/lib/$libname "$subpkgdir"/$_rlibdir/$libname
+		fi
+	done
 }
 
 wasm() {
