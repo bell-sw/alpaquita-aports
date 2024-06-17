@@ -8,7 +8,7 @@ _javamajor=17
 
 pkgname=$_pkgname-$_nikmajor-$_javamajor
 pkgver=23.0.4
-pkgrel=2
+pkgrel=3
 
 # java version required for the build
 _javaver=17.0.11
@@ -223,7 +223,25 @@ package() {
 	mkdir -p "$pkgdir/$_java_home"
 }
 
+_fixup_installable() {
+	local component="$1"
+
+	_make_symlinks "$component"
+
+	rm    "$component"/lib/installer/components/*
+	rmdir "$component"/lib/installer/components
+	rmdir "$component"/lib/installer
+
+	# native-image doesn't have `languages` subdir,
+	# but all languages, obviously, do.
+	local release="$(echo "$component"/languages/*/release)"
+	test -f "$release" && chmod a+r "$release"
+
+	rm -rf "$component"/META-INF
+}
+
 _make_symlinks() {
+	local component="$1"
 	local src dst dstdir
 
 	# The "symlinks" files don't necessarily have the final
@@ -231,12 +249,12 @@ _make_symlinks() {
 	# ignores the last line.  awk takes care of this, and since we
 	# use it anyway to fix the newline problem, we might as well
 	# use it to split symlinks lines into words.
-	awk -e '{ print $1, $3 }'	\
-	    "$1"/META-INF/symlinks	\
+	awk -e '{ print $1, $3 }'		\
+	    "$component"/META-INF/symlinks	\
 	| while read dst src; do
 		dstdir="$(dirname "$dst")"
-		[ -d "$1/$dstdir" ] || mkdir -p "$1/$dstdir"
-		ln -s "$src" "$1/$dst"
+		[ -d "$component/$dstdir" ] || mkdir -p "$component/$dstdir"
+		ln -s "$src" "$component/$dst"
 	done
 }
 
@@ -254,7 +272,7 @@ _native_image() {
 	provides="openjdk-nik-$_nikmajor-$_javamajor-native-image=$pkgver-r$pkgrel"
 	mkdir -p "$subpkgdir/$_java_home"
 	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/native-image-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
-	_make_symlinks "$subpkgdir/$_java_home"
+	_fixup_installable "$subpkgdir/$_java_home"
 }
 
 _llvm_core() {
@@ -262,7 +280,7 @@ _llvm_core() {
 	provides="openjdk-nik-$_nikmajor-$_javamajor-llvm-core=$pkgver-r$pkgrel"
 	mkdir -p "$subpkgdir/$_java_home"
 	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/llvm-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
-	_make_symlinks "$subpkgdir/$_java_home"
+	_fixup_installable "$subpkgdir/$_java_home"
 }
 
 _llvm_toolchain() {
@@ -271,7 +289,7 @@ _llvm_toolchain() {
 	provides="openjdk-nik-$_nikmajor-$_javamajor-llvm-toolchain=$pkgver-r$pkgrel"
 	mkdir -p "$subpkgdir/$_java_home"
 	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/llvm-toolchain-installable-ce-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
-	_make_symlinks "$subpkgdir/$_java_home"
+	_fixup_installable "$subpkgdir/$_java_home"
 }
 
 _js() {
@@ -280,7 +298,7 @@ _js() {
 	provides="openjdk-nik-$_nikmajor-$_javamajor-js=$pkgver-r$pkgrel"
 	mkdir -p "$subpkgdir/$_java_home"
 	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/js-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
-	_make_symlinks "$subpkgdir/$_java_home"
+	_fixup_installable "$subpkgdir/$_java_home"
 }
 
 _nodejs() {
@@ -289,7 +307,7 @@ _nodejs() {
 	provides="openjdk-nik-$_nikmajor-$_javamajor-nodejs=$pkgver-r$pkgrel"
 	mkdir -p "$subpkgdir/$_java_home"
 	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/nodejs-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
-	_make_symlinks "$subpkgdir/$_java_home"
+	_fixup_installable "$subpkgdir/$_java_home"
 }
 
 _python() {
@@ -298,10 +316,7 @@ _python() {
 	provides="openjdk-nik-$_nikmajor-$_javamajor-python=$pkgver-r$pkgrel"
 	mkdir -p "$subpkgdir/$_java_home"
 	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/python-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
-	# it's now languages/python/lib/python3.10/venv/scripts/nt/*.{bat,exe}
-	# but it's in subdir, so I'm not sure why even bother with them
-	# rm "$subpkgdir/$_java_home"/languages/python/lib-python/3/distutils/command/*.exe
-	_make_symlinks "$subpkgdir/$_java_home"
+	_fixup_installable "$subpkgdir/$_java_home"
 }
 
 _ruby() {
@@ -310,7 +325,7 @@ _ruby() {
 	provides="openjdk-nik-$_nikmajor-$_javamajor-ruby=$pkgver-r$pkgrel"
 	mkdir -p "$subpkgdir/$_java_home"
 	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/ruby-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
-	_make_symlinks "$subpkgdir/$_java_home"
+	_fixup_installable "$subpkgdir/$_java_home"
 }
 
 sha512sums="
