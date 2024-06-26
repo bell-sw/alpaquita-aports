@@ -306,11 +306,6 @@ build() {
 		# musl does not support CET
 		_libc_configure="--disable-libssp --disable-libsanitizer --disable-cet"
 		_symvers="--disable-symvers"
-
-		# musl supports indirect functions only on x86_64 for now
-		if [ "$CARCH" = 'x86_64' ]; then
-			_libc_configure="$_libc_configure --enable-gnu-indirect-function=yes"
-		fi
 		;;
 	glibc)
 		# Since libssp and libsanitizer are compiled for a target arch,
@@ -332,9 +327,11 @@ build() {
 			export gcc_cv_libc_provides_ssp=yes
 		fi
 
-		_libc_configure="$_libc_configure --enable-cet --enable-gnu-indirect-function=yes"
+		_libc_configure="$_libc_configure --enable-cet"
 		;;
 	esac
+
+	_libc_configure="$_libc_configure --enable-gnu-indirect-function=yes"
 
 	[ "$CBUILD" != "$CHOST"   ] && _cross_configure="--disable-bootstrap"
 	[ "$CHOST"  != "$CTARGET" ] && _cross_configure="--disable-bootstrap --with-sysroot=$CBUILDROOT"
