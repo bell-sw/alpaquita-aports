@@ -17,15 +17,17 @@ subpackages="
 	"
 source="https://ftp.gnu.org/pub/gnu/findutils/findutils-$pkgver.tar.xz
 	musl:test-parse-datetime.patch
-	test-sigusr.patch
+	musl:test-sigusr.patch
 	glibc:0100-glibc-skip-locale-tests.patch
 	"
 
 prepare() {
 	default_prepare
 
-	# test-sigusr.c is being patched to use this header
-	cp -v "$startdir"/../musl-legacy-error/error.h tests/xargs/
+	if [ "$CLIBC" = "musl" ] ; then
+		# test-sigusr.c is being patched to use this header
+		cp -v "$startdir"/../../core/musl-legacy-error/error.h tests/xargs/
+	fi
 }
 
 build() {
