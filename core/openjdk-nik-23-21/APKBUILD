@@ -8,7 +8,7 @@ _javamajor=21
 
 pkgname=$_pkgname-$_nikmajor-$_javamajor
 pkgver=23.1.3
-pkgrel=3
+pkgrel=4
 
 # java version required for the build
 _javaver=21.0.3
@@ -80,6 +80,8 @@ subpackages="
 	$pkgname-native-image:_native_image
 	$pkgname-llvm-core:_llvm_core
 	$pkgname-llvm-toolchain:_llvm_toolchain
+	$pkgname-icu4j:_icu4j
+	$pkgname-regex:_regex
 	$pkgname-js:_js
 	$pkgname-nodejs:_nodejs
 	$pkgname-python:_python
@@ -259,22 +261,36 @@ package() {
 	mkdir -p "$pkgdir/$_java_home"
 }
 
-_fixup_installable() {
-	local component="$1"
 
-	_make_symlinks "$component"
-
-	rm    "$component"/lib/installer/components/*
-	rmdir "$component"/lib/installer/components
-	rmdir "$component"/lib/installer
-
-	# native-image doesn't have `languages` subdir,
-	# but all languages, obviously, do.
-	local release="$(echo "$component"/languages/*/release)"
-	test -f "$release" && chmod a+r "$release"
-
-	rm -rf "$component"/META-INF
+_provide_openjdk_alias() {
+	# provides="openjdk-nik-$_nikmajor-$_javamajor-...=$pkgver-r$pkgrel"
+	provides="openjdk-${subpkgname#$_java_pkgname-}=$pkgver-r$pkgrel"
 }
+
+
+_core() {
+	pkgdesc="$pkgname (Core)"
+	depends="java-common"
+	_provide_openjdk_alias
+
+	mkdir -p "$subpkgdir/$_java_home"
+	cp -aR "$builddir"/nik-core/* "$subpkgdir/$_java_home/"
+}
+
+
+# We map installable gu components to subpackages.  Each subpackage
+# corresponds to an installable jar, with gu meta bits removed.  This
+# function returns (prints) the name of installable's jar file.
+_installable() {
+	local name="$1"
+
+	# The asterisk in the jar name is either "ce" or "svm"
+	# depending on the component, but don't be obsessive about it
+	# and let the wildcard pick it up.
+	set -- "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/"$name"-installable-*-java$_javamajor.jar
+	echo "$1"
+}
+
 
 _make_symlinks() {
 	local component="$1"
@@ -294,78 +310,139 @@ _make_symlinks() {
 	done
 }
 
-_core() {
-	pkgdesc="$pkgname (Core)"
-	depends="java-common"
-	provides="openjdk-nik-$_nikmajor-$_javamajor-core=$pkgver-r$pkgrel"
-	mkdir -p "$subpkgdir/$_java_home"
-	cp -aR $builddir/nik-core/* "$subpkgdir/$_java_home/"
+
+_fixup_installable() {
+	local component="$1"
+
+	_make_symlinks "$component"
+
+	# In theory we should also apply META-INF/permissions here,
+	# but on Unix they are mostly correct except for the
+	# permissions of the meta bits that we are going to delete as
+	# the last step anyway.
+
+	rm    "$component"/lib/installer/components/*
+	rmdir "$component"/lib/installer/components
+	rmdir "$component"/lib/installer
+
+	# native-image doesn't have `languages` subdir,
+	# but all languages, obviously, do.
+	local release="$(echo "$component"/languages/*/release)"
+	test -f "$release" && chmod a+r "$release"
+
+	rm -rf "$component"/META-INF
 }
 
-_native_image() {
-	pkgdesc="pkgname (Native Image)"
-	depends="$pkgname-core=$pkgver-r$pkgrel gcc libc-dev zlib-dev linux-headers"
-	provides="openjdk-nik-$_nikmajor-$_javamajor-native-image=$pkgver-r$pkgrel"
+
+_make_subpkg() {
+	_provide_openjdk_alias
+
+	local base="$1"				    # component name
+	local installable="$(_installable "$base")" # its jar file
+
 	mkdir -p "$subpkgdir/$_java_home"
-	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/native-image-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
+	unzip -d "$subpkgdir/$_java_home" -qo "$installable"
+
 	_fixup_installable "$subpkgdir/$_java_home"
 }
+
+
+#
+# APK subpackages for GU installable components
+#
+
+_native_image() {
+	pkgdesc="$pkgname (Native Image)"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		gcc libc-dev zlib-dev linux-headers
+		"
+	_make_subpkg native-image
+}
+
 
 _llvm_core() {
 	pkgdesc="$pkgname (LLVM Runtime Core)"
-	provides="openjdk-nik-$_nikmajor-$_javamajor-llvm-core=$pkgver-r$pkgrel"
-	mkdir -p "$subpkgdir/$_java_home"
-	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/llvm-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
-	_fixup_installable "$subpkgdir/$_java_home"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		"
+	_make_subpkg llvm
 }
+
 
 _llvm_toolchain() {
 	pkgdesc="$pkgname (LLVM.org toolchain)"
-	depends="$pkgname-native-image=$pkgver-r$pkgrel"
-	provides="openjdk-nik-$_nikmajor-$_javamajor-llvm-toolchain=$pkgver-r$pkgrel"
-	mkdir -p "$subpkgdir/$_java_home"
-	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/llvm-toolchain-installable-ce-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
-	_fixup_installable "$subpkgdir/$_java_home"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		"
+	_make_subpkg llvm-toolchain
 }
+
+
+_icu4j() {
+	pkgdesc="$pkgname (ICU4J)"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		"
+	_make_subpkg icu4j
+}
+
+
+_regex() {
+	pkgdesc="$pkgname (TRegex)"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		$pkgname-icu4j=$pkgver-r$pkgrel
+		"
+	_make_subpkg regex
+}
+
 
 _js() {
 	pkgdesc="$pkgname (Graal.js)"
-	depends="$pkgname-native-image=$pkgver-r$pkgrel"
-	provides="openjdk-nik-$_nikmajor-$_javamajor-js=$pkgver-r$pkgrel"
-	mkdir -p "$subpkgdir/$_java_home"
-	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/js-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
-	_fixup_installable "$subpkgdir/$_java_home"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		$pkgname-icu4j=$pkgver-r$pkgrel
+		$pkgname-regex=$pkgver-r$pkgrel
+		"
+	_make_subpkg js
 }
+
 
 _nodejs() {
 	pkgdesc="$pkgname (Graal.nodejs)"
-	depends="$pkgname-native-image=$pkgver-r$pkgrel"
-	provides="openjdk-nik-$_nikmajor-$_javamajor-nodejs=$pkgver-r$pkgrel"
-	mkdir -p "$subpkgdir/$_java_home"
-	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/nodejs-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
-	_fixup_installable "$subpkgdir/$_java_home"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		$pkgname-js=$pkgver-r$pkgrel
+		"
+	_make_subpkg nodejs
 }
+
 
 _python() {
 	pkgdesc="$pkgname (Graal.python)"
-	depends="$pkgname-native-image=$pkgver-r$pkgrel $pkgname-llvm-core=$pkgver-r$pkgrel"
-	provides="openjdk-nik-$_nikmajor-$_javamajor-python=$pkgver-r$pkgrel"
-	mkdir -p "$subpkgdir/$_java_home"
-	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/python-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
-	# it's now languages/python/lib/python3.10/venv/scripts/nt/*.{bat,exe}
-	# but it's in subdir, so I'm not sure why even bother with them
-	# rm "$subpkgdir/$_java_home"/languages/python/lib-python/3/distutils/command/*.exe
-	_fixup_installable "$subpkgdir/$_java_home"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		$pkgname-llvm-core=$pkgver-r$pkgrel
+		$pkgname-llvm-toolchain=$pkgver-r$pkgrel
+		$pkgname-icu4j=$pkgver-r$pkgrel
+		$pkgname-regex=$pkgver-r$pkgrel
+		"
+	_make_subpkg python
 }
+
 
 _ruby() {
 	pkgdesc="$pkgname (Graal.ruby)"
-	depends="$pkgname-llvm-toolchain=$pkgver-r$pkgrel $pkgname-llvm-core=$pkgver-r$pkgrel $pkgname-native-image=$pkgver-r$pkgrel"
-	provides="openjdk-nik-$_nikmajor-$_javamajor-ruby=$pkgver-r$pkgrel"
-	mkdir -p "$subpkgdir/$_java_home"
-	unzip -qo "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/ruby-installable-svm-java$_javamajor.jar -d "$subpkgdir/$_java_home/"
-	_fixup_installable "$subpkgdir/$_java_home"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		$pkgname-llvm-core=$pkgver-r$pkgrel
+		$pkgname-llvm-toolchain=$pkgver-r$pkgrel
+		$pkgname-regex=$pkgver-r$pkgrel
+		"
+	_make_subpkg ruby
 }
+
 
 sha512sums="
 b637c14a7038e23f2cee811c3dcc6dd8e95a596599bf63f5e79a9b6a6f2e81f783db7a01c50dd6e407b398f784c6b07509ac16aa81693263ae9e293a514ffcf6  graal-vm-23.1.3.tar.gz
