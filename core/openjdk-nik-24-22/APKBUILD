@@ -1,0 +1,559 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME Native Image Kit is a versatile multilingual
+# tool for accelerating your applications, based on GraalVM Open Source.
+
+_java_pkgname=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_pkgname="${_java_pkgname}-nik"
+_nikmajor=24
+_javamajor=22
+
+pkgname=$_pkgname-$_nikmajor-$_javamajor
+pkgver=24.0.1
+pkgrel=0
+
+# java version required for the build
+_javaver=22.0.1
+
+
+# These are the tips of release/graal-vm/24.0 branches in
+# the corresponding repositories as of 2024-07-15
+#_hash_graal="..."
+#_hash_graaljs="..."
+#_hash_graalpython="..."
+_hash_truffleruby="703c2de84470cc6b8c05971b954582b6214577b3"
+_date_truffleruby="2024-03-26"
+
+# fastr doesn't have the $pkgver tags, so instead use the head of the
+# corresponding release branch.
+# HEAD of release/graal-vm/24.0 branch as of 2024-07-15
+_hash_fastr="b3e1c8d403aeb9f4efba0ff24af3f8564c48d336"
+
+# CI NIK builds just use master, but we need a fixed version for the
+# package.  This is the latest tag along the master as of 2024-07-15
+_mxver=7.27.6
+
+
+pkgdesc="$VENDOR_JAVA_NAME Native Image Kit $pkgver (Java $_javamajor)"
+url="$VENDOR_URL"
+license="GPL-2.0"
+
+arch="x86_64"
+case "$CARCH" in
+    x86_64)	JARCH="amd64" ;;
+    *)		JARCH="$CARCH" ;;
+esac
+
+# NB: The explicit list of four sub-dependencies for openjdk is a
+# workaround for an apk bug that fails to correctly handle version
+# restrictions in --virtual packages used by abuild deps.
+makedepends="
+	openjdk$_javamajor~$_javaver
+
+	openjdk$_javamajor-jdk~$_javaver
+	openjdk$_javamajor-jdk-no-deps~$_javaver
+	openjdk$_javamajor-jre~$_javaver
+	openjdk$_javamajor-jre-no-deps~$_javaver
+
+	openjdk$_javamajor-jmods~$_javaver
+	openjdk$_javamajor-libs-static~$_javaver
+	openjdk$_javamajor-src~$_javaver
+
+	bash
+	bzip2-dev
+	cmake
+	coreutils
+	curl-dev
+	diffutils
+	ed
+	gfortran
+	git
+	grep
+	linux-headers
+	patch
+	pcre-dev
+	pcre2-dev
+	perl
+	python3
+	py3-setuptools
+	readline-dev
+	sed
+	unzip
+	xz-dev
+	yaml-dev
+	z3-dev
+	zlib-static
+	"
+
+options="!annobin !strip !check !tracedeps textrels ldpath-recursive"
+
+provides="openjdk-${pkgname#$_java_pkgname-}=$pkgver-r$pkgrel"
+
+subpackages="
+	${pkgname}-js:_js
+	${pkgname}-js-native:_js_native
+	${pkgname}-llvm-core:_llvm_core
+	${pkgname}-llvm-core-native:_llvm_core_native
+	${pkgname}-nodejs:_nodejs
+	${pkgname}-nodejs-native:_nodejs_native
+	${pkgname}-python:_python
+	${pkgname}-python-native:_python_native
+	${pkgname}-ruby:_ruby
+	${pkgname}-ruby-native:_ruby_native
+	${pkgname}-wasm:_wasm
+	${pkgname}-wasm-native:_wasm_native
+	"
+
+_provide_openjdk_alias() {
+	provides="openjdk-${subpkgname#$_java_pkgname-}=$pkgver-r$pkgrel"
+}
+
+
+_source_release=""
+
+if [ "$_hash_graal" ]; then
+_source_release="$_source_release
+	graal-$pkgver-$_hash_graal.tar.gz::https://github.com/oracle/graal/archive/$_hash_graal.tar.gz
+	"
+else
+_source_release="$_source_release
+	graal-vm-$pkgver.tar.gz::https://github.com/oracle/graal/archive/refs/tags/vm-$pkgver.tar.gz
+	"
+fi
+
+if [ "$_hash_graaljs" ]; then
+_source_release="$_source_release
+	graaljs-$pkgver-$_hash_graaljs.tar.gz::https://github.com/oracle/graaljs/archive/$_hash_graaljs.tar.gz
+	"
+else
+_source_release="$_source_release
+	graaljs-vm-$pkgver.tar.gz::https://github.com/oracle/graaljs/archive/refs/tags/vm-$pkgver.tar.gz
+	"
+fi
+
+if [ "$_hash_graalpython" ]; then
+_source_release="$_source_release
+	graalpython-$pkgver-$_hash_graalpython.tar.gz::https://github.com/oracle/graalpython/archive/$_hash_graalpython.tar.gz
+	"
+else
+_source_release="$_source_release
+	graalpython-vm-$pkgver.tar.gz::https://github.com/oracle/graalpython/archive/vm-$pkgver.tar.gz
+	"
+fi
+
+# XXX: we seem to be _hash_truffleruby even for the tagged release; it
+# was not a problem as it was lagging behind and we had to use branch
+# tip anyway.  now that there's a tagged release, kludge around it
+# manually.
+if [ "$_hash_truffleruby" ]; then
+# if false; then
+_source_release="$_source_release
+	truffleruby-$pkgver-$_hash_truffleruby.tar.gz::https://github.com/oracle/truffleruby/archive/$_hash_truffleruby.tar.gz
+	"
+else
+_source_release="$_source_release
+	truffleruby-vm-$pkgver.tar.gz::https://github.com/oracle/truffleruby/archive/refs/tags/vm-$pkgver.tar.gz
+	"
+fi
+
+if [ "$_hash_fastr" ]; then
+_source_release="$_source_release
+	fastr-$pkgver-$_hash_fastr.tar.gz::https://github.com/oracle/fastr/archive/$_hash_fastr.tar.gz
+	"
+else
+_source_release="$_source_release
+	fastr-vm-$pkgver.tar.gz::https://github.com/oracle/fastr/archive/refs/tags/vm-$pkgver.tar.gz
+	"
+fi
+
+_source_release="$_source_release
+	mx-$_mxver.tar.gz::https://github.com/graalvm/mx/archive/refs/tags/$_mxver.tar.gz
+	"
+
+# ninja gets confused by the leftover .orig files
+patch_args="--no-backup-if-mismatch -p1"
+
+_patches="
+	build-components.patch
+
+	graal-copy-longs-intrinsics.patch
+	graal-enable-awt-swing-substitute.patch
+	graal-enable-awt-swing-suite-desktop.patch
+	graal-enable-awt-swing-support.patch
+	graal-enable-awt-swing.patch
+   musl:graal-musl-lfs64.patch
+	graal-no-watchdog.patch
+	graal-parallel-gc.patch
+   musl:graal-relaunch-on-alpine.patch
+	graal-sdk-llvm-suite.patch
+	graal-vendor-properties.patch
+
+	graaljs-accept-python-3.12.patch
+	graaljs-avoid-c++17.patch
+
+	graalpython-graalpython-ssizet.patch
+	graalpython-set-heap-size-for-libpythonvm.patch
+
+   musl:fastr-patch_fastr_musl_3_3.patch
+	fastr-reduce-parallelism.patch
+
+	truffleruby-allow-build-from-sources-out-of-the-vcs.patch
+
+	mx-mx-local-ninja.patch
+	mx-mx_jardist_patch.patch
+	mx-pass-cxxflags-to-ninja.patch
+
+	mx-explain.patch
+	"
+
+source="
+	$_source_release
+	$_patches
+	"
+
+builddir="$srcdir"/$_pkgname-$pkgver
+
+_java_home="/usr/lib/jvm/$pkgname"
+ldpath="$_java_home/lib"
+sonameprefix="$pkgname:"
+
+
+unpack() {
+	default_unpack
+
+	mkdir -p "$builddir"
+
+	# rename the directories to their basenames, dropping git refs
+	[ "$_hash_graal" ] &&		mv graal-$_hash_graal             "$builddir"/graal
+	[ "$_hash_graal" ] ||		mv graal-*$pkgver                 "$builddir"/graal
+
+	[ "$_hash_graaljs" ] &&		mv graaljs-$_hash_graaljs         "$builddir"/graaljs
+	[ "$_hash_graaljs" ] ||		mv graaljs-*$pkgver               "$builddir"/graaljs
+
+	[ "$_hash_graalpython" ] &&	mv graalpython-$_hash_graalpython "$builddir"/graalpython
+	[ "$_hash_graalpython" ] ||	mv graalpython-*$pkgver           "$builddir"/graalpython
+
+	[ "$_hash_truffleruby" ] &&	mv truffleruby-$_hash_truffleruby "$builddir"/truffleruby
+	[ "$_hash_truffleruby" ] ||	mv truffleruby-*$pkgver           "$builddir"/truffleruby
+
+	# not in sync with the rest of them, always by hash
+	mv fastr-$_hash_fastr   "$builddir"/fastr
+
+	# the build tool has its own tags
+	mv mx-$_mxver           "$builddir"/mx
+}
+
+prepare() {
+	default_prepare
+
+	for p in graal graaljs graalpython truffleruby fastr mx ; do
+		touch $p/.mx_vcs_root
+	done
+}
+
+
+build() {
+	cd "$builddir"/graal/vm
+
+	# cf. graalvm_vendor_version()
+	# in graal/sdk/mx.sdk/mx_sdk_vm_impl.py
+	export VENDOR="$VENDOR_JAVA_NAME"
+	export VERSION="$pkgver"
+
+        export PATH="$builddir"/mx:$PATH
+
+	export JAVA_HOME=/usr/lib/jvm/$_java_pkgname$_javamajor
+
+	export CFLAGS=
+	export CXXFLAGS=
+
+	export MX_CACHE_DIR="$SRCDEST"/mx.cache # extra mx distfiles
+	export MX_NO_VCS=true
+	export MX_PYTHON=python3
+
+	export SULONG_BOOTSTRAP_TOOLCHAIN_NO_HOME=/usr
+
+	# build components/options
+	local mx_vm="$builddir"/graal/vm/mx.vm
+	local ce
+	case "$CARCH" in
+	    aarch64*)	ce="ce-aarch64";;
+	    x86_64)	ce="ce";;
+	esac
+
+	msg "Building core"
+	(
+		export MX_ENV_PATH="$mx_vm"/$ce
+
+		mx graalvm-show
+		mx -V build
+	)
+	# The directory with the NIK core that we have just built is
+	# now pointed to by the "$builddir"/graal/sdk/latest_graalvm
+	# symlink.
+
+
+	msg "Building standalones"
+	(
+		export MX_ENV_PATH="$mx_vm"/$ce-complete
+
+		export TRUFFLERUBY_COMMIT_SHA="$_hash_truffleruby" # XXX
+		export TRUFFLERUBY_COMMIT_DATE="$_date_truffleruby"
+
+		export FASTR_BUNDLE_DEPENDENCIES=
+		export FASTR_CAPTURE_DEPENDENCIES=
+		export FASTR_NO_RECOMMENDED=true
+		export FASTR_RELEASE=true
+
+		mx graalvm-show
+		mx -V build --targets GRAALVM_STANDALONES
+	)
+
+	# The build command above has constructed fully self-contained
+	# distributions for languages in the directories named like
+	#
+	#   *_{JAVA,NATIVE}_STANDALONE_SVM_JAVA22/*-community-${pkgver}-linux-${JARCH}/
+	#
+	# JAVA and NATIVE versions for the same language overlap for
+	# things like language libraries (e.g. lib/python3.*), all
+	# JAVA packages have their own copies of JAVA_HOME, and
+	# languages that need llvm has their own copies of llvm
+	# toolchain and, some, also binutils.  Carving this into
+	# properly shared apk packages without upstream guidance is
+	# non-trivial at best.
+	msg "NIK standalone languages: graal/sdk/mxbuild/linux-$JARCH"
+	(
+		cd "$builddir"/graal/sdk/mxbuild/linux-$JARCH
+		ls -ld *_STANDALONE_SVM_JAVA*/*
+	)
+}
+
+
+# the directory where the graal build stows its artifacts
+_outputdir="$builddir"/graal/sdk/mxbuild/linux-${JARCH}
+
+# the destination directory for the language subpackages.  we don't
+# want to put them into /usr/lib/jvm as that directory is for java
+# versions while graal languages are just java applications
+_nikdir=/usr/lib/nik
+
+package() {
+	# only the openjdk-nik package that ships a public jdk
+	# requires the java-common trickery and zlib-dev is for
+	# native-image (that is now a part of the base nik package),
+	# so don't declare these deps at the top-level, so that
+	# subpackages don't accidentally it pick up.
+	depends="
+		java-common
+		zlib-dev
+		"
+
+	mkdir -p "$pkgdir/$_java_home"
+
+	# latest_graalvm_home symlink points into $_outputdir, e.g.
+	# GRAALVM_COMMUNITY_JAVA22/graalvm-community-openjdk-22.0.1+12.1
+	# that explicitly mentions the openjdk build number (the
+	# number right after the plus sign) and we don't want to make
+	# this package aware of that kind of details, so we prefer to
+	# use the symlink the build conveniently creates for us.
+	cp -a "$builddir"/graal/sdk/latest_graalvm_home/. "$pkgdir/$_java_home/"
+}
+
+
+# This directory contains the standalone "java" build of the specified
+# language.  It's an implementation of the language on top of graal
+# with the jvm included into the package.
+_lang_java_dir() {
+	local LNAME="$1"	# "lang" name
+	local gname="$2"	# "graal" name
+
+	echo "${_outputdir}"/${LNAME}_JAVA_STANDALONE_SVM_JAVA22/${gname}-community-${pkgver}-linux-${JARCH}
+}
+
+# This directory contains the native "java" build of the specified
+# language.  It's an implementation of the language on top of graal
+# that was AOT-compiled by native-image.  You can think of it as
+# _lang_java_dir compiled with native-image and then the (now
+# unnecessary) jvm garbage collected from the package.
+_lang_native_dir() {
+	local LNAME="$1"	# "lang" name
+	local gname="$2"	# "graal" name
+
+	echo "${_outputdir}"/${LNAME}_NATIVE_STANDALONE_SVM_JAVA22/${gname}-community-${pkgver}-linux-${JARCH}
+}
+
+
+_js() {
+	pkgdesc="$pkgname (Graal.js)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_java_dir JS graaljs)"
+	local dstdir=$_nikdir/js-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_js_native() {
+	pkgdesc="$pkgname (Graal.js native)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_native_dir JS graaljs)"
+	local dstdir=$_nikdir/js-native-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_llvm_core() {
+	pkgdesc="$pkgname (LLVM Core)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_java_dir LLVM llvm)"
+	local dstdir=$_nikdir/llvm-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_llvm_core_native() {
+	pkgdesc="$pkgname (LLVM Core native)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_native_dir LLVM llvm)"
+	local dstdir=$_nikdir/llvm-native-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_nodejs() {
+	pkgdesc="$pkgname (Graal.nodejs)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_java_dir NODEJS graalnodejs)"
+	local dstdir=$_nikdir/nodejs-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_nodejs_native() {
+	pkgdesc="$pkgname (Graal.nodejs native)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_native_dir NODEJS graalnodejs)"
+	local dstdir=$_nikdir/nodejs-native-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_python() {
+	pkgdesc="$pkgname (Graal.python)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_java_dir PYTHON graalpy)"
+	local dstdir=$_nikdir/python-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_python_native() {
+	pkgdesc="$pkgname (Graal.python native)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_native_dir PYTHON graalpy)"
+	local dstdir=$_nikdir/python-native-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_ruby() {
+	pkgdesc="$pkgname (Graal.ruby)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_java_dir RUBY truffleruby)"
+	local dstdir=$_nikdir/ruby-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_ruby_native() {
+	pkgdesc="$pkgname (Graal.ruby native)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_native_dir RUBY truffleruby)"
+	local dstdir=$_nikdir/ruby-native-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_wasm() {
+	pkgdesc="$pkgname (Graal.wasm)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_java_dir WASM graalwasm)"
+	local dstdir=$_nikdir/wasm-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_wasm_native() {
+	pkgdesc="$pkgname (Graal.wasm native)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_native_dir WASM graalwasm)"
+	local dstdir=$_nikdir/wasm-native-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+
+sha512sums="
+3d9c7bbd604f4bec41391e80b51bebf943a380f186c0a12183f6850c921c642ef237132dd879fb98a6eaaed3f6c1fd91abb7cc76f1ba97fb1dade2288fde0347  graal-vm-24.0.1.tar.gz
+07654015fbad4cbebf91d6fcc38e2843364b7b08d468739c74c2198b63f1a32929bf80385096508edef830aaade5b2a7c4af85da54bbb3e2cf0ac68135d55f68  graaljs-vm-24.0.1.tar.gz
+410bf1153abe46d2f875db960ab29cf7f790d5de410b25f77468bae8ec152c1c9437b3311778472ed222075fe1ae21a64a567e1bcf0855f767727111d15aad1a  graalpython-vm-24.0.1.tar.gz
+ef0452007b524aa746a09700fbc78ab5216cae40f694dece2a9ab41f082eac10deff691f7219c739e6865f3cdf5547c5a47edff266efb28ff86d4080803718d2  truffleruby-24.0.1-703c2de84470cc6b8c05971b954582b6214577b3.tar.gz
+0062ba60acdb19558ba1adfca5f940a94a2f78e3aff0f3df23668ebc11f13d9038c721a60902f2acd866af91427606efc7a8b9f9047ea744b63dd942e39b3fcd  fastr-24.0.1-b3e1c8d403aeb9f4efba0ff24af3f8564c48d336.tar.gz
+f82612411499dfb99412e434c8d8c5f1fb8d2bae31cbd390e9102ca2fa32da0063645cda4e5d4b3145f1b7c65c905a474edf073400e4b7ff5d8152e0abd3f6a5  mx-7.27.6.tar.gz
+bd64f8ae904417a121ebd3c23890141bfdb908b878e058825d42ce58a4311c72387dfef621fa4163bd6387aa7642db4e934371329665fd495728f792afb2daff  build-components.patch
+eef3ab644d2250022f61da30c531d3a9f600c76967fb961687fe9be5bf8433198f530b29ed9be46599d253abb6dbfcdf2648291f1a431e1171bd514c682adddb  graal-copy-longs-intrinsics.patch
+38e268ecd608c9faca6abafdb6b1d5a67e435b2ce38c066e11fc90cbb2e86b203e0e92c0e55bb447f8567e4f215c3d3afcecd84f1243dd49a6f5da4c17d55ad6  graal-enable-awt-swing-substitute.patch
+8cf343c5124feec94df118a017c2ed0bfc1e42212185d927ee39651304f7fcb7b81ede1be18a924727ac463de6864d6ab3fb8b5a7ba22618ebf827251cc4c1cc  graal-enable-awt-swing-suite-desktop.patch
+7f41891055f433ba0ccd129b657e8b06623eaff93bf804aa42734184f8f048513870e4b5218f3d739d5654926023d760c4d0a30933bbb7ce7f8b4ab11506e10b  graal-enable-awt-swing-support.patch
+120b69a250d447ca63bfb944ef148553579a8cc01fa16c7dd78f33b2d5ff935991396f3090da7cc5587c6c8355a3f031ce24d26ff7102489c63a7adff8d548da  graal-enable-awt-swing.patch
+bb03fdc8ace4db429ac069cc67e95b2695e444dca9697b51b25e30b709c929e2e3d100be35cf73e41fd37dbf4300b5ad5b9682913a38330a3bf7b3adae2fdb2f  graal-musl-lfs64.patch
+6897df2281b0a616e6ad8c00c03677e7d159a8818cb40bc03f7130fd7c79e025521b8eb6906fa09bc6ed4683e2df6446ef51e68246ddb2983c022bd5da6fc14c  graal-no-watchdog.patch
+72a89aba80bb6a2e2862748dd7fe9d0d2115026123fa52a2b6c621b12391b9505aca49a039cd251a889d0a6e1fc1f89acf1f8e47b38be6afea5dfe187cdbc6d7  graal-parallel-gc.patch
+46132d72bb0e7ad698acbb7f7d12fdae2c4f7632c345501f6019a829b914bf58bfff07d9d8fb4248d79feedd3344c0dd689b55bafcbdcea601880d1d26e85d43  graal-relaunch-on-alpine.patch
+cbd93ceb89a6f9b80f407d5185b1b383990457063cf4e38468ba3cfbd75fb28a08d6683cc3c490543243ba9488522b3579ca4abb12292ac6e42adb84938ce2ad  graal-sdk-llvm-suite.patch
+936c808d552b68bb703a8448f2219ed50bdd07d7261d71267f78c585e8540f1a371e4ab586e6d6f82fdff308515cbd89bf4438a3367cb660bac03aa04aa8c321  graal-vendor-properties.patch
+28bee3282b98dbba38a93bfd2d014a1dfd3dee215c36ec7556419576965648237a9de3cd7b70f53d137ba3884eaacf19765af7939330572eb7221b33cd29fe2c  graaljs-accept-python-3.12.patch
+72ad929ddd0059a87ce5a9693d2705448c2d05dfcd52cbdcf75e1d6a740a3c9f5ae51ffc878fa6407c201a8b505860266e951100677f5cecd1aad658fa539aeb  graaljs-avoid-c++17.patch
+3c09ff6173f701ba27e883af5e908fb3427bdeb52f6dceaeafed913a6f53c50e936c1315e348649cce60c667b15620d72f4143f3333b728425727c81bb26557b  graalpython-graalpython-ssizet.patch
+3adb12103986147e6cfc773454f3546d95476a508327eabef15265f1fcc3c94f5e7dcfdbbf3377111a47382e2533f80398bd059489e9c3d9726926c233b78919  graalpython-set-heap-size-for-libpythonvm.patch
+fa4abc33be7105c72a67fbbf421c5d57c5f49eb5b9923e362439d592ff830b43cdfa9556cd75a8c56e4ca1ab086ae8cbca856b9bedba6328869e28c32cdc4c8a  fastr-patch_fastr_musl_3_3.patch
+3174b1cc99e95f2eda274a8a68cb4f46399be5d3917292789390761b9a193185878c2427fa12caa99996d4f22476a93fae9b506384519c3ec12e4a2674f9c694  fastr-reduce-parallelism.patch
+486cd3d50a256baa5484dc95140ce7c78a72b354f3c7f0d78a8ecf9282f3478fb617d4b5434ef6fd8a6d84143ac263e93e0b10c07f6c22387800cd97e74c8d72  truffleruby-allow-build-from-sources-out-of-the-vcs.patch
+a348fb088066e16df165974073108b76325540f5366ccca477405d0e8eca1ea3294cac1a35073e26a8a8bdc5f5f628a05f0295fb01f3343a26456147041da009  mx-mx-local-ninja.patch
+4b950e4f6d59989a507e434d3f9de672077e6cd6894ef332756f517695a4cb845507ef0238d08b92a067c16c1d585d5a9b9db4cb2c43a6943347d157f658c5b9  mx-mx_jardist_patch.patch
+b0da5d44f0ec75ba1aaeb246e0eb7f7e0d6ee8b31e0cd6e65c22ef554c63a1698bf0d7ec11f3f26d9b7c0e666ed7f66b1df1cad6a687f8f0549c98d8979b6186  mx-pass-cxxflags-to-ninja.patch
+2cdd58e3e04f5a4dfb74776115e1e094a40ca1c52698f656b62ac074b782ba3a261ce791b875288c5d9a5804b3ac56e7393fec9c9e8adfd7cc1f9a48d827d15a  mx-explain.patch
+"

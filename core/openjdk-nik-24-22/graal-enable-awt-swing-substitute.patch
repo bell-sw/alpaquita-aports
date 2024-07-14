@@ -1,0 +1,272 @@
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/JavaAWTSubstitutions.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/JavaAWTSubstitutions.java
+new file mode 100644
+index 00000000000..77f525cd33a
+--- /dev/null
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/JavaAWTSubstitutions.java
+@@ -0,0 +1,266 @@
++/*
++ * Copyright (c) 2023, 2023, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++package com.oracle.svm.core.jdk;
++
++import java.awt.GraphicsEnvironment;
++import java.io.FilenameFilter;
++import java.util.function.BooleanSupplier;
++
++import org.graalvm.nativeimage.Platform;
++import org.graalvm.nativeimage.Platforms;
++
++import com.oracle.svm.core.SubstrateOptions;
++import com.oracle.svm.core.SubstrateUtil;
++import com.oracle.svm.core.annotate.Alias;
++import com.oracle.svm.core.annotate.Delete;
++import com.oracle.svm.core.annotate.Substitute;
++import com.oracle.svm.core.annotate.TargetClass;
++
++import com.oracle.svm.core.jdk.JDK17OrLater;
++
++@SuppressWarnings({"static-method", "unused"})
++public final class JavaAWTSubstitutions {
++    // Checkstyle: stop
++    @TargetClass(className = "sun.awt.DebugSettings")
++    static final class Target_sun_awt_DebugSettings {
++
++        @Substitute
++        void setCTracingOn(boolean enabled) {
++            throw new UnsupportedOperationException();
++        }
++
++        @Substitute
++        void setCTracingOn(boolean enabled, String file) {
++            throw new UnsupportedOperationException();
++        }
++
++        @Substitute
++        void setCTracingOn(boolean enabled, String file, int line) {
++            throw new UnsupportedOperationException();
++        }
++    }
++
++    @Platforms(Platform.DARWIN.class)
++    @TargetClass(className = "sun.java2d.loops.TransformBlit")
++    static final class Target_sun_java2d_loops_TransformBlit {
++
++        // Could not find JNI method Java_sun_java2d_loops_TransformBlit_Transform
++        @Substitute
++        void Transform(sun.java2d.SurfaceData src, sun.java2d.SurfaceData dst,
++                        java.awt.Composite comp, sun.java2d.pipe.Region clip,
++                        java.awt.geom.AffineTransform at, int hint,
++                        int srcx, int srcy, int dstx, int dsty,
++                        int width, int height) {
++            throw new UnsupportedOperationException();
++        }
++    }
++
++    @Platforms(Platform.DARWIN.class)
++    @TargetClass(className = "sun.font.FileFontStrike")
++    static final class Target_sun_font_FileFontStrike {
++
++        // Java_sun_font_FileFontStrike_initNative belongs to Windows static lib
++        @Substitute
++        static boolean initNative() {
++            throw new UnsupportedOperationException();
++        }
++
++        // Java_sun_font_FileFontStrike_initNative belongs to Windows static lib
++        @Substitute
++        long _getGlyphImageFromWindows(String family,
++                        int style,
++                        int size,
++                        int glyphCode,
++                        boolean fracMetrics,
++                        int fontDataSize) {
++            throw new UnsupportedOperationException();
++        }
++    }
++
++    @Platforms(Platform.LINUX.class)
++    @TargetClass(className = "sun.awt.FontConfiguration")
++    static final class Target_sun_awt_FontConfiguration {
++
++        // To prevent an attempt to load fonts from java.home
++        @Substitute
++        public boolean foundOsSpecificFile() {
++            return false;
++        }
++
++        // Original method throws an exception if java.home is null
++        @Substitute
++        private void findFontConfigFile() {
++        }
++
++        // Called from Target_sun_font_FcFontConfiguration#init() - original method is protected
++        @Alias
++        protected native void setFontConfiguration();
++    }
++
++    @Platforms(Platform.LINUX.class)
++    // Used in Target_sun_font_FcFontConfiguration#init()
++    @TargetClass(className = "sun.font.FontConfigManager", innerClass = "FcCompFont")
++    static final class Target_sun_font_FontConfigManager_FcCompFont {
++    }
++
++    @Platforms(Platform.LINUX.class)
++    private static final class SunFontManagerEnabled implements BooleanSupplier {
++
++        @Override
++        public boolean getAsBoolean() {
++            return !SubstrateOptions.StaticExecutable.getValue();
++        }
++
++    }
++
++    @Platforms(Platform.LINUX.class)
++    // Used in Target_sun_font_FcFontConfiguration#init()
++    @TargetClass(className = "sun.font.SunFontManager", onlyWith = SunFontManagerEnabled.class)
++    static final class Target_sun_font_SunFontManager {
++    }
++
++    @Platforms(Platform.LINUX.class)
++    // Used in Target_sun_font_FcFontConfiguration#init()
++    @TargetClass(className = "sun.awt.FcFontManager")
++    static final class Target_sun_awt_FcFontManager {
++        // Called from Target_sun_font_FcFontConfiguration#init()
++        @Alias
++        public synchronized native Target_sun_font_FontConfigManager getFontConfigManager();
++    }
++
++    @Platforms(Platform.LINUX.class)
++    // Used in Target_sun_font_FcFontConfiguration#init()
++    @TargetClass(className = "sun.font.FontConfigManager")
++    static final class Target_sun_font_FontConfigManager {
++        // Called from Target_sun_font_FcFontConfiguration#init() - original method not visible
++        @Alias
++        native Target_sun_font_FontConfigManager_FcCompFont[] loadFontConfig();
++
++        // Called from Target_sun_font_FcFontConfiguration#init() - original method not visible
++        @Alias
++        native void populateFontConfig(Target_sun_font_FontConfigManager_FcCompFont[] fcInfo);
++    }
++
++    @Platforms(Platform.LINUX.class)
++    // Used in Target_sun_font_FcFontConfiguration#init()
++    @TargetClass(className = "sun.font.FontUtilities")
++    static final class Target_sun_font_FontUtilities {
++        // Called from Target_sun_font_FcFontConfiguration#init()
++        @Alias
++        public static native boolean debugFonts();
++    }
++
++    @Platforms(Platform.LINUX.class)
++    @TargetClass(className = "sun.font.FcFontConfiguration")
++    static final class Target_sun_font_FcFontConfiguration {
++        // Accessed from #init() - original field is private
++        @Alias//
++        private Target_sun_font_FontConfigManager_FcCompFont[] fcCompFonts;
++
++        // Accessed from #init() - original field is protected
++        @Alias//
++        protected Target_sun_font_SunFontManager fontManager;
++
++        // Called from #init() - original method is private
++        @Alias
++        private native void readFcInfo();
++
++        // Called from #init() - original method is private
++        @Alias
++        private native void writeFcInfo();
++
++        // Called from #init() - original method is private
++        @Alias
++        private native static void warning(String msg);
++
++        // Original method throws an exception if java.home is null
++        @Substitute
++        public synchronized boolean init() {
++            if (fcCompFonts != null) {
++                return true;
++            }
++
++            SubstrateUtil.cast(this, Target_sun_awt_FontConfiguration.class).setFontConfiguration();
++            readFcInfo();
++            Target_sun_awt_FcFontManager fm = SubstrateUtil.cast(fontManager, Target_sun_awt_FcFontManager.class);
++            Target_sun_font_FontConfigManager fcm = fm.getFontConfigManager();
++            if (fcCompFonts == null) {
++                fcCompFonts = fcm.loadFontConfig();
++                if (fcCompFonts != null) {
++                    try {
++                        writeFcInfo();
++                    } catch (Exception e) {
++                        if (Target_sun_font_FontUtilities.debugFonts()) {
++                            warning("Exception writing fcInfo " + e);
++                        }
++                    }
++                } else if (Target_sun_font_FontUtilities.debugFonts()) {
++                    warning("Failed to get info from libfontconfig");
++                }
++            } else {
++                fcm.populateFontConfig(fcCompFonts);
++            }
++
++            /*-
++            The below code was part of the original method but has been removed in the substitution. In a native-image,
++            java.home is set to null, so executing it would result in an exception.
++            The #getInstalledFallbackFonts method is in charge of installing fallback fonts shipped with the JDK. If the
++            fallback font directory does not exist, it is a no-op. As we do not have a JDK available at native-image
++            runtime, we can safely remove the call.
++
++            // NB already in a privileged block from SGE
++            String javaHome = System.getProperty("java.home");
++            if (javaHome == null) {
++                throw new Error("java.home property not set");
++            }
++            String javaLib = javaHome + File.separator + "lib";
++            getInstalledFallbackFonts(javaLib);
++             */
++
++            return fcCompFonts != null; // couldn't load fontconfig.
++        }
++
++    }
++
++    @Platforms(Platform.DARWIN.class)
++    @TargetClass(className = "sun.font.CStrikeDisposer")
++    static final class Target_sun_font_CStrikeDisposer {
++
++        @Substitute
++        private void freeNativeScalerContext(long pContext) {
++            throw new UnsupportedOperationException();
++        }
++    }
++
++    @Platforms(Platform.DARWIN.class)
++    @TargetClass(className = "sun.java2d.metal.MTLSurfaceData", onlyWith = JDK17OrLater.class)
++    static final class Target_sun_java2d_metal_MTLSurfaceData {
++
++        @Substitute
++        protected boolean initFlipBackbuffer(long pData) {
++            throw new UnsupportedOperationException();
++        }
++    }
++}

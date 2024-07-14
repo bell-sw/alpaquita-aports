@@ -1,0 +1,12 @@
+--- a/mx/src/mx/_impl/mx_native.py
++++ b/mx/src/mx/_impl/mx_native.py
+@@ -368,7 +368,8 @@
+             if out.lines and out.lines[0] == "ninja: no work to do.":
+                 mx.logv("Despite presumed dirty or modified files, ninja has nothing to do.")
+                 return False, out.lines[0]
+-            return True, [l for l in details.lines if l.startswith('ninja explain:')][0]
++            return True, next(iter([l for l in details.lines if l.startswith('ninja explain:')]),
++                              'no explanation')
+         else:
+             assert out.lines == ['ninja: no work to do.']
+             return False, out.lines[0]

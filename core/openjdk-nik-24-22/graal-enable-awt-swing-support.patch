@@ -1,0 +1,70 @@
+diff --git a/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/jdk/JNIRegistrationAWTSupport.java b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/jdk/JNIRegistrationAWTSupport.java
+index 3705e8f70fc..7e71f090226 100644
+--- a/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/jdk/JNIRegistrationAWTSupport.java
++++ b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/jdk/JNIRegistrationAWTSupport.java
+@@ -32,11 +32,28 @@ import com.oracle.svm.core.feature.InternalFeature;
+ import com.oracle.svm.core.jdk.JNIRegistrationUtil;
+ import com.oracle.svm.hosted.FeatureImpl.BeforeImageWriteAccessImpl;
+ 
+-@Platforms({Platform.WINDOWS.class, Platform.LINUX.class})
++import org.graalvm.nativeimage.ImageSingletons;
++import org.graalvm.nativeimage.impl.RuntimeClassInitializationSupport;
++
++@Platforms({Platform.WINDOWS.class, Platform.LINUX.class, Platform.DARWIN.class})
+ @AutomaticallyRegisteredFeature
+ public class JNIRegistrationAWTSupport extends JNIRegistrationUtil implements InternalFeature {
++
++    @Override
++    public void afterRegistration(AfterRegistrationAccess access) {
++        if (isWindowsOrDarwin()) {
++            RuntimeClassInitializationSupport rci = ImageSingletons.lookup(RuntimeClassInitializationSupport.class);
++            rci.initializeAtBuildTime("sun.awt.FontPropertiesLoader", "AWT fontconfig property file is initialized at build time");
++        }
++    }
++
+     @Override
+     public void afterAnalysis(AfterAnalysisAccess access) {
++
++        if (!isWindowsOrLinux()) {
++            return;
++        }
++
+         JNIRegistrationSupport jniRegistrationSupport = JNIRegistrationSupport.singleton();
+         if (jniRegistrationSupport.isRegisteredLibrary("awt")) {
+             jniRegistrationSupport.addJvmShimExports(
+@@ -100,16 +117,28 @@ public class JNIRegistrationAWTSupport extends JNIRegistrationUtil implements In
+ 
+     @Override
+     public void beforeImageWrite(BeforeImageWriteAccess access) {
+-        if (isWindows() && JNIRegistrationSupport.singleton().isRegisteredLibrary("awt")) {
++        if (isWindowsOrDarwin() && JNIRegistrationSupport.singleton().isRegisteredLibrary("awt")) {
+             ((BeforeImageWriteAccessImpl) access).registerLinkerInvocationTransformer(linkerInvocation -> {
+-                /*
+-                 * Add Windows libraries that are pulled in as a side effect of exporting the
+-                 * `getEncodingFromLangID` and `getJavaIDFromLangID` symbols.
+-                 */
+-                linkerInvocation.addNativeLinkerOption("shell32.lib");
+-                linkerInvocation.addNativeLinkerOption("ole32.lib");
++                if (isWindows()) {
++                    /*
++                     * Add Windows libraries that are pulled in as a side effect of exporting the
++                     * `getEncodingFromLangID` and `getJavaIDFromLangID` symbols.
++                     */
++                    linkerInvocation.addNativeLinkerOption("shell32.lib");
++                    linkerInvocation.addNativeLinkerOption("ole32.lib");
++                } else if (isDarwin()) {
++                    linkerInvocation.addNativeLinkerOption("-F/System/Library/Frameworks/JavaVM.framework/Frameworks");
++                }
+                 return linkerInvocation;
+             });
+         }
+     }
++
++    private boolean isWindowsOrDarwin() {
++        return isWindows() || isDarwin();
++    }
++
++    private boolean isWindowsOrLinux() {
++        return isWindows() || isLinux();
++    }
+ }

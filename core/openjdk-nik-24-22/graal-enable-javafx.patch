@@ -1,0 +1,1280 @@
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/JavaFXSubstitutions.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/JavaFXSubstitutions.java
+new file mode 100644
+index 00000000000..25c5838b6e5
+--- /dev/null
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/JavaFXSubstitutions.java
+@@ -0,0 +1,39 @@
++package com.oracle.svm.core;
++
++import com.oracle.svm.core.annotate.Substitute;
++import com.oracle.svm.core.annotate.TargetClass;
++
++import java.lang.reflect.InvocationTargetException;
++import java.lang.reflect.Method;
++import java.util.function.BooleanSupplier;
++
++@TargetClass(className = "com.sun.javafx.reflect.MethodUtil", onlyWith = JavaFXPresent.class)
++final class Target_com_sun_javafx_reflect_MethodUtil {
++
++    @Substitute
++    private static Method getTrampoline() {
++        return null;
++    }
++
++    @Substitute
++    public static Module getTrampolineModule() {
++        return Target_com_sun_javafx_reflect_MethodUtil.class.getModule();
++    }
++
++    @Substitute
++    public static Object invoke(Method m, Object obj, Object[] params) throws InvocationTargetException, IllegalAccessException {
++        return m.invoke(obj, params);
++    }
++}
++
++final class JavaFXPresent implements BooleanSupplier {
++    @Override
++    public boolean getAsBoolean() {
++        try {
++            Class.forName("javafx.application.Application");
++            return true;
++        } catch (ClassNotFoundException e) {
++            return false;
++        }
++    }
++}
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/JavaMainWrapper.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/JavaMainWrapper.java
+index 1003cf27da5..1a7a13ed136 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/JavaMainWrapper.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/JavaMainWrapper.java
+@@ -38,11 +38,13 @@ import java.util.function.BooleanSupplier;
+ import org.graalvm.nativeimage.CurrentIsolate;
+ import org.graalvm.nativeimage.ImageSingletons;
+ import org.graalvm.nativeimage.Isolate;
++import org.graalvm.nativeimage.IsolateThread;
+ import org.graalvm.nativeimage.Platform;
+ import org.graalvm.nativeimage.Platforms;
+ import org.graalvm.nativeimage.StackValue;
+ import org.graalvm.nativeimage.VMRuntime;
+ import org.graalvm.nativeimage.c.function.CEntryPoint;
++import org.graalvm.nativeimage.c.function.CFunction;
+ import org.graalvm.nativeimage.c.function.CFunctionPointer;
+ import org.graalvm.nativeimage.c.struct.SizeOf;
+ import org.graalvm.nativeimage.c.type.CCharPointer;
+@@ -81,6 +83,7 @@ import com.oracle.svm.core.util.VMError;
+ import com.oracle.svm.util.ClassUtil;
+ import com.oracle.svm.util.ReflectionUtil;
+
++import jdk.graal.compiler.api.replacements.Fold;
+ import jdk.graal.compiler.word.Word;
+
+ @InternalVMMethod
+@@ -262,6 +265,10 @@ public class JavaMainWrapper {
+         /* Wait for all non-daemon threads to exit. */
+         PlatformThreads.singleton().joinAllNonDaemons();
+
++        if (needsEventLoop()) {
++            terminateRunLoop();
++        }
++
+         try {
+             /*
+              * Run shutdown hooks (both our own hooks and application-registered hooks) and teardown
+@@ -276,11 +283,29 @@ public class JavaMainWrapper {
+         }
+     }
+
++    @Fold
++    static boolean needsEventLoop() {
++        return Platform.includedIn(Platform.DARWIN.class);
++    }
++
++    @Uninterruptible(reason = "Thread state not set up yet.", calleeMustBe = false)
++    private static void parkRunLoopIfNecessary() {
++        if (needsEventLoop()) {
++            parkRunLoop();
++        }
++    }
++
++    @CFunction(transition = CFunction.Transition.NO_TRANSITION)
++    private static native void parkRunLoop();
++
++    @CFunction
++    private static native void terminateRunLoop();
++
+     @Uninterruptible(reason = "Thread state not set up yet.")
+     @CEntryPoint(include = CEntryPoint.NotIncludedAutomatically.class)
+     @CEntryPointOptions(prologue = NoPrologue.class, epilogue = NoEpilogue.class)
+     public static int run(int argc, CCharPointerPointer argv) {
+-        if (SubstrateOptions.RunMainInNewThread.getValue()) {
++        if (SubstrateOptions.RunMainInNewThread.getValue() || needsEventLoop()) {
+             return doRunInNewThread(argc, argv);
+         } else {
+             return doRun(argc, argv);
+@@ -326,6 +351,9 @@ public class JavaMainWrapper {
+             CEntryPointActions.failFatally(1, START_THREAD_UNMANAGED_ERROR_MESSAGE.get());
+             return 1;
+         }
++
++        parkRunLoopIfNecessary();
++
+         try {
+             WordPointer threadExitStatus = StackValue.get(WordPointer.class);
+             boolean joined = PlatformThreads.singleton().joinThreadUnmanaged(osThreadHandle, threadExitStatus);
+@@ -347,10 +375,15 @@ public class JavaMainWrapper {
+             if (!ImageSingletons.contains(JavaMainSupport.class)) {
+                 return false;
+             }
+-            return SubstrateOptions.RunMainInNewThread.getValue();
++            return SubstrateOptions.RunMainInNewThread.getValue() || needsEventLoop();
+         }
+     }
+ 
++    @SuppressWarnings("unused")
++    @CEntryPoint(name = "JLI_MemAlloc", publishAs = CEntryPoint.Publish.SymbolOnly)
++    private static void JLI_MemAlloc(IsolateThread thread) {
++    }
++
+     @SuppressWarnings("unused")
+     @Uninterruptible(reason = "Thread state not setup yet.")
+     @CEntryPoint(name = "__svm_JavaMainWrapper_runMainRoutine", include = RunMainInNewThreadBooleanSupplier.class)
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jni/JNILibraryInitializer.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jni/JNILibraryInitializer.java
+index fbb4915d69b..cd03bc2df11 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jni/JNILibraryInitializer.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jni/JNILibraryInitializer.java
+@@ -25,9 +25,8 @@
+ package com.oracle.svm.core.jni;
+ 
+ import java.util.ArrayList;
+-import java.util.Arrays;
+ import java.util.Collection;
+-import java.util.List;
++import java.util.Set;
+ 
+ import org.graalvm.collections.EconomicMap;
+ import org.graalvm.collections.Equivalence;
+@@ -81,9 +80,11 @@ public class JNILibraryInitializer implements NativeLibrarySupport.LibraryInitia
+     }
+ 
+     public boolean fillCGlobalDataMap(Collection<String> staticLibNames) {
+-        List<String> libsWithOnLoad = Arrays.asList("net", "java", "nio", "zip", "sunec", "jaas", "sctp", "extnet",
++        Set<String> libsWithOnLoad = Set.of("net", "java", "nio", "zip", "sunec", "jaas", "sctp", "extnet",
+                         "j2gss", "j2pkcs11", "j2pcsc", "prefs", "verify", "awt", "awt_xawt", "awt_headless", "lcms",
+-                        "fontmanager", "javajpeg", "mlib_image");
++                        "fontmanager", "javajpeg", "mlib_image",
++                        "javafx_font", "javafx_font_freetype", "javafx_font_pango", "javafx_iio",
++                        "glass", "glassgtk3", "prism_d3d", "prism_es2");
+         // TODO: This check should be removed when all static libs will have JNI_OnLoad function
+         ArrayList<String> localStaticLibNames = new ArrayList<>(staticLibNames);
+         localStaticLibNames.retainAll(libsWithOnLoad);
+diff --git a/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/c/codegen/CCompilerInvoker.java b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/c/codegen/CCompilerInvoker.java
+index d53f78e4e22..48a44e70e26 100644
+--- a/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/c/codegen/CCompilerInvoker.java
++++ b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/c/codegen/CCompilerInvoker.java
+@@ -567,7 +567,15 @@ public abstract class CCompilerInvoker {
+             command.addAll(addTarget(target));
+         }
+         for (Path elem : input) {
+-            command.add(elem.toString());
++            // Darwin Glass implementation uses dynamically dispatched Objective-C selectors.
++            // They are local symbols in libglass.a so they cannot be linked. Even if they could,
++            // there must be some kind of vtable in the library which would have to be linked too...
++            // Ouch!! Let's just link the whole library, it's only 600K after all.
++            if (Platform.includedIn(Platform.DARWIN.class) && elem.endsWith("libglass.a")) {
++                command.add("-Wl,-force_load," + elem);
++            } else {
++                command.add(elem.toString());
++            }
+         }
+ 
+         return command;
+diff --git a/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/javafx/JavaFXFeature.java b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/javafx/JavaFXFeature.java
+index 01b5884d073..9392d805297 100644
+--- a/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/javafx/JavaFXFeature.java
++++ b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/javafx/JavaFXFeature.java
+@@ -24,22 +24,59 @@
+  */
+ package com.oracle.svm.hosted.javafx;
+
++import java.lang.reflect.Modifier;
+ import java.util.Objects;
++import java.util.function.Consumer;
+ import java.util.stream.Stream;
+
++import com.oracle.svm.core.configure.ResourcesRegistry;
++import com.oracle.svm.core.feature.AutomaticallyRegisteredFeature;
++import com.oracle.svm.core.feature.InternalFeature;
++import com.oracle.svm.core.jdk.JNIRegistrationUtil;
++import com.oracle.svm.core.jdk.PlatformNativeLibrarySupport;
++import org.graalvm.nativeimage.ImageSingletons;
++import org.graalvm.nativeimage.Platform;
++import org.graalvm.nativeimage.Platforms;
+ import org.graalvm.nativeimage.hosted.RuntimeClassInitialization;
+-import org.graalvm.nativeimage.hosted.Feature;
+ import org.graalvm.nativeimage.hosted.RuntimeReflection;
++import org.graalvm.nativeimage.impl.ConfigurationCondition;
++import org.graalvm.nativeimage.impl.InternalPlatform;
+
+-import com.oracle.svm.hosted.FeatureImpl;
+-
+-final class JavaFXFeature implements Feature {
++@AutomaticallyRegisteredFeature
++@Platforms(InternalPlatform.PLATFORM_JNI.class)
++@SuppressWarnings("unused")
++final class JavaFXFeature extends JNIRegistrationUtil implements InternalFeature {
+
+     @Override
+     public boolean isInConfiguration(IsInConfigurationAccess access) {
+         return getJavaFXApplication(access) != null;
+     }
+
++    @Override
++    public void duringSetup(DuringSetupAccess access) {
++        // Register resources here as they must be registered before `beforeAnalysis()` phase
++        ResourcesRegistry resourcesRegistry = ImageSingletons.lookup(ResourcesRegistry.class);
++        ConfigurationCondition sceneReachable = ConfigurationCondition.create("javafx.scene.Scene");
++        resourcesRegistry.addResources(sceneReachable, "com.sun.javafx.tk.quantum.QuantumMessagesBundle.properties");
++
++        if (Platform.includedIn(Platform.LINUX.class) || Platform.includedIn(Platform.DARWIN.class)) {
++            resourcesRegistry.addResources(sceneReachable, "com.sun.prism.es2.glsl.*");
++            resourcesRegistry.addResources(sceneReachable, "com.sun.scenario.effect.impl.es2.glsl.*");
++        } else if (Platform.includedIn(Platform.WINDOWS.class)) {
++            resourcesRegistry.addResources(sceneReachable, "com.sun.prism.d3d.hlsl.*");
++            resourcesRegistry.addResources(sceneReachable, "com.sun.scenario.effect.impl.hw.d3d.hlsl.*");
++            resourcesRegistry.addResourceBundles(sceneReachable, "com.sun.glass.ui.win.themes");
++        }
++
++        ConfigurationCondition controlsReachable = ConfigurationCondition.create("javafx.scene.control.Control");
++        resourcesRegistry.addResources(controlsReachable, "com.sun.javafx.scene.control.skin.resources.controls.properties");
++        resourcesRegistry.addResources(controlsReachable, "com.sun.javafx.scene.control.skin.resources.controls-nt.properties");
++        resourcesRegistry.addResources(controlsReachable, "com.sun.javafx.scene.control.skin.modena.*");
++
++        ConfigurationCondition fxmlReachable = ConfigurationCondition.create("javafx.fxml.FXMLLoader");
++        resourcesRegistry.addResources(fxmlReachable, "com.sun.org.apache.xerces.internal.impl.msg.XMLMessages");
++    }
++
+     @Override
+     public void beforeAnalysis(BeforeAnalysisAccess access) {
+         /*
+@@ -48,9 +85,7 @@ final class JavaFXFeature implements Feature {
+          *
+          * See javafx.application.Application#launch(java.lang.String...).
+          */
+-        ((FeatureImpl.BeforeAnalysisAccessImpl) access)
+-                        .findSubclasses(getJavaFXApplication(access))
+-                        .forEach(RuntimeReflection::register);
++        access.registerSubtypeReachabilityHandler(this::registerApplicationClass, getJavaFXApplication(access));
+
+         /*
+          * Static initializers that are not supported in JavaFX.
+@@ -62,10 +97,143 @@ final class JavaFXFeature implements Feature {
+                         .map(access::findClassByName)
+                         .filter(Objects::nonNull)
+                         .forEach(RuntimeClassInitialization::initializeAtRunTime);
++
++        PlatformNativeLibrarySupport librarySupport = PlatformNativeLibrarySupport.singleton();
++        Stream.of("com_sun_glass", "com_sun_javafx_embed", "com_sun_javafx_iio_jpeg", "com_sun_prism_d3d", "com_sun_prism_es2")
++                /// uncomment to enable SW pipeline
++//                "com_sun_pisces", "com_sun_prism_impl_shape", "com_sun_prism_j2d_print", "com_sun_scenario_effect_impl_sw_sse"
++                .forEach(librarySupport::addBuiltinPkgNativePrefix);
++        /*
++         * Can't just add "com_sun_javafx_font" because some native methods
++         * are only defined for one platform and not for others
++         */
++        Stream<String> fontPackages =
++                Platform.includedIn(Platform.WINDOWS.class) ? Stream.of("PrismFontFactory", "directwrite")
++                : Platform.includedIn(Platform.LINUX.class) ? Stream.of("FontConfigManager", "freetype")
++                : Platform.includedIn(Platform.DARWIN.class) ? Stream.of("DFontDecoder", "MacFontFinder", "coretext")
++                : Stream.empty();
++        fontPackages.map("com_sun_javafx_font_"::concat)
++                    .forEach(librarySupport::addBuiltinPkgNativePrefix);
++
++        access.registerReachabilityHandler(this::enableJavaFX,
++                clazz(access, "javafx.scene.Scene"));
++        access.registerReachabilityHandler(this::enableIIO,
++                clazz(access, "com.sun.javafx.iio.jpeg.JPEGImageLoader"));
++        access.registerReachabilityHandler(this::enablePrinting,
++                clazz(access, "com.sun.javafx.tk.PrintPipeline"));
++        registerIfReachable(access, this::enableControls,"javafx.scene.control.Control");
++        registerIfReachable(access, this::enableFXML, "javafx.fxml.FXMLLoader");
++        registerIfReachable(access, this::enableSwing, "javafx.embed.swing.SwingNode");
+     }
+
+     private static Class<?> getJavaFXApplication(FeatureAccess access) {
+         return access.findClassByName("javafx.application.Application");
+     }
+
++    private void registerApplicationClass(DuringAnalysisAccess access, Class<?> appClass) {
++        if (!Modifier.isAbstract(appClass.getModifiers())) {
++            RuntimeReflection.register(appClass);
++            RuntimeReflection.registerForReflectiveInstantiation(appClass);
++        }
++    }
++
++    /**
++     * Register reachability callback without loading the trigger class (which may be in an unavailable module)
++     */
++    private void registerIfReachable(BeforeAnalysisAccess access, Consumer<DuringAnalysisAccess> callback, String className) {
++        Class<?> cls = access.findClassByName(className);
++        if (cls != null) {
++            access.registerReachabilityHandler(callback, cls);
++        }
++    }
++
++    private void enableJavaFX(DuringAnalysisAccess access) {
++        JavaFXReflection.registerJavaFX(access);
++        enableGlass(access);
++        enableFonts(access);
++        if (Platform.includedIn(Platform.LINUX.class)) {
++            enableGlassGTK3(access);
++            enableFontsLinux(access);
++            enablePrismES2(access);
++        } else if (Platform.includedIn(Platform.DARWIN.class)) {
++            enableGlassMac(access);
++            enableFontsMac(access);
++            enablePrismES2(access);
++        } else if (Platform.includedIn(Platform.WINDOWS.class)) {
++            enableGlassWin(access);
++            enableFontsWin(access);
++            enablePrismD3D(access);
++        }
++    }
++
++    private void enableGlass(DuringAnalysisAccess access) {
++        JavaFXReflection.registerGlass(access);
++        JavaFXJNI.registerGlass(access);
++    }
++
++    private void enableGlassMac(DuringAnalysisAccess access) {
++        JavaFXReflection.registerGlassMac(access);
++        JavaFXJNI.registerGlassMac(access);
++    }
++
++    private void enableGlassWin(DuringAnalysisAccess access) {
++        JavaFXReflection.registerGlassWin(access);
++        JavaFXJNI.registerGlassWin(access);
++    }
++
++    private void enableGlassGTK3(DuringAnalysisAccess access) {
++        JavaFXReflection.registerGlassGTK3(access);
++        JavaFXJNI.registerGlassGTK3(access);
++    }
++
++    private void enableFonts(DuringAnalysisAccess access) {
++        JavaFXJNI.registerFonts(access);
++    }
++
++    private void enableFontsMac(DuringAnalysisAccess access) {
++        JavaFXReflection.registerFontsMac(access);
++        JavaFXJNI.registerFontsMac(access);
++    }
++
++    private void enableFontsWin(DuringAnalysisAccess access) {
++        JavaFXReflection.registerFontsWin(access);
++        JavaFXJNI.registerFontsWin(access);
++    }
++
++    private void enableFontsLinux(DuringAnalysisAccess access) {
++        JavaFXReflection.registerFontsLinux(access);
++        JavaFXJNI.registerFontsLinux(access);
++    }
++
++    private void enableIIO(DuringAnalysisAccess access) {
++        JavaFXReflection.registerIIO(access);
++        JavaFXJNI.registerIIO(access);
++    }
++
++    private void enablePrismD3D(DuringAnalysisAccess access) {
++        JavaFXReflection.registerPrismD3D(access);
++        JavaFXJNI.registerPrismD3D(access);
++    }
++
++    private void enablePrismES2(DuringAnalysisAccess access) {
++        JavaFXReflection.registerPrismES2(access);
++        JavaFXJNI.registerPrismES2(access);
++    }
++
++    private void enableControls(DuringAnalysisAccess access) {
++        JavaFXReflection.registerControls(access);
++    }
++
++    private void enableFXML(DuringAnalysisAccess access) {
++        JavaFXReflection.registerFXML(access);
++    }
++
++    private void enableSwing(DuringAnalysisAccess access) {
++        JavaFXReflection.registerSwing(access);
++        JavaFXJNI.registerSwing(access);
++    }
++
++    private void enablePrinting(DuringAnalysisAccess access) {
++        JavaFXReflection.registerPrinting(access);
++    }
+ }
+diff --git a/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/javafx/JavaFXJNI.java b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/javafx/JavaFXJNI.java
+new file mode 100644
+index 00000000000..b968f34403e
+--- /dev/null
++++ b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/javafx/JavaFXJNI.java
+@@ -0,0 +1,557 @@
++package com.oracle.svm.hosted.javafx;
++
++import com.oracle.svm.core.jdk.JNIRegistrationUtil;
++import com.oracle.svm.core.jdk.NativeLibrarySupport;
++import com.oracle.svm.core.jni.JNIRuntimeAccess;
++import com.oracle.svm.hosted.FeatureImpl;
++import com.oracle.svm.hosted.c.NativeLibraries;
++import jdk.graal.compiler.serviceprovider.GraalServices;
++import jdk.graal.compiler.serviceprovider.JavaVersionUtil;
++import org.graalvm.nativeimage.Platform;
++import org.graalvm.nativeimage.hosted.Feature.DuringAnalysisAccess;
++
++import java.io.File;
++import java.io.IOException;
++import java.io.InputStream;
++import java.nio.ByteBuffer;
++import java.util.ArrayList;
++import java.util.HashMap;
++import java.util.HashSet;
++import java.util.Iterator;
++import java.util.List;
++import java.util.Locale;
++import java.util.Map;
++import java.util.Set;
++import java.util.Vector;
++import java.util.stream.Stream;
++
++public class JavaFXJNI extends JNIRegistrationUtil {
++
++    static void registerGlass(DuringAnalysisAccess access) {
++        JNIRuntimeAccess.register(IOException.class, Runnable.class, String.class,
++                clazz(access, "com.sun.glass.ui.CommonDialogs"),
++                clazz(access, "com.sun.glass.ui.CommonDialogs$ExtensionFilter"),
++                clazz(access, "com.sun.glass.ui.Screen"),
++                clazz(access, "com.sun.glass.ui.Cursor"),
++                clazz(access, "com.sun.glass.ui.Size"),
++                clazz(access, "com.sun.glass.ui.View"),
++                clazz(access, "com.sun.glass.ui.Window"));
++
++        JNIRuntimeAccess.register(fields(access, "java.lang.Boolean", "FALSE", "TRUE"));
++        JNIRuntimeAccess.register(fields(access, "com.sun.glass.ui.View", "ptr"));
++        JNIRuntimeAccess.register(fields(access, "com.sun.glass.ui.Window", "ptr"));
++
++        JNIRuntimeAccess.register(
++                method(access, "java.lang.Object", "equals", Object.class),
++                method(access, "java.lang.Runnable", "run"),
++                method(access, "java.lang.Throwable", "getMessage"),
++                method(access, "java.lang.Class", "forName", String.class, boolean.class, ClassLoader.class),
++                method(access, "java.util.Collections", "unmodifiableMap", java.util.Map.class),
++                method(access, "java.util.List", "add", Object.class),
++                method(access, "java.util.Map", "get", Object.class),
++                method(access, "java.util.Map", "put", Object.class, Object.class),
++                constructor(access, "java.util.HashMap"),
++                method(access, "javafx.scene.paint.Color", "rgb", int.class, int.class, int.class, double.class),
++                method(access, "com.sun.glass.ui.Application", "getName"),
++                method(access, "com.sun.glass.ui.Application", "GetApplication"),
++                method(access, "com.sun.glass.ui.Application", "notifyPreferencesChanged", java.util.Map.class),
++                method(access, "com.sun.glass.ui.Application", "reportException", Throwable.class),
++                method(access, "com.sun.glass.ui.CommonDialogs$ExtensionFilter", "getDescription"),
++                method(access, "com.sun.glass.ui.CommonDialogs$ExtensionFilter", "extensionsToArray"),
++                method(access, "com.sun.glass.ui.Pixels", "attachData", long.class),
++                constructor(access, "com.sun.glass.ui.Size", int.class, int.class),
++                constructor(access, "com.sun.glass.ui.Screen", long.class, int.class, int.class, int.class, int.class,
++                        int.class, int.class, int.class, int.class, int.class, int.class, int.class, int.class, int.class, int.class, int.class,
++                        float.class, float.class, float.class, float.class),
++                method(access, "com.sun.glass.ui.Screen", "notifySettingsChanged"),
++                method(access, "com.sun.glass.ui.View", "notifyResize", int.class, int.class),
++                method(access, "com.sun.glass.ui.View", "notifyRepaint", int.class, int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.View", "notifyKey", int.class, int.class, char[].class, int.class),
++                method(access, "com.sun.glass.ui.View", "notifyMouse", int.class, int.class, int.class, int.class,
++                        int.class, int.class, int.class, boolean.class, boolean.class),
++                method(access, "com.sun.glass.ui.View", "notifyScroll",
++                        int.class, int.class, int.class, int.class, double.class, double.class,
++                        int.class, int.class, int.class, int.class, int.class, double.class, double.class),
++                method(access, "com.sun.glass.ui.View", "notifyMenu", int.class, int.class, int.class, int.class, boolean.class),
++                method(access, "com.sun.glass.ui.View", "notifyInputMethod",
++                        String.class, int[].class, int[].class, byte[].class, int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.View", "notifyView", int.class),
++                method(access, "com.sun.glass.ui.View", "notifyDragEnter", int.class, int.class, int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.View", "notifyDragOver", int.class, int.class, int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.View", "notifyDragDrop", int.class, int.class, int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.View", "notifyDragLeave"),
++                method(access, "com.sun.glass.ui.View", "notifyInputMethodCandidatePosRequest", int.class),
++                method(access, "com.sun.glass.ui.View", "getAccessible"),
++                method(access, "com.sun.glass.ui.Window", "notifyClose"),
++                method(access, "com.sun.glass.ui.Window", "notifyDestroy"),
++                method(access, "com.sun.glass.ui.Window", "notifyDelegatePtr", long.class),
++                method(access, "com.sun.glass.ui.Window", "notifyFocus", int.class),
++                method(access, "com.sun.glass.ui.Window", "notifyFocusDisabled"),
++                method(access, "com.sun.glass.ui.Window", "notifyFocusUngrab"),
++                method(access, "com.sun.glass.ui.Window", "notifyMove", int.class, int.class),
++                method(access, "com.sun.glass.ui.Window", "notifyMoveToAnotherScreen",
++                        clazz(access, "com.sun.glass.ui.Screen")),
++                method(access, "com.sun.glass.ui.Window", "notifyResize", int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.Window", "notifyScaleChanged",
++                        float.class, float.class, float.class, float.class));
++    }
++
++    static void registerGlassGTK3(DuringAnalysisAccess access) {
++        registerStaticLib(access, "glass");
++        registerStaticLib(access, "glassgtk3",
++                "m", "stdc++", "X11", "Xtst", "fontconfig", "freetype", "harfbuzz",
++                "gtk-3", "gdk-3", "glib-2.0", "gio-2.0", "gobject-2.0", "gthread-2.0", "gmodule-2.0",
++                "gdk_pixbuf-2.0", "cairo", "cairo-gobject", "pango-1.0", "pangocairo-1.0", "pangoft2-1.0", "atk-1.0");
++
++        JNIRuntimeAccess.register(ByteBuffer.class, Iterable.class, Iterator.class, Map.class, Set.class, HashSet.class,
++                ArrayList.class, Throwable.class, IllegalStateException.class, UnsupportedOperationException.class,
++                clazz(access, "com.sun.glass.ui.CommonDialogs$FileChooserResult"),
++                clazz(access, "com.sun.glass.ui.Pixels"),
++                clazz(access, "com.sun.glass.ui.gtk.GtkPixels"),
++                clazz(access, "com.sun.glass.ui.gtk.GtkView"),
++                clazz(access, "com.sun.glass.ui.gtk.GtkWindow"),
++                clazz(access, "com.sun.glass.ui.Clipboard"),
++                clazz(access, "com.sun.glass.ui.gtk.GtkApplication"));
++        JNIRuntimeAccess.register(fields(access, "com.sun.glass.ui.Cursor", "ptr"));
++        JNIRuntimeAccess.register(fields(access, "com.sun.glass.ui.gtk.GtkApplication",
++                "display", "screen", "visualID"));
++        JNIRuntimeAccess.register(
++                constructor(access, "java.lang.String", byte[].class),
++                constructor(access, "java.lang.String", byte[].class, String.class),
++                method(access, "java.lang.String", "getBytes", String.class),
++                method(access, "java.nio.ByteBuffer", "array"),
++                method(access, "java.nio.ByteBuffer", "wrap", byte[].class),
++                method(access, "java.util.Map", "keySet"),
++                method(access, "java.util.Map", "containsKey", Object.class),
++                method(access, "java.util.Set", "add", Object.class),
++                method(access, "java.util.Set", "size"),
++                method(access, "java.util.Set", "toArray", Object[].class),
++                method(access, "java.lang.Iterable", "iterator"),
++                method(access, "java.util.Iterator", "next"),
++                method(access, "java.util.Iterator", "hasNext"),
++                constructor(access, "java.util.ArrayList"),
++                method(access, "java.util.ArrayList", "add", Object.class),
++                method(access, "java.util.ArrayList", "get", int.class),
++                constructor(access, "java.util.HashSet"),
++                method(access, "com.sun.glass.ui.CommonDialogs", "createFileChooserResult",
++                        String[].class, clazz(access, "[Lcom.sun.glass.ui.CommonDialogs$ExtensionFilter;"), int.class),
++                constructor(access, "com.sun.glass.ui.CommonDialogs$FileChooserResult"),
++                constructor(access, "com.sun.glass.ui.gtk.GtkPixels", int.class, int.class, java.nio.ByteBuffer.class),
++                method(access, "com.sun.glass.ui.gtk.GtkView", "notifyInputMethodDraw",
++                        String.class, int.class, int.class, int.class, byte[].class),
++                method(access, "com.sun.glass.ui.gtk.GtkView", "notifyInputMethodCaret", int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.gtk.GtkView", "notifyPreeditMode", boolean.class),
++                method(access, "com.sun.glass.ui.Window", "notifyLevelChanged", int.class),
++                method(access, "com.sun.glass.ui.Window", "isEnabled"),
++                method(access, "com.sun.glass.ui.gtk.GtkWindow", "notifyStateChanged", int.class),
++                method(access, "com.sun.glass.ui.Clipboard", "contentChanged"));
++    }
++
++    private static void registerMacAccessibleEnum(DuringAnalysisAccess access, String enumName) {
++        String className = "com.sun.glass.ui.mac.MacAccessible$" + enumName;
++        registerClassFields(access, className, false, "ptr");
++        JNIRuntimeAccess.register(method(access, className, "values"));
++    }
++
++    static void registerGlassMac(DuringAnalysisAccess access) {
++        registerStaticLib(access, "glass", "-framework AppKit", "-framework QuartzCore");
++        Stream.of("MacAttribute", "MacAction", "MacRole", "MacSubrole", "MacNotification", "MacOrientation", "MacText")
++                .forEach(name -> registerMacAccessibleEnum(access, name));
++        registerClassFields(access, "com.sun.glass.ui.mac.MacVariant", true,
++                "type", "longArray", "intArray", "stringArray", "variantArray", "int1", "int2", "long1",
++                "float1", "float2", "float3", "float4", "double1", "string", "location", "length", "key");
++        JNIRuntimeAccess.register(
++                clazz(access, "com.sun.glass.ui.EventLoop"),
++                clazz(access, "com.sun.glass.ui.Menu"),
++                clazz(access, "com.sun.glass.ui.MenuItem$Callback"));
++        JNIRuntimeAccess.register(
++                fields(access, "com.sun.glass.ui.mac.MacMenuDelegate", "menu"));
++        JNIRuntimeAccess.register(
++                fields(access, "com.sun.glass.ui.Pixels", "width", "height", "scalex", "scaley"));
++        JNIRuntimeAccess.register(
++                method(access, "java.lang.Boolean", "booleanValue"),
++                method(access, "java.lang.Boolean", "getBoolean", String.class),
++                constructor(access, "java.lang.Integer", int.class),
++                method(access, "java.lang.Integer", "intValue"),
++                method(access, "java.lang.Long", "longValue"),
++                constructor(access, "java.lang.String", byte[].class, String.class),
++                constructor(access, "java.io.File", String.class),
++                constructor(access, "java.io.File", File.class, String.class),
++                method(access, "com.sun.glass.ui.Application", "setName", String.class),
++                method(access, "com.sun.glass.ui.Application", "getScaleFactor",
++                        int.class, int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.Application", "enterNestedEventLoop"),
++                method(access, "com.sun.glass.ui.Application", "leaveNestedEventLoop", Object.class),
++                method(access, "com.sun.glass.ui.Application", "notifyWillFinishLaunching"),
++                method(access, "com.sun.glass.ui.Application", "notifyDidFinishLaunching"),
++                method(access, "com.sun.glass.ui.Application", "notifyWillBecomeActive"),
++                method(access, "com.sun.glass.ui.Application", "notifyDidBecomeActive"),
++                method(access, "com.sun.glass.ui.Application", "notifyWillResignActive"),
++                method(access, "com.sun.glass.ui.Application", "notifyDidResignActive"),
++                method(access, "com.sun.glass.ui.Application", "notifyWillHide"),
++                method(access, "com.sun.glass.ui.Application", "notifyDidHide"),
++                method(access, "com.sun.glass.ui.Application", "notifyWillUnhide"),
++                method(access, "com.sun.glass.ui.Application", "notifyDidUnhide"),
++                method(access, "com.sun.glass.ui.Application", "notifyWillQuit"),
++                method(access, "com.sun.glass.ui.Application", "notifyOpenFiles", String[].class),
++                method(access, "com.sun.glass.ui.Application", "createPixels",
++                        int.class, int.class, int[].class, float.class, float.class),
++                method(access, "com.sun.glass.ui.mac.MacApplication", "notifyApplicationDidTerminate"),
++                method(access, "com.sun.glass.ui.mac.MacApplication", "setEventThread"),
++                method(access, "com.sun.glass.ui.mac.MacCommonDialogs", "isFileNSURLEnabled"),
++                constructor(access, "com.sun.glass.ui.EventLoop"),
++                method(access, "com.sun.glass.ui.EventLoop", "enter"),
++                method(access, "com.sun.glass.ui.EventLoop", "leave", Object.class),
++                method(access, "com.sun.glass.ui.mac.MacGestureSupport", "rotateGesturePerformed",
++                        clazz(access, "com.sun.glass.ui.View"), int.class, int.class,
++                        int.class, int.class, int.class, float.class),
++                method(access, "com.sun.glass.ui.mac.MacGestureSupport", "scrollGesturePerformed",
++                        clazz(access, "com.sun.glass.ui.View"), int.class, int.class, int.class,
++                        int.class, int.class, int.class, float.class, float.class),
++                method(access, "com.sun.glass.ui.mac.MacGestureSupport", "swipeGesturePerformed",
++                        clazz(access, "com.sun.glass.ui.View"),
++                        int.class, int.class, int.class, int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.mac.MacGestureSupport", "magnifyGesturePerformed",
++                        clazz(access, "com.sun.glass.ui.View"),
++                        int.class, int.class, int.class, int.class, int.class, float.class),
++                method(access, "com.sun.glass.ui.mac.MacGestureSupport", "gestureFinished",
++                        clazz(access, "com.sun.glass.ui.View"),
++                        int.class, int.class, int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.mac.MacGestureSupport", "notifyBeginTouchEvent",
++                        clazz(access, "com.sun.glass.ui.View"), int.class, int.class),
++                method(access, "com.sun.glass.ui.mac.MacGestureSupport", "notifyNextTouchEvent",
++                        clazz(access, "com.sun.glass.ui.View"), int.class, long.class, float.class, float.class),
++                method(access, "com.sun.glass.ui.mac.MacGestureSupport", "notifyEndTouchEvent",
++                        clazz(access, "com.sun.glass.ui.View")),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityAttributeNames"),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityIsAttributeSettable", long.class),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityAttributeValue", long.class),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityActionNames"),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityActionDescription", long.class),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityIndexOfChild", long.class),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityFocusedUIElement"),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityIsIgnored"),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityHitTest", float.class, float.class),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityPerformAction", long.class),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityParameterizedAttributeNames"),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityAttributeValueForParameter", long.class, long.class),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilitySetValue", long.class, long.class),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityArrayAttributeCount", long.class),
++                method(access, "com.sun.glass.ui.mac.MacAccessible", "accessibilityArrayAttributeValues", long.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.Menu", "notifyMenuOpening"),
++                method(access, "com.sun.glass.ui.Menu", "notifyMenuClosed"),
++                method(access, "com.sun.glass.ui.MenuItem$Callback", "action"),
++                method(access, "com.sun.glass.ui.MenuItem$Callback", "validate"),
++                constructor(access, "com.sun.glass.ui.mac.MacFileNSURL", String.class, long.class),
++                constructor(access, "com.sun.glass.ui.CommonDialogs$FileChooserResult", List.class,
++                        clazz(access, "com.sun.glass.ui.CommonDialogs$ExtensionFilter")),
++                method(access, "com.sun.glass.ui.View", "notifyDragEnd", int.class),
++                method(access, "com.sun.glass.ui.mac.MacView", "notifyInputMethodMac",
++                        String.class, int.class, int.class, int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.mac.MacView", "notifyResize", int.class, int.class),
++                method(access, "com.sun.glass.ui.mac.MacView", "notifyMouse", int.class, int.class,
++                        int.class, int.class, int.class, int.class, int.class, boolean.class, boolean.class),
++                method(access, "com.sun.glass.ui.mac.MacWindow", "notifyMove", int.class, int.class, boolean.class),
++                method(access, "com.sun.glass.ui.mac.MacWindow", "notifyResize", int.class, int.class, int.class));
++    }
++
++    static void registerGlassWin(DuringAnalysisAccess access) {
++        registerStaticLib(access, "glass", "comdlg32", "dwmapi", "imm32", "uiautomationcore", "urlmon", "winmm");
++        JNIRuntimeAccess.register(Class.class, Throwable.class,
++                clazz(access, "com.sun.glass.ui.Application"));
++        registerClassFields(access, "com.sun.glass.ui.win.WinVariant", false,
++                "vt", "lVal", "punkVal", "fltVal", "dblVal", "boolVal", "bstrVal", "pDblVal");
++        JNIRuntimeAccess.register(fields(access, "com.sun.glass.ui.Clipboard", "name"));
++        JNIRuntimeAccess.register(fields(access, "com.sun.glass.ui.win.WinSystemClipboard", "ptr"));
++        JNIRuntimeAccess.register(
++                method(access, "java.lang.String", "concat", String.class),
++                method(access, "com.sun.glass.ui.CommonDialogs", "createFileChooserResult",
++                        String[].class, clazz(access, "[Lcom.sun.glass.ui.CommonDialogs$ExtensionFilter;"), int.class),
++                method(access, "com.sun.glass.ui.Cursor", "getType"),
++                method(access, "com.sun.glass.ui.Cursor", "getNativeCursor"),
++                method(access, "com.sun.glass.ui.View", "getWidth"),
++                method(access, "com.sun.glass.ui.View", "getHeight"),
++                method(access, "com.sun.glass.ui.Clipboard", "contentChanged"),
++                method(access, "com.sun.glass.ui.Clipboard", "actionPerformed", int.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "GetPatternProvider", int.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_HostRawElementProvider"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "GetPropertyValue", int.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "Navigate", int.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_BoundingRectangle"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_FragmentRoot"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "GetEmbeddedFragmentRoots"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "GetRuntimeId"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "GetFocus"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "SetFocus"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "Invoke"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "Select"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "GetSelection"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_IsSelected"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_SelectionContainer"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_CanSelectMultiple"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_IsSelectionRequired"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "AddToSelection"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "RemoveFromSelection"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "AdviseEventAdded", int.class, long.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "AdviseEventRemoved", int.class, long.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_Value"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_IsReadOnly"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_Maximum"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_Minimum"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_SmallChange"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_LargeChange"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "SetValue", double.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "SetValueString", String.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_ValueString"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "GetVisibleRanges"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "RangeFromChild", long.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "RangeFromPoint", double.class, double.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_DocumentRange"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_SupportedTextSelection"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_ColumnCount"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_RowCount"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "GetItem", int.class, int.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_Column"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_ColumnSpan"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_ContainingGrid"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_Row"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_RowSpan"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "GetColumnHeaders"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "GetRowHeaders"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "GetRowHeaderItems"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_RowOrColumnMajor"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "GetColumnHeaderItems"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_ToggleState"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "Toggle"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "Expand"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "Collapse"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_ExpandCollapseState"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_CanMove"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_CanResize"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_CanRotate"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "Move", double.class, double.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "Resize", double.class, double.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "Rotate", double.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "Scroll", int.class, int.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "SetScrollPercent", double.class, double.class),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_HorizontallyScrollable"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_HorizontalScrollPercent"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_HorizontalViewSize"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_VerticallyScrollable"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_VerticalScrollPercent"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "get_VerticalViewSize"),
++                method(access, "com.sun.glass.ui.win.WinAccessible", "ScrollIntoView"),
++                method(access, "com.sun.glass.ui.win.WinDnDClipboard", "getInstance"),
++                method(access, "com.sun.glass.ui.win.WinDnDClipboard", "setSourceSupportedActions", int.class),
++                method(access, "com.sun.glass.ui.win.WinDnDClipboard", "setDragButton", int.class),
++                method(access, "com.sun.glass.ui.win.WinDnDClipboard", "getDragButton"),
++                method(access, "com.sun.glass.ui.win.WinSystemClipboard", "fosSerialize", String.class, long.class),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "Clone"),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "Compare",
++                        clazz(access, "com.sun.glass.ui.win.WinTextRangeProvider")),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "CompareEndpoints",
++                        int.class, clazz(access, "com.sun.glass.ui.win.WinTextRangeProvider"), int.class),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "ExpandToEnclosingUnit", int.class),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "FindAttribute",
++                        int.class, clazz(access, "com.sun.glass.ui.win.WinVariant"), boolean.class),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "FindText",
++                        String.class, boolean.class, boolean.class),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "GetAttributeValue", int.class),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "GetBoundingRectangles"),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "GetEnclosingElement"),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "GetText", int.class),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "Move", int.class, int.class),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "MoveEndpointByUnit", int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "MoveEndpointByRange",
++                        int.class, clazz(access, "com.sun.glass.ui.win.WinTextRangeProvider"), int.class),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "Select"),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "AddToSelection"),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "RemoveFromSelection"),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "GetChildren"),
++                method(access, "com.sun.glass.ui.win.WinTextRangeProvider", "ScrollIntoView", boolean.class),
++                method(access, "com.sun.glass.ui.win.WinWindow", "notifyResize", int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.win.WinWindow", "notifyMoving",
++                        int.class, int.class, int.class, int.class, float.class, float.class,
++                        int.class, int.class, int.class, int.class, int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.win.WinMenuImpl", "notifyCommand",
++                        clazz(access, "com.sun.glass.ui.Window"), int.class),
++                method(access, "com.sun.glass.ui.win.WinGestureSupport", "gesturePerformed",
++                        clazz(access, "com.sun.glass.ui.View"), int.class, boolean.class, boolean.class,
++                        int.class, int.class, int.class, int.class, float.class, float.class,
++                        float.class, float.class, float.class, float.class, float.class),
++                method(access, "com.sun.glass.ui.win.WinGestureSupport", "inertiaGestureFinished",
++                        clazz(access, "com.sun.glass.ui.View")),
++                method(access, "com.sun.glass.ui.win.WinGestureSupport", "notifyBeginTouchEvent",
++                        clazz(access, "com.sun.glass.ui.View"), int.class, boolean.class, int.class),
++                method(access, "com.sun.glass.ui.win.WinGestureSupport", "notifyNextTouchEvent",
++                        clazz(access, "com.sun.glass.ui.View"), int.class, long.class,
++                        int.class, int.class, int.class, int.class),
++                method(access, "com.sun.glass.ui.win.WinGestureSupport", "notifyEndTouchEvent",
++                        clazz(access, "com.sun.glass.ui.View")));
++
++        if (JavaVersionUtil.JAVA_SPEC != 17 || GraalServices.getJavaUpdateVersion() != 1) {
++            JNIRuntimeAccess.register(method(access, "com.sun.glass.ui.win.WinView", "notifyResize", int.class, int.class));
++        }
++    }
++
++    static void registerFonts(DuringAnalysisAccess access) {
++        JNIRuntimeAccess.register(
++                constructor(access, "com.sun.javafx.geom.Path2D", int.class, byte[].class, int.class, float[].class, int.class),
++                constructor(access, "java.util.ArrayList", int.class),
++                method(access, "java.util.HashMap", "get", Object.class),
++                method(access, "java.util.HashMap", "put", Object.class, Object.class),
++                method(access, "java.util.HashMap", "containsKey", Object.class),
++                method(access, "java.util.ArrayList", "add", Object.class),
++                method(access, "java.lang.String", "toLowerCase", Locale.class));
++    }
++
++    static void registerFontsLinux(DuringAnalysisAccess access) {
++        registerStaticLib(access, "javafx_font");
++        registerStaticLib(access, "javafx_font_freetype");
++        registerStaticLib(access, "javafx_font_pango");
++
++        registerClassFields(access, "com.sun.javafx.font.freetype.FT_GlyphSlotRec", true,
++                "metrics", "linearHoriAdvance", "linearVertAdvance", "advance_x", "advance_y",
++                "format", "bitmap", "bitmap_left", "bitmap_top");
++        registerClassFields(access, "com.sun.javafx.font.FontConfigManager$FcCompFont", true,
++                "fcName", "firstFont", "allFonts");
++        registerClassFields(access, "com.sun.javafx.font.FontConfigManager$FontConfigFont", true,
++                "familyName", "fullName", "styleStr", "fontFile");
++        registerClassFields(access, "com.sun.javafx.font.freetype.PangoGlyphString", true,
++                "offset", "length", "font", "num_chars", "glyphs", "num_glyphs", "widths", "log_clusters");
++
++        JNIRuntimeAccess.register(HashMap.class,
++                clazz(access, "com.sun.javafx.geom.Path2D"));
++        JNIRuntimeAccess.register(fields(access, "com.sun.javafx.font.freetype.FT_Matrix",
++                "xx", "xy", "yx", "yy"));
++        JNIRuntimeAccess.register(fields(access, "com.sun.javafx.font.freetype.FT_Bitmap",
++                "rows", "width", "pitch", "buffer", "num_grays", "pixel_mode", "palette_mode", "palette"));
++        JNIRuntimeAccess.register(fields(access, "com.sun.javafx.font.freetype.FT_Glyph_Metrics",
++                "width", "height", "horiAdvance", "vertAdvance", "horiBearingX", "horiBearingY", "vertBearingX", "vertBearingY"));
++    }
++
++    static void registerFontsMac(DuringAnalysisAccess access) {
++        registerStaticLib(access, "javafx_font");
++        registerClassFields(access, "com.sun.javafx.font.coretext.CGAffineTransform", true,
++                "a", "b", "c", "d", "tx", "ty");
++        registerClassFields(access, "com.sun.javafx.font.coretext.CGPoint", true,
++                "x", "y");
++        registerClassFields(access, "com.sun.javafx.font.coretext.CGRect", true,
++                "origin", "size");
++        registerClassFields(access, "com.sun.javafx.font.coretext.CGSize", true,
++                "width", "height");
++        JNIRuntimeAccess.register(RuntimeException.class, List.class, ArrayList.class, File.class);
++    }
++
++    static void registerFontsWin(DuringAnalysisAccess access) {
++        registerStaticLib(access, "javafx_font", "gdi32");
++        registerClassFields(access, "com.sun.javafx.font.directwrite.DWRITE_GLYPH_METRICS", true,
++                "leftSideBearing", "rightSideBearing", "topSideBearing", "bottomSideBearing",
++                "advanceWidth", "advanceHeight", "verticalOriginY");
++        registerClassFields(access, "com.sun.javafx.font.directwrite.DWRITE_MATRIX", true,
++                "m11", "m12", "m21", "m22", "dx", "dy");
++        registerClassFields(access, "com.sun.javafx.font.directwrite.DWRITE_GLYPH_RUN", true,
++                "fontFace", "fontEmSize", "glyphIndices", "glyphAdvances", "advanceOffset",
++                "ascenderOffset", "isSideways", "bidiLevel");
++        registerClassFields(access, "com.sun.javafx.font.directwrite.DWRITE_SCRIPT_ANALYSIS", true,
++                "script", "shapes");
++        registerClassFields(access, "com.sun.javafx.font.directwrite.RECT", true,
++                "top", "left", "right", "bottom");
++        registerClassFields(access, "com.sun.javafx.font.directwrite.D2D1_PIXEL_FORMAT", true,
++                "format", "alphaMode");
++        registerClassFields(access, "com.sun.javafx.font.directwrite.D2D1_RENDER_TARGET_PROPERTIES", true,
++                "type", "pixelFormat", "dpiX", "dpiY", "usage", "minLevel");
++        registerClassFields(access, "com.sun.javafx.font.directwrite.D2D1_COLOR_F", true,
++                "r", "g", "b", "a");
++        registerClassFields(access, "com.sun.javafx.font.directwrite.D2D1_POINT_2F", true,
++                "x", "y");
++        registerClassFields(access, "com.sun.javafx.font.directwrite.D2D1_MATRIX_3X2_F", true,
++                "_11", "_12", "_21", "_22", "_31", "_32");
++    }
++
++    static void registerIIO(DuringAnalysisAccess access) {
++        registerStaticLib(access, "javafx_iio");
++
++        JNIRuntimeAccess.register(
++                method(access, "java.io.InputStream", "read", byte[].class, int.class, int.class),
++                method(access, "java.io.InputStream", "skip", long.class),
++                method(access, "com.sun.javafx.iio.common.ImageLoaderImpl", "emitWarning", String.class),
++                method(access, "com.sun.javafx.iio.jpeg.JPEGImageLoader", "setInputAttributes",
++                        int.class, int.class, int.class, int.class, int.class, byte[].class),
++                method(access, "com.sun.javafx.iio.jpeg.JPEGImageLoader", "setOutputAttributes",
++                        int.class, int.class),
++                method(access, "com.sun.javafx.iio.jpeg.JPEGImageLoader", "updateImageProgress", int.class));
++    }
++
++    static void registerPrismD3D(DuringAnalysisAccess access) {
++        registerStaticLib(access, "prism_d3d");
++        JNIRuntimeAccess.register(fields(access, "com.sun.prism.d3d.D3DDriverInformation",
++                "maxSamples", "deviceDescription", "deviceName", "driverName", "warningMessage",
++                "vendorID", "deviceID", "subSysId", "product", "version", "subVersion", "buildID",
++                "osMajorVersion", "osMinorVersion", "osBuildNumber", "psVersionMajor", "psVersionMinor"));
++        JNIRuntimeAccess.register(fields(access, "com.sun.prism.impl.PrismSettings",
++                "forceGPU", "isVsyncEnabled", "disableD3D9Ex", "verbose"));
++    }
++
++    static void registerPrismES2(DuringAnalysisAccess access) {
++        String openGL = Platform.includedIn(Platform.DARWIN.class) ? "-framework OpenGL" : "GL";
++        registerStaticLib(access, "prism_es2", openGL);
++    }
++
++    static void registerPrismSW(DuringAnalysisAccess access) {
++        registerStaticLib(access, "prism_sw");
++    }
++
++    static void registerSwing(DuringAnalysisAccess access) {
++        registerStaticLib(access, "prism_common");
++        JNIRuntimeAccess.register(
++                method(access, "jdk.swing.interop.LightweightFrameWrapper", "overrideNativeWindowHandle",
++                        long.class, Runnable.class));
++    }
++
++    static void registerDecoraSSE(DuringAnalysisAccess access) {
++        registerStaticLib(access, "decora_sse");
++    }
++
++    private static void registerGlassIos(DuringAnalysisAccess access) {
++        JNIRuntimeAccess.register(Object.class, Thread.class, Class.class, Integer.class, Long.class, Boolean.class,
++                Map.class, Vector.class, RuntimeException.class,
++                clazz(access, "com.sun.glass.ui.Screen"),
++                clazz(access, "com.sun.glass.ui.View"),
++                clazz(access, "com.sun.glass.ui.ios.IosView"),
++                clazz(access, "com.sun.glass.ui.Window"),
++                clazz(access, "com.sun.glass.ui.ios.IosWindow"),
++                clazz(access, "com.sun.glass.ui.Pixels"),
++                clazz(access, "com.sun.glass.ui.ios.IosPixels"),
++                clazz(access, "com.sun.glass.ui.ios.IosCursor"),
++                clazz(access, "com.sun.glass.ui.ios.IosGestureSupport"));
++    }
++
++    private static void registerIioIos(DuringAnalysisAccess access) {
++        JNIRuntimeAccess.register(InputStream.class);
++    }
++
++    private static void registerFontAndroid(DuringAnalysisAccess access) {
++        JNIRuntimeAccess.register(RuntimeException.class,
++                clazz(access, "com.sun.glass.ui.monocle.AndroidInputDeviceRegistry"),
++                clazz(access, "com.sun.glass.ui.monocle.MonocleWindowManager"),
++                clazz(access, ""));
++    }
++
++    private static void registerClassFields(DuringAnalysisAccess access, String className, boolean includeNullaryCtor, String... fieldNames) {
++        JNIRuntimeAccess.register(clazz(access, className));
++        JNIRuntimeAccess.register(fields(access, className, fieldNames));
++        if (includeNullaryCtor) {
++            JNIRuntimeAccess.register(constructor(access, className));
++        }
++    }
++
++    private static void registerStaticLib(DuringAnalysisAccess access, String name, String... dynamicDeps) {
++        NativeLibrarySupport.singleton().preregisterUninitializedBuiltinLibrary(name);
++        NativeLibraries nativeLibraries = ((FeatureImpl.DuringAnalysisAccessImpl) access).getNativeLibraries();
++        nativeLibraries.addStaticJniLibrary(name);
++        for (String dep : dynamicDeps) {
++            nativeLibraries.addDynamicNonJniLibrary(dep);
++        }
++    }
++}
+diff --git a/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/javafx/JavaFXReflection.java b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/javafx/JavaFXReflection.java
+new file mode 100644
+index 00000000000..1429ec05b36
+--- /dev/null
++++ b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/javafx/JavaFXReflection.java
+@@ -0,0 +1,272 @@
++package com.oracle.svm.hosted.javafx;
++
++import com.oracle.svm.core.jdk.JNIRegistrationUtil;
++import org.graalvm.nativeimage.Platform;
++import org.graalvm.nativeimage.hosted.Feature.DuringAnalysisAccess;
++import org.graalvm.nativeimage.hosted.RuntimeReflection;
++
++import java.lang.reflect.Executable;
++import java.util.Arrays;
++import java.util.function.Function;
++import java.util.stream.Stream;
++
++final class JavaFXReflection extends JNIRegistrationUtil {
++
++    static void registerJavaFX(DuringAnalysisAccess access) {
++        registerReflectionClasses(access, Stream.of(
++                "Scene", "SubScene", "Node", "Parent", "Group",
++                "Camera", "PerspectiveCamera", "ParallelCamera", "LightBase", "AmbientLight", "PointLight",
++                "canvas.Canvas", "effect.Effect", "image.Image", "image.ImageView", "input.Clipboard",
++                "input.Dragboard", "input.TouchPoint", "layout.Pane", "layout.Region", "paint.Material",
++                "shape.Arc", "shape.ArcTo", "shape.Box", "shape.Circle", "shape.ClosePath", "shape.CubicCurve",
++                "shape.CubicCurveTo", "shape.Cylinder", "shape.Ellipse", "shape.HLineTo", "shape.Line",
++                "shape.LineTo", "shape.Mesh", "shape.MeshView", "shape.MoveTo", "shape.Path", "shape.PathElement",
++                "shape.Polygon", "shape.Polyline", "shape.QuadCurve", "shape.QuadCurveTo", "shape.Rectangle",
++                "shape.Shape", "shape.Shape3D", "shape.Sphere", "shape.SVGPath", "shape.TriangleMesh",
++                "shape.VLineTo", "text.Font", "text.Text", "transform.Transform")
++                .map("javafx.scene."::concat));
++        registerReflectionClasses(access, Stream.of("Stage", "Window", "PopupWindow")
++                .map("javafx.stage."::concat));
++        registerReflectionClasses(access,
++                "javafx.animation.KeyValue",
++                "com.sun.javafx.application.LauncherImpl",
++                "com.sun.javafx.stage.EmbeddedWindow",
++                "com.sun.javafx.tk.quantum.OverlayWarning");
++
++        Class<?> tkClass = clazz(access, "com.sun.javafx.tk.quantum.QuantumToolkit");
++        RuntimeReflection.register(tkClass);
++        RuntimeReflection.registerForReflectiveInstantiation(tkClass);
++
++        RuntimeReflection.register(
++                method(access, "java.nio.ByteBuffer", "order", java.nio.ByteOrder.class),
++                method(access, "java.nio.ByteOrder", "nativeOrder"),
++                method(access, "com.sun.javafx.application.LauncherImpl", "launchApplication",
++                        String.class, String.class, String[].class));
++    }
++
++    static void registerGlass(DuringAnalysisAccess access) {
++        registerReflectionClasses(access, Stream.of(
++                "Application", "EventLoop", "Menu", "MenuItem$Callback", "Screen", "Size", "View",
++                "CommonDialogs$ExtensionFilter", "CommonDialogs$FileChooserResult")
++                .map("com.sun.glass.ui."::concat));
++    }
++
++    private static void registerPlatformFactory(DuringAnalysisAccess access, String platformName) {
++        String className = String.format("com.sun.glass.ui.%s.%sPlatformFactory", platformName.toLowerCase(), platformName);
++        Class<?> platformFactoryClass = clazz(access, className);
++        RuntimeReflection.register(platformFactoryClass);
++        RuntimeReflection.registerForReflectiveInstantiation(platformFactoryClass);
++    }
++
++    static void registerGlassGTK3(DuringAnalysisAccess access) {
++        registerPlatformFactory(access, "Gtk");
++    }
++
++    static void registerGlassMac(DuringAnalysisAccess access) {
++        RuntimeReflection.register(Boolean.class, Runnable.class);
++        registerPlatformFactory(access, "Mac");
++        registerReflectionClasses(access,
++                Stream.of("Application", "CommonDialogs", "MenuBarDelegate", "Pixels", "View")
++                        .map("com.sun.glass.ui.mac.Mac"::concat));
++    }
++
++    static void registerGlassWin(DuringAnalysisAccess access) {
++        registerPlatformFactory(access, "Win");
++        registerReflectionClasses(access,
++                Stream.of("DnDClipboard", "GestureSupport")
++                        .map("com.sun.glass.ui.win.Win"::concat));
++    }
++
++    private static void registerFontFactory(DuringAnalysisAccess access, String factoryClassName) {
++        RuntimeReflection.register(clazz(access, factoryClassName));
++        RuntimeReflection.register(method(access, factoryClassName, "getFactory"));
++    }
++
++    static void registerFontsLinux(DuringAnalysisAccess access) {
++        registerFontFactory(access, "com.sun.javafx.font.freetype.FTFactory");
++    }
++
++    static void registerFontsWin(DuringAnalysisAccess access) {
++        registerFontFactory(access, "com.sun.javafx.font.directwrite.DWFactory");
++    }
++
++    static void registerFontsMac(DuringAnalysisAccess access) {
++        registerFontFactory(access, "com.sun.javafx.font.coretext.CTFactory");
++    }
++
++    private static void registerPrism(DuringAnalysisAccess access, String pipelineName) {
++        String classPrefix = String.format("com.sun.prism.%s.%s", pipelineName.toLowerCase(), pipelineName);
++
++        Class<?> filterContextClass = clazz(access, "com.sun.scenario.effect.FilterContext");
++        Class<?> rendererClass = clazz(access, "com.sun.scenario.effect.impl.Renderer");
++        Function<String, Executable> peer2ctor = name ->
++                constructor(access, name, filterContextClass, rendererClass, String.class);
++        registerPrismPeers(access, "com.sun.scenario.effect.impl.prism.Pr", peer2ctor,
++                "Crop", "Flood", "Merge", "Reflection");
++        registerPrismPeers(access, "com.sun.scenario.effect.impl.prism.ps.PPS", peer2ctor,
++                "Blend_ADD", "Blend_BLUE", "Blend_COLOR_BURN", "Blend_COLOR_DODGE", "Blend_DARKEN",
++                "Blend_DIFFERENCE", "Blend_EXCLUSION", "Blend_GREEN", "Blend_HARD_LIGHT", "Blend_LIGHTEN", "Blend_MULTIPLY",
++                "Blend_OVERLAY", "Blend_RED", "Blend_SCREEN", "Blend_SOFT_LIGHT", "Blend_SRC_ATOP", "Blend_SRC_IN",
++                "Blend_SRC_OUT", "Blend_SRC_OVER", "Brightpass", "ColorAdjust", "DisplacementMap", "Effect", "InvertMask",
++                "LinearConvolve", "LinearConvolveShadow", "OneSampler", "PerspectiveTransform", "PhongLighting_DISTANT",
++                "PhongLighting_POINT", "PhongLighting_SPOT", "SepiaTone", "toPSWDisplacementMap", "TwoSampler", "ZeroSampler");
++
++        registerReflectionClasses(access,
++                classPrefix + "Pipeline",
++                classPrefix + "ResourceFactory",
++                classPrefix + "Shader",
++                "com.sun.prism.GraphicsPipeline",
++                "com.sun.scenario.effect.impl.prism.PrRenderer",
++                "com.sun.scenario.effect.impl.prism.ps.PPSRenderer");
++        registerReflectionMethods(
++                cls -> method(access, cls, "createRenderer", filterContextClass),
++                Stream.of("PrRenderer", "ps.PPSRenderer")
++                        .map("com.sun.scenario.effect.impl.prism."::concat)
++                        .toArray(String[]::new));
++        RuntimeReflection.register(
++                method(access, classPrefix + "Pipeline", "getInstance"),
++                method(access, "com.sun.prism.GraphicsPipeline", "getFontFactory"),
++                method(access, "com.sun.prism.GraphicsPipeline", "getPipeline"));
++
++        String[] shaderNames = Stream.of(
++                "AlphaOne_Color", "AlphaOne_ImagePattern", "AlphaOne_LinearGradient", "AlphaOne_RadialGradient",
++                "AlphaTexture_Color", "AlphaTexture_ImagePattern", "AlphaTexture_LinearGradient", "AlphaTexture_RadialGradient",
++                "AlphaTextureDifference_Color", "AlphaTextureDifference_ImagePattern",
++                "AlphaTextureDifference_LinearGradient", "AlphaTextureDifference_RadialGradient",
++                "DrawCircle_Color", "DrawCircle_ImagePattern",
++                "DrawCircle_LinearGradient_PAD", "DrawCircle_LinearGradient_REFLECT", "DrawCircle_LinearGradient_REPEAT",
++                "DrawCircle_RadialGradient_PAD", "DrawCircle_RadialGradient_REFLECT", "DrawCircle_RadialGradient_REPEAT",
++                "DrawEllipse_Color", "DrawEllipse_ImagePattern",
++                "DrawEllipse_LinearGradient_PAD", "DrawEllipse_LinearGradient_REFLECT", "DrawEllipse_LinearGradient_REPEAT",
++                "DrawEllipse_RadialGradient_PAD", "DrawEllipse_RadialGradient_REFLECT", "DrawEllipse_RadialGradient_REPEAT",
++                "DrawPgram_Color", "DrawPgram_ImagePattern",
++                "DrawPgram_LinearGradient_PAD", "DrawPgram_LinearGradient_REFLECT", "DrawPgram_LinearGradient_REPEAT",
++                "DrawPgram_RadialGradient_PAD", "DrawPgram_RadialGradient_REFLECT", "DrawPgram_RadialGradient_REPEAT",
++                "DrawRoundRect_Color", "DrawRoundRect_ImagePattern",
++                "DrawRoundRect_LinearGradient_PAD", "DrawRoundRect_LinearGradient_REFLECT", "DrawRoundRect_LinearGradient_REPEAT",
++                "DrawRoundRect_RadialGradient_PAD", "DrawRoundRect_RadialGradient_REFLECT", "DrawRoundRect_RadialGradient_REPEAT",
++                "DrawSemiRoundRect_Color", "DrawSemiRoundRect_ImagePattern",
++                "DrawSemiRoundRect_LinearGradient_PAD", "DrawSemiRoundRect_LinearGradient_REFLECT", "DrawSemiRoundRect_LinearGradient_REPEAT",
++                "DrawSemiRoundRect_RadialGradient_PAD", "DrawSemiRoundRect_RadialGradient_REFLECT", "DrawSemiRoundRect_RadialGradient_REPEAT",
++                "FillCircle_Color", "FillCircle_ImagePattern",
++                "FillCircle_LinearGradient_PAD", "FillCircle_LinearGradient_REFLECT", "FillCircle_LinearGradient_REPEAT",
++                "FillCircle_RadialGradient_PAD", "FillCircle_RadialGradient_REFLECT", "FillCircle_RadialGradient_REPEAT",
++                "FillEllipse_Color", "FillEllipse_ImagePattern",
++                "FillEllipse_LinearGradient_PAD", "FillEllipse_LinearGradient_REFLECT", "FillEllipse_LinearGradient_REPEAT",
++                "FillEllipse_RadialGradient_PAD", "FillEllipse_RadialGradient_REFLECT", "FillEllipse_RadialGradient_REPEAT",
++                "FillPgram_Color", "FillPgram_ImagePattern",
++                "FillPgram_LinearGradient_PAD", "FillPgram_LinearGradient_REFLECT", "FillPgram_LinearGradient_REPEAT",
++                "FillPgram_RadialGradient_PAD", "FillPgram_RadialGradient_REFLECT", "FillPgram_RadialGradient_REPEAT",
++                "FillRoundRect_Color", "FillRoundRect_ImagePattern",
++                "FillRoundRect_LinearGradient_PAD", "FillRoundRect_LinearGradient_REFLECT", "FillRoundRect_LinearGradient_REPEAT",
++                "FillRoundRect_RadialGradient_PAD", "FillRoundRect_RadialGradient_REFLECT", "FillRoundRect_RadialGradient_REPEAT",
++                "Mask_TextureRGB", "Mask_TextureSuper",
++                "Solid_Color", "Solid_ImagePattern",
++                "Solid_LinearGradient_PAD", "Solid_LinearGradient_REFLECT", "Solid_LinearGradient_REPEAT",
++                "Solid_RadialGradient_PAD", "Solid_RadialGradient_REFLECT", "Solid_RadialGradient_REPEAT",
++                "Solid_TextureRGB", "Solid_TextureYV12", "Solid_TextureFirstPassLCD", "Solid_TextureSecondPassLCD",
++                "Texture_Color", "Texture_ImagePattern",
++                "Texture_LinearGradient_PAD", "Texture_LinearGradient_REFLECT", "Texture_LinearGradient_REPEAT",
++                "Texture_RadialGradient_PAD", "Texture_RadialGradient_REFLECT", "Texture_RadialGradient_REPEAT")
++//                .flatMap(frag -> Stream.of(frag + "_Loader", frag + "_AlphaTest_Loader")) /// do we need AlphaTest?
++                .map(frag -> "com.sun.prism.shader." + frag + "_Loader")
++                .toArray(String[]::new);
++        registerReflectionClasses(access, shaderNames);
++        Class<?> shaderFactoryClass = clazz(access, "com.sun.prism.ps.ShaderFactory");
++        registerReflectionMethods(
++                cls -> method(access, cls, "loadShader", shaderFactoryClass, java.io.InputStream.class),
++                shaderNames);
++    }
++
++    static void registerPrismD3D(DuringAnalysisAccess access) {
++        registerPrism(access, "D3D");
++
++        Class<?> shaderSourceClass = clazz(access, "com.sun.scenario.effect.impl.hw.d3d.D3DShaderSource");
++        RuntimeReflection.register(shaderSourceClass);
++        RuntimeReflection.registerForReflectiveInstantiation(shaderSourceClass);
++    }
++
++    static void registerPrismES2(DuringAnalysisAccess access) {
++        registerPrism(access, "ES2");
++
++        String factory = Platform.includedIn(Platform.LINUX.class) ? "X11GLFactory" : "MacGLFactory";
++        Class<?>[] classesWithNullaryCtors = toClasses(access,
++                "com.sun.prism.es2." + factory,
++                "com.sun.prism.es2.ES2PhongShader",
++                "com.sun.scenario.effect.impl.es2.ES2ShaderSource");
++        RuntimeReflection.register(classesWithNullaryCtors);
++        RuntimeReflection.registerForReflectiveInstantiation(classesWithNullaryCtors);
++    }
++
++    static void registerControls(DuringAnalysisAccess access) {
++        registerReflectionClasses(access,
++                "javafx.scene.control.Control",
++                "javafx.scene.control.TableColumnBase",
++                "com.sun.javafx.scene.control.skin.Utils");
++        RuntimeReflection.register(
++                method(access, "com.sun.javafx.scene.control.skin.Utils", "getResource", String.class));
++    }
++
++    static void registerIIO(DuringAnalysisAccess access) {
++        registerReflectionClasses(access, "javax.imageio.ImageIO");
++    }
++
++    static void registerFXML(DuringAnalysisAccess access) {
++        RuntimeReflection.register(clazz(access, "javafx.fxml.FXMLLoader"));
++    }
++
++    static void registerSwing(DuringAnalysisAccess access) {
++        registerReflectionClasses(access,
++                "com.sun.javafx.embed.swing.SwingFXUtilsImpl",
++                "javafx.embed.swing.SwingNode",
++                "jdk.swing.interop.LightweightFrameWrapper");
++    }
++
++    static void registerPrinting(DuringAnalysisAccess access) {
++        registerReflectionClasses(access,
++                "com.sun.prism.j2d.PrismPrintPipeline",
++                "javafx.print.Printer",
++                "javax.print.attribute.standard.DialogOwner",
++                "sun.font.FontUtilities");
++    }
++
++
++    private static Class<?>[] toClasses(
++            DuringAnalysisAccess access, Function<String, String> nameMapper, String... classNames)
++    {
++        return Arrays.stream(classNames)
++                .map(name -> clazz(access, nameMapper.apply(name)))
++                .toArray(Class[]::new);
++    }
++
++    private static Class<?>[] toClasses(DuringAnalysisAccess access, String... classNames) {
++        return toClasses(access, Function.identity(), classNames);
++    }
++
++    private static void registerReflectionClasses(DuringAnalysisAccess access, Stream<String> classNames) {
++        RuntimeReflection.register(classNames
++                .map(name -> clazz(access, name))
++                .toArray(Class[]::new));
++    }
++
++    private static void registerReflectionClasses(DuringAnalysisAccess access, String... classNames) {
++        RuntimeReflection.register(toClasses(access, classNames));
++    }
++
++    private static void registerReflectionMethods(Function<String, Executable> mapper, String... classNames) {
++        RuntimeReflection.register(
++                Arrays.stream(classNames)
++                        .map(mapper)
++                        .toArray(Executable[]::new));
++    }
++
++    private static void registerPrismPeers(
++            DuringAnalysisAccess access, String prefix, Function<String, Executable> ctorMapper, String... peerNames)
++    {
++        String[] peerClassNames = Arrays.stream(peerNames)
++                .map(name -> prefix + name + "Peer")
++                .toArray(String[]::new);
++        registerReflectionClasses(access, peerClassNames);
++        registerReflectionMethods(ctorMapper, peerClassNames);
++    }
++}
+diff --git a/graal/substratevm/src/com.oracle.svm.native.darwin/src/foundation.c b/graal/substratevm/src/com.oracle.svm.native.darwin/src/foundation.c
+index 8857ea1b708..837e1b18d26 100644
+--- a/graal/substratevm/src/com.oracle.svm.native.darwin/src/foundation.c
++++ b/graal/substratevm/src/com.oracle.svm.native.darwin/src/foundation.c
+@@ -48,3 +48,21 @@ char *systemVersionPlatform(void) {
+ char *systemVersionPlatformFallback(void) {
+     return systemVersionPlatformImpl(@"/System/Library/CoreServices/SystemVersion.plist");
+ }
++
++// Adapted from JLI's java_md_macosx.c
++
++static void dummyTimer(CFRunLoopTimerRef timer, void *info) {}
++
++void parkRunLoop() {
++    // RunLoop needs at least one source, and 1e20 is pretty far into the future
++    CFRunLoopTimerRef t = CFRunLoopTimerCreate(kCFAllocatorDefault, 1.0e20, 0.0, 0, 0, dummyTimer, NULL);
++    CFRunLoopAddTimer(CFRunLoopGetCurrent(), t, kCFRunLoopDefaultMode);
++    CFRelease(t);
++
++    // Park this thread in the main run loop.
++    CFRunLoopRun();
++}
++
++void terminateRunLoop() {
++    CFRunLoopStop(CFRunLoopGetMain());
++}

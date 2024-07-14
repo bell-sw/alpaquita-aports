@@ -1,0 +1,2948 @@
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/AlignedHeapChunk.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/AlignedHeapChunk.java
+index 9745a24a5f9..06c19ef45ea 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/AlignedHeapChunk.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/AlignedHeapChunk.java
+@@ -114,6 +114,14 @@ public final class AlignedHeapChunk {
+         return result;
+     }
+ 
++    /** Retract the latest allocation. */
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    static void retractAllocation(AlignedHeader that, UnsignedWord size) {
++        Pointer newTop = HeapChunk.getTopPointer(that).subtract(size);
++        assert newTop.aboveOrEqual(getObjectsStart(that));
++        HeapChunk.setTopPointer(that, newTop);
++    }
++
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     static UnsignedWord getCommittedObjectMemory(AlignedHeader that) {
+         return HeapChunk.getEndOffset(that).subtract(getObjectsStartOffset());
+@@ -169,10 +177,5 @@ public final class AlignedHeapChunk {
+         public boolean isAligned(AlignedHeapChunk.AlignedHeader heapChunk) {
+             return true;
+         }
+-
+-        @Override
+-        public UnsignedWord getAllocationStart(AlignedHeapChunk.AlignedHeader heapChunk) {
+-            return getObjectsStart(heapChunk);
+-        }
+     }
+ }
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/GCImpl.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/GCImpl.java
+index 0bfc16bfd4a..a0cc4481d8e 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/GCImpl.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/GCImpl.java
+@@ -64,6 +64,7 @@ import com.oracle.svm.core.genscavenge.BasicCollectionPolicies.NeverCollect;
+ import com.oracle.svm.core.genscavenge.HeapAccounting.HeapSizes;
+ import com.oracle.svm.core.genscavenge.HeapChunk.Header;
+ import com.oracle.svm.core.genscavenge.UnalignedHeapChunk.UnalignedHeader;
++import com.oracle.svm.core.genscavenge.parallel.ParallelGC;
+ import com.oracle.svm.core.genscavenge.remset.RememberedSet;
+ import com.oracle.svm.core.graal.RuntimeCompilation;
+ import com.oracle.svm.core.heap.CodeReferenceMapDecoder;
+@@ -131,6 +132,8 @@ public final class GCImpl implements GC {
+     public String getName() {
+         if (SubstrateOptions.UseEpsilonGC.getValue()) {
+             return "Epsilon GC";
++        } else if (SubstrateOptions.UseParallelGC.getValue()) {
++            return "Parallel GC";
+         } else {
+             return "Serial GC";
+         }
+@@ -209,6 +212,10 @@ public final class GCImpl implements GC {
+         assert getCollectionEpoch().equal(data.getRequestingEpoch()) ||
+                         data.getForceFullGC() && GCImpl.getAccounting().getCompleteCollectionCount() == data.getCompleteCollectionCount() : "unnecessary GC?";
+ 
++        if (ParallelGC.isEnabled()) {
++            ParallelGC.singleton().initialize();
++        }
++
+         timers.mutator.closeAt(data.getRequestingNanoTime());
+         timers.resetAllExceptMutator();
+ 
+@@ -532,6 +539,14 @@ public final class GCImpl implements GC {
+                      */
+                     boolean keepAllAlignedChunks = incremental;
+                     chunkReleaser.release(keepAllAlignedChunks);
++
++                    if (!chunkReleaser.isEmpty()) {
++                        if (ParallelGC.isEnabled()) {
++                            ParallelGC.singleton().scheduleCleanup();
++                        } else {
++                            freeChunks();
++                        }
++                    }
+                 } finally {
+                     JfrGCEvents.emitGCPhasePauseEvent(getCollectionEpoch(), "Release Spaces", startTicks);
+                 }
+@@ -550,6 +565,11 @@ public final class GCImpl implements GC {
+         }
+     }
+ 
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    public void freeChunks() {
++        chunkReleaser.freeChunks();
++    }
++
+     /**
+      * Visit all the memory that is reserved for runtime compiled code. References from the runtime
+      * compiled code to the Java heap must be consider as either strong or weak references,
+@@ -1005,7 +1025,9 @@ public final class GCImpl implements GC {
+     private void scanGreyObjects(boolean isIncremental) {
+         Timer scanGreyObjectsTimer = timers.scanGreyObjects.open();
+         try {
+-            if (isIncremental) {
++            if (ParallelGC.isEnabled()) {
++                ParallelGC.singleton().scheduleScan();
++            } else if (isIncremental) {
+                 scanGreyObjectsLoop();
+             } else {
+                 HeapImpl.getHeapImpl().getOldGeneration().scanGreyObjects();
+@@ -1029,20 +1051,23 @@ public final class GCImpl implements GC {
+ 
+     @AlwaysInline("GC performance")
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    @SuppressWarnings("static-method")
+     Object promoteObject(Object original, UnsignedWord header) {
+         HeapImpl heap = HeapImpl.getHeapImpl();
+         boolean isAligned = ObjectHeaderImpl.isAlignedHeader(header);
+         Header<?> originalChunk = getChunk(original, isAligned);
++
++        /* If the parallel GC is used, then the space may be outdated or null. */
+         Space originalSpace = HeapChunk.getSpace(originalChunk);
+-        if (!originalSpace.isFromSpace()) {
++        assert originalSpace != null || ParallelGC.isEnabled() && ParallelGC.singleton().isInParallelPhase();
++        if (originalSpace == null || !originalSpace.isFromSpace()) {
++            /* Object was already promoted or is currently being promoted. */
+             return original;
+         }
+ 
+         Object result = null;
+         if (!completeCollection && originalSpace.getNextAgeForPromotion() < policy.getTenuringAge()) {
+             if (isAligned) {
+-                result = heap.getYoungGeneration().promoteAlignedObject(original, (AlignedHeader) originalChunk, originalSpace);
++                result = heap.getYoungGeneration().promoteAlignedObject(original, originalSpace);
+             } else {
+                 result = heap.getYoungGeneration().promoteUnalignedObject(original, (UnalignedHeader) originalChunk, originalSpace);
+             }
+@@ -1050,11 +1075,13 @@ public final class GCImpl implements GC {
+                 accounting.onSurvivorOverflowed();
+             }
+         }
+-        if (result == null) { // complete collection, tenuring age reached, or survivor space full
++
++        /* Complete collection, tenuring age reached, or survivor space full. */
++        if (result == null) {
+             if (isAligned) {
+-                result = heap.getOldGeneration().promoteAlignedObject(original, (AlignedHeader) originalChunk, originalSpace);
++                result = heap.getOldGeneration().promoteAlignedObject(original, originalSpace);
+             } else {
+-                result = heap.getOldGeneration().promoteUnalignedObject(original, (UnalignedHeader) originalChunk, originalSpace);
++                result = heap.getOldGeneration().promoteUnalignedObject(original, (UnalignedHeader) originalChunk);
+             }
+             assert result != null : "promotion failure in old generation must have been handled";
+         }
+@@ -1088,7 +1115,7 @@ public final class GCImpl implements GC {
+                     }
+                 }
+                 if (!promoted) {
+-                    heap.getOldGeneration().promoteChunk(originalChunk, isAligned, originalSpace);
++                    heap.getOldGeneration().promoteChunk(originalChunk, isAligned);
+                 }
+             }
+         }
+@@ -1162,7 +1189,7 @@ public final class GCImpl implements GC {
+     }
+ 
+     @Fold
+-    GreyToBlackObjectVisitor getGreyToBlackObjectVisitor() {
++    public GreyToBlackObjectVisitor getGreyToBlackObjectVisitor() {
+         return greyToBlackObjectVisitor;
+     }
+ 
+@@ -1300,15 +1327,18 @@ public final class GCImpl implements GC {
+ 
+         void release(boolean keepAllAlignedChunks) {
+             if (firstAligned.isNonNull()) {
+-                HeapImpl.getChunkProvider().consumeAlignedChunks(firstAligned, keepAllAlignedChunks);
+-                firstAligned = WordFactory.nullPointer();
+-            }
+-            if (firstUnaligned.isNonNull()) {
+-                HeapChunkProvider.consumeUnalignedChunks(firstUnaligned);
+-                firstUnaligned = WordFactory.nullPointer();
++                firstAligned = HeapImpl.getChunkProvider().consumeAlignedChunks(firstAligned, keepAllAlignedChunks);
+             }
+         }
+ 
++        @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++        void freeChunks() {
++            HeapChunkProvider.freeAlignedChunkList(firstAligned);
++            firstAligned = WordFactory.nullPointer();
++            HeapChunkProvider.consumeUnalignedChunks(firstUnaligned);
++            firstUnaligned = WordFactory.nullPointer();
++        }
++
+         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+         private static <T extends Header<T>> T getLast(T chunks) {
+             T prev = chunks;
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/GenScavengeMemoryPoolMXBeans.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/GenScavengeMemoryPoolMXBeans.java
+index 0eb785bd61d..53f5b1a12e2 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/GenScavengeMemoryPoolMXBeans.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/GenScavengeMemoryPoolMXBeans.java
+@@ -52,7 +52,7 @@ public class GenScavengeMemoryPoolMXBeans {
+ 
+     @Platforms(Platform.HOSTED_ONLY.class)
+     public GenScavengeMemoryPoolMXBeans() {
+-        if (SubstrateOptions.UseSerialGC.getValue()) {
++        if (SubstrateOptions.useSerialOrParallelGC()) {
+             mxBeans = new AbstractMemoryPoolMXBean[]{
+                             new EdenMemoryPoolMXBean(YOUNG_GEN_SCAVENGER, COMPLETE_SCAVENGER),
+                             new SurvivorMemoryPoolMXBean(YOUNG_GEN_SCAVENGER, COMPLETE_SCAVENGER),
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/Generation.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/Generation.java
+index f109d30f4f3..45fb3291cae 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/Generation.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/Generation.java
+@@ -27,8 +27,6 @@ package com.oracle.svm.core.genscavenge;
+ import org.graalvm.nativeimage.Platform;
+ import org.graalvm.nativeimage.Platforms;
+ 
+-import com.oracle.svm.core.AlwaysInline;
+-import com.oracle.svm.core.Uninterruptible;
+ import com.oracle.svm.core.heap.ObjectVisitor;
+ import com.oracle.svm.core.log.Log;
+ 
+@@ -58,46 +56,4 @@ abstract class Generation {
+ 
+     /** Print some information about the chunks to the log. */
+     public abstract void logChunks(Log log);
+-
+-    /**
+-     * Promote an Object to this Generation, typically by copying and leaving a forwarding pointer
+-     * to the new Object in place of the original Object. If the object cannot be promoted due to
+-     * insufficient capacity, returns {@code null}.
+-     *
+-     * This turns an Object from white to grey: the object is in this Generation, but has not yet
+-     * had its interior pointers visited.
+-     *
+-     * @return a reference to the promoted object, which is different to the original reference if
+-     *         promotion was done by copying, or {@code null} if there was insufficient capacity in
+-     *         this generation.
+-     */
+-    @AlwaysInline("GC performance")
+-    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    protected abstract Object promoteAlignedObject(Object original, AlignedHeapChunk.AlignedHeader originalChunk, Space originalSpace);
+-
+-    /**
+-     * Promote an Object to this Generation, typically by HeapChunk motion. If the object cannot be
+-     * promoted due to insufficient capacity, returns {@code null}.
+-     *
+-     * This turns an Object from white to grey: the object is in this Generation, but has not yet
+-     * had its interior pointers visited.
+-     *
+-     * @return a reference to the promoted object, which is the same as the original if the object
+-     *         was promoted through HeapChunk motion, or {@code null} if there was insufficient
+-     *         capacity in this generation.
+-     */
+-    @AlwaysInline("GC performance")
+-    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    protected abstract Object promoteUnalignedObject(Object original, UnalignedHeapChunk.UnalignedHeader originalChunk, Space originalSpace);
+-
+-    /**
+-     * Promote a HeapChunk from its original space to the appropriate space in this generation if
+-     * there is sufficient capacity.
+-     *
+-     * This turns all the Objects in the chunk from white to grey: the objects are in the target
+-     * Space, but have not yet had their interior pointers visited.
+-     *
+-     * @return true on success, false if the there was insufficient capacity.
+-     */
+-    protected abstract boolean promoteChunk(HeapChunk.Header<?> originalChunk, boolean isAligned, Space originalSpace);
+ }
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/GreyToBlackObjRefVisitor.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/GreyToBlackObjRefVisitor.java
+index bad7d773496..c9e82798478 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/GreyToBlackObjRefVisitor.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/GreyToBlackObjRefVisitor.java
+@@ -31,11 +31,13 @@ import org.graalvm.word.Pointer;
+ 
+ import com.oracle.svm.core.AlwaysInline;
+ import com.oracle.svm.core.Uninterruptible;
++import com.oracle.svm.core.genscavenge.parallel.ParallelGC;
+ import com.oracle.svm.core.genscavenge.remset.RememberedSet;
+ import com.oracle.svm.core.heap.ObjectHeader;
+ import com.oracle.svm.core.heap.ObjectReferenceVisitor;
+ import com.oracle.svm.core.heap.ReferenceAccess;
+ import com.oracle.svm.core.hub.LayoutEncoding;
++import com.oracle.svm.core.jdk.UninterruptibleUtils.AtomicLong;
+ import com.oracle.svm.core.log.Log;
+ 
+ /**
+@@ -97,6 +99,8 @@ final class GreyToBlackObjRefVisitor implements ObjectReferenceVisitor {
+                 counters.noteForwardedReferent();
+                 // Update the reference to point to the forwarded Object.
+                 Object obj = ohi.getForwardedObject(p, header);
++                assert ParallelGC.isEnabled() && ParallelGC.singleton().isInParallelPhase() ||
++                                innerOffset < LayoutEncoding.getSizeFromObjectInGC(obj).rawValue();
+                 Object offsetObj = (innerOffset == 0) ? obj : Word.objectToUntrackedPointer(obj).add(innerOffset).toObject();
+                 ReferenceAccess.singleton().writeObjectAt(objRef, offsetObj, compressed);
+                 RememberedSet.get().dirtyCardIfNecessary(holderObject, obj);
+@@ -105,11 +109,12 @@ final class GreyToBlackObjRefVisitor implements ObjectReferenceVisitor {
+ 
+             // Promote the Object if necessary, making it at least grey, and ...
+             Object obj = p.toObject();
+-            assert innerOffset < LayoutEncoding.getSizeFromObjectInGC(obj).rawValue();
+             Object copy = GCImpl.getGCImpl().promoteObject(obj, header);
+             if (copy != obj) {
+                 // ... update the reference to point to the copy, making the reference black.
+                 counters.noteCopiedReferent();
++                assert ParallelGC.isEnabled() && ParallelGC.singleton().isInParallelPhase() ||
++                                innerOffset < LayoutEncoding.getSizeFromObjectInGC(copy).rawValue();
+                 Object offsetCopy = (innerOffset == 0) ? copy : Word.objectToUntrackedPointer(copy).add(innerOffset).toObject();
+                 ReferenceAccess.singleton().writeObjectAt(objRef, offsetCopy, compressed);
+             } else {
+@@ -152,19 +157,17 @@ final class GreyToBlackObjRefVisitor implements ObjectReferenceVisitor {
+         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+         void noteUnmodifiedReference();
+ 
+-        void toLog();
+-
+         void reset();
+     }
+ 
+     public static class RealCounters implements Counters {
+-        private long objRef;
+-        private long nullObjRef;
+-        private long nullReferent;
+-        private long forwardedReferent;
+-        private long nonHeapReferent;
+-        private long copiedReferent;
+-        private long unmodifiedReference;
++        private final AtomicLong objRef = new AtomicLong(0);
++        private final AtomicLong nullObjRef = new AtomicLong(0);
++        private final AtomicLong nullReferent = new AtomicLong(0);
++        private final AtomicLong forwardedReferent = new AtomicLong(0);
++        private final AtomicLong nonHeapReferent = new AtomicLong(0);
++        private final AtomicLong copiedReferent = new AtomicLong(0);
++        private final AtomicLong unmodifiedReference = new AtomicLong(0);
+ 
+         RealCounters() {
+             reset();
+@@ -172,13 +175,13 @@ final class GreyToBlackObjRefVisitor implements ObjectReferenceVisitor {
+ 
+         @Override
+         public void reset() {
+-            objRef = 0L;
+-            nullObjRef = 0L;
+-            nullReferent = 0L;
+-            forwardedReferent = 0L;
+-            nonHeapReferent = 0L;
+-            copiedReferent = 0L;
+-            unmodifiedReference = 0L;
++            objRef.set(0L);
++            nullObjRef.set(0L);
++            nullReferent.set(0L);
++            forwardedReferent.set(0L);
++            nonHeapReferent.set(0L);
++            copiedReferent.set(0L);
++            unmodifiedReference.set(0L);
+         }
+ 
+         @Override
+@@ -196,50 +199,49 @@ final class GreyToBlackObjRefVisitor implements ObjectReferenceVisitor {
+         @Override
+         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+         public void noteObjRef() {
+-            objRef += 1L;
++            objRef.incrementAndGet();
+         }
+ 
+         @Override
+         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+         public void noteNullReferent() {
+-            nullReferent += 1L;
++            nullReferent.incrementAndGet();
+         }
+ 
+         @Override
+         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+         public void noteForwardedReferent() {
+-            forwardedReferent += 1L;
++            forwardedReferent.incrementAndGet();
+         }
+ 
+         @Override
+         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+         public void noteNonHeapReferent() {
+-            nonHeapReferent += 1L;
++            nonHeapReferent.incrementAndGet();
+         }
+ 
+         @Override
+         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+         public void noteCopiedReferent() {
+-            copiedReferent += 1L;
++            copiedReferent.incrementAndGet();
+         }
+ 
+         @Override
+         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+         public void noteUnmodifiedReference() {
+-            unmodifiedReference += 1L;
++            unmodifiedReference.incrementAndGet();
+         }
+ 
+-        @Override
+-        public void toLog() {
++        private void toLog() {
+             Log log = Log.log();
+             log.string("[GreyToBlackObjRefVisitor.counters:");
+-            log.string("  objRef: ").signed(objRef);
+-            log.string("  nullObjRef: ").signed(nullObjRef);
+-            log.string("  nullReferent: ").signed(nullReferent);
+-            log.string("  forwardedReferent: ").signed(forwardedReferent);
+-            log.string("  nonHeapReferent: ").signed(nonHeapReferent);
+-            log.string("  copiedReferent: ").signed(copiedReferent);
+-            log.string("  unmodifiedReference: ").signed(unmodifiedReference);
++            log.string("  objRef: ").signed(objRef.get());
++            log.string("  nullObjRef: ").signed(nullObjRef.get());
++            log.string("  nullReferent: ").signed(nullReferent.get());
++            log.string("  forwardedReferent: ").signed(forwardedReferent.get());
++            log.string("  nonHeapReferent: ").signed(nonHeapReferent.get());
++            log.string("  copiedReferent: ").signed(copiedReferent.get());
++            log.string("  unmodifiedReference: ").signed(unmodifiedReference.get());
+             log.string("]").newline();
+         }
+     }
+@@ -288,10 +290,6 @@ final class GreyToBlackObjRefVisitor implements ObjectReferenceVisitor {
+         public void noteUnmodifiedReference() {
+         }
+ 
+-        @Override
+-        public void toLog() {
+-        }
+-
+         @Override
+         public void reset() {
+         }
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/HeapChunk.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/HeapChunk.java
+index 44b7dcc2db9..cf9e6c0c3d9 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/HeapChunk.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/HeapChunk.java
+@@ -175,9 +175,9 @@ public final class HeapChunk {
+     public static void initialize(Header<?> chunk, Pointer objectsStart, UnsignedWord chunkSize) {
+         HeapChunk.setEndOffset(chunk, chunkSize);
+         HeapChunk.setTopPointer(chunk, objectsStart);
+-        HeapChunk.setSpace(chunk, null);
+-        HeapChunk.setNext(chunk, WordFactory.nullPointer());
+-        HeapChunk.setPrevious(chunk, WordFactory.nullPointer());
++        chunk.setSpace(null);
++        chunk.setOffsetToNextChunk(WordFactory.zero());
++        chunk.setOffsetToPreviousChunk(WordFactory.zero());
+ 
+         /*
+          * The epoch is obviously not random, but cheap to use, and we cannot use a random number
+@@ -227,6 +227,10 @@ public final class HeapChunk {
+         that.setEndOffset(newEnd);
+     }
+ 
++    /**
++     * If the parallel GC is used, then this method is racy. So, it may return null or an outdated
++     * value if it is called for an unaligned heap chunk that is in the middle of being promoted.
++     */
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     public static Space getSpace(Header<?> that) {
+         return that.getSpace();
+@@ -234,6 +238,7 @@ public final class HeapChunk {
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     public static void setSpace(Header<?> that, Space newSpace) {
++        assert newSpace == null || that.getSpace() == null : "heap chunk must be removed from its current space before it can be registered with a new space";
+         that.setSpace(newSpace);
+     }
+ 
+@@ -258,8 +263,8 @@ public final class HeapChunk {
+     }
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    public static UnsignedWord getIdentityHashSalt(Header<?> that) {
+-        return that.getIdentityHashSalt(IdentityHashCodeSupport.IDENTITY_HASHCODE_SALT_LOCATION);
++    public static long getIdentityHashSalt(Header<?> that) {
++        return that.getIdentityHashSalt(IdentityHashCodeSupport.IDENTITY_HASHCODE_SALT_LOCATION).rawValue();
+     }
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+@@ -345,6 +350,7 @@ public final class HeapChunk {
+         }
+     }
+ 
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     public static HeapChunk.Header<?> getEnclosingHeapChunk(Pointer ptrToObj, UnsignedWord header) {
+         if (ObjectHeaderImpl.isAlignedHeader(header)) {
+             return AlignedHeapChunk.getEnclosingChunkFromObjectPointer(ptrToObj);
+@@ -367,26 +373,5 @@ public final class HeapChunk {
+         public UnsignedWord getSize(T heapChunk) {
+             return HeapChunk.getEndOffset(heapChunk);
+         }
+-
+-        @Override
+-        public UnsignedWord getAllocationEnd(T heapChunk) {
+-            return HeapChunk.getTopPointer(heapChunk);
+-        }
+-
+-        @Override
+-        public String getRegion(T heapChunk) {
+-            /* This method knows too much about spaces, especially the "free" space. */
+-            Space space = getSpace(heapChunk);
+-            String result;
+-            if (space == null) {
+-                result = "free";
+-            } else if (space.isYoungSpace()) {
+-                result = "young";
+-            } else {
+-                result = "old";
+-            }
+-            return result;
+-        }
+-
+     }
+ }
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/HeapChunkProvider.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/HeapChunkProvider.java
+index 18487ff5832..3240a715d42 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/HeapChunkProvider.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/HeapChunkProvider.java
+@@ -24,6 +24,7 @@
+  */
+ package com.oracle.svm.core.genscavenge;
+ 
++import com.oracle.svm.core.genscavenge.parallel.ParallelGC;
+ import org.graalvm.nativeimage.Platform;
+ import org.graalvm.nativeimage.Platforms;
+ import org.graalvm.word.Pointer;
+@@ -115,7 +116,7 @@ final class HeapChunkProvider {
+      * Releases a list of AlignedHeapChunks, either to the free list or back to the operating
+      * system. This method may only be called after the chunks were already removed from the spaces.
+      */
+-    void consumeAlignedChunks(AlignedHeader firstChunk, boolean keepAll) {
++    AlignedHeader consumeAlignedChunks(AlignedHeader firstChunk, boolean keepAll) {
+         assert VMOperation.isGCInProgress();
+         assert firstChunk.isNull() || HeapChunk.getPrevious(firstChunk).isNull() : "prev must be null";
+ 
+@@ -147,10 +148,10 @@ final class HeapChunkProvider {
+             maxChunksToKeep = maxChunksToKeep.subtract(1);
+             cur = next;
+         }
+-        freeAlignedChunkList(cur);
+ 
+         // Release chunks from the free list to the operating system when spaces shrink
+         freeUnusedAlignedChunksAtSafepoint(unusedChunksToFree);
++        return cur;
+     }
+ 
+     private static void cleanAlignedChunk(AlignedHeader alignedChunk) {
+@@ -266,8 +267,9 @@ final class HeapChunkProvider {
+      * Releases a list of UnalignedHeapChunks back to the operating system. They are never recycled
+      * to a free list.
+      */
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     static void consumeUnalignedChunks(UnalignedHeader firstChunk) {
+-        assert VMOperation.isGCInProgress();
++        assert ParallelGC.isEnabled() || VMOperation.isGCInProgress();
+         freeUnalignedChunkList(firstChunk);
+     }
+ 
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/HeapImpl.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/HeapImpl.java
+index c90fb603b25..a4f3b64274d 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/HeapImpl.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/HeapImpl.java
+@@ -52,6 +52,7 @@ import com.oracle.svm.core.genscavenge.AlignedHeapChunk.AlignedHeader;
+ import com.oracle.svm.core.genscavenge.ThreadLocalAllocation.Descriptor;
+ import com.oracle.svm.core.genscavenge.UnalignedHeapChunk.UnalignedHeader;
+ import com.oracle.svm.core.genscavenge.graal.ForcedSerialPostWriteBarrier;
++import com.oracle.svm.core.genscavenge.parallel.ParallelGC;
+ import com.oracle.svm.core.graal.snippets.SubstrateAllocationSnippets;
+ import com.oracle.svm.core.heap.GC;
+ import com.oracle.svm.core.heap.GCCause;
+@@ -202,6 +203,9 @@ public final class HeapImpl extends Heap {
+     @Override
+     @Uninterruptible(reason = "Tear-down in progress.")
+     public boolean tearDown() {
++        if (ParallelGC.isEnabled()) {
++            ParallelGC.singleton().tearDown();
++        }
+         youngGeneration.tearDown();
+         oldGeneration.tearDown();
+         getChunkProvider().tearDown();
+@@ -703,7 +707,7 @@ public final class HeapImpl extends Heap {
+             assert !isInImageHeap(obj) : "Image heap objects have identity hash code fields";
+         }
+         HeapChunk.Header<?> chunk = HeapChunk.getEnclosingHeapChunk(obj);
+-        return HeapChunk.getIdentityHashSalt(chunk).rawValue();
++        return HeapChunk.getIdentityHashSalt(chunk);
+     }
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/JfrGCEventSupport.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/JfrGCEventSupport.java
+index 73b00fd8dec..1cba073ccc1 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/JfrGCEventSupport.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/JfrGCEventSupport.java
+@@ -142,7 +142,7 @@ class JfrGCEventSupport {
+ class JfrGCEventFeature implements InternalFeature {
+     @Override
+     public boolean isInConfiguration(IsInConfigurationAccess access) {
+-        return SubstrateOptions.UseSerialGC.getValue();
++        return SubstrateOptions.useSerialOrParallelGC();
+     }
+ 
+     @Override
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/ObjectHeaderImpl.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/ObjectHeaderImpl.java
+index 6c414ee63a1..1f2dc3f5514 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/ObjectHeaderImpl.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/ObjectHeaderImpl.java
+@@ -351,6 +351,11 @@ public final class ObjectHeaderImpl extends ObjectHeader {
+         writeHeaderToObject(o, newHeader);
+     }
+ 
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    static long setRememberedSetBit(long headerBytes) {
++        return headerBytes | REMEMBERED_SET_BIT.rawValue();
++    }
++
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     public static boolean hasRememberedSet(UnsignedWord header) {
+         return header.and(REMEMBERED_SET_BIT).notEqual(0);
+@@ -367,11 +372,6 @@ public final class ObjectHeaderImpl extends ObjectHeader {
+         return header.and(FORWARDED_BIT).notEqual(0);
+     }
+ 
+-    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    Object getForwardedObject(Pointer ptr) {
+-        return getForwardedObject(ptr, readHeaderFromPointer(ptr));
+-    }
+-
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     Object getForwardedObject(Pointer ptr, UnsignedWord header) {
+         assert isForwardedHeader(header);
+@@ -401,6 +401,24 @@ public final class ObjectHeaderImpl extends ObjectHeader {
+         assert isPointerToForwardedObject(Word.objectToUntrackedPointer(original));
+     }
+ 
++    /**
++     * The original header are the 8 bytes at the hub offset (regardless if compressed references
++     * are used or not).
++     */
++    @AlwaysInline("GC performance")
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    Object installForwardingPointerParallel(Object original, long eightHeaderBytes, Object copy) {
++        UnsignedWord forwardHeader = getForwardHeader(copy);
++        /* Try installing the new header. */
++        Pointer originalPtr = Word.objectToUntrackedPointer(original);
++        long value = originalPtr.compareAndSwapLong(getHubOffset(), eightHeaderBytes, forwardHeader.rawValue(), LocationIdentity.ANY_LOCATION);
++        assert isPointerToForwardedObject(originalPtr);
++        if (value != eightHeaderBytes) {
++            return getForwardedObject(originalPtr, WordFactory.unsigned(value));
++        }
++        return copy;
++    }
++
+     @AlwaysInline("GC performance")
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     private UnsignedWord getForwardHeader(Object copy) {
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/OldGeneration.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/OldGeneration.java
+index 5f6d0deb6fa..3915e9f096a 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/OldGeneration.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/OldGeneration.java
+@@ -35,6 +35,7 @@ import com.oracle.svm.core.AlwaysInline;
+ import com.oracle.svm.core.MemoryWalker;
+ import com.oracle.svm.core.Uninterruptible;
+ import com.oracle.svm.core.genscavenge.GCImpl.ChunkReleaser;
++import com.oracle.svm.core.genscavenge.parallel.ParallelGC;
+ import com.oracle.svm.core.genscavenge.remset.RememberedSet;
+ import com.oracle.svm.core.heap.ObjectVisitor;
+ import com.oracle.svm.core.log.Log;
+@@ -74,31 +75,25 @@ public final class OldGeneration extends Generation {
+     /** Promote an Object to ToSpace if it is not already in ToSpace. */
+     @AlwaysInline("GC performance")
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    @Override
+-    public Object promoteAlignedObject(Object original, AlignedHeapChunk.AlignedHeader originalChunk, Space originalSpace) {
++    Object promoteAlignedObject(Object original, Space originalSpace) {
+         assert originalSpace.isFromSpace();
+         return getToSpace().promoteAlignedObject(original, originalSpace);
+     }
+ 
+     @AlwaysInline("GC performance")
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    @Override
+-    protected Object promoteUnalignedObject(Object original, UnalignedHeapChunk.UnalignedHeader originalChunk, Space originalSpace) {
+-        assert originalSpace.isFromSpace();
+-        getToSpace().promoteUnalignedHeapChunk(originalChunk, originalSpace);
++    Object promoteUnalignedObject(Object original, UnalignedHeapChunk.UnalignedHeader originalChunk) {
++        getToSpace().promoteUnalignedHeapChunk(originalChunk);
+         return original;
+     }
+ 
+-    @Override
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    protected boolean promoteChunk(HeapChunk.Header<?> originalChunk, boolean isAligned, Space originalSpace) {
+-        assert originalSpace.isFromSpace();
++    void promoteChunk(HeapChunk.Header<?> originalChunk, boolean isAligned) {
+         if (isAligned) {
+-            getToSpace().promoteAlignedHeapChunk((AlignedHeapChunk.AlignedHeader) originalChunk, originalSpace);
++            getToSpace().promoteAlignedHeapChunk((AlignedHeapChunk.AlignedHeader) originalChunk);
+         } else {
+-            getToSpace().promoteUnalignedHeapChunk((UnalignedHeapChunk.UnalignedHeader) originalChunk, originalSpace);
++            getToSpace().promoteUnalignedHeapChunk((UnalignedHeapChunk.UnalignedHeader) originalChunk);
+         }
+-        return true;
+     }
+ 
+     void releaseSpaces(ChunkReleaser chunkReleaser) {
+@@ -107,11 +102,16 @@ public final class OldGeneration extends Generation {
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     void prepareForPromotion() {
++        if (ParallelGC.isEnabled()) {
++            return;
++        }
+         toGreyObjectsWalker.setScanStart(getToSpace());
+     }
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     boolean scanGreyObjects() {
++        assert !ParallelGC.isEnabled();
++
+         if (!toGreyObjectsWalker.haveGreyObjects()) {
+             return false;
+         }
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/ReferenceObjectProcessing.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/ReferenceObjectProcessing.java
+index ad326c6c4d7..4194e6b7cca 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/ReferenceObjectProcessing.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/ReferenceObjectProcessing.java
+@@ -43,6 +43,7 @@ import com.oracle.svm.core.heap.ObjectHeader;
+ import com.oracle.svm.core.heap.ObjectReferenceVisitor;
+ import com.oracle.svm.core.heap.ReferenceInternals;
+ import com.oracle.svm.core.hub.DynamicHub;
++import com.oracle.svm.core.jdk.UninterruptibleUtils.AtomicReference;
+ import com.oracle.svm.core.snippets.KnownIntrinsics;
+ import com.oracle.svm.core.thread.VMOperation;
+ import com.oracle.svm.core.util.UnsignedUtils;
+@@ -50,7 +51,7 @@ import com.oracle.svm.core.util.UnsignedUtils;
+ /** Discovers and handles {@link Reference} objects during garbage collection. */
+ final class ReferenceObjectProcessing {
+     /** Head of the linked list of discovered references that need to be revisited. */
+-    private static Reference<?> rememberedRefsList;
++    private static final AtomicReference<Reference<?>> rememberedRefsList = new AtomicReference<>();
+ 
+     /**
+      * For a {@link SoftReference}, the longest duration after its last access to keep its referent
+@@ -113,17 +114,22 @@ final class ReferenceObjectProcessing {
+             // Referents in the image heap cannot be moved or reclaimed, no need to look closer.
+             return;
+         }
+-        if (maybeUpdateForwardedReference(dr, referentAddr)) {
++
++        /*
++         * The parallel GC may modify the object header at any time, so we only read the object
++         * header once.
++         */
++        UnsignedWord referentHeader = ObjectHeader.readHeaderFromPointer(referentAddr);
++        if (maybeUpdateForwardedReference(dr, referentAddr, referentHeader)) {
+             // Some other object had a strong reference to the referent, so the referent was already
+             // promoted. The call above updated the reference object so that it now points to the
+             // promoted object.
+             return;
+         }
+-        Object refObject = referentAddr.toObject();
+-        if (willSurviveThisCollection(refObject)) {
++        if (willSurviveThisCollection(referentAddr, referentHeader)) {
+             // Referent is in a to-space. So, this is either an object that got promoted without
+             // being moved or an object in the old gen.
+-            RememberedSet.get().dirtyCardIfNecessary(dr, refObject);
++            RememberedSet.get().dirtyCardIfNecessary(dr, referentAddr.toObject());
+             return;
+         }
+         if (!softReferencesAreWeak && dr instanceof SoftReference) {
+@@ -146,9 +152,11 @@ final class ReferenceObjectProcessing {
+         // are revisited after the GC finished promoting all strongly reachable objects.
+ 
+         // null link means undiscovered, avoid for the last node with a cyclic reference
+-        Reference<?> next = (rememberedRefsList != null) ? rememberedRefsList : dr;
+-        ReferenceInternals.setNextDiscovered(dr, next);
+-        rememberedRefsList = dr;
++        Reference<?> expected;
++        do {
++            expected = rememberedRefsList.get();
++            ReferenceInternals.setNextDiscovered(dr, expected != null ? expected : dr);
++        } while (!rememberedRefsList.compareAndSet(expected, dr));
+     }
+ 
+     /**
+@@ -159,8 +167,7 @@ final class ReferenceObjectProcessing {
+      */
+     static Reference<?> processRememberedReferences() {
+         Reference<?> pendingHead = null;
+-        Reference<?> current = rememberedRefsList;
+-        rememberedRefsList = null;
++        Reference<?> current = rememberedRefsList.getAndSet(null);
+ 
+         while (current != null) {
+             // Get the next node (the last node has a cyclic reference to self).
+@@ -185,7 +192,7 @@ final class ReferenceObjectProcessing {
+     }
+ 
+     static void afterCollection(UnsignedWord freeBytes) {
+-        assert rememberedRefsList == null;
++        assert rememberedRefsList.get() == null;
+         UnsignedWord unused = freeBytes.unsignedDivide(1024 * 1024 /* MB */);
+         maxSoftRefAccessIntervalMs = unused.multiply(SerialGCOptions.SoftRefLRUPolicyMSPerMB.getValue());
+         ReferenceInternals.updateSoftReferenceClock();
+@@ -203,12 +210,13 @@ final class ReferenceObjectProcessing {
+         Pointer refPointer = ReferenceInternals.getReferentPointer(dr);
+         assert refPointer.isNonNull() : "Referent is null: should not have been discovered";
+         assert !HeapImpl.getHeapImpl().isInImageHeap(refPointer) : "Image heap referent: should not have been discovered";
+-        if (maybeUpdateForwardedReference(dr, refPointer)) {
++
++        UnsignedWord refHeader = ObjectHeader.readHeaderFromPointer(refPointer);
++        if (maybeUpdateForwardedReference(dr, refPointer, refHeader)) {
+             return true;
+         }
+-        Object refObject = refPointer.toObject();
+-        if (willSurviveThisCollection(refObject)) {
+-            RememberedSet.get().dirtyCardIfNecessary(dr, refObject);
++        if (willSurviveThisCollection(refPointer, refHeader)) {
++            RememberedSet.get().dirtyCardIfNecessary(dr, refPointer.toObject());
+             return true;
+         }
+         /*
+@@ -223,11 +231,9 @@ final class ReferenceObjectProcessing {
+     }
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    private static boolean maybeUpdateForwardedReference(Reference<?> dr, Pointer referentAddr) {
+-        ObjectHeaderImpl ohi = ObjectHeaderImpl.getObjectHeaderImpl();
+-        UnsignedWord header = ObjectHeader.readHeaderFromPointer(referentAddr);
++    private static boolean maybeUpdateForwardedReference(Reference<?> dr, Pointer referentAddr, UnsignedWord header) {
+         if (ObjectHeaderImpl.isForwardedHeader(header)) {
+-            Object forwardedObj = ohi.getForwardedObject(referentAddr);
++            Object forwardedObj = ObjectHeaderImpl.getObjectHeaderImpl().getForwardedObject(referentAddr, header);
+             ReferenceInternals.setReferent(dr, forwardedObj);
+             return true;
+         }
+@@ -235,9 +241,9 @@ final class ReferenceObjectProcessing {
+     }
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    private static boolean willSurviveThisCollection(Object obj) {
+-        HeapChunk.Header<?> chunk = HeapChunk.getEnclosingHeapChunk(obj);
++    private static boolean willSurviveThisCollection(Pointer ptr, UnsignedWord header) {
++        HeapChunk.Header<?> chunk = HeapChunk.getEnclosingHeapChunk(ptr, header);
+         Space space = HeapChunk.getSpace(chunk);
+-        return !space.isFromSpace();
++        return space != null && !space.isFromSpace();
+     }
+ }
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/SerialAndEpsilonGCOptions.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/SerialAndEpsilonGCOptions.java
+index 70cb3e57418..623675e4f86 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/SerialAndEpsilonGCOptions.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/SerialAndEpsilonGCOptions.java
+@@ -36,16 +36,17 @@ import jdk.graal.compiler.options.Option;
+ import jdk.graal.compiler.options.OptionKey;
+ import jdk.graal.compiler.options.OptionType;
+ 
+-/** Common options that can be specified for both the serial and the epsilon GC. */
++/** Options that can be specified for the serial, the parallel, and the epsilon GC. */
++// TODO (chaeubl): rename
+ public final class SerialAndEpsilonGCOptions {
+-    @Option(help = "The maximum heap size as percent of physical memory. Serial and epsilon GC only.", type = OptionType.User) //
+-    public static final RuntimeOptionKey<Integer> MaximumHeapSizePercent = new NotifyGCRuntimeOptionKey<>(80, SerialAndEpsilonGCOptions::serialOrEpsilonGCOnly);
++    @Option(help = "The maximum heap size as percent of physical memory. Serial, parallel, and epsilon GC only.", type = OptionType.User) //
++    public static final RuntimeOptionKey<Integer> MaximumHeapSizePercent = new NotifyGCRuntimeOptionKey<>(80, SerialAndEpsilonGCOptions::serialOrParallelOrEpsilonGCOnly);
+ 
+-    @Option(help = "The maximum size of the young generation as a percentage of the maximum heap size. Serial and epsilon GC only.", type = OptionType.User) //
+-    public static final RuntimeOptionKey<Integer> MaximumYoungGenerationSizePercent = new NotifyGCRuntimeOptionKey<>(10, SerialAndEpsilonGCOptions::serialOrEpsilonGCOnly);
++    @Option(help = "The maximum size of the young generation as a percentage of the maximum heap size. Serial, parallel, and epsilon GC only.", type = OptionType.User) //
++    public static final RuntimeOptionKey<Integer> MaximumYoungGenerationSizePercent = new NotifyGCRuntimeOptionKey<>(10, SerialAndEpsilonGCOptions::serialOrParallelOrEpsilonGCOnly);
+ 
+-    @Option(help = "The size of an aligned chunk. Serial and epsilon GC only.", type = OptionType.Expert) //
+-    public static final HostedOptionKey<Long> AlignedHeapChunkSize = new HostedOptionKey<>(512 * 1024L, SerialAndEpsilonGCOptions::serialOrEpsilonGCOnly) {
++    @Option(help = "The size of an aligned chunk. Serial, parallel, and epsilon GC only.", type = OptionType.Expert) //
++    public static final HostedOptionKey<Long> AlignedHeapChunkSize = new HostedOptionKey<>(512 * 1024L, SerialAndEpsilonGCOptions::serialOrParallelOrEpsilonGCOnly) {
+         @Override
+         protected void onValueUpdate(EconomicMap<OptionKey<?>, Object> values, Long oldValue, Long newValue) {
+             int multiple = 4096;
+@@ -57,27 +58,27 @@ public final class SerialAndEpsilonGCOptions {
+      * This should be a fraction of the size of an aligned chunk, else large small arrays will not
+      * fit in an aligned chunk.
+      */
+-    @Option(help = "The size at or above which an array will be allocated in its own unaligned chunk. Serial and epsilon GC only.", type = OptionType.Expert) //
+-    public static final HostedOptionKey<Long> LargeArrayThreshold = new HostedOptionKey<>(128 * 1024L, SerialAndEpsilonGCOptions::serialOrEpsilonGCOnly);
++    @Option(help = "The size at or above which an array will be allocated in its own unaligned chunk. Serial, parallel, and epsilon GC only.", type = OptionType.Expert) //
++    public static final HostedOptionKey<Long> LargeArrayThreshold = new HostedOptionKey<>(128 * 1024L, SerialAndEpsilonGCOptions::serialOrParallelOrEpsilonGCOnly);
+ 
+-    @Option(help = "Fill unused memory chunks with a sentinel value. Serial and epsilon GC only.", type = OptionType.Debug) //
+-    public static final HostedOptionKey<Boolean> ZapChunks = new HostedOptionKey<>(false, SerialAndEpsilonGCOptions::serialOrEpsilonGCOnly);
++    @Option(help = "Fill unused memory chunks with a sentinel value. Serial, parallel, and epsilon GC only.", type = OptionType.Debug) //
++    public static final HostedOptionKey<Boolean> ZapChunks = new HostedOptionKey<>(false, SerialAndEpsilonGCOptions::serialOrParallelOrEpsilonGCOnly);
+ 
+-    @Option(help = "Before use, fill memory chunks with a sentinel value. Serial and epsilon GC only.", type = OptionType.Debug) //
+-    public static final HostedOptionKey<Boolean> ZapProducedHeapChunks = new HostedOptionKey<>(false, SerialAndEpsilonGCOptions::serialOrEpsilonGCOnly);
++    @Option(help = "Before use, fill memory chunks with a sentinel value. Serial, parallel, and epsilon GC only.", type = OptionType.Debug) //
++    public static final HostedOptionKey<Boolean> ZapProducedHeapChunks = new HostedOptionKey<>(false, SerialAndEpsilonGCOptions::serialOrParallelOrEpsilonGCOnly);
+ 
+-    @Option(help = "After use, Fill memory chunks with a sentinel value. Serial and epsilon GC only.", type = OptionType.Debug) //
+-    public static final HostedOptionKey<Boolean> ZapConsumedHeapChunks = new HostedOptionKey<>(false, SerialAndEpsilonGCOptions::serialOrEpsilonGCOnly);
++    @Option(help = "After use, Fill memory chunks with a sentinel value. Serial, parallel, and epsilon GC only.", type = OptionType.Debug) //
++    public static final HostedOptionKey<Boolean> ZapConsumedHeapChunks = new HostedOptionKey<>(false, SerialAndEpsilonGCOptions::serialOrParallelOrEpsilonGCOnly);
+ 
+-    @Option(help = "Number of bytes at the beginning of each heap chunk that are not used for payload data, i.e., can be freely used as metadata by the heap chunk provider. Serial and epsilon GC only.", type = OptionType.Debug) //
+-    public static final HostedOptionKey<Integer> HeapChunkHeaderPadding = new HostedOptionKey<>(0, SerialAndEpsilonGCOptions::serialOrEpsilonGCOnly);
++    @Option(help = "Number of bytes at the beginning of each heap chunk that are not used for payload data, i.e., can be freely used as metadata by the heap chunk provider. Serial, parallel, and epsilon GC only.", type = OptionType.Debug) //
++    public static final HostedOptionKey<Integer> HeapChunkHeaderPadding = new HostedOptionKey<>(0, SerialAndEpsilonGCOptions::serialOrParallelOrEpsilonGCOnly);
+ 
+     private SerialAndEpsilonGCOptions() {
+     }
+ 
+-    public static void serialOrEpsilonGCOnly(OptionKey<?> optionKey) {
+-        if (!SubstrateOptions.UseSerialGC.getValue() && !SubstrateOptions.UseEpsilonGC.getValue()) {
+-            throw UserError.abort("The option '" + optionKey.getName() + "' can only be used together with the serial ('--gc=serial') or the epsilon garbage collector ('--gc=epsilon').");
++    private static void serialOrParallelOrEpsilonGCOnly(OptionKey<?> optionKey) {
++        if (!SubstrateOptions.useSerialOrParallelOrEpsilonGC()) {
++            throw UserError.abort("The option '" + optionKey.getName() + "' can only be used together with the serial ('--gc=serial'), parallel ('--gc=parallel'), or the epsilon garbage collector ('--gc=epsilon').");
+         }
+     }
+ }
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/SerialGCOptions.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/SerialGCOptions.java
+index 83ab2236321..024ad0d3307 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/SerialGCOptions.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/SerialGCOptions.java
+@@ -36,19 +36,20 @@ import jdk.graal.compiler.options.OptionKey;
+ import jdk.graal.compiler.options.OptionType;
+ import jdk.graal.compiler.options.OptionValues;
+ 
+-/** Options that are only valid for the serial GC (and not for the epsilon GC). */
++/** Options that can be specified for the serial and the parallel GC. */
++// TODO (chaeubl): rename this class
+ public final class SerialGCOptions {
+-    @Option(help = "The garbage collection policy, either Adaptive (default) or BySpaceAndTime. Serial GC only.", type = OptionType.User)//
+-    public static final HostedOptionKey<String> InitialCollectionPolicy = new HostedOptionKey<>("Adaptive", SerialGCOptions::serialGCOnly);
++    @Option(help = "The garbage collection policy, either Adaptive (default) or BySpaceAndTime. Serial and parallel GC only.", type = OptionType.User)//
++    public static final HostedOptionKey<String> InitialCollectionPolicy = new HostedOptionKey<>("Adaptive", SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Percentage of total collection time that should be spent on young generation collections. Serial GC with collection policy 'BySpaceAndTime' only.", type = OptionType.User)//
+-    public static final RuntimeOptionKey<Integer> PercentTimeInIncrementalCollection = new RuntimeOptionKey<>(50, SerialGCOptions::serialGCOnly);
++    @Option(help = "Percentage of total collection time that should be spent on young generation collections. Serial and parallel GC only, if the collection policy 'BySpaceAndTime' is used.", type = OptionType.User)//
++    public static final RuntimeOptionKey<Integer> PercentTimeInIncrementalCollection = new RuntimeOptionKey<>(50, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "The maximum free bytes reserved for allocations, in bytes (0 for automatic according to GC policy). Serial GC only.", type = OptionType.User)//
+-    public static final RuntimeOptionKey<Long> MaxHeapFree = new RuntimeOptionKey<>(0L, SerialGCOptions::serialGCOnly);
++    @Option(help = "The maximum free bytes reserved for allocations, in bytes (0 for automatic according to GC policy). Serial and parallel GC only.", type = OptionType.User)//
++    public static final RuntimeOptionKey<Long> MaxHeapFree = new RuntimeOptionKey<>(0L, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Maximum number of survivor spaces. Serial GC only.", type = OptionType.Expert) //
+-    public static final HostedOptionKey<Integer> MaxSurvivorSpaces = new HostedOptionKey<>(null, SerialGCOptions::serialGCOnly) {
++    @Option(help = "Maximum number of survivor spaces. Serial and parallel GC only.", type = OptionType.Expert) //
++    public static final HostedOptionKey<Integer> MaxSurvivorSpaces = new HostedOptionKey<>(null, SerialGCOptions::serialOrParallelGCOnly) {
+         @Override
+         public Integer getValueOrDefault(UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
+             Integer value = (Integer) values.get(this);
+@@ -63,58 +64,58 @@ public final class SerialGCOptions {
+         }
+     };
+ 
+-    @Option(help = "Determines if a full GC collects the young generation separately or together with the old generation. Serial GC only.", type = OptionType.Expert) //
+-    public static final RuntimeOptionKey<Boolean> CollectYoungGenerationSeparately = new RuntimeOptionKey<>(null, SerialGCOptions::serialGCOnly);
++    @Option(help = "Determines if a full GC collects the young generation separately or together with the old generation. Serial and parallel GC only.", type = OptionType.Expert) //
++    public static final RuntimeOptionKey<Boolean> CollectYoungGenerationSeparately = new RuntimeOptionKey<>(null, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Enables card marking for image heap objects, which arranges them in chunks. Automatically enabled when supported. Serial GC only.", type = OptionType.Expert) //
+-    public static final HostedOptionKey<Boolean> ImageHeapCardMarking = new HostedOptionKey<>(null, SerialGCOptions::serialGCOnly);
++    @Option(help = "Enables card marking for image heap objects, which arranges them in chunks. Automatically enabled when supported. Serial and parallel GC only.", type = OptionType.Expert) //
++    public static final HostedOptionKey<Boolean> ImageHeapCardMarking = new HostedOptionKey<>(null, SerialGCOptions::serialOrParallelGCOnly);
+ 
+     @Option(help = "This number of milliseconds multiplied by the free heap memory in MByte is the time span " +
+-                    "for which a soft reference will keep its referent alive after its last access. Serial GC only.", type = OptionType.Expert) //
+-    public static final HostedOptionKey<Integer> SoftRefLRUPolicyMSPerMB = new HostedOptionKey<>(1000, SerialGCOptions::serialGCOnly);
++                    "for which a soft reference will keep its referent alive after its last access. Serial and parallel GC only.", type = OptionType.Expert) //
++    public static final HostedOptionKey<Integer> SoftRefLRUPolicyMSPerMB = new HostedOptionKey<>(1000, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Print summary GC information after application main method returns. Serial GC only.", type = OptionType.Debug)//
+-    public static final RuntimeOptionKey<Boolean> PrintGCSummary = new RuntimeOptionKey<>(false, SerialGCOptions::serialGCOnly);
++    @Option(help = "Print summary GC information after application main method returns. Serial and parallel GC only.", type = OptionType.Debug)//
++    public static final RuntimeOptionKey<Boolean> PrintGCSummary = new RuntimeOptionKey<>(false, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Print the time for each of the phases of each collection, if +VerboseGC. Serial GC only.", type = OptionType.Debug)//
+-    public static final RuntimeOptionKey<Boolean> PrintGCTimes = new RuntimeOptionKey<>(false, SerialGCOptions::serialGCOnly);
++    @Option(help = "Print the time for each of the phases of each collection, if +VerboseGC. Serial and parallel GC only.", type = OptionType.Debug)//
++    public static final RuntimeOptionKey<Boolean> PrintGCTimes = new RuntimeOptionKey<>(false, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Instrument write barriers with counters. Serial GC only.", type = OptionType.Debug)//
+-    public static final HostedOptionKey<Boolean> CountWriteBarriers = new HostedOptionKey<>(false, SerialGCOptions::serialGCOnly);
++    @Option(help = "Instrument write barriers with counters. Serial and parallel GC only.", type = OptionType.Debug)//
++    public static final HostedOptionKey<Boolean> CountWriteBarriers = new HostedOptionKey<>(false, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Verify the heap before doing a garbage collection if VerifyHeap is enabled. Serial GC only.", type = OptionType.Debug)//
+-    public static final HostedOptionKey<Boolean> VerifyBeforeGC = new HostedOptionKey<>(true, SerialGCOptions::serialGCOnly);
++    @Option(help = "Verify the heap before doing a garbage collection if VerifyHeap is enabled. Serial and parallel GC only.", type = OptionType.Debug)//
++    public static final HostedOptionKey<Boolean> VerifyBeforeGC = new HostedOptionKey<>(true, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Verify the heap after doing a garbage collection if VerifyHeap is enabled. Serial GC only.", type = OptionType.Debug)//
+-    public static final HostedOptionKey<Boolean> VerifyAfterGC = new HostedOptionKey<>(true, SerialGCOptions::serialGCOnly);
++    @Option(help = "Verify the heap after doing a garbage collection if VerifyHeap is enabled. Serial and parallel GC only.", type = OptionType.Debug)//
++    public static final HostedOptionKey<Boolean> VerifyAfterGC = new HostedOptionKey<>(true, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Verify the remembered set if VerifyHeap is enabled. Serial GC only.", type = OptionType.Debug)//
+-    public static final HostedOptionKey<Boolean> VerifyRememberedSet = new HostedOptionKey<>(true, SerialGCOptions::serialGCOnly);
++    @Option(help = "Verify the remembered set if VerifyHeap is enabled. Serial and parallel GC only.", type = OptionType.Debug)//
++    public static final HostedOptionKey<Boolean> VerifyRememberedSet = new HostedOptionKey<>(true, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Verify all object references if VerifyHeap is enabled. Serial GC only.", type = OptionType.Debug)//
+-    public static final HostedOptionKey<Boolean> VerifyReferences = new HostedOptionKey<>(true, SerialGCOptions::serialGCOnly);
++    @Option(help = "Verify all object references if VerifyHeap is enabled. Serial and parallel GC only.", type = OptionType.Debug)//
++    public static final HostedOptionKey<Boolean> VerifyReferences = new HostedOptionKey<>(true, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Verify that object references point into valid heap chunks if VerifyHeap is enabled. Serial GC only.", type = OptionType.Debug)//
+-    public static final HostedOptionKey<Boolean> VerifyReferencesPointIntoValidChunk = new HostedOptionKey<>(false, SerialGCOptions::serialGCOnly);
++    @Option(help = "Verify that object references point into valid heap chunks if VerifyHeap is enabled. Serial and parallel GC only.", type = OptionType.Debug)//
++    public static final HostedOptionKey<Boolean> VerifyReferencesPointIntoValidChunk = new HostedOptionKey<>(false, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Verify write barriers. Serial GC only.", type = OptionType.Debug)//
+-    public static final HostedOptionKey<Boolean> VerifyWriteBarriers = new HostedOptionKey<>(false, SerialGCOptions::serialGCOnly);
++    @Option(help = "Verify write barriers. Serial and parallel GC only.", type = OptionType.Debug)//
++    public static final HostedOptionKey<Boolean> VerifyWriteBarriers = new HostedOptionKey<>(false, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Trace heap chunks during collections, if +VerboseGC. Serial GC only.", type = OptionType.Debug) //
+-    public static final RuntimeOptionKey<Boolean> TraceHeapChunks = new RuntimeOptionKey<>(false, SerialGCOptions::serialGCOnly);
++    @Option(help = "Trace heap chunks during collections, if +VerboseGC. Serial and parallel GC only.", type = OptionType.Debug) //
++    public static final RuntimeOptionKey<Boolean> TraceHeapChunks = new RuntimeOptionKey<>(false, SerialGCOptions::serialOrParallelGCOnly);
+ 
+-    @Option(help = "Develop demographics of the object references visited. Serial GC only.", type = OptionType.Debug)//
+-    public static final HostedOptionKey<Boolean> GreyToBlackObjRefDemographics = new HostedOptionKey<>(false, SerialGCOptions::serialGCOnly);
++    @Option(help = "Develop demographics of the object references visited. Serial and parallel GC only.", type = OptionType.Debug)//
++    public static final HostedOptionKey<Boolean> GreyToBlackObjRefDemographics = new HostedOptionKey<>(false, SerialGCOptions::serialOrParallelGCOnly);
+ 
+     @Option(help = "Ignore the maximum heap size while a VM operation is executed.", type = OptionType.Expert)//
+-    public static final HostedOptionKey<Boolean> IgnoreMaxHeapSizeWhileInVMOperation = new HostedOptionKey<>(false, SerialGCOptions::serialGCOnly);
++    public static final HostedOptionKey<Boolean> IgnoreMaxHeapSizeWhileInVMOperation = new HostedOptionKey<>(false, SerialGCOptions::serialOrParallelGCOnly);
+ 
+     private SerialGCOptions() {
+     }
+ 
+-    private static void serialGCOnly(OptionKey<?> optionKey) {
+-        if (!SubstrateOptions.UseSerialGC.getValue()) {
+-            throw UserError.abort("The option '" + optionKey.getName() + "' can only be used together with the serial garbage collector ('--gc=serial').");
++    private static void serialOrParallelGCOnly(OptionKey<?> optionKey) {
++        if (!SubstrateOptions.useSerialOrParallelGC()) {
++            throw UserError.abort("The option '" + optionKey.getName() + "' can only be used together with the serial ('--gc=serial') or parallel garbage collector ('--gc=parallel').");
+         }
+     }
+ }
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/Space.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/Space.java
+index 83b27eff812..5bfd9616c58 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/Space.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/Space.java
+@@ -42,6 +42,7 @@ import com.oracle.svm.core.Uninterruptible;
+ import com.oracle.svm.core.UnmanagedMemoryUtil;
+ import com.oracle.svm.core.config.ConfigurationValues;
+ import com.oracle.svm.core.genscavenge.GCImpl.ChunkReleaser;
++import com.oracle.svm.core.genscavenge.parallel.ParallelGC;
+ import com.oracle.svm.core.genscavenge.remset.RememberedSet;
+ import com.oracle.svm.core.heap.ObjectHeader;
+ import com.oracle.svm.core.heap.ObjectVisitor;
+@@ -105,13 +106,16 @@ public final class Space {
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     public boolean isEmpty() {
+-        return (getFirstAlignedHeapChunk().isNull() && getFirstUnalignedHeapChunk().isNull());
++        return firstAlignedHeapChunk.isNull() && firstUnalignedHeapChunk.isNull();
+     }
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     void tearDown() {
+-        HeapChunkProvider.freeAlignedChunkList(getFirstAlignedHeapChunk());
+-        HeapChunkProvider.freeUnalignedChunkList(getFirstUnalignedHeapChunk());
++        HeapChunkProvider.freeAlignedChunkList(firstAlignedHeapChunk);
++        firstAlignedHeapChunk = WordFactory.nullPointer();
++
++        HeapChunkProvider.freeUnalignedChunkList(firstUnalignedHeapChunk);
++        firstUnalignedHeapChunk = WordFactory.nullPointer();
+     }
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+@@ -149,15 +153,27 @@ public final class Space {
+         return isFromSpace;
+     }
+ 
++    @AlwaysInline("GC performance")
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    public void walkAllocChunk(AlignedHeapChunk.AlignedHeader allocChunk, Pointer start, GreyToBlackObjectVisitor visitor) {
++        assert allocChunk.isNonNull();
++        assert HeapChunk.getTopPointer(allocChunk).aboveThan(start);
++        HeapChunk.walkObjectsFromInline(allocChunk, start, visitor);
++        if (start.equal(ParallelGC.singleton().getAllocChunkScanPointer(age, false))) {
++            // Update top offset so that we don't scan the same objects again
++            ParallelGC.singleton().setAllocChunk(age, allocChunk);
++        }
++    }
++
+     public boolean walkObjects(ObjectVisitor visitor) {
+-        AlignedHeapChunk.AlignedHeader aChunk = getFirstAlignedHeapChunk();
++        AlignedHeapChunk.AlignedHeader aChunk = firstAlignedHeapChunk;
+         while (aChunk.isNonNull()) {
+             if (!AlignedHeapChunk.walkObjects(aChunk, visitor)) {
+                 return false;
+             }
+             aChunk = HeapChunk.getNext(aChunk);
+         }
+-        UnalignedHeapChunk.UnalignedHeader uChunk = getFirstUnalignedHeapChunk();
++        UnalignedHeapChunk.UnalignedHeader uChunk = firstUnalignedHeapChunk;
+         while (uChunk.isNonNull()) {
+             if (!UnalignedHeapChunk.walkObjects(uChunk, visitor)) {
+                 return false;
+@@ -193,19 +209,77 @@ public final class Space {
+     @AlwaysInline("GC performance")
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     private Pointer allocateMemory(UnsignedWord objectSize) {
+-        Pointer result = WordFactory.nullPointer();
++        if (ParallelGC.isEnabled()) {
++            return allocateMemoryParallel(objectSize);
++        }
++        return allocateMemorySerial(objectSize);
++    }
++
++    @AlwaysInline("GC performance")
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private Pointer allocateMemorySerial(UnsignedWord objectSize) {
++        assert !ParallelGC.isEnabled();
++
+         /* Fast-path: try allocating in the last chunk. */
+-        AlignedHeapChunk.AlignedHeader oldChunk = getLastAlignedHeapChunk();
++        AlignedHeapChunk.AlignedHeader oldChunk = lastAlignedHeapChunk;
+         if (oldChunk.isNonNull()) {
+-            result = AlignedHeapChunk.allocateMemory(oldChunk, objectSize);
+-        }
+-        if (result.isNonNull()) {
+-            return result;
++            Pointer result = AlignedHeapChunk.allocateMemory(oldChunk, objectSize);
++            if (result.isNonNull()) {
++                return result;
++            }
+         }
+         /* Slow-path: try allocating a new chunk for the requested memory. */
+         return allocateInNewChunk(objectSize);
+     }
+ 
++    @AlwaysInline("GC performance")
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private Pointer allocateMemoryParallel(UnsignedWord objectSize) {
++        /* Fast-path: try allocating in the thread local allocation chunk. */
++        Pointer oldChunkPtr = ParallelGC.singleton().getAllocChunkScanPointer(age, false);
++        if (oldChunkPtr.isNonNull()) {
++            AlignedHeapChunk.AlignedHeader oldChunk = AlignedHeapChunk.getEnclosingChunkFromObjectPointer(oldChunkPtr);
++            assert oldChunk.isNonNull();
++            Pointer result = AlignedHeapChunk.allocateMemory(oldChunk, objectSize);
++            if (result.isNonNull()) {
++                return result;
++            }
++        }
++        /* Slow-path: try allocating a new chunk for the requested memory. */
++        return allocateInNewChunkParallel(oldChunkPtr, objectSize);
++    }
++
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private Pointer allocateInNewChunkParallel(Pointer oldChunkPtr, UnsignedWord objectSize) {
++        AlignedHeapChunk.AlignedHeader newChunk;
++        ParallelGC.singleton().getMutex().lockNoTransitionUnspecifiedOwner();
++        try {
++            if (oldChunkPtr.isNonNull()) {
++                ParallelGC.singleton().pushAllocChunk(oldChunkPtr);
++            }
++            newChunk = requestAlignedHeapChunk();
++        } finally {
++            ParallelGC.singleton().getMutex().unlockNoTransitionUnspecifiedOwner();
++        }
++
++        ParallelGC.singleton().setAllocChunk(age, newChunk);
++        if (newChunk.isNonNull()) {
++            return AlignedHeapChunk.allocateMemory(newChunk, objectSize);
++        }
++        return WordFactory.nullPointer();
++    }
++
++    /** Retract the latest allocation. */
++    @AlwaysInline("GC performance")
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private void retractAllocationParallel(UnsignedWord objectSize) {
++        assert ParallelGC.isEnabled() && ParallelGC.singleton().isInParallelPhase();
++        Pointer allocChunkPtr = ParallelGC.singleton().getAllocChunkScanPointer(age, false);
++        AlignedHeapChunk.AlignedHeader chunk = AlignedHeapChunk.getEnclosingChunkFromObjectPointer(allocChunkPtr);
++        assert chunk.isNonNull();
++        AlignedHeapChunk.retractAllocation(chunk, objectSize);
++    }
++
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     private Pointer allocateInNewChunk(UnsignedWord objectSize) {
+         AlignedHeapChunk.AlignedHeader newChunk = requestAlignedHeapChunk();
+@@ -227,123 +301,113 @@ public final class Space {
+         accounting.reset();
+     }
+ 
+-    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    void appendAlignedHeapChunk(AlignedHeapChunk.AlignedHeader aChunk) {
+-        /*
+-         * This method is used from {@link PosixJavaThreads#detachThread(VMThread)}, so it can not
+-         * guarantee that it is inside a VMOperation, only that there is some mutual exclusion.
+-         */
+-        if (SubstrateOptions.MultiThreaded.getValue()) {
+-            VMThreads.guaranteeOwnsThreadMutex("Trying to append an aligned heap chunk but no mutual exclusion.", true);
++    @Uninterruptible(reason = "Must not interact with garbage collections.")
++    void appendAlignedHeapChunk(AlignedHeapChunk.AlignedHeader aChunk, Space originalSpace) {
++        assert verifyMutualExclusionForAppendChunk() : "Trying to append an aligned heap chunk but no mutual exclusion.";
++        assert HeapChunk.getSpace(aChunk) == originalSpace;
++        assert this != originalSpace;
++
++        if (originalSpace != null) {
++            originalSpace.extractAlignedHeapChunk(aChunk);
+         }
+-        appendAlignedHeapChunkUninterruptibly(aChunk);
+-        accounting.noteAlignedHeapChunk();
+-    }
+ 
+-    @Uninterruptible(reason = "Must not interact with garbage collections.")
+-    private void appendAlignedHeapChunkUninterruptibly(AlignedHeapChunk.AlignedHeader aChunk) {
+-        AlignedHeapChunk.AlignedHeader oldLast = getLastAlignedHeapChunk();
+         HeapChunk.setSpace(aChunk, this);
++        AlignedHeapChunk.AlignedHeader oldLast = lastAlignedHeapChunk;
+         HeapChunk.setPrevious(aChunk, oldLast);
+         HeapChunk.setNext(aChunk, WordFactory.nullPointer());
+         if (oldLast.isNonNull()) {
+             HeapChunk.setNext(oldLast, aChunk);
+         }
+-        setLastAlignedHeapChunk(aChunk);
+-        if (getFirstAlignedHeapChunk().isNull()) {
+-            setFirstAlignedHeapChunk(aChunk);
++        lastAlignedHeapChunk = aChunk;
++        if (firstAlignedHeapChunk.isNull()) {
++            firstAlignedHeapChunk = aChunk;
+         }
++        accounting.noteAlignedHeapChunk();
+     }
+ 
+-    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    void extractAlignedHeapChunk(AlignedHeapChunk.AlignedHeader aChunk) {
+-        assert VMOperation.isGCInProgress() : "Should only be called by the collector.";
+-        extractAlignedHeapChunkUninterruptibly(aChunk);
+-        accounting.unnoteAlignedHeapChunk();
++    @Uninterruptible(reason = "Must not interact with garbage collections.")
++    void appendUnalignedHeapChunk(UnalignedHeapChunk.UnalignedHeader uChunk, Space originalSpace) {
++        assert verifyMutualExclusionForAppendChunk() : "Trying to append an aligned heap chunk but no mutual exclusion.";
++        assert uChunk.getSpace() == originalSpace;
++        assert this != originalSpace;
++
++        if (originalSpace != null) {
++            originalSpace.extractUnalignedHeapChunk(uChunk);
++        }
++
++        if (uChunk.getSpace() == this) {
++            return;
++        }
++        uChunk.setSpace(this);
++
++        UnalignedHeapChunk.UnalignedHeader oldLast = lastUnalignedHeapChunk;
++        HeapChunk.setPrevious(uChunk, oldLast);
++        HeapChunk.setNext(uChunk, WordFactory.nullPointer());
++        if (oldLast.isNonNull()) {
++            HeapChunk.setNext(oldLast, uChunk);
++        }
++        lastUnalignedHeapChunk = uChunk;
++        if (firstUnalignedHeapChunk.isNull()) {
++            firstUnalignedHeapChunk = uChunk;
++        }
++        accounting.noteUnalignedHeapChunk(uChunk);
+     }
+ 
+     @Uninterruptible(reason = "Must not interact with garbage collections.")
+-    private void extractAlignedHeapChunkUninterruptibly(AlignedHeapChunk.AlignedHeader aChunk) {
++    private void extractAlignedHeapChunk(AlignedHeapChunk.AlignedHeader aChunk) {
++        assert VMOperation.isGCInProgress();
++
+         AlignedHeapChunk.AlignedHeader chunkNext = HeapChunk.getNext(aChunk);
+         AlignedHeapChunk.AlignedHeader chunkPrev = HeapChunk.getPrevious(aChunk);
+         if (chunkPrev.isNonNull()) {
+             HeapChunk.setNext(chunkPrev, chunkNext);
+         } else {
+-            setFirstAlignedHeapChunk(chunkNext);
++            firstAlignedHeapChunk = chunkNext;
+         }
+         if (chunkNext.isNonNull()) {
+             HeapChunk.setPrevious(chunkNext, chunkPrev);
+         } else {
+-            setLastAlignedHeapChunk(chunkPrev);
++            lastAlignedHeapChunk = chunkPrev;
+         }
+         HeapChunk.setNext(aChunk, WordFactory.nullPointer());
+         HeapChunk.setPrevious(aChunk, WordFactory.nullPointer());
+         HeapChunk.setSpace(aChunk, null);
+-    }
+-
+-    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    void appendUnalignedHeapChunk(UnalignedHeapChunk.UnalignedHeader uChunk) {
+-        /*
+-         * This method is used from {@link PosixJavaThreads#detachThread(VMThread)}, so it can not
+-         * guarantee that it is inside a VMOperation, only that there is some mutual exclusion.
+-         */
+-        if (SubstrateOptions.MultiThreaded.getValue()) {
+-            VMThreads.guaranteeOwnsThreadMutex("Trying to append an unaligned chunk but no mutual exclusion.", true);
+-        }
+-        appendUnalignedHeapChunkUninterruptibly(uChunk);
+-        accounting.noteUnalignedHeapChunk(uChunk);
++        accounting.unnoteAlignedHeapChunk();
+     }
+ 
+     @Uninterruptible(reason = "Must not interact with garbage collections.")
+-    private void appendUnalignedHeapChunkUninterruptibly(UnalignedHeapChunk.UnalignedHeader uChunk) {
+-        UnalignedHeapChunk.UnalignedHeader oldLast = getLastUnalignedHeapChunk();
+-        HeapChunk.setSpace(uChunk, this);
+-        HeapChunk.setPrevious(uChunk, oldLast);
+-        HeapChunk.setNext(uChunk, WordFactory.nullPointer());
+-        if (oldLast.isNonNull()) {
+-            HeapChunk.setNext(oldLast, uChunk);
+-        }
+-        setLastUnalignedHeapChunk(uChunk);
+-        if (getFirstUnalignedHeapChunk().isNull()) {
+-            setFirstUnalignedHeapChunk(uChunk);
+-        }
+-    }
+-
+-    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    void extractUnalignedHeapChunk(UnalignedHeapChunk.UnalignedHeader uChunk) {
+-        assert VMOperation.isGCInProgress() : "Trying to extract an unaligned chunk but not in a VMOperation.";
+-        extractUnalignedHeapChunkUninterruptibly(uChunk);
+-        accounting.unnoteUnalignedHeapChunk(uChunk);
+-    }
++    private void extractUnalignedHeapChunk(UnalignedHeapChunk.UnalignedHeader uChunk) {
++        assert VMOperation.isGCInProgress();
+ 
+-    @Uninterruptible(reason = "Must not interact with garbage collections.")
+-    private void extractUnalignedHeapChunkUninterruptibly(UnalignedHeapChunk.UnalignedHeader uChunk) {
+         UnalignedHeapChunk.UnalignedHeader chunkNext = HeapChunk.getNext(uChunk);
+         UnalignedHeapChunk.UnalignedHeader chunkPrev = HeapChunk.getPrevious(uChunk);
+         if (chunkPrev.isNonNull()) {
+             HeapChunk.setNext(chunkPrev, chunkNext);
+         } else {
+-            setFirstUnalignedHeapChunk(chunkNext);
++            firstUnalignedHeapChunk = chunkNext;
+         }
+         if (chunkNext.isNonNull()) {
+             HeapChunk.setPrevious(chunkNext, chunkPrev);
+         } else {
+-            setLastUnalignedHeapChunk(chunkPrev);
++            lastUnalignedHeapChunk = chunkPrev;
+         }
+         /* Reset the fields that the result chunk keeps for Space. */
+         HeapChunk.setNext(uChunk, WordFactory.nullPointer());
+         HeapChunk.setPrevious(uChunk, WordFactory.nullPointer());
+         HeapChunk.setSpace(uChunk, null);
++        accounting.unnoteUnalignedHeapChunk(uChunk);
+     }
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    public AlignedHeapChunk.AlignedHeader getFirstAlignedHeapChunk() {
+-        return firstAlignedHeapChunk;
++    private static boolean verifyMutualExclusionForAppendChunk() {
++        return !SubstrateOptions.MultiThreaded.getValue() ||
++                        VMThreads.ownsThreadMutex(true) ||
++                        ParallelGC.isEnabled() && VMOperation.isGCInProgress() && ParallelGC.singleton().isInParallelPhase() && ParallelGC.singleton().getMutex().isOwner(true);
+     }
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    private void setFirstAlignedHeapChunk(AlignedHeapChunk.AlignedHeader chunk) {
+-        firstAlignedHeapChunk = chunk;
++    public AlignedHeapChunk.AlignedHeader getFirstAlignedHeapChunk() {
++        return firstAlignedHeapChunk;
+     }
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+@@ -351,31 +415,16 @@ public final class Space {
+         return lastAlignedHeapChunk;
+     }
+ 
+-    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    private void setLastAlignedHeapChunk(AlignedHeapChunk.AlignedHeader chunk) {
+-        lastAlignedHeapChunk = chunk;
+-    }
+-
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     public UnalignedHeapChunk.UnalignedHeader getFirstUnalignedHeapChunk() {
+         return firstUnalignedHeapChunk;
+     }
+ 
+-    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    private void setFirstUnalignedHeapChunk(UnalignedHeapChunk.UnalignedHeader chunk) {
+-        this.firstUnalignedHeapChunk = chunk;
+-    }
+-
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     UnalignedHeapChunk.UnalignedHeader getLastUnalignedHeapChunk() {
+         return lastUnalignedHeapChunk;
+     }
+ 
+-    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    private void setLastUnalignedHeapChunk(UnalignedHeapChunk.UnalignedHeader chunk) {
+-        lastUnalignedHeapChunk = chunk;
+-    }
+-
+     /** Promote an aligned Object to this Space. */
+     @AlwaysInline("GC performance")
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+@@ -383,16 +432,15 @@ public final class Space {
+         assert ObjectHeaderImpl.isAlignedObject(original);
+         assert this != originalSpace && originalSpace.isFromSpace();
+ 
+-        Object copy = copyAlignedObject(original);
+-        if (copy != null) {
+-            ObjectHeaderImpl.getObjectHeaderImpl().installForwardingPointer(original, copy);
++        if (ParallelGC.isEnabled() && ParallelGC.singleton().isInParallelPhase()) {
++            return copyAlignedObjectParallel(original);
+         }
+-        return copy;
++        return copyAlignedObjectSerial(original);
+     }
+ 
+     @AlwaysInline("GC performance")
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    private Object copyAlignedObject(Object originalObj) {
++    private Object copyAlignedObjectSerial(Object originalObj) {
+         assert VMOperation.isGCInProgress();
+         assert ObjectHeaderImpl.isAlignedObject(originalObj);
+ 
+@@ -417,17 +465,104 @@ public final class Space {
+          * references. That's okay, because all references in the copy are visited and overwritten
+          * later on anyways (the card table is also updated at that point if necessary).
+          */
+-        Pointer originalMemory = Word.objectToUntrackedPointer(originalObj);
++        Word originalMemory = Word.objectToUntrackedPointer(originalObj);
+         UnmanagedMemoryUtil.copyLongsForward(originalMemory, copyMemory, originalSize);
+ 
+         Object copy = copyMemory.toObject();
+         if (probability(SLOW_PATH_PROBABILITY, addIdentityHashField)) {
+             // Must do first: ensures correct object size below and in other places
+-            int value = IdentityHashCodeSupport.computeHashCodeFromAddress(originalObj);
++            AlignedHeapChunk.AlignedHeader originalChunk = AlignedHeapChunk.getEnclosingChunkFromObjectPointer(originalMemory);
++            int value = IdentityHashCodeSupport.computeHashCodeFromAddress(originalMemory, HeapChunk.getIdentityHashSalt(originalChunk));
+             int offset = LayoutEncoding.getIdentityHashOffset(copy);
+             ObjectAccess.writeInt(copy, offset, value, IdentityHashCodeSupport.IDENTITY_HASHCODE_LOCATION);
+             ObjectHeaderImpl.getObjectHeaderImpl().setIdentityHashInField(copy);
+         }
++        if (isOldSpace()) {
++            // If the object was promoted to the old gen, we need to take care of the remembered
++            // set bit and the first object table (even when promoting from old to old).
++            AlignedHeapChunk.AlignedHeader copyChunk = AlignedHeapChunk.getEnclosingChunk(copy);
++            RememberedSet.get().enableRememberedSetForObject(copyChunk, copy);
++        }
++
++        ObjectHeaderImpl.getObjectHeaderImpl().installForwardingPointer(originalObj, copy);
++        return copy;
++    }
++
++    @AlwaysInline("GC performance")
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private Object copyAlignedObjectParallel(Object original) {
++        assert VMOperation.isGCInProgress();
++
++        /*
++         * The GC worker thread doesn't own the object yet, so the 8 bytes starting at the hub
++         * offset can be changed at any time (if another GC worker thread forwards the object). Note
++         * that those bytes may also include data such as the array length.
++         *
++         * So, we read the 8 bytes at the hub offset once and then extract all necessary data from
++         * those bytes. This is necessary to avoid races.
++         */
++        Word originalMemory = Word.objectToUntrackedPointer(original);
++        int hubOffset = ObjectHeader.getHubOffset();
++        long eightHeaderBytes = originalMemory.readLong(hubOffset);
++        Word originalHeader = ObjectHeaderImpl.hasShift() ? WordFactory.unsigned(eightHeaderBytes & 0xFFFFFFFFL) : WordFactory.unsigned(eightHeaderBytes);
++        assert ObjectHeaderImpl.isAlignedHeader(originalHeader);
++
++        ObjectHeaderImpl ohi = ObjectHeaderImpl.getObjectHeaderImpl();
++        if (ObjectHeaderImpl.isForwardedHeader(originalHeader)) {
++            return ohi.getForwardedObject(originalMemory, originalHeader);
++        }
++
++        /*
++         * We need the forwarding pointer to point somewhere, so we speculatively allocate memory
++         * here. If another thread copies the object first, we retract the allocation later.
++         */
++        UnsignedWord originalSize = LayoutEncoding.getSizeFromHeader(original, originalHeader, eightHeaderBytes, false);
++        UnsignedWord copySize = originalSize;
++        boolean addIdentityHashField = false;
++        if (ConfigurationValues.getObjectLayout().isIdentityHashFieldOptional()) {
++            if (probability(SLOW_PATH_PROBABILITY, ObjectHeaderImpl.hasIdentityHashFromAddressInline(originalHeader))) {
++                addIdentityHashField = true;
++                copySize = LayoutEncoding.getSizeFromHeader(original, originalHeader, eightHeaderBytes, true);
++            }
++        }
++
++        assert copySize.aboveThan(0);
++        Pointer copyMemory = allocateMemoryParallel(copySize);
++        if (probability(VERY_SLOW_PATH_PROBABILITY, copyMemory.isNull())) {
++            return null;
++        }
++
++        /*
++         * It's important that we set the RS bit before everything else because
++         * YoungGeneration.contains() checks it.
++         */
++        long copyHeaderBytes = isOldSpace() ? ObjectHeaderImpl.setRememberedSetBit(eightHeaderBytes) : eightHeaderBytes;
++        copyMemory.writeLong(hubOffset, copyHeaderBytes);
++
++        /* Install forwarding pointer into the original header. */
++        Object copy = copyMemory.toObject();
++        Object forward = ohi.installForwardingPointerParallel(original, eightHeaderBytes, copy);
++        if (forward != copy) {
++            /* We lost the race. Retract speculatively allocated memory. */
++            retractAllocationParallel(copySize);
++            return forward;
++        }
++
++        /* We have won the race. Copy the rest of the object. */
++        if (hubOffset > 0) {
++            UnmanagedMemoryUtil.copyLongsForward(originalMemory, copyMemory, WordFactory.unsigned(hubOffset));
++        }
++        int offset = hubOffset + Long.BYTES;
++        UnmanagedMemoryUtil.copyLongsForward(originalMemory.add(offset), copyMemory.add(offset), originalSize.subtract(offset));
++
++        if (probability(SLOW_PATH_PROBABILITY, addIdentityHashField)) {
++            AlignedHeapChunk.AlignedHeader originalChunk = AlignedHeapChunk.getEnclosingChunkFromObjectPointer(originalMemory);
++            int value = IdentityHashCodeSupport.computeHashCodeFromAddress(originalMemory, HeapChunk.getIdentityHashSalt(originalChunk));
++            offset = LayoutEncoding.getIdentityHashOffset(copy);
++            ObjectAccess.writeInt(copy, offset, value, IdentityHashCodeSupport.IDENTITY_HASHCODE_LOCATION);
++            ObjectHeaderImpl.getObjectHeaderImpl().setIdentityHashInField(copy);
++        }
++
+         if (isOldSpace()) {
+             // If the object was promoted to the old gen, we need to take care of the remembered
+             // set bit and the first object table (even when promoting from old to old).
+@@ -439,12 +574,14 @@ public final class Space {
+ 
+     /** Promote an AlignedHeapChunk by moving it to this space. */
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    void promoteAlignedHeapChunk(AlignedHeapChunk.AlignedHeader chunk, Space originalSpace) {
+-        assert this != originalSpace && originalSpace.isFromSpace();
++    void promoteAlignedHeapChunk(AlignedHeapChunk.AlignedHeader chunk) {
++        assert !(ParallelGC.isEnabled() && ParallelGC.singleton().isInParallelPhase());
+ 
+-        originalSpace.extractAlignedHeapChunk(chunk);
+-        appendAlignedHeapChunk(chunk);
++        Space originalSpace = HeapChunk.getSpace(chunk);
++        assert originalSpace.isFromSpace();
++        assert !this.isFromSpace();
+ 
++        appendAlignedHeapChunk(chunk, originalSpace);
+         if (this.isOldSpace()) {
+             if (originalSpace.isYoungSpace()) {
+                 RememberedSet.get().enableRememberedSetForChunk(chunk);
+@@ -453,16 +590,51 @@ public final class Space {
+                 RememberedSet.get().clearRememberedSet(chunk);
+             }
+         }
++
++        if (ParallelGC.isEnabled()) {
++            ParallelGC.singleton().push(chunk, ParallelGC.SCAN_GREY_OBJECTS);
++        }
+     }
+ 
+     /** Promote an UnalignedHeapChunk by moving it to this Space. */
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    void promoteUnalignedHeapChunk(UnalignedHeapChunk.UnalignedHeader chunk, Space originalSpace) {
+-        assert this != originalSpace && originalSpace.isFromSpace();
++    void promoteUnalignedHeapChunk(UnalignedHeapChunk.UnalignedHeader chunk) {
++        if (ParallelGC.isEnabled() && ParallelGC.singleton().isInParallelPhase()) {
++            promoteUnalignedHeapChunkParallel(chunk);
++        } else {
++            promoteUnalignedHeapChunkSerial(chunk);
++        }
++    }
+ 
+-        originalSpace.extractUnalignedHeapChunk(chunk);
+-        appendUnalignedHeapChunk(chunk);
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private void promoteUnalignedHeapChunkSerial(UnalignedHeapChunk.UnalignedHeader chunk) {
++        Space originalSpace = HeapChunk.getSpace(chunk);
++        promoteUnalignedHeapChunk0(chunk, originalSpace);
++
++        if (ParallelGC.isEnabled()) {
++            ParallelGC.singleton().push(chunk, ParallelGC.SCAN_GREY_OBJECTS);
++        }
++    }
++
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private void promoteUnalignedHeapChunkParallel(UnalignedHeapChunk.UnalignedHeader chunk) {
++        ParallelGC.singleton().getMutex().lockNoTransitionUnspecifiedOwner();
++        try {
++            Space originalSpace = HeapChunk.getSpace(chunk);
++            if (!originalSpace.isFromSpace()) {
++                /* The chunk was already promoted in the meanwhile. */
++                return;
++            }
++            promoteUnalignedHeapChunk0(chunk, originalSpace);
++            ParallelGC.singleton().push(chunk, ParallelGC.SCAN_GREY_OBJECTS);
++        } finally {
++            ParallelGC.singleton().getMutex().unlockNoTransitionUnspecifiedOwner();
++        }
++    }
+ 
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private void promoteUnalignedHeapChunk0(UnalignedHeapChunk.UnalignedHeader chunk, Space originalSpace) {
++        assert originalSpace.isFromSpace();
+         if (this.isOldSpace()) {
+             if (originalSpace.isYoungSpace()) {
+                 RememberedSet.get().enableRememberedSetForChunk(chunk);
+@@ -471,6 +643,7 @@ public final class Space {
+                 RememberedSet.get().clearRememberedSet(chunk);
+             }
+         }
++        appendUnalignedHeapChunk(chunk, originalSpace);
+     }
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+@@ -483,7 +656,7 @@ public final class Space {
+             chunk = HeapImpl.getHeapImpl().getOldGeneration().requestAlignedChunk();
+         }
+         if (chunk.isNonNull()) {
+-            appendAlignedHeapChunk(chunk);
++            appendAlignedHeapChunk(chunk, null);
+         }
+         return chunk;
+     }
+@@ -497,27 +670,25 @@ public final class Space {
+         AlignedHeapChunk.AlignedHeader aChunk = src.getFirstAlignedHeapChunk();
+         while (aChunk.isNonNull()) {
+             AlignedHeapChunk.AlignedHeader next = HeapChunk.getNext(aChunk);
+-            src.extractAlignedHeapChunk(aChunk);
+-            appendAlignedHeapChunk(aChunk);
++            appendAlignedHeapChunk(aChunk, src);
+             aChunk = next;
+         }
+         UnalignedHeapChunk.UnalignedHeader uChunk = src.getFirstUnalignedHeapChunk();
+         while (uChunk.isNonNull()) {
+             UnalignedHeapChunk.UnalignedHeader next = HeapChunk.getNext(uChunk);
+-            src.extractUnalignedHeapChunk(uChunk);
+-            appendUnalignedHeapChunk(uChunk);
++            appendUnalignedHeapChunk(uChunk, src);
+             uChunk = next;
+         }
+     }
+ 
+     boolean walkHeapChunks(MemoryWalker.Visitor visitor) {
+         boolean continueVisiting = true;
+-        AlignedHeapChunk.AlignedHeader aChunk = getFirstAlignedHeapChunk();
++        AlignedHeapChunk.AlignedHeader aChunk = firstAlignedHeapChunk;
+         while (continueVisiting && aChunk.isNonNull()) {
+             continueVisiting = visitor.visitHeapChunk(aChunk, AlignedHeapChunk.getMemoryWalkerAccess());
+             aChunk = HeapChunk.getNext(aChunk);
+         }
+-        UnalignedHeapChunk.UnalignedHeader uChunk = getFirstUnalignedHeapChunk();
++        UnalignedHeapChunk.UnalignedHeader uChunk = firstUnalignedHeapChunk;
+         while (continueVisiting && uChunk.isNonNull()) {
+             continueVisiting = visitor.visitHeapChunk(uChunk, UnalignedHeapChunk.getMemoryWalkerAccess());
+             uChunk = HeapChunk.getNext(uChunk);
+@@ -565,7 +736,7 @@ public final class Space {
+ 
+     private UnsignedWord computeAlignedObjectBytes() {
+         UnsignedWord result = WordFactory.zero();
+-        AlignedHeapChunk.AlignedHeader aChunk = getFirstAlignedHeapChunk();
++        AlignedHeapChunk.AlignedHeader aChunk = firstAlignedHeapChunk;
+         while (aChunk.isNonNull()) {
+             UnsignedWord allocatedBytes = HeapChunk.getTopOffset(aChunk).subtract(AlignedHeapChunk.getObjectsStartOffset());
+             result = result.add(allocatedBytes);
+@@ -576,7 +747,7 @@ public final class Space {
+ 
+     private UnsignedWord computeUnalignedObjectBytes() {
+         UnsignedWord result = WordFactory.zero();
+-        UnalignedHeapChunk.UnalignedHeader uChunk = getFirstUnalignedHeapChunk();
++        UnalignedHeapChunk.UnalignedHeader uChunk = firstUnalignedHeapChunk;
+         while (uChunk.isNonNull()) {
+             UnsignedWord allocatedBytes = HeapChunk.getTopOffset(uChunk).subtract(UnalignedHeapChunk.getObjectStartOffset());
+             result = result.add(allocatedBytes);
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/ThreadLocalAllocation.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/ThreadLocalAllocation.java
+index dda62aa072c..029fdedb5ad 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/ThreadLocalAllocation.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/ThreadLocalAllocation.java
+@@ -478,14 +478,14 @@ public final class ThreadLocalAllocation {
+         while (alignedChunk.isNonNull()) {
+             AlignedHeader next = HeapChunk.getNext(alignedChunk);
+             HeapChunk.setNext(alignedChunk, WordFactory.nullPointer());
+-            eden.appendAlignedHeapChunk(alignedChunk);
++            eden.appendAlignedHeapChunk(alignedChunk, null);
+             alignedChunk = next;
+         }
+ 
+         while (unalignedChunk.isNonNull()) {
+             UnalignedHeader next = HeapChunk.getNext(unalignedChunk);
+             HeapChunk.setNext(unalignedChunk, WordFactory.nullPointer());
+-            eden.appendUnalignedHeapChunk(unalignedChunk);
++            eden.appendUnalignedHeapChunk(unalignedChunk, null);
+             unalignedChunk = next;
+         }
+     }
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/UnalignedHeapChunk.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/UnalignedHeapChunk.java
+index 7841fc6e0b3..67f71936841 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/UnalignedHeapChunk.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/UnalignedHeapChunk.java
+@@ -172,10 +172,5 @@ public final class UnalignedHeapChunk {
+         public boolean isAligned(UnalignedHeapChunk.UnalignedHeader heapChunk) {
+             return false;
+         }
+-
+-        @Override
+-        public UnsignedWord getAllocationStart(UnalignedHeapChunk.UnalignedHeader heapChunk) {
+-            return getObjectStart(heapChunk);
+-        }
+     }
+ }
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/UseSerialOrEpsilonGC.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/UseSerialOrEpsilonGC.java
+index 245874b4f0e..48be7c373ed 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/UseSerialOrEpsilonGC.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/UseSerialOrEpsilonGC.java
+@@ -32,9 +32,10 @@ import org.graalvm.nativeimage.Platforms;
+ import com.oracle.svm.core.SubstrateOptions;
+ 
+ @Platforms(Platform.HOSTED_ONLY.class)
++// TODO (chaeubl): rename
+ public class UseSerialOrEpsilonGC implements BooleanSupplier {
+     @Override
+     public boolean getAsBoolean() {
+-        return SubstrateOptions.UseSerialGC.getValue() || SubstrateOptions.UseEpsilonGC.getValue();
++        return SubstrateOptions.useSerialOrParallelOrEpsilonGC();
+     }
+ }
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/YoungGeneration.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/YoungGeneration.java
+index 8b92be57c98..929712d2682 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/YoungGeneration.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/YoungGeneration.java
+@@ -265,10 +265,9 @@ public final class YoungGeneration extends Generation {
+ 
+     @AlwaysInline("GC performance")
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    @Override
+-    protected Object promoteAlignedObject(Object original, AlignedHeapChunk.AlignedHeader originalChunk, Space originalSpace) {
+-        assert originalSpace.isFromSpace();
++    Object promoteAlignedObject(Object original, Space originalSpace) {
+         assert ObjectHeaderImpl.isAlignedObject(original);
++        assert originalSpace.isFromSpace();
+         assert originalSpace.getAge() < maxSurvivorSpaces;
+ 
+         // The object might fit in an existing chunk in the survivor space. If it doesn't, we get
+@@ -281,8 +280,7 @@ public final class YoungGeneration extends Generation {
+ 
+     @AlwaysInline("GC performance")
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    @Override
+-    protected Object promoteUnalignedObject(Object original, UnalignedHeapChunk.UnalignedHeader originalChunk, Space originalSpace) {
++    Object promoteUnalignedObject(Object original, UnalignedHeapChunk.UnalignedHeader originalChunk, Space originalSpace) {
+         assert originalSpace.isFromSpace();
+         assert originalSpace.getAge() < maxSurvivorSpaces;
+         if (!unalignedChunkFitsInSurvivors(originalChunk)) {
+@@ -291,13 +289,12 @@ public final class YoungGeneration extends Generation {
+ 
+         int age = originalSpace.getNextAgeForPromotion();
+         Space toSpace = getSurvivorToSpaceAt(age - 1);
+-        toSpace.promoteUnalignedHeapChunk(originalChunk, originalSpace);
++        toSpace.promoteUnalignedHeapChunk(originalChunk);
+         return original;
+     }
+ 
+-    @Override
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+-    protected boolean promoteChunk(HeapChunk.Header<?> originalChunk, boolean isAligned, Space originalSpace) {
++    boolean promoteChunk(HeapChunk.Header<?> originalChunk, boolean isAligned, Space originalSpace) {
+         assert originalSpace.isFromSpace();
+         assert originalSpace.getAge() < maxSurvivorSpaces;
+         if (!fitsInSurvivors(originalChunk, isAligned)) {
+@@ -307,9 +304,9 @@ public final class YoungGeneration extends Generation {
+         int age = originalSpace.getNextAgeForPromotion();
+         Space toSpace = getSurvivorToSpaceAt(age - 1);
+         if (isAligned) {
+-            toSpace.promoteAlignedHeapChunk((AlignedHeapChunk.AlignedHeader) originalChunk, originalSpace);
++            toSpace.promoteAlignedHeapChunk((AlignedHeapChunk.AlignedHeader) originalChunk);
+         } else {
+-            toSpace.promoteUnalignedHeapChunk((UnalignedHeapChunk.UnalignedHeader) originalChunk, originalSpace);
++            toSpace.promoteUnalignedHeapChunk((UnalignedHeapChunk.UnalignedHeader) originalChunk);
+         }
+         return true;
+     }
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/graal/BarrierSnippets.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/graal/BarrierSnippets.java
+index 8541c58bdfb..d520142a4fd 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/graal/BarrierSnippets.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/graal/BarrierSnippets.java
+@@ -205,7 +205,7 @@ class BarrierSnippetCounters {
+ class BarrierSnippetCountersFeature implements InternalFeature {
+     @Override
+     public boolean isInConfiguration(IsInConfigurationAccess access) {
+-        return SubstrateOptions.UseSerialGC.getValue() && SubstrateOptions.useRememberedSet();
++        return SubstrateOptions.useSerialOrParallelGC() && SubstrateOptions.useRememberedSet();
+     }
+ 
+     @Override
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/graal/GenScavengeGCFeature.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/graal/GenScavengeGCFeature.java
+index 6727381fad4..c919a660078 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/graal/GenScavengeGCFeature.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/graal/GenScavengeGCFeature.java
+@@ -44,6 +44,7 @@ import com.oracle.svm.core.genscavenge.HeapImplMemoryMXBean;
+ import com.oracle.svm.core.genscavenge.ImageHeapInfo;
+ import com.oracle.svm.core.genscavenge.IncrementalGarbageCollectorMXBean;
+ import com.oracle.svm.core.genscavenge.LinearImageHeapLayouter;
++import com.oracle.svm.core.genscavenge.UseSerialOrEpsilonGC;
+ import com.oracle.svm.core.genscavenge.jvmstat.EpsilonGCPerfData;
+ import com.oracle.svm.core.genscavenge.jvmstat.SerialGCPerfData;
+ import com.oracle.svm.core.genscavenge.remset.CardTableBasedRememberedSet;
+@@ -74,7 +75,7 @@ import jdk.graal.compiler.phases.util.Providers;
+ class GenScavengeGCFeature implements InternalFeature {
+     @Override
+     public boolean isInConfiguration(IsInConfigurationAccess access) {
+-        return new com.oracle.svm.core.genscavenge.UseSerialOrEpsilonGC().getAsBoolean();
++        return new UseSerialOrEpsilonGC().getAsBoolean();
+     }
+ 
+     @Override
+@@ -173,7 +174,7 @@ class GenScavengeGCFeature implements InternalFeature {
+     }
+ 
+     private static PerfDataHolder createPerfData() {
+-        if (SubstrateOptions.UseSerialGC.getValue()) {
++        if (SubstrateOptions.useSerialOrParallelGC()) {
+             return new SerialGCPerfData();
+         } else {
+             assert SubstrateOptions.UseEpsilonGC.getValue();
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/jvmstat/SerialGCPerfData.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/jvmstat/SerialGCPerfData.java
+index 78fe00ccef7..6689cd401e5 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/jvmstat/SerialGCPerfData.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/jvmstat/SerialGCPerfData.java
+@@ -34,6 +34,7 @@ import com.oracle.svm.core.genscavenge.GCImpl;
+ import com.oracle.svm.core.genscavenge.HeapAccounting;
+ import com.oracle.svm.core.genscavenge.HeapImpl;
+ import com.oracle.svm.core.genscavenge.HeapParameters;
++import com.oracle.svm.core.genscavenge.parallel.ParallelGC;
+ import com.oracle.svm.core.jvmstat.PerfDataHolder;
+ import com.oracle.svm.core.jvmstat.PerfLongConstant;
+ import com.oracle.svm.core.jvmstat.PerfLongCounter;
+@@ -45,6 +46,7 @@ import com.oracle.svm.core.jvmstat.PerfUnit;
+ /**
+  * Performance data for our serial GC.
+  */
++// TODO (chaeubl): rename this class
+ public class SerialGCPerfData implements PerfDataHolder {
+     private final PerfDataGCPolicy gcPolicy;
+     private final PerfDataCollector youngCollector;
+@@ -78,7 +80,9 @@ public class SerialGCPerfData implements PerfDataHolder {
+         gcPolicy.allocate();
+ 
+         youngCollector.allocate("Serial young collection pauses");
+-        oldCollector.allocate("Serial full collection pauses");
++
++        String oldCollectorName = ParallelGC.isEnabled() ? "Parallel" : "Serial";
++        oldCollector.allocate(oldCollectorName + " full collection pauses");
+ 
+         youngGen.allocate("young");
+         youngGen.spaces[0].allocate("eden");
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/parallel/ChunkQueue.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/parallel/ChunkQueue.java
+new file mode 100644
+index 00000000000..0a94de19078
+--- /dev/null
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/parallel/ChunkQueue.java
+@@ -0,0 +1,109 @@
++/*
++ * Copyright (c) 2022, 2022, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2022, 2022, BELLSOFT. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++package com.oracle.svm.core.genscavenge.parallel;
++
++import jdk.graal.compiler.api.replacements.Fold;
++import org.graalvm.nativeimage.ImageSingletons;
++import org.graalvm.nativeimage.Platform;
++import org.graalvm.nativeimage.Platforms;
++import org.graalvm.nativeimage.impl.UnmanagedMemorySupport;
++import org.graalvm.word.Pointer;
++import org.graalvm.word.WordFactory;
++
++import com.oracle.svm.core.Uninterruptible;
++import com.oracle.svm.core.config.ConfigurationValues;
++import com.oracle.svm.core.thread.VMThreads;
++import com.oracle.svm.core.util.VMError;
++
++/**
++ * A queue that stores pointers into "grey" heap chunks that need to be scanned. Note that the
++ * pointers don't necessarily point to the beginning of a chunk. GC workers threads may only access
++ * the queue if they hold {@link ParallelGC#getMutex()}.
++ */
++public class ChunkQueue {
++    private static final int INITIAL_SIZE = 1024 * wordSize();
++
++    private Pointer buffer;
++    private int size;
++    private int top;
++
++    @Fold
++    static int wordSize() {
++        return ConfigurationValues.getTarget().wordSize;
++    }
++
++    @Platforms(Platform.HOSTED_ONLY.class)
++    ChunkQueue() {
++    }
++
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    public void initialize() {
++        assert top == 0 && size == 0 && buffer.isNull();
++        top = 0;
++        size = INITIAL_SIZE;
++        buffer = ImageSingletons.lookup(UnmanagedMemorySupport.class).malloc(WordFactory.unsigned(size));
++        VMError.guarantee(buffer.isNonNull(), "Failed to allocate native memory for the ChunkBuffer.");
++    }
++
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    void push(Pointer ptr) {
++        assert !ParallelGC.singleton().isInParallelPhase() && VMThreads.ownsThreadMutex() || ParallelGC.singleton().isInParallelPhase() && ParallelGC.singleton().getMutex().isOwner(true);
++        assert ptr.isNonNull();
++        if (top >= size) {
++            size *= 2;
++            assert top < size;
++            buffer = ImageSingletons.lookup(UnmanagedMemorySupport.class).realloc(buffer, WordFactory.unsigned(size));
++            VMError.guarantee(buffer.isNonNull(), "Failed to allocate native memory for the ChunkBuffer.");
++        }
++        buffer.writeWord(top, ptr);
++        top += wordSize();
++    }
++
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    Pointer pop() {
++        assert ParallelGC.singleton().isInParallelPhase() && ParallelGC.singleton().getMutex().isOwner(true);
++        if (top > 0) {
++            top -= wordSize();
++            return buffer.readWord(top);
++        }
++        return WordFactory.nullPointer();
++    }
++
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    boolean isEmpty() {
++        assert !ParallelGC.singleton().isInParallelPhase();
++        return top == 0;
++    }
++
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    void teardown() {
++        ImageSingletons.lookup(UnmanagedMemorySupport.class).free(buffer);
++        buffer = WordFactory.nullPointer();
++        size = 0;
++        top = 0;
++    }
++}
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/parallel/ParallelGC.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/parallel/ParallelGC.java
+new file mode 100644
+index 00000000000..86d99e0c5b3
+--- /dev/null
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/parallel/ParallelGC.java
+@@ -0,0 +1,587 @@
++/*
++ * Copyright (c) 2022, 2022, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2022, 2022, BELLSOFT. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++package com.oracle.svm.core.genscavenge.parallel;
++
++import java.util.function.BooleanSupplier;
++
++import jdk.graal.compiler.api.replacements.Fold;
++import org.graalvm.nativeimage.CurrentIsolate;
++import org.graalvm.nativeimage.ImageSingletons;
++import org.graalvm.nativeimage.Platform;
++import org.graalvm.nativeimage.Platforms;
++import org.graalvm.nativeimage.c.function.CEntryPoint;
++import org.graalvm.nativeimage.c.function.CEntryPointLiteral;
++import org.graalvm.nativeimage.c.function.CFunctionPointer;
++import org.graalvm.nativeimage.c.struct.RawPointerTo;
++import org.graalvm.nativeimage.c.struct.RawStructure;
++import org.graalvm.nativeimage.c.struct.SizeOf;
++import org.graalvm.word.Pointer;
++import org.graalvm.word.PointerBase;
++import org.graalvm.word.UnsignedWord;
++import org.graalvm.word.WordFactory;
++
++import com.oracle.svm.core.NeverInline;
++import com.oracle.svm.core.SubstrateGCOptions;
++import com.oracle.svm.core.SubstrateOptions;
++import com.oracle.svm.core.Uninterruptible;
++import com.oracle.svm.core.UnmanagedMemoryUtil;
++import com.oracle.svm.core.c.function.CEntryPointOptions;
++import com.oracle.svm.core.config.ConfigurationValues;
++import com.oracle.svm.core.feature.AutomaticallyRegisteredFeature;
++import com.oracle.svm.core.feature.InternalFeature;
++import com.oracle.svm.core.genscavenge.AlignedHeapChunk;
++import com.oracle.svm.core.genscavenge.GCImpl;
++import com.oracle.svm.core.genscavenge.GreyToBlackObjectVisitor;
++import com.oracle.svm.core.genscavenge.HeapChunk;
++import com.oracle.svm.core.genscavenge.HeapParameters;
++import com.oracle.svm.core.genscavenge.UnalignedHeapChunk;
++import com.oracle.svm.core.genscavenge.remset.RememberedSet;
++import com.oracle.svm.core.graal.nodes.WriteCurrentVMThreadNode;
++import com.oracle.svm.core.graal.snippets.CEntryPointSnippets;
++import com.oracle.svm.core.jdk.Jvm;
++import com.oracle.svm.core.jdk.UninterruptibleUtils;
++import com.oracle.svm.core.locks.VMCondition;
++import com.oracle.svm.core.locks.VMMutex;
++import com.oracle.svm.core.log.Log;
++import com.oracle.svm.core.option.SubstrateOptionKey;
++import com.oracle.svm.core.os.CommittedMemoryProvider;
++import com.oracle.svm.core.thread.PlatformThreads;
++import com.oracle.svm.core.thread.PlatformThreads.ThreadLocalKey;
++import com.oracle.svm.core.thread.VMThreads.OSThreadHandle;
++import com.oracle.svm.core.thread.VMThreads.OSThreadHandlePointer;
++import com.oracle.svm.core.util.UserError;
++import com.oracle.svm.core.util.VMError;
++
++/**
++ * A garbage collector that tries to shorten GC pauses by using multiple worker threads. Currently,
++ * the only phase supported is scanning grey objects during a full GC. The number of worker threads
++ * can be set with a runtime option (see {@link SubstrateOptions#ParallelGCThreads}).
++ * <p>
++ * The GC worker threads are unattached threads that are started lazily and that call AOT-compiled
++ * code. So, they don't have an {@link org.graalvm.nativeimage.IsolateThread} data structure and
++ * don't participate in the safepoint handling.
++ * <p>
++ * Worker threads use heap chunks as the unit of work. Chunks to be scanned are stored in the
++ * {@link ChunkQueue}. Worker threads pop chunks from the queue and scan them for references to live
++ * objects to be promoted. When promoting an aligned chunk object, they speculatively allocate
++ * memory for its copy in the to-space, then compete to install forwarding pointer in the original
++ * object. The winning thread proceeds to copy object data, losing threads retract the speculatively
++ * allocated memory.
++ * <p>
++ * Each worker thread allocates memory in its own thread local allocation chunk for speed. As
++ * allocation chunks become filled up, they are pushed to {@link ChunkQueue}. This pop-scan-push
++ * cycle continues until the chunk buffer becomes empty. At this point, worker threads are parked
++ * and the GC routine continues on the main GC thread.
++ */
++public class ParallelGC {
++    private enum Phase {
++        SEQUENTIAL,
++        PARALLEL,
++        CLEANUP,
++        SHUTDOWN,
++    }
++
++    public static final int SCAN_CARD_TABLE = 0b000;
++    public static final int SCAN_GREY_OBJECTS = 0b010;
++
++    private static final int SCAN_OP_MASK = 0b010;
++    private static final int UNALIGNED_BIT = 0b001;
++    private static final UnsignedWord POINTER_MASK = WordFactory.unsigned(0b111).not();
++
++    private static final int MAX_WORKER_THREADS = 8;
++
++    /**
++     * Worker thread states occupy separate cache lines to avoid false sharing.
++     * We assume 128 bytes (16 words) cache line here.
++     */
++    private static final int CACHE_LINE_WORDS = 16;
++
++    private final VMMutex mutex = new VMMutex("parallelGC");
++    private final VMCondition seqPhase = new VMCondition(mutex);
++    private final VMCondition parPhase = new VMCondition(mutex);
++    private final ChunkQueue chunkQueue = new ChunkQueue();
++    private final CEntryPointLiteral<CFunctionPointer> gcWorkerRunFunc = CEntryPointLiteral.create(ParallelGC.class, "gcWorkerRun", GCWorkerThreadState.class);
++
++    private boolean initialized;
++    private ThreadLocalKey workerStateTL;
++    private GCWorkerThreadState workerStates;
++    private UnsignedWord workerStatesSize;
++    private OSThreadHandlePointer workerThreads;
++    private int numWorkerThreads;
++    private int busyWorkerThreads;
++    private volatile Phase phase;
++
++    @Platforms(Platform.HOSTED_ONLY.class)
++    public ParallelGC() {
++    }
++
++    @Fold
++    public static ParallelGC singleton() {
++        return ImageSingletons.lookup(ParallelGC.class);
++    }
++
++    @Fold
++    public static boolean isEnabled() {
++        return SubstrateOptions.UseParallelGC.getValue();
++    }
++
++    @Fold
++    static int wordSize() {
++        return ConfigurationValues.getTarget().wordSize;
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    public boolean isInParallelPhase() {
++        return phase == Phase.PARALLEL;
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    public VMMutex getMutex() {
++        return mutex;
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    public Pointer getAllocChunkScanPointer(int age, boolean clear) {
++        GCWorkerThreadState state = getWorkerThreadState();
++        Pointer chunk = (Pointer) state.read(age);
++        if (clear) {
++            state.write(age, WordFactory.nullPointer());
++        }
++        return chunk;
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    public void setAllocChunk(int age, AlignedHeapChunk.AlignedHeader allocChunk) {
++        Pointer scanPtr = WordFactory.nullPointer();
++        if (allocChunk.isNonNull()) {
++            Pointer top = HeapChunk.getTopPointer(allocChunk);
++            // Use chunk as allocation chunk unless it is full (top == end)
++            if (top.belowThan(HeapChunk.getEndPointer(allocChunk))) {
++                scanPtr = top;
++            }
++        }
++        getWorkerThreadState().write(age, scanPtr);
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    public void push(AlignedHeapChunk.AlignedHeader aChunk, int scanOp) {
++        Pointer ptr = scanOp == SCAN_GREY_OBJECTS ? AlignedHeapChunk.getObjectsStart(aChunk) : HeapChunk.asPointer(aChunk);
++        push(ptr, scanOp);
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    public void push(UnalignedHeapChunk.UnalignedHeader uChunk, int scanOp) {
++        push(HeapChunk.asPointer(uChunk).or(ParallelGC.UNALIGNED_BIT), scanOp);
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    private void push(Pointer ptr, int scanOp) {
++        assert ptr.isNonNull();
++        ptr = ptr.or(scanOp);
++        chunkQueue.push(ptr);
++        if (phase == Phase.PARALLEL) {
++            assert mutex.isOwner(true);
++            parPhase.signal();
++        }
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    public void pushAllocChunk(Pointer ptr) {
++        /*
++         * Scanning (and therefore enqueueing) is only necessary if there are any not yet scanned
++         * objects in the chunk.
++         */
++        assert isEnabled() && ptr.isNonNull();
++        GCWorkerThreadState state = getWorkerThreadState();
++        AlignedHeapChunk.AlignedHeader chunk = AlignedHeapChunk.getEnclosingChunkFromObjectPointer(ptr);
++        if (chunk.notEqual(getScannedChunk(state)) && HeapChunk.getTopPointer(chunk).aboveThan(ptr)) {
++            push(ptr, SCAN_GREY_OBJECTS);
++        }
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    private GCWorkerThreadState getWorkerThreadState() {
++        if (CurrentIsolate.getCurrentThread().isNull()) {
++            return PlatformThreads.singleton().getUnmanagedThreadLocalValue(workerStateTL);
++        }
++        return workerStates;
++    }
++
++    public void initialize() {
++        if (initialized) {
++            return;
++        }
++
++        initialized = true;
++        phase = Phase.PARALLEL;
++
++        chunkQueue.initialize();
++        workerStateTL = PlatformThreads.singleton().createUnmanagedThreadLocal();
++        numWorkerThreads = busyWorkerThreads = getWorkerCount();
++
++        /* Round worker thread state size up to CACHE_LINE_WORDS */
++        int workerStateWords = (getStateWords() + CACHE_LINE_WORDS - 1) / CACHE_LINE_WORDS * CACHE_LINE_WORDS;
++        /* Allocate one struct per worker thread and one struct for the main GC thread. */
++        int numWorkerStates = numWorkerThreads + 1;
++        workerStatesSize = WordFactory.unsigned(workerStateWords * numWorkerStates * wordSize());
++        workerStates = (GCWorkerThreadState) CommittedMemoryProvider.get()
++                .allocateAlignedChunk(workerStatesSize, WordFactory.unsigned(CACHE_LINE_WORDS * wordSize()));
++        VMError.guarantee(workerStates.isNonNull());
++
++        /* Start the worker threads and wait until they are in a well-defined state. */
++        workerThreads = (OSThreadHandlePointer) CommittedMemoryProvider.get()
++                .allocateUnalignedChunk(SizeOf.unsigned(OSThreadHandlePointer.class).multiply(numWorkerThreads));
++        VMError.guarantee(workerThreads.isNonNull());
++        for (int i = 0; i < numWorkerThreads; i++) {
++            GCWorkerThreadState workerState = workerStates.addressOf(workerStateWords * (i + 1));
++            /* Reuse scanned chunk slot for the isolate since it is read just once at thread start */
++            setScannedChunk(workerState, CurrentIsolate.getIsolate());
++            OSThreadHandle thread = PlatformThreads.singleton().startThreadUnmanaged(gcWorkerRunFunc.getFunctionPointer(), workerState, 0);
++            workerThreads.write(i, thread);
++        }
++        waitUntilWorkerThreadsFinish();
++    }
++
++    @Uninterruptible(reason = "Tear-down in progress.")
++    public void tearDown() {
++        if (!initialized) {
++            return;
++        }
++
++        initialized = false;
++        chunkQueue.teardown();
++
++        /* Signal the worker threads so that they can shut down. */
++        phase = Phase.SHUTDOWN;
++        parPhase.broadcast();
++
++        for (int i = 0; i < numWorkerThreads; i++) {
++            OSThreadHandle thread = workerThreads.read(i);
++            PlatformThreads.singleton().joinThreadUnmanaged(thread);
++        }
++        busyWorkerThreads = 0;
++
++        CommittedMemoryProvider.get().freeAlignedChunk(workerStates, workerStatesSize, WordFactory.unsigned(CACHE_LINE_WORDS * wordSize()));
++        CommittedMemoryProvider.get().freeUnalignedChunk(workerThreads, SizeOf.unsigned(OSThreadHandlePointer.class).multiply(numWorkerThreads));
++        workerThreads = WordFactory.nullPointer();
++
++        PlatformThreads.singleton().deleteUnmanagedThreadLocal(workerStateTL);
++        workerStateTL = WordFactory.nullPointer();
++        numWorkerThreads = 0;
++
++        /*
++         * Free any chunks left in the chunk releaser. This needs locking because a worker thread
++         * might be doing this in parallel. */
++        mutex.lockNoTransitionUnspecifiedOwner();
++        try {
++            doCleanup();
++        } finally {
++            mutex.unlockNoTransitionUnspecifiedOwner();
++        }
++    }
++
++    private static int getWorkerCount() {
++        int setting = SubstrateOptions.ParallelGCThreads.getValue();
++        int workerCount = setting > 0 ? setting : getDefaultWorkerCount();
++        verboseGCLog().string("[Number of ParallelGC threads: ").unsigned(workerCount).string("]").newline();
++        return workerCount;
++    }
++
++    private static int getDefaultWorkerCount() {
++        /* This does not take the container support into account. */
++        int cpus = Jvm.JVM_ActiveProcessorCount();
++        return UninterruptibleUtils.Math.min(cpus, MAX_WORKER_THREADS);
++    }
++
++    @Uninterruptible(reason = "Heap base is not set up yet.")
++    @CEntryPoint(include = UseParallelGC.class, publishAs = CEntryPoint.Publish.NotPublished)
++    @CEntryPointOptions(prologue = GCWorkerThreadPrologue.class, epilogue = CEntryPointOptions.NoEpilogue.class)
++    private static void gcWorkerRun(GCWorkerThreadState state) {
++        try {
++            ParallelGC.singleton().work(state);
++        } catch (Throwable e) {
++            throw VMError.shouldNotReachHere(e);
++        }
++    }
++
++    @NeverInline("Prevent reads from floating up.")
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    private void work(GCWorkerThreadState state) {
++        PlatformThreads.singleton().setUnmanagedThreadLocalValue(workerStateTL, state);
++        try {
++            work0(state);
++        } catch (Throwable e) {
++            VMError.shouldNotReachHere(e);
++        }
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    private void work0(GCWorkerThreadState state) {
++        while (phase != Phase.SHUTDOWN) {
++            Pointer ptr;
++            mutex.lockNoTransitionUnspecifiedOwner();
++            try {
++                ptr = chunkQueue.pop();
++                /* Block if there is no local/global work. */
++                if (ptr.isNull() && getNextAllocChunkScanPointer(false).isNull()) {
++                    decrementBusyWorkers();
++                    do {
++                        parPhase.blockNoTransitionUnspecifiedOwner();
++                        attemptCleanup();
++                    } while (phase == Phase.SEQUENTIAL);
++                    incrementBusyWorkers();
++                }
++            } finally {
++                mutex.unlockNoTransitionUnspecifiedOwner();
++            }
++
++            if (ptr.isNonNull()) {
++                scanChunk(ptr);
++            } else {
++                scanAllocChunk(state);
++            }
++        }
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    private static void scanChunk(Pointer ptr) {
++        assert ptr.isNonNull();
++        boolean aligned = ptr.and(UNALIGNED_BIT).notEqual(UNALIGNED_BIT);
++        UnsignedWord op = ptr.and(SCAN_OP_MASK);
++        ptr = ptr.and(POINTER_MASK);
++        GreyToBlackObjectVisitor visitor = GCImpl.getGCImpl().getGreyToBlackObjectVisitor();
++        if (op.equal(SCAN_CARD_TABLE)) {
++            if (aligned) {
++                AlignedHeapChunk.AlignedHeader aChunk = (AlignedHeapChunk.AlignedHeader) ptr;
++                RememberedSet.get().walkDirtyObjects(aChunk, visitor, true);
++            } else {
++                UnalignedHeapChunk.UnalignedHeader uChunk = (UnalignedHeapChunk.UnalignedHeader) ptr;
++                RememberedSet.get().walkDirtyObjects(uChunk, visitor, true);
++            }
++        } else if (op.equal(SCAN_GREY_OBJECTS)) {
++            if (aligned) {
++                AlignedHeapChunk.AlignedHeader aChunk = AlignedHeapChunk.getEnclosingChunkFromObjectPointer(ptr);
++                HeapChunk.walkObjectsFromInline(aChunk, ptr, visitor);
++            } else {
++                UnalignedHeapChunk.UnalignedHeader uChunk = (UnalignedHeapChunk.UnalignedHeader) ptr;
++                UnalignedHeapChunk.walkObjectsInline(uChunk, visitor);
++            }
++        } else {
++            VMError.shouldNotReachHere("Unknown opcode");
++        }
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    private void scanAllocChunk(GCWorkerThreadState state) {
++        Pointer scanPtr = getNextAllocChunkScanPointer(false);
++        if (scanPtr.isNonNull()) {
++            AlignedHeapChunk.AlignedHeader allocChunk = AlignedHeapChunk.getEnclosingChunkFromObjectPointer(scanPtr);
++            setScannedChunk(state, allocChunk);
++            allocChunk.getSpace().walkAllocChunk(allocChunk, scanPtr, GCImpl.getGCImpl().getGreyToBlackObjectVisitor());
++            setScannedChunk(state, WordFactory.nullPointer());
++        }
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    private Pointer getNextAllocChunkScanPointer(boolean clear) {
++        for (int i = 1; i < getStateWords(); i++) {
++            Pointer scanPtr = getAllocChunkScanPointer(i, clear);
++            if (scanPtr.isNonNull()) {
++                AlignedHeapChunk.AlignedHeader allocChunk = AlignedHeapChunk.getEnclosingChunkFromObjectPointer(scanPtr);
++                if (HeapChunk.getTopPointer(allocChunk).aboveThan(scanPtr)) {
++                    return scanPtr;
++                }
++            }
++        }
++        return WordFactory.nullPointer();
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    private void incrementBusyWorkers() {
++        assert mutex.isOwner(true);
++        ++busyWorkerThreads;
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    private void decrementBusyWorkers() {
++        assert mutex.isOwner(true);
++        if (--busyWorkerThreads == 0) {
++            phase = Phase.SEQUENTIAL;
++            seqPhase.signal();
++        }
++    }
++
++    /**
++     * Start parallel phase and wait until all chunks have been processed.
++     */
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    public void scheduleScan() {
++        /* Push all alloc chunks filled during sequential phase */
++        Pointer allocChunk;
++        while ((allocChunk = getNextAllocChunkScanPointer(true)).isNonNull()) {
++            push(allocChunk, SCAN_GREY_OBJECTS);
++        }
++
++        /* Reset all thread local states. */
++        UnmanagedMemoryUtil.fillLongs((Pointer) workerStates, workerStatesSize, 0L);
++
++        mutex.lockNoTransitionUnspecifiedOwner();
++        try {
++            /* A cleanup might have been scheduled. Wait for it to finish. */
++            waitUntilWorkerThreadsFinish0();
++
++            /* Let worker threads run. */
++            phase = Phase.PARALLEL;
++            parPhase.broadcast();
++
++            waitUntilWorkerThreadsFinish0();
++        } finally {
++            mutex.unlockNoTransitionUnspecifiedOwner();
++        }
++
++        assert chunkQueue.isEmpty();
++        assert phase != Phase.PARALLEL;
++        assert busyWorkerThreads == 0;
++    }
++
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private void waitUntilWorkerThreadsFinish() {
++        mutex.lockNoTransitionUnspecifiedOwner();
++        try {
++            waitUntilWorkerThreadsFinish0();
++        } finally {
++            mutex.unlockNoTransitionUnspecifiedOwner();
++        }
++    }
++
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private void waitUntilWorkerThreadsFinish0() {
++        while (phase != Phase.SEQUENTIAL) {
++            seqPhase.blockNoTransitionUnspecifiedOwner();
++        }
++    }
++
++    public void scheduleCleanup() {
++        mutex.lock();
++        try {
++            phase = Phase.CLEANUP;
++            parPhase.signal();
++        } finally {
++            mutex.unlock();
++        }
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    private void attemptCleanup() {
++        if (phase == Phase.CLEANUP) {
++            doCleanup();
++            phase = Phase.SEQUENTIAL;
++            seqPhase.signal();
++        }
++    }
++
++    @Uninterruptible(reason = "Called from a GC worker thread.")
++    private void doCleanup() {
++        assert mutex.isOwner(true) || phase == Phase.SHUTDOWN;
++        GCImpl.getGCImpl().freeChunks();
++    }
++
++    private static Log verboseGCLog() {
++        return SubstrateGCOptions.VerboseGC.getValue() ? Log.log() : Log.noopLog();
++    }
++
++    /*
++     * Worker thread state is a bunch of chunk pointers laid out in the following manner:
++     * word 0   :  scanned chunk pointer, also reused for isolate pointer at the very start of a thread
++     *      1   :
++     *  ...     :  survivor states' allocation pointers
++     *      N   :
++     *      N+1 :  old gen allocation pointer
++     */
++    @RawPointerTo(GCWorkerThreadState.AlignedChunkPointer.class)
++    interface GCWorkerThreadState extends PointerBase {
++        @RawStructure
++        interface AlignedChunkPointer extends PointerBase {}
++
++        PointerBase read(int age);
++        void write(int age, PointerBase value);
++        GCWorkerThreadState addressOf(int index);
++    }
++
++    @Fold
++    static int getStateWords() {
++        return HeapParameters.getMaxSurvivorSpaces() + 2;
++    }
++
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private static PointerBase getScannedChunk(GCWorkerThreadState state) {
++        return state.read(0);
++    }
++
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private static void setScannedChunk(GCWorkerThreadState state, PointerBase chunkPointer) {
++        state.write(0, chunkPointer);
++    }
++
++    private static class GCWorkerThreadPrologue implements CEntryPointOptions.Prologue {
++        @Uninterruptible(reason = "prologue")
++        @SuppressWarnings("unused")
++        public static void enter(GCWorkerThreadState state) {
++            CEntryPointSnippets.setHeapBase(getScannedChunk(state));
++            WriteCurrentVMThreadNode.writeCurrentVMThread(WordFactory.nullPointer());
++        }
++    }
++
++    private static class UseParallelGC implements BooleanSupplier {
++        @Override
++        public boolean getAsBoolean() {
++            return ParallelGC.isEnabled();
++        }
++    }
++}
++
++@Platforms(Platform.HOSTED_ONLY.class)
++@AutomaticallyRegisteredFeature()
++@SuppressWarnings("unused")
++class ParallelGCFeature implements InternalFeature {
++    @Override
++    public boolean isInConfiguration(IsInConfigurationAccess access) {
++        return ParallelGC.isEnabled();
++    }
++
++    @Override
++    public void afterRegistration(AfterRegistrationAccess access) {
++        verifyOptionEnabled(SubstrateOptions.SpawnIsolates);
++
++        ImageSingletons.add(ParallelGC.class, new ParallelGC());
++    }
++
++    private static void verifyOptionEnabled(SubstrateOptionKey<Boolean> option) {
++        String optionMustBeEnabledFmt = "When using the parallel garbage collector ('--gc=parallel'), please note that option '%s' must be enabled.";
++        UserError.guarantee(option.getValue(), optionMustBeEnabledFmt, option.getName());
++    }
++}
+diff --git a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/remset/CardTableBasedRememberedSet.java b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/remset/CardTableBasedRememberedSet.java
+index ae7a8228245..c605e05c186 100644
+--- a/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/remset/CardTableBasedRememberedSet.java
++++ b/graal/substratevm/src/com.oracle.svm.core.genscavenge/src/com/oracle/svm/core/genscavenge/remset/CardTableBasedRememberedSet.java
+@@ -43,6 +43,7 @@ import com.oracle.svm.core.genscavenge.ObjectHeaderImpl;
+ import com.oracle.svm.core.genscavenge.Space;
+ import com.oracle.svm.core.genscavenge.UnalignedHeapChunk.UnalignedHeader;
+ import com.oracle.svm.core.genscavenge.graal.SubstrateCardTableBarrierSet;
++import com.oracle.svm.core.genscavenge.parallel.ParallelGC;
+ import com.oracle.svm.core.heap.ObjectHeader;
+ import com.oracle.svm.core.image.ImageHeapObject;
+ import com.oracle.svm.core.util.HostedByteBufferPointer;
+@@ -188,13 +189,21 @@ public class CardTableBasedRememberedSet implements RememberedSet {
+     public void walkDirtyObjects(Space space, GreyToBlackObjectVisitor visitor, boolean clean) {
+         AlignedHeader aChunk = space.getFirstAlignedHeapChunk();
+         while (aChunk.isNonNull()) {
+-            walkDirtyObjects(aChunk, visitor, clean);
++            if (ParallelGC.isEnabled()) {
++                ParallelGC.singleton().push(aChunk, ParallelGC.SCAN_CARD_TABLE);
++            } else {
++                walkDirtyObjects(aChunk, visitor, clean);
++            }
+             aChunk = HeapChunk.getNext(aChunk);
+         }
+ 
+         UnalignedHeader uChunk = space.getFirstUnalignedHeapChunk();
+         while (uChunk.isNonNull()) {
+-            walkDirtyObjects(uChunk, visitor, clean);
++            if (ParallelGC.isEnabled()) {
++                ParallelGC.singleton().push(uChunk, ParallelGC.SCAN_CARD_TABLE);
++            } else {
++                walkDirtyObjects(uChunk, visitor, clean);
++            }
+             uChunk = HeapChunk.getNext(uChunk);
+         }
+     }
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/MemoryWalker.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/MemoryWalker.java
+index 85104becd0a..980c7db17c4 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/MemoryWalker.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/MemoryWalker.java
+@@ -80,21 +80,6 @@ public final class MemoryWalker {
+         /** Return the size of the heap chunk. */
+         UnsignedWord getSize(T heapChunk);
+ 
+-        /** Return the address where allocation starts within the heap chunk. */
+-        UnsignedWord getAllocationStart(T heapChunk);
+-
+-        /**
+-         * Return the address where allocation has ended within the heap chunk. This is the first
+-         * address past the end of allocated space within the heap chunk.
+-         */
+-        UnsignedWord getAllocationEnd(T heapChunk);
+-
+-        /**
+-         * Return the name of the region that contains the heap chunk. E.g., "young", "old", "free",
+-         * etc.
+-         */
+-        String getRegion(T heapChunk);
+-
+         /** Return true if the heap chunk is an aligned heap chunk, else false. */
+         boolean isAligned(T heapChunk);
+     }
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/SubstrateDiagnostics.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/SubstrateDiagnostics.java
+index 6d5cc22ce0d..58ec11526d8 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/SubstrateDiagnostics.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/SubstrateDiagnostics.java
+@@ -133,7 +133,7 @@ public class SubstrateDiagnostics {
+ 
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     public static boolean isFatalErrorHandlingThread() {
+-        return fatalErrorState().diagnosticThread.get() == CurrentIsolate.getCurrentThread();
++        return CurrentIsolate.getCurrentThread().isNonNull() && fatalErrorState().diagnosticThread.get() == CurrentIsolate.getCurrentThread();
+     }
+ 
+     public static int maxInvocations() {
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/SubstrateOptions.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/SubstrateOptions.java
+index 6e3274147cc..35433f24651 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/SubstrateOptions.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/SubstrateOptions.java
+@@ -57,6 +57,7 @@ import com.oracle.svm.core.option.LocatableMultiOptionValue;
+ import com.oracle.svm.core.option.RuntimeOptionKey;
+ import com.oracle.svm.core.option.SubstrateOptionsParser;
+ import com.oracle.svm.core.thread.VMOperationControl;
++import com.oracle.svm.core.util.InterruptImageBuilding;
+ import com.oracle.svm.core.util.UserError;
+ import com.oracle.svm.util.LogUtils;
+ import com.oracle.svm.util.ModuleSupport;
+@@ -356,6 +357,7 @@ public class SubstrateOptions {
+         @Override
+         protected void onValueUpdate(EconomicMap<OptionKey<?>, Object> values, Boolean oldValue, Boolean newValue) {
+             if (newValue) {
++                SubstrateOptions.UseParallelGC.update(values, false);
+                 SubstrateOptions.UseEpsilonGC.update(values, false);
+             }
+         }
+@@ -368,9 +370,44 @@ public class SubstrateOptions {
+         protected void onValueUpdate(EconomicMap<OptionKey<?>, Object> values, Boolean oldValue, Boolean newValue) {
+             if (newValue) {
+                 SubstrateOptions.UseSerialGC.update(values, false);
++                SubstrateOptions.UseParallelGC.update(values, false);
+             }
+         }
+     };
++
++    @APIOption(name = "parallel", group = GCGroup.class, customHelp = "Parallel garbage collector")//
++    @Option(help = "Use a parallel GC")//
++    public static final HostedOptionKey<Boolean> UseParallelGC = new HostedOptionKey<>(false, SubstrateOptions::requireMultiThreading) {
++        @Override
++        protected void onValueUpdate(EconomicMap<OptionKey<?>, Object> values, Boolean oldValue, Boolean newValue) {
++            if (newValue) {
++                SubstrateOptions.UseSerialGC.update(values, false);
++                SubstrateOptions.UseEpsilonGC.update(values, false);
++            }
++        }
++    };
++
++    @Option(help = "Number of GC worker threads. Parallel and G1 GC only.", type = OptionType.User)//
++    public static final RuntimeOptionKey<Integer> ParallelGCThreads = new RuntimeOptionKey<>(0, Immutable);
++
++    private static void requireMultiThreading(HostedOptionKey<Boolean> optionKey) {
++        if (optionKey.getValue() && !MultiThreaded.getValue()) {
++            throw new InterruptImageBuilding(String.format("The option %s requires the option %s to be set.",
++                            SubstrateOptionsParser.commandArgument(optionKey, "+"),
++                            SubstrateOptionsParser.commandArgument(MultiThreaded, "+")));
++        }
++    }
++
++    @Fold
++    public static boolean useSerialOrParallelGC() {
++        return UseSerialGC.getValue() || UseParallelGC.getValue();
++    }
++
++    @Fold
++    public static boolean useSerialOrParallelOrEpsilonGC() {
++        return UseSerialGC.getValue() || UseParallelGC.getValue() || UseEpsilonGC.getValue();
++    }
++
+     @Option(help = "Physical memory size (in bytes). By default, the value is queried from the OS/container during VM startup.", type = OptionType.Expert)//
+     public static final RuntimeOptionKey<Long> MaxRAM = new RuntimeOptionKey<>(0L, Immutable);
+ 
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/ObjectHeader.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/ObjectHeader.java
+index 9a106c94a07..36e2868e8a0 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/ObjectHeader.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/ObjectHeader.java
+@@ -146,7 +146,7 @@ public abstract class ObjectHeader {
+     }
+ 
+     @Fold
+-    protected static int getHubOffset() {
++    public static int getHubOffset() {
+         return ConfigurationValues.getObjectLayout().getHubOffset();
+     }
+ }
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/ObjectVisitor.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/ObjectVisitor.java
+index ac706669506..7882d214733 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/ObjectVisitor.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/ObjectVisitor.java
+@@ -38,7 +38,9 @@ public interface ObjectVisitor {
+     @RestrictHeapAccess(access = RestrictHeapAccess.Access.NO_ALLOCATION, reason = "Must not allocate while visiting the heap.")
+     boolean visitObject(Object o);
+ 
+-    /** Like visitObject(Object), but inlined for performance. */
++    /**
++     * Like visitObject(Object), but inlined for performance.
++     */
+     @RestrictHeapAccess(access = RestrictHeapAccess.Access.NO_ALLOCATION, reason = "Must not allocate while visiting the heap.")
+     default boolean visitObjectInline(Object o) {
+         return visitObject(o);
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/OutOfMemoryUtil.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/OutOfMemoryUtil.java
+index 07e3b5a6ade..ddb7b279e9b 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/OutOfMemoryUtil.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/OutOfMemoryUtil.java
+@@ -33,6 +33,7 @@ import com.oracle.svm.core.heap.dump.HeapDumping;
+ import com.oracle.svm.core.jdk.JDKUtils;
+ import com.oracle.svm.core.log.Log;
+ import com.oracle.svm.core.stack.StackOverflowCheck;
++import com.oracle.svm.core.thread.VMOperation;
+ import com.oracle.svm.core.util.VMError;
+ 
+ /**
+@@ -48,9 +49,13 @@ public class OutOfMemoryUtil {
+         return reportOutOfMemoryError(OUT_OF_MEMORY_ERROR);
+     }
+ 
+-    @Uninterruptible(reason = "Not uninterruptible but it doesn't matter for the callers.", calleeMustBe = false)
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     @RestrictHeapAccess(access = RestrictHeapAccess.Access.NO_ALLOCATION, reason = "Can't allocate while out of memory.")
+     public static OutOfMemoryError reportOutOfMemoryError(OutOfMemoryError error) {
++        if (VMOperation.isGCInProgress()) {
++            /* An OutOfMemoryError during a GC is always a fatal error. */
++            throw VMError.shouldNotReachHere(error);
++        }
+         StackOverflowCheck.singleton().makeYellowZoneAvailable();
+         try {
+             reportOutOfMemoryError0(error);
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/Target_java_lang_ref_Reference.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/Target_java_lang_ref_Reference.java
+index f603ce577ab..c7f287136e6 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/Target_java_lang_ref_Reference.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/heap/Target_java_lang_ref_Reference.java
+@@ -98,7 +98,7 @@ public final class Target_java_lang_ref_Reference<T> {
+ 
+     @SuppressWarnings("unused") //
+     @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.Reset) //
+-    @ExcludeFromReferenceMap(reason = "Some GCs process this field manually.", onlyIf = NotSerialNotEpsilonGC.class) //
++    @ExcludeFromReferenceMap(reason = "Some GCs process this field manually.", onlyIf = NotSerialNotParallelNotEpsilonGC.class) //
+     transient Target_java_lang_ref_Reference<?> discovered;
+ 
+     @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.Custom, declClass = ComputeQueueValue.class) //
+@@ -226,9 +226,9 @@ class ComputeQueueValue implements FieldValueTransformer {
+ }
+ 
+ @Platforms(Platform.HOSTED_ONLY.class)
+-class NotSerialNotEpsilonGC implements BooleanSupplier {
++class NotSerialNotParallelNotEpsilonGC implements BooleanSupplier {
+     @Override
+     public boolean getAsBoolean() {
+-        return !SubstrateOptions.UseSerialGC.getValue() && !SubstrateOptions.UseEpsilonGC.getValue();
++        return !SubstrateOptions.useSerialOrParallelOrEpsilonGC();
+     }
+ }
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/hub/LayoutEncoding.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/hub/LayoutEncoding.java
+index 5e66f82ff98..d1f127061a9 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/hub/LayoutEncoding.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/hub/LayoutEncoding.java
+@@ -350,11 +350,50 @@ public class LayoutEncoding {
+         return getSizeFromObjectInline(obj, withOptionalIdHashField);
+     }
+ 
++    @AlwaysInline("GC performance")
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    public static UnsignedWord getSizeFromHeader(Object obj, Word header, long eightHeaderBytes, boolean addOptionalIdHashField) {
++        ObjectHeader oh = Heap.getHeap().getObjectHeader();
++        DynamicHub hub = oh.dynamicHubFromObjectHeader(header);
++        int encoding = hub.getLayoutEncoding();
++        boolean withOptionalIdHashField = addOptionalIdHashField ||
++                        (ConfigurationValues.getObjectLayout().isIdentityHashFieldOptional() && oh.hasOptionalIdentityHashField(header));
++
++        if (isArrayLike(encoding)) {
++            int arrayLength = getArrayLengthFromHeader(obj, eightHeaderBytes);
++            return getArraySize(encoding, arrayLength, withOptionalIdHashField);
++        } else {
++            return getPureInstanceSize(hub, withOptionalIdHashField);
++        }
++    }
++
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private static int getArrayLengthFromHeader(Object obj, long eightHeaderBytes) {
++        ObjectLayout ol = ConfigurationValues.getObjectLayout();
++        assert ol.getArrayLengthOffset() >= 4;
++        if (ol.getArrayLengthOffset() == 4) {
++            /*
++             * If the array length is located within the first 8 bytes, then we need to extract it
++             * from the already read header data.
++             */
++            int result = (int) (eightHeaderBytes >>> 32);
++            assert result >= 0;
++            return result;
++        }
++        return ArrayLengthNode.arrayLength(obj);
++    }
++
+     @AlwaysInline("Actual inlining decided by callers.")
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     private static UnsignedWord getSizeFromObjectInline(Object obj, boolean withOptionalIdHashField) {
+         DynamicHub hub = KnownIntrinsics.readHub(obj);
+         int encoding = hub.getLayoutEncoding();
++        return getSizeFromEncoding(obj, hub, encoding, withOptionalIdHashField);
++    }
++
++    @AlwaysInline("GC performance")
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    private static UnsignedWord getSizeFromEncoding(Object obj, DynamicHub hub, int encoding, boolean withOptionalIdHashField) {
+         if (isArrayLike(encoding)) {
+             return getArraySize(encoding, ArrayLengthNode.arrayLength(obj), withOptionalIdHashField);
+         } else {
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/identityhashcode/IdentityHashCodeSupport.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/identityhashcode/IdentityHashCodeSupport.java
+index 8384c4ac1b0..8c5f46ef41a 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/identityhashcode/IdentityHashCodeSupport.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/identityhashcode/IdentityHashCodeSupport.java
+@@ -88,8 +88,12 @@ public final class IdentityHashCodeSupport {
+ 
+     @Uninterruptible(reason = "Prevent a GC interfering with the object's identity hash state.")
+     public static int computeHashCodeFromAddress(Object obj) {
+-        Word address = Word.objectToUntrackedPointer(obj);
+         long salt = Heap.getHeap().getIdentityHashSalt(obj);
++        return computeHashCodeFromAddress(Word.objectToUntrackedPointer(obj), salt);
++    }
++
++    @Uninterruptible(reason = "Prevent a GC interfering with the object's identity hash state.")
++    public static int computeHashCodeFromAddress(Word address, long salt) {
+         SignedWord salted = WordFactory.signed(salt).xor(address);
+         int hash = mix32(salted.rawValue()) >>> 1; // shift: ensure positive, same as on HotSpot
+         return (hash == 0) ? 1 : hash; // ensure nonzero
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/VMErrorSubstitutions.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/VMErrorSubstitutions.java
+index 89e76ff009a..edeb629e13c 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/VMErrorSubstitutions.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/jdk/VMErrorSubstitutions.java
+@@ -27,7 +27,9 @@ package com.oracle.svm.core.jdk;
+ import static com.oracle.svm.core.heap.RestrictHeapAccess.Access.NO_ALLOCATION;
+ 
+ import jdk.graal.compiler.nodes.UnreachableNode;
++import org.graalvm.nativeimage.CurrentIsolate;
+ import org.graalvm.nativeimage.ImageSingletons;
++import org.graalvm.nativeimage.Isolate;
+ import org.graalvm.nativeimage.LogHandler;
+ import org.graalvm.nativeimage.Platforms;
+ import org.graalvm.nativeimage.c.function.CodePointer;
+@@ -35,9 +37,11 @@ import org.graalvm.nativeimage.impl.InternalPlatform;
+ 
+ import com.oracle.svm.core.NeverInline;
+ import com.oracle.svm.core.SubstrateDiagnostics;
++import com.oracle.svm.core.SubstrateOptions;
+ import com.oracle.svm.core.Uninterruptible;
+ import com.oracle.svm.core.annotate.Substitute;
+ import com.oracle.svm.core.annotate.TargetClass;
++import com.oracle.svm.core.graal.snippets.CEntryPointSnippets;
+ import com.oracle.svm.core.heap.RestrictHeapAccess;
+ import com.oracle.svm.core.log.Log;
+ import com.oracle.svm.core.snippets.KnownIntrinsics;
+@@ -135,6 +139,10 @@ public class VMErrorSubstitutions {
+     static RuntimeException shouldNotReachHere(CodePointer callerIP, String msg, Throwable ex) {
+         ThreadStackPrinter.printBacktrace();
+ 
++        if (SubstrateOptions.SpawnIsolates.getValue() && CurrentIsolate.getCurrentThread().isNull()) {
++            CEntryPointSnippets.enterAttachFromCrashHandler((Isolate) KnownIntrinsics.heapBase());
++        }
++
+         SafepointBehavior.preventSafepoints();
+         StackOverflowCheck.singleton().disableStackOverflowChecksForFatalError();
+ 
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/PlatformThreads.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/PlatformThreads.java
+index 9744b6ac54d..8448ff7f023 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/PlatformThreads.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/PlatformThreads.java
+@@ -524,6 +524,11 @@ public abstract class PlatformThreads {
+         throw VMError.shouldNotReachHere("Shouldn't call PlatformThreads.startThreadUnmanaged directly.");
+     }
+ 
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    public boolean joinThreadUnmanaged(OSThreadHandle threadHandle) {
++        return joinThreadUnmanaged(threadHandle, WordFactory.nullPointer());
++    }
++
+     @SuppressWarnings("unused")
+     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+     public boolean joinThreadUnmanaged(OSThreadHandle threadHandle, WordPointer threadExitStatus) {
+diff --git a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/VMThreads.java b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/VMThreads.java
+index b714657797f..b69b4f651e5 100644
+--- a/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/VMThreads.java
++++ b/graal/substratevm/src/com.oracle.svm.core/src/com/oracle/svm/core/thread/VMThreads.java
+@@ -34,6 +34,8 @@ import org.graalvm.nativeimage.ImageSingletons;
+ import org.graalvm.nativeimage.Isolate;
+ import org.graalvm.nativeimage.IsolateThread;
+ import org.graalvm.nativeimage.c.function.CFunction;
++import org.graalvm.nativeimage.c.struct.RawPointerTo;
++import org.graalvm.nativeimage.c.struct.RawStructure;
+ import org.graalvm.nativeimage.c.type.CCharPointer;
+ import org.graalvm.nativeimage.impl.UnmanagedMemorySupport;
+ import org.graalvm.word.ComparableWord;
+@@ -655,6 +657,16 @@ public abstract class VMThreads {
+         THREAD_MUTEX.guaranteeIsOwner(message, allowUnspecifiedOwner);
+     }
+ 
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    public static boolean ownsThreadMutex() {
++        return THREAD_MUTEX.isOwner();
++    }
++
++    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
++    public static boolean ownsThreadMutex(boolean allowUnspecifiedOwner) {
++        return THREAD_MUTEX.isOwner(allowUnspecifiedOwner);
++    }
++
+     public static boolean printLocationInfo(Log log, UnsignedWord value, boolean allowUnsafeOperations) {
+         if (!allowUnsafeOperations && !VMOperation.isInProgressAtSafepoint()) {
+             /*
+@@ -1034,9 +1046,17 @@ public abstract class VMThreads {
+         }
+     }
+ 
++    @RawStructure
+     public interface OSThreadHandle extends PointerBase {
+     }
+ 
++    @RawPointerTo(OSThreadHandle.class)
++    public interface OSThreadHandlePointer extends PointerBase {
++        void write(int index, OSThreadHandle value);
++
++        OSThreadHandle read(int index);
++    }
++
+     public interface OSThreadId extends PointerBase {
+     }
+ 
