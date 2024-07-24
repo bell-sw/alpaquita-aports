@@ -31,12 +31,12 @@ check() {
 package() {
 	make PREFIX="/usr" DESTDIR="$pkgdir" install
 
-	(
-		cd tests/
-		rm -f ./*.c COPYING Makefile .gitignore
-	)
 	mkdir -p "$pkgdir"/usr/share/$pkgname
 	cp -rf tests "$pkgdir"/usr/share/$pkgname/
+	(
+		cd "$pkgdir"/usr/share/$pkgname/tests
+		rm -f ./*.c COPYING Makefile .gitignore
+	)
 }
 
 tests() {
