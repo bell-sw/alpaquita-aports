@@ -4,16 +4,13 @@
 # with the Java SE Specification.
 
 _java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
-_java_ver=21.0.3+11
-_java_rel_date=2024-04-16
+_java_ver=21.0.4+10
+_java_rel_date=2024-07-16
 _java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 21 CRaC"
-
-# dir name based on the repo name and tag name
-_java_srcdir=jdk21u-jdk-${_java_ver%+*}-bellsoft-std-crac-ga
 
 pkgname=${_java_pkg_name}21-crac
 pkgver=${_java_ver/+/_p}
-pkgrel=1
+pkgrel=0
 pkgdesc="$_java_name (Coordinated Restore at Checkpoint)"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
@@ -71,12 +68,12 @@ provides="
 	"
 
 source="
-	http://packages.bell-sw.com/alpaquita/distfiles/$_java_srcdir.tar.gz
+	${VENDOR_URL/\/\//\/\/download.}java/$_java_ver/bellsoft-jdk$_java_ver-src-crac.tar.gz
 	HelloJava.java
 	readme.txt.template
 	"
 
-builddir="$srcdir/$_java_srcdir"
+builddir="$srcdir/jdk-${_java_ver%+*}"
 sonameprefix="$pkgname:"
 
 _java_home=/usr/lib/jvm/"$pkgname"
@@ -320,7 +317,7 @@ _libs_static() {
 
 
 sha512sums="
-54ef9126edf895a26e43b2e8f558d3fcb0ba2edf02bfda8b7dfe794caf5b2a1338d1993ace9164f97f997cf21a94efe43d12747d93e121532ea04ba38b5e9815  jdk21u-jdk-21.0.3-bellsoft-std-crac-ga.tar.gz
+ac71fa7ee988bd00a56250829a569f0fe151e05b1d75a385d93dae867d6f38d0be7a43989d2f22a341a34edab0c4f60e985e181fe26b0913664d3201c4b35194  bellsoft-jdk21.0.4+10-src-crac.tar.gz
 508cc8511fecee2288f41dc009834d444785ddd4129acfabefeae03ab75a26088bc7e8a60548dac58c6d18865d994e5ad8fa340cac20ba3cc838434dc7cbbcde  HelloJava.java
 38edd959b1e1880c1b2663c27ec31708538a43e75889209530209c0328e52ddc8eeb92ebe03e2b51b5440c41354316e55897d0d21d04ceff0b488a97242de5d4  readme.txt.template
 "
