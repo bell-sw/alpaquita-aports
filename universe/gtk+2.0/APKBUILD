@@ -1,6 +1,6 @@
 pkgname=gtk+2.0
 pkgver=2.24.33
-pkgrel=11
+pkgrel=12
 pkgdesc="The GTK+ Toolkit (v2)"
 url="https://www.gtk.org/"
 triggers="$pkgname.trigger=/usr/lib/gtk-2.0/immodules:/usr/lib/gtk-2.0/*/immodules"
@@ -49,9 +49,15 @@ source="https://download.gnome.org/sources/gtk+/${pkgver%.*}/gtk+-$pkgver.tar.xz
 	xid-collision-debug.patch
 	gtk2-fixdso.patch
 	implicit-int.patch
+
+	0100-CVE-2024-6655.patch
 	"
 
 builddir="$srcdir"/gtk+-$pkgver
+
+# secfixes:
+#   2.24.33-r12:
+#     - CVE-2024-6655
 
 prepare() {
 	default_prepare
@@ -103,4 +109,5 @@ sha512sums="
 0771320f74f6ce209b72a47fb15b9f8f676fa7ebf174c4c59c23d099056c2e16d2bda433b60588531d5abc3a8bcd29485877a59939fe509c91e2831dcd124971  xid-collision-debug.patch
 95f28633a5164a2a9fec45ee1aa80bd1c07e0c5a7ac8d770b9c74af0909b7286b823eb634aa384cad609dc8799d2e6c9e8392c2732b9093076fdf94b4f6878b7  gtk2-fixdso.patch
 a716364b40c337e0b4da05f449de5e22b28f542828e1009bbf759575d271851c289612dea839681596a7a7f5b5585bd12f441e6ccaa29ae6430e1058d888b6b3  implicit-int.patch
+ef2d3316c67d2b1631da1e9b16ea63fcfccb1a14df850e2b558be4ab277b6b851719bdb9ff4304110c0297f5c399308e77c784f646e12f94082033745424e93a  0100-CVE-2024-6655.patch
 "
