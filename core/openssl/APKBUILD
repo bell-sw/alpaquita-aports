@@ -138,6 +138,13 @@ build() {
 	# gcc's --sysroot fake this by overriding CC
 	[ -n "$CBUILDROOT" ] && CC="$CC --sysroot=$CBUILDROOT"
 
+	# when cross building do not enable threads as libatomic is not avaiable
+	if [ "$CBUILD" != "$CHOST" ]; then
+		case $CARCH in
+			riscv64|arm*) _optflags="$_optflags no-threads";;
+		esac
+	fi
+
 	perl ./Configure \
 		$_target \
 		--prefix=/usr \
