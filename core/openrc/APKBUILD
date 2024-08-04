@@ -4,7 +4,7 @@
 pkgname=openrc
 pkgver=0.54.2
 _ver=${pkgver/_git*/}
-pkgrel=0
+pkgrel=1
 pkgdesc="OpenRC dependency-based init system"
 url="https://github.com/OpenRC/openrc"
 arch="all"
@@ -19,6 +19,7 @@ subpackages="
 	$pkgname-tools::noarch
 	$pkgname-static
 	$pkgname-dev
+	$pkgname-init:openrc_init
 	agetty-openrc:_agetty_openrc:noarch
 	$pkgname-bash-completion
 	$pkgname-zsh-completion
@@ -103,10 +104,6 @@ package() {
 
 	DESTDIR="$pkgdir" meson install --no-rebuild -C output
 
-	# we do not use openrc as our init so delete
-	# openrc-init & openrc-shutdown to avoid confusion.
-	rm -f "$pkgdir"/usr/sbin/openrc-init "$pkgdir"/usr/sbin/openrc-shutdown
-
 	# we cannot have anything turned on by default
 	rm -f "$pkgdir"/etc/runlevels/*/*
 
@@ -178,6 +175,14 @@ _agetty_openrc() {
 
 	amove etc/init.d/agetty
 	amove etc/conf.d/agetty
+}
+
+openrc_init() {
+	pkgdesc="OpenRC init process"
+
+	# Alpine does not use openrc as its init by default
+	amove sbin/openrc-init
+	amove sbin/openrc-shutdown
 }
 
 sha512sums="
