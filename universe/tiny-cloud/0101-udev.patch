@@ -1,5 +1,4 @@
-  Add Alpaquita support.  This patch changes the default user name to
-  "alpaquita" and adds udev proxy to the original mdev scripts.
+Add udev proxy for the original mdev scripts.
 
 diff --git a/Makefile b/Makefile
 index 1f56224..71663c5 100644
@@ -78,19 +77,6 @@ index 0000000..e176e68
 +    log -s warning "nvme_ebs_links: not necessary, you can remove it from HOTPLUG_MODULES"
 +    return 0
 +}
-diff --git a/lib/tiny-cloud/common b/lib/tiny-cloud/common
-index dcc72aa..baa3077 100644
---- a/lib/tiny-cloud/common
-+++ b/lib/tiny-cloud/common
-@@ -4,7 +4,7 @@
- # set defaults
- [ -f /etc/conf.d/tiny-cloud ] && source /etc/conf.d/tiny-cloud
- : "${CLOUD:=unknown}"
--: "${CLOUD_USER:=alpine}"
-+: "${CLOUD_USER:=alpaquita}"
- : "${TINY_CLOUD_LOGS:=/var/log}"
- : "${TINY_CLOUD_VAR:=/var/lib/cloud}"
- 
 diff --git a/lib/tiny-cloud/init-early b/lib/tiny-cloud/init-early
 index 0728861..1bcccb7 100644
 --- a/lib/tiny-cloud/init-early
@@ -106,15 +92,6 @@ diff --git a/lib/tiny-cloud/tiny-cloud.conf b/lib/tiny-cloud/tiny-cloud.conf
 index 5daf7ab..96fc764 100644
 --- a/lib/tiny-cloud/tiny-cloud.conf
 +++ b/lib/tiny-cloud/tiny-cloud.conf
-@@ -6,7 +6,7 @@
- #CLOUD=
- 
- # User account where instance SSH keys are installed
--#CLOUD_USER=alpine
-+#CLOUD_USER=alpaquita
- 
- # IMDS token validity, in seconds (AWS only)
- #IMDS_TOKEN_TTL=5
 @@ -17,11 +17,11 @@
  # Location of log directory
  #TINY_CLOUD_LOGS=/var/log
