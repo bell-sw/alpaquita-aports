@@ -7,11 +7,11 @@ _nikmajor=24
 _javamajor=22
 
 pkgname=$_pkgname-$_nikmajor-$_javamajor
-pkgver=24.0.1
+pkgver=24.0.2
 pkgrel=0
 
 # java version required for the build
-_javaver=22.0.1
+_javaver=22.0.2
 
 
 # These are the tips of release/graal-vm/24.0 branches in
@@ -42,17 +42,8 @@ case "$CARCH" in
     *)		JARCH="$CARCH" ;;
 esac
 
-# NB: The explicit list of four sub-dependencies for openjdk is a
-# workaround for an apk bug that fails to correctly handle version
-# restrictions in --virtual packages used by abuild deps.
 makedepends="
 	openjdk$_javamajor~$_javaver
-
-	openjdk$_javamajor-jdk~$_javaver
-	openjdk$_javamajor-jdk-no-deps~$_javaver
-	openjdk$_javamajor-jre~$_javaver
-	openjdk$_javamajor-jre-no-deps~$_javaver
-
 	openjdk$_javamajor-jmods~$_javaver
 	openjdk$_javamajor-libs-static~$_javaver
 	openjdk$_javamajor-src~$_javaver
@@ -172,8 +163,6 @@ _source_release="$_source_release
 patch_args="--no-backup-if-mismatch -p1"
 
 _patches="
-	build-components.patch
-
 	graal-copy-longs-intrinsics.patch
 	graal-enable-awt-swing-substitute.patch
 	graal-enable-awt-swing-suite-desktop.patch
@@ -183,10 +172,10 @@ _patches="
 	graal-no-watchdog.patch
 	graal-parallel-gc.patch
    musl:graal-relaunch-on-alpine.patch
+	graal-remove-fastr.patch
 	graal-sdk-llvm-suite.patch
 	graal-vendor-properties.patch
 
-	graaljs-accept-python-3.12.patch
 	graaljs-avoid-c++17.patch
 
 	graalpython-graalpython-ssizet.patch
@@ -196,6 +185,7 @@ _patches="
 	fastr-reduce-parallelism.patch
 
 	truffleruby-allow-build-from-sources-out-of-the-vcs.patch
+	truffleruby-remove-pedantic.patch
 
 	mx-mx-local-ninja.patch
 	mx-mx_jardist_patch.patch
@@ -527,13 +517,12 @@ _wasm_native() {
 
 
 sha512sums="
-3d9c7bbd604f4bec41391e80b51bebf943a380f186c0a12183f6850c921c642ef237132dd879fb98a6eaaed3f6c1fd91abb7cc76f1ba97fb1dade2288fde0347  graal-vm-24.0.1.tar.gz
-07654015fbad4cbebf91d6fcc38e2843364b7b08d468739c74c2198b63f1a32929bf80385096508edef830aaade5b2a7c4af85da54bbb3e2cf0ac68135d55f68  graaljs-vm-24.0.1.tar.gz
-410bf1153abe46d2f875db960ab29cf7f790d5de410b25f77468bae8ec152c1c9437b3311778472ed222075fe1ae21a64a567e1bcf0855f767727111d15aad1a  graalpython-vm-24.0.1.tar.gz
-ef0452007b524aa746a09700fbc78ab5216cae40f694dece2a9ab41f082eac10deff691f7219c739e6865f3cdf5547c5a47edff266efb28ff86d4080803718d2  truffleruby-24.0.1-703c2de84470cc6b8c05971b954582b6214577b3.tar.gz
-0062ba60acdb19558ba1adfca5f940a94a2f78e3aff0f3df23668ebc11f13d9038c721a60902f2acd866af91427606efc7a8b9f9047ea744b63dd942e39b3fcd  fastr-24.0.1-b3e1c8d403aeb9f4efba0ff24af3f8564c48d336.tar.gz
+5bf6d831f247890452ccf12ae85c4a2567c680033294d111184e8a593a301564a8df844094eed9a03e42f2d845cc78ed5eba6aed713731dc91188bcf45edff15  graal-vm-24.0.2.tar.gz
+6756b1c26a5d93b5f2b970d9ae297e6e4a7a3d7a28eacd7fe907c8e042317f6ace5933c2d80e4a404115faa772e7d7203fb0f52ebeb5a673f2fb9e93f98c4a15  graaljs-vm-24.0.2.tar.gz
+0bcfd8cfb1de5396440a87396b48fec1873c493032b8c555695aba4c72c360a599851054d2a2b800ba8c26f555212cb0e95b201f5e3863f930f31d91337161ab  graalpython-vm-24.0.2.tar.gz
+ef0452007b524aa746a09700fbc78ab5216cae40f694dece2a9ab41f082eac10deff691f7219c739e6865f3cdf5547c5a47edff266efb28ff86d4080803718d2  truffleruby-24.0.2-703c2de84470cc6b8c05971b954582b6214577b3.tar.gz
+0062ba60acdb19558ba1adfca5f940a94a2f78e3aff0f3df23668ebc11f13d9038c721a60902f2acd866af91427606efc7a8b9f9047ea744b63dd942e39b3fcd  fastr-24.0.2-b3e1c8d403aeb9f4efba0ff24af3f8564c48d336.tar.gz
 f82612411499dfb99412e434c8d8c5f1fb8d2bae31cbd390e9102ca2fa32da0063645cda4e5d4b3145f1b7c65c905a474edf073400e4b7ff5d8152e0abd3f6a5  mx-7.27.6.tar.gz
-bd64f8ae904417a121ebd3c23890141bfdb908b878e058825d42ce58a4311c72387dfef621fa4163bd6387aa7642db4e934371329665fd495728f792afb2daff  build-components.patch
 eef3ab644d2250022f61da30c531d3a9f600c76967fb961687fe9be5bf8433198f530b29ed9be46599d253abb6dbfcdf2648291f1a431e1171bd514c682adddb  graal-copy-longs-intrinsics.patch
 38e268ecd608c9faca6abafdb6b1d5a67e435b2ce38c066e11fc90cbb2e86b203e0e92c0e55bb447f8567e4f215c3d3afcecd84f1243dd49a6f5da4c17d55ad6  graal-enable-awt-swing-substitute.patch
 8cf343c5124feec94df118a017c2ed0bfc1e42212185d927ee39651304f7fcb7b81ede1be18a924727ac463de6864d6ab3fb8b5a7ba22618ebf827251cc4c1cc  graal-enable-awt-swing-suite-desktop.patch
@@ -541,17 +530,18 @@ eef3ab644d2250022f61da30c531d3a9f600c76967fb961687fe9be5bf8433198f530b29ed9be465
 120b69a250d447ca63bfb944ef148553579a8cc01fa16c7dd78f33b2d5ff935991396f3090da7cc5587c6c8355a3f031ce24d26ff7102489c63a7adff8d548da  graal-enable-awt-swing.patch
 bb03fdc8ace4db429ac069cc67e95b2695e444dca9697b51b25e30b709c929e2e3d100be35cf73e41fd37dbf4300b5ad5b9682913a38330a3bf7b3adae2fdb2f  graal-musl-lfs64.patch
 6897df2281b0a616e6ad8c00c03677e7d159a8818cb40bc03f7130fd7c79e025521b8eb6906fa09bc6ed4683e2df6446ef51e68246ddb2983c022bd5da6fc14c  graal-no-watchdog.patch
-72a89aba80bb6a2e2862748dd7fe9d0d2115026123fa52a2b6c621b12391b9505aca49a039cd251a889d0a6e1fc1f89acf1f8e47b38be6afea5dfe187cdbc6d7  graal-parallel-gc.patch
+fbefde06bceda982b68750254b5f249a4d6c0021b7ddfe2c91b0dae47ea32b0cd3924dd77bb7123b8d61a4e700b1fbbecc38f4aa915d9a235edc3a5cb7094b01  graal-parallel-gc.patch
 46132d72bb0e7ad698acbb7f7d12fdae2c4f7632c345501f6019a829b914bf58bfff07d9d8fb4248d79feedd3344c0dd689b55bafcbdcea601880d1d26e85d43  graal-relaunch-on-alpine.patch
+54f6d1dada6e3e27c14f52cafe239ccf23ac628183e41b0ee4e2ca384194ba8c05a181aa1dbb2960906c9a3195ee436b3fbb712402510ae4f19fb07101801d41  graal-remove-fastr.patch
 cbd93ceb89a6f9b80f407d5185b1b383990457063cf4e38468ba3cfbd75fb28a08d6683cc3c490543243ba9488522b3579ca4abb12292ac6e42adb84938ce2ad  graal-sdk-llvm-suite.patch
 936c808d552b68bb703a8448f2219ed50bdd07d7261d71267f78c585e8540f1a371e4ab586e6d6f82fdff308515cbd89bf4438a3367cb660bac03aa04aa8c321  graal-vendor-properties.patch
-28bee3282b98dbba38a93bfd2d014a1dfd3dee215c36ec7556419576965648237a9de3cd7b70f53d137ba3884eaacf19765af7939330572eb7221b33cd29fe2c  graaljs-accept-python-3.12.patch
 72ad929ddd0059a87ce5a9693d2705448c2d05dfcd52cbdcf75e1d6a740a3c9f5ae51ffc878fa6407c201a8b505860266e951100677f5cecd1aad658fa539aeb  graaljs-avoid-c++17.patch
 3c09ff6173f701ba27e883af5e908fb3427bdeb52f6dceaeafed913a6f53c50e936c1315e348649cce60c667b15620d72f4143f3333b728425727c81bb26557b  graalpython-graalpython-ssizet.patch
 3adb12103986147e6cfc773454f3546d95476a508327eabef15265f1fcc3c94f5e7dcfdbbf3377111a47382e2533f80398bd059489e9c3d9726926c233b78919  graalpython-set-heap-size-for-libpythonvm.patch
 fa4abc33be7105c72a67fbbf421c5d57c5f49eb5b9923e362439d592ff830b43cdfa9556cd75a8c56e4ca1ab086ae8cbca856b9bedba6328869e28c32cdc4c8a  fastr-patch_fastr_musl_3_3.patch
 3174b1cc99e95f2eda274a8a68cb4f46399be5d3917292789390761b9a193185878c2427fa12caa99996d4f22476a93fae9b506384519c3ec12e4a2674f9c694  fastr-reduce-parallelism.patch
 486cd3d50a256baa5484dc95140ce7c78a72b354f3c7f0d78a8ecf9282f3478fb617d4b5434ef6fd8a6d84143ac263e93e0b10c07f6c22387800cd97e74c8d72  truffleruby-allow-build-from-sources-out-of-the-vcs.patch
+e790a23f87221563f8dfc3680b0e4305aad529ce4a51bef106d4a1fcbfa454b5dd1b6a0e630fcea3e1f6291909b0a0ab3523a655bd0f72c680ce2690894411bc  truffleruby-remove-pedantic.patch
 a348fb088066e16df165974073108b76325540f5366ccca477405d0e8eca1ea3294cac1a35073e26a8a8bdc5f5f628a05f0295fb01f3343a26456147041da009  mx-mx-local-ninja.patch
 4b950e4f6d59989a507e434d3f9de672077e6cd6894ef332756f517695a4cb845507ef0238d08b92a067c16c1d585d5a9b9db4cb2c43a6943347d157f658c5b9  mx-mx_jardist_patch.patch
 b0da5d44f0ec75ba1aaeb246e0eb7f7e0d6ee8b31e0cd6e65c22ef554c63a1698bf0d7ec11f3f26d9b7c0e666ed7f66b1df1cad6a687f8f0549c98d8979b6186  mx-pass-cxxflags-to-ninja.patch
