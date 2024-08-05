@@ -1,20 +1,13 @@
 pkgname=shim-signed
 
-_build_x86_64="20240312"
-_build_aarch64="20240528"
-case "${CARCH:-$(arch)}" in
-x86_64)
-	_efi_sfx="x64"
-	pkgver=15.7
-	pkgrel=4
-	;;
-aarch64)
-	_efi_sfx="aa64"
-	pkgver=15.8
-	pkgrel=1
-	;;
-esac
+_build="20240729"
+pkgver=15.8
+pkgrel=2
 
+case "${CARCH:-$(arch)}" in
+x86_64)  _efi_sfx="x64" ;;
+aarch64) _efi_sfx="aa64";;
+esac
 pkgdesc="shim, a first-stage UEFI bootloader (signed)"
 url="https://github.com/rhboot/shim"
 arch="x86_64 aarch64"
@@ -23,11 +16,11 @@ makedepends="sbsigntool"
 options="!strip !check !tracedeps"
 install="$pkgname.post-install $pkgname.post-upgrade"
 source="
-	$VENDOR_REPO_BASE_URL/$VENDOR_DISTRO/distfiles/shim-$_build_x86_64.x86_64.tar.xz
-	$VENDOR_REPO_BASE_URL/$VENDOR_DISTRO/distfiles/shim-$_build_aarch64.aarch64.tar.xz
+	$VENDOR_REPO_BASE_URL/$VENDOR_DISTRO/distfiles/shim-$_build.x86_64.tar.xz
+	$VENDOR_REPO_BASE_URL/$VENDOR_DISTRO/distfiles/shim-$_build.aarch64.tar.xz
 	../shim/bellsoft-uefi-ca.pem
 "
-builddir="$srcdir/shim-$(eval "echo \$_build_$CARCH").$CARCH"
+builddir="$srcdir/shim-$_build.$CARCH"
 _efi="boot/efi/EFI"
 
 sign_list="
@@ -43,7 +36,7 @@ package() {
 }
 
 sha512sums="
-798dc70715b1772e3763b774bb4ad775137f1e3c26cfdff2590cfb63b1ed025411c009c5153a13fa8d88dd50c376995581c9dbf370d584e02eefef0ec0427e62  shim-20240312.x86_64.tar.xz
-63351b5e6e6ebc50949a3f6c57e335b9a57d8afb7a4ca49d35a505371d70b9adbe0d7306a7c09b3a325300470b5b4d60282c6881f33fd07bbf589c98ec8d9391  shim-20240528.aarch64.tar.xz
+9c6e9683c0205238382eaaaca96f809f03f7bf36093a36e7da8b669dc759dbd6a978856fcc0b6ed11754a45001333e4be53efc8ddea071c3ef6bf98d4a2a66dc  shim-20240729.x86_64.tar.xz
+2ee9580c3728b5a71899122caf8951955d2a969edfbca7461fb3f1524f4f686859d9bd5f7da16d6f0f00072b15b6e28f90da47413d71409702aa5636576b3cbd  shim-20240729.aarch64.tar.xz
 304d6a2d2c25af142b2cf2222079ebf59b8174f0825840dfc88e60016e5fcfe12973e0a250b4172ff7ea77cdb014cb5fec1a474965fee97478a6dcd0cbe6bdd3  bellsoft-uefi-ca.pem
 "
