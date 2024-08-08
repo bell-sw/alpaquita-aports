@@ -1,14 +1,14 @@
-From 6b4e5e7fec44803f44fde9036adfba9f59da5f46 Mon Sep 17 00:00:00 2001
+From 0030a5a15b79c24c9873da2bc653c0e1b9c7bffa Mon Sep 17 00:00:00 2001
 From: Stanislav Kholmanskikh <stanislav.kholmanskikh@bell-sw.com>
 Date: Sun, 2 Jun 2024 16:06:33 +0300
 Subject: [PATCH] distro-iso: enable installer on serial consoles
 
 ---
- modules.d/98distro-iso/mount-tmpfs.sh | 53 +++++++++++++++++++++++----
- 1 file changed, 45 insertions(+), 8 deletions(-)
+ modules.d/98distro-iso/mount-tmpfs.sh | 49 ++++++++++++++++++++++-----
+ 1 file changed, 41 insertions(+), 8 deletions(-)
 
 diff --git a/modules.d/98distro-iso/mount-tmpfs.sh b/modules.d/98distro-iso/mount-tmpfs.sh
-index d082e16..d5e8960 100755
+index d082e16b..58fb19e2 100755
 --- a/modules.d/98distro-iso/mount-tmpfs.sh
 +++ b/modules.d/98distro-iso/mount-tmpfs.sh
 @@ -41,7 +41,7 @@ _enable_serial_login() {
@@ -29,7 +29,7 @@ index d082e16..d5e8960 100755
  
  umount $NEWROOT/sys $NEWROOT/proc $NEWROOT/dev
  
-@@ -102,20 +102,57 @@ else
+@@ -102,20 +102,53 @@ else
  	_rc_add swclock boot
  fi
  
@@ -68,10 +68,6 @@ index d082e16..d5e8960 100755
 +    esac
 +
 +    if $di_start; then
-+        if [ "$(uname -m)" = "aarch64" ]; then
-+            di_args="${di_args} --shim-unsigned"
-+        fi
-+
 +        exec tmux new distro-installer -i --debug-log "installer_$$.log" ${di_args}
 +    fi
 +fi
@@ -94,5 +90,5 @@ index d082e16..d5e8960 100755
  # Enable getty on the serial port
  _enable_serial_login
 -- 
-2.44.0
+2.25.1
 
