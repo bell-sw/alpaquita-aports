@@ -1,0 +1,31 @@
+From 3a7b77002f63a8e9cabea8c8481fff627fef40b1 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Thu, 8 Aug 2024 14:06:59 +0000
+Subject: [PATCH] Revert "bpftool: Mount bpffs when pinmaps path not under the
+ bpffs"
+
+This reverts commit 65dd9cbafec2f6f7908cebcab0386f750fc352af.
+
+In order to fix linux-tools build issue with missing create_and_mount_bpffs_dir().
+---
+ tools/bpf/bpftool/prog.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/tools/bpf/bpftool/prog.c b/tools/bpf/bpftool/prog.c
+index 21817eb51039..7e0b846e17ee 100644
+--- a/tools/bpf/bpftool/prog.c
++++ b/tools/bpf/bpftool/prog.c
+@@ -1707,10 +1707,6 @@ static int load_with_options(int argc, char **argv, bool first_prog_only)
+ 	}
+ 
+ 	if (pinmaps) {
+-		err = create_and_mount_bpffs_dir(pinmaps);
+-		if (err)
+-			goto err_unpin;
+-
+ 		err = bpf_object__pin_maps(obj, pinmaps);
+ 		if (err) {
+ 			p_err("failed to pin all maps");
+-- 
+2.25.1
+
