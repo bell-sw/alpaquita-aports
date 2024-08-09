@@ -8,7 +8,7 @@ _javamajor=22
 
 pkgname=$_pkgname-$_nikmajor-$_javamajor
 pkgver=24.0.2
-pkgrel=0
+pkgrel=1
 
 # java version required for the build
 _javaver=22.0.2
@@ -327,13 +327,13 @@ _nikdir=/usr/lib/nik
 
 package() {
 	# only the openjdk-nik package that ships a public jdk
-	# requires the java-common trickery and zlib-dev is for
+	# requires the java-common trickery and compiler &c are for
 	# native-image (that is now a part of the base nik package),
 	# so don't declare these deps at the top-level, so that
 	# subpackages don't accidentally it pick up.
 	depends="
 		java-common
-		zlib-dev
+		gcc libc-dev zlib-dev linux-headers
 		"
 
 	mkdir -p "$pkgdir/$_java_home"
