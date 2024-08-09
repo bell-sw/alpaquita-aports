@@ -6,7 +6,7 @@
 
 pkgname=linux-pam
 pkgver=1.6.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Linux PAM (Pluggable Authentication Modules for Linux)"
 url="https://www.kernel.org/pub/linux/libs/pam"
 arch="all"
@@ -20,7 +20,7 @@ makedepends="
 	flex-dev
 	libtool
 	linux-headers
-	utmps-dev
+	musl:utmps-dev
 	"
 options="suid !check"
 subpackages="$pkgname-dev $pkgname-manual::noarch $pkgname-doc"
@@ -45,8 +45,10 @@ builddir="$srcdir"/Linux-PAM-$pkgver
 #     - CVE-2020-27780
 
 build() {
-	export CFLAGS="$CFLAGS -flto=auto $(pkg-config --cflags utmps)"
-	export LDFLAGS="$LDFLAGS $(pkg-config --libs utmps)"
+	if [ "$CLIBC" = 'musl' ]; then
+		export CFLAGS="$CFLAGS -flto=auto $(pkg-config --cflags utmps)"
+		export LDFLAGS="$LDFLAGS $(pkg-config --libs utmps)"
+	fi
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
