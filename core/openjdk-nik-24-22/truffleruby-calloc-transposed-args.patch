@@ -1,0 +1,40 @@
+--- a/truffleruby/src/main/c/yarp/src/diagnostic.c
++++ b/truffleruby/src/main/c/yarp/src/diagnostic.c
+@@ -320,7 +320,7 @@
+  */
+ bool
+ pm_diagnostic_list_append(pm_list_t *list, const uint8_t *start, const uint8_t *end, pm_diagnostic_id_t diag_id) {
+-    pm_diagnostic_t *diagnostic = (pm_diagnostic_t *) calloc(sizeof(pm_diagnostic_t), 1);
++    pm_diagnostic_t *diagnostic = (pm_diagnostic_t *) calloc(1, sizeof(pm_diagnostic_t));
+     if (diagnostic == NULL) return false;
+ 
+     *diagnostic = (pm_diagnostic_t) {
+@@ -351,7 +351,7 @@
+         return false;
+     }
+ 
+-    pm_diagnostic_t *diagnostic = (pm_diagnostic_t *) calloc(sizeof(pm_diagnostic_t), 1);
++    pm_diagnostic_t *diagnostic = (pm_diagnostic_t *) calloc(1, sizeof(pm_diagnostic_t));
+     if (diagnostic == NULL) {
+         return false;
+     }
+--- a/truffleruby/src/main/c/yarp/src/prism.c
++++ b/truffleruby/src/main/c/yarp/src/prism.c
+@@ -6730,7 +6730,7 @@
+ 
+         // Allocate a new magic comment node to append to the parser's list.
+         pm_magic_comment_t *magic_comment;
+-        if ((magic_comment = (pm_magic_comment_t *) calloc(sizeof(pm_magic_comment_t), 1)) != NULL) {
++        if ((magic_comment = (pm_magic_comment_t *) calloc(1, sizeof(pm_magic_comment_t))) != NULL) {
+             magic_comment->key_start = key_start;
+             magic_comment->value_start = value_start;
+             magic_comment->key_length = (uint32_t) key_length;
+@@ -8140,7 +8140,7 @@
+  */
+ static inline pm_comment_t *
+ parser_comment(pm_parser_t *parser, pm_comment_type_t type) {
+-    pm_comment_t *comment = (pm_comment_t *) calloc(sizeof(pm_comment_t), 1);
++    pm_comment_t *comment = (pm_comment_t *) calloc(1, sizeof(pm_comment_t));
+     if (comment == NULL) return NULL;
+ 
+     *comment = (pm_comment_t) {
