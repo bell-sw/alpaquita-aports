@@ -1,0 +1,57 @@
+pkgname=libmspack
+pkgver=0.11_alpha
+_ver=${pkgver/_/}
+pkgrel=1
+pkgdesc="Library for Microsoft CAB compression formats"
+url="https://www.cabextract.org.uk/libmspack/"
+arch="all"
+license="LGPL-2.1-only"
+subpackages="$pkgname-dev"
+source="https://www.cabextract.org.uk/libmspack/libmspack-$_ver.tar.gz"
+
+builddir="$srcdir"/libmspack-$_ver
+
+# secfixes:
+#   0.10.1_alpha-r0:
+#     - CVE-2019-1010305
+#   0.8_alpha-r0:
+#     - CVE-2018-18584
+#     - CVE-2018-18585
+#     - CVE-2018-18586
+#   0.7.1_alpha-r0:
+#     - CVE-2018-14679
+#     - CVE-2018-14680
+#     - CVE-2018-14681
+#     - CVE-2018-14682
+#   0.5_alpha-r1:
+#     - CVE-2017-6419
+#     - CVE-2017-11423
+
+prepare() {
+	default_prepare
+	sed -i "s/@VERSION@/$pkgver/" libmspack.pc.in
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--disable-static
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+40c487e5b4e2f63a6cada26d29db51f605e8c29525a1cb088566d02cf2b1cc9dba263f80e2101d7f8e9d69cf7684a15bcaf791fb4891ad013a56afc7256dfa62  libmspack-0.11alpha.tar.gz
+"
