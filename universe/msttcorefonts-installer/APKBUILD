@@ -1,6 +1,6 @@
 pkgname=msttcorefonts-installer
 pkgver=3.8.1
-pkgrel=1
+pkgrel=2
 pkgdesc="Installer for Microsoft TrueType core fonts"
 url="https://packages.debian.org/sid/ttf-mscorefonts-installer"
 arch="noarch"
@@ -11,6 +11,9 @@ install="$pkgname.post-install"
 options="!check" #no test suite
 source="http://ftp.debian.org/debian/pool/contrib/m/msttcorefonts/msttcorefonts_$pkgver.tar.xz
 	remove-debian-stuff.patch
+
+	licen.txt
+	0100-Ask-about-license-agreement.patch
 	"
 builddir="$srcdir"/msttcorefonts
 
@@ -27,9 +30,14 @@ package() {
 	install -m755 -D update-ms-fonts "$pkgdir"/usr/bin/update-ms-fonts
 	install -m644 -D cabfiles.sha256sums \
 		"$pkgdir"/var/lib/msttcorefonts/cabfiles.sha256sums
+
+	install -Dm644 "$srcdir"/licen.txt \
+		"$pkgdir"/usr/share/licenses/msttcorefonts/licen.txt
 }
 
 sha512sums="
 27383a885e451d15b5acccedcda9a35f6a67955fd9fc269037f89c7d5102fb117c7b1b7ffe0ae2bd98436b8771b8fd34ea4e005b5fef8c670fd1bc88b9471854  msttcorefonts_3.8.1.tar.xz
 3d1117b070beed9ac37eaf70f27ec4f3d9c894ad8622999ea772f9f7cb796e079723d86ff79fc2cdace0ff4c885dbc5c617ff8a144fc333277c27fd2a3f2f8e1  remove-debian-stuff.patch
+82cd8a262151b719c212a8552b6fcd37d26e53f539c08eb1634cb857b9b686dc05881cd6f94d89c48e117df7c86ef7f96be1aac6625aa240118758693f1f01ab  licen.txt
+62c871b107466463f89f1f23f83d5812b9a0052cffd247d4b1773f1d3f1f00bd78b63672512ba6f37bbfe75ba4fce36a2be8b64e4c1ba565455b8f3bc03ae532  0100-Ask-about-license-agreement.patch
 "

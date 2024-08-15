@@ -1,0 +1,55 @@
+--- a/update-ms-fonts
++++ b/update-ms-fonts
+@@ -23,6 +23,8 @@
+ #        *) LOCALCOPY=$opt ;;
+ #    esac
+ #done
++[ "$1" = '--accept-eula' ] && ACCEPT_EULA=1 || ACCEPT_EULA=
++
+ if [ "`echo $LOCALCOPY | tr '[:upper:]' '[:lower:]'`" = "none" ] ; then
+   exit 0
+ fi
+@@ -38,6 +40,17 @@
+     exit 1
+ }
+ 
++ask_user() {
++    local answ=
++
++    while [ "$answ" != 'YES' ] && [ "$answ" != 'NO' ]; do
++        echo "$1 (Enter YES or NO)"
++        read answ
++    done
++
++    [ "$answ" = 'YES' ]
++}
++
+ # Base URL for Microsoft fonts
+ # Can be more than one to try, but here we just use SF.net's redirection,
+ # which will work in most cases. The others serve as fallbacks to retry.
+@@ -109,19 +122,17 @@
+         EXITCODE=1
+     fi
+ elif [ -n "$FONTFILES" ] ; then 
+-
+-    if [ -z "$QUIET_MODE" ] ; then
++    if [ -z "$ACCEPT_EULA" ]; then
+         cat <<EOF
+ 
+-These fonts were provided by Microsoft "in the interest of cross-
+-platform compatibility".  This is no longer the case, but they are
+-still available from third parties.
++The license terms for this product can be found in
++/usr/share/licenses/msttcorefonts/licen.txt . By entering 'YES',
++you indicate that you accept the license terms.
+ 
+-You are free to download these fonts and use them for your own use,
+-but you may not redistribute them in modified form, including changes
+-to the file name or packaging format.
++To automatically answer 'YES', run this script with the '--accept-eula' option.
+ 
+ EOF
++        ask_user 'Do you accept the license terms?' || exit 1
+     fi
+ 
+     if [ -n "$QUIET_MODE" ] ; then
