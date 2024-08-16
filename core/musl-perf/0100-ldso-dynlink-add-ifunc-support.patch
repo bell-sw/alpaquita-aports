@@ -1,4 +1,4 @@
-From 13dfd8372a4ccc4df36c79c1c5fd72dc7bf8c558 Mon Sep 17 00:00:00 2001
+From ae4566faab38ff04fde4d79d46eb11db3e2808ab Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Wed, 15 Sep 2021 16:23:31 +0300
 Subject: [PATCH] ldso/dynlink: add ifunc support
@@ -22,10 +22,10 @@ index fac0c0ae..fb6be3ea 100644
  #define CRTJMP(pc,sp) __asm__ __volatile__( \
  	"mov %1,%%rsp ; jmp *%0" : : "r"(pc), "r"(sp) : "memory" )
 diff --git a/ldso/dynlink.c b/ldso/dynlink.c
-index 5b9c8be4..31a02463 100644
+index 42687da2..e9d166ae 100644
 --- a/ldso/dynlink.c
 +++ b/ldso/dynlink.c
-@@ -288,7 +288,7 @@ static Sym *gnu_lookup_filtered(uint32_t h1, uint32_t *hashtab, struct dso *dso,
+@@ -301,7 +301,7 @@ static Sym *gnu_lookup_filtered(uint32_t h1, uint32_t *hashtab, struct dso *dso,
  	return gnu_lookup(h1, hashtab, dso, s);
  }
  
@@ -34,8 +34,8 @@ index 5b9c8be4..31a02463 100644
  #define OK_BINDS (1<<STB_GLOBAL | 1<<STB_WEAK | 1<<STB_GNU_UNIQUE)
  
  #ifndef ARCH_SYM_REJECT_UND
-@@ -334,6 +334,20 @@ static struct symdef find_sym(struct dso *dso, const char *s, int need_def)
- 	return find_sym2(dso, s, need_def, 0);
+@@ -381,6 +381,20 @@ nomatch:
+ 	return (struct symdef){ 0 };
  }
  
 +static int resolve_ifunc_addr(size_t *addr)
@@ -55,7 +55,7 @@ index 5b9c8be4..31a02463 100644
  static void do_relocs(struct dso *dso, size_t *rel, size_t rel_size, size_t stride)
  {
  	unsigned char *base = dso->base;
-@@ -350,17 +364,22 @@ static void do_relocs(struct dso *dso, size_t *rel, size_t rel_size, size_t stri
+@@ -397,17 +411,22 @@ static void do_relocs(struct dso *dso, size_t *rel, size_t rel_size, size_t stri
  	size_t tls_val;
  	size_t addend;
  	int skip_relative = 0, reuse_addends = 0, save_slot = 0;
@@ -78,7 +78,7 @@ index 5b9c8be4..31a02463 100644
  		if (type == REL_NONE) continue;
  		reloc_addr = laddr(dso, rel[0]);
  
-@@ -425,10 +444,14 @@ static void do_relocs(struct dso *dso, size_t *rel, size_t rel_size, size_t stri
+@@ -473,10 +492,14 @@ static void do_relocs(struct dso *dso, size_t *rel, size_t rel_size, size_t stri
  		case REL_GOT:
  		case REL_PLT:
  			*reloc_addr = sym_val + addend;
@@ -93,7 +93,7 @@ index 5b9c8be4..31a02463 100644
  		case REL_RELATIVE:
  			*reloc_addr = (size_t)base + addend;
  			break;
-@@ -510,6 +533,11 @@ static void do_relocs(struct dso *dso, size_t *rel, size_t rel_size, size_t stri
+@@ -558,6 +581,11 @@ static void do_relocs(struct dso *dso, size_t *rel, size_t rel_size, size_t stri
  			if (runtime) longjmp(*rtld_fail, 1);
  			continue;
  		}
@@ -105,7 +105,7 @@ index 5b9c8be4..31a02463 100644
  	}
  }
  
-@@ -2212,7 +2240,15 @@ static void *do_dlsym(struct dso *p, const char *s, void *ra)
+@@ -2290,7 +2318,15 @@ static void *do_dlsym(struct dso *p, const char *s, void *ra)
  		return __tls_get_addr((tls_mod_off_t []){def.dso->tls_id, def.sym->st_value-DTP_OFFSET});
  	if (DL_FDPIC && (def.sym->st_info&0xf) == STT_FUNC)
  		return def.dso->funcdescs + (def.sym - def.dso->syms);
@@ -123,7 +123,7 @@ index 5b9c8be4..31a02463 100644
  
  int dladdr(const void *addr_arg, Dl_info *info)
 diff --git a/src/internal/dynlink.h b/src/internal/dynlink.h
-index 51c0639f..23214d66 100644
+index 40c743e2..996ca6a2 100644
 --- a/src/internal/dynlink.h
 +++ b/src/internal/dynlink.h
 @@ -43,6 +43,7 @@ enum {

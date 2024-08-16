@@ -1,4 +1,4 @@
-From 6e02b4483311e11781de7899e4ae4fb4ecc566cb Mon Sep 17 00:00:00 2001
+From d5ff9a380d2706e4ea7656bdd99e5d1bdb0c6396 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 14 Sep 2021 16:44:15 +0300
 Subject: [PATCH] use internal ifunc symbols in libc
@@ -18,7 +18,7 @@ function.
  6 files changed, 41 insertions(+)
 
 diff --git a/ldso/dynlink.c b/ldso/dynlink.c
-index 31a02463..a369c5ee 100644
+index e9d166ae..bc4cb73a 100644
 --- a/ldso/dynlink.c
 +++ b/ldso/dynlink.c
 @@ -4,6 +4,8 @@
@@ -30,7 +30,7 @@ index 31a02463..a369c5ee 100644
  #include <unistd.h>
  #include <stdint.h>
  #include <elf.h>
-@@ -37,6 +39,8 @@ static void error(const char *, ...);
+@@ -47,6 +49,8 @@ static void (*error)(const char *, ...) = error_noop;
  #define container_of(p,t,m) ((t*)((char *)(p)-offsetof(t,m)))
  #define countof(a) ((sizeof (a))/(sizeof (a)[0]))
  
@@ -39,7 +39,7 @@ index 31a02463..a369c5ee 100644
  struct debug {
  	int ver;
  	void *head;
-@@ -1713,6 +1717,8 @@ hidden void __dls2(unsigned char *base, size_t *sp)
+@@ -1784,6 +1788,8 @@ hidden void __dls2(unsigned char *base, size_t *sp)
  	size_t addends[symbolic_rel_cnt+1];
  	saved_addends = addends;
  
