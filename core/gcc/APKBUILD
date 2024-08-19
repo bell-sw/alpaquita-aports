@@ -78,6 +78,17 @@ if [ "$CHOST" != "$CTARGET" ]; then
 	export CXXFLAGS_FOR_TARGET=" "
 	export LDFLAGS_FOR_TARGET=" "
 
+	# '-Wformat' may make a configure script wrongly think that a '-fPIC'
+	# flag doesn't work which leads to libdruntime relocation errors at a
+	# linking stage.  This is because of the following warning which for
+	# some reason might not be in an expected (boilerplate) output:
+	#
+	#   d21: warning: command-line option '-Wformat=1' is valid for C/C++/ObjC/ObjC++ but not for D
+	#
+	if $LANG_D; then
+		export CFLAGS="${CFLAGS/-Wformat/}"
+	fi
+
 	STRIP_FOR_TARGET="$CTARGET-strip"
 elif [ "$CBUILD" != "$CHOST" ]; then
 	# format-sec: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=100431
@@ -103,6 +114,11 @@ elif [ "$CBUILD" != "$CHOST" ]; then
 	LANG_GO=false
 	LANG_FORTRAN=false
 	LANG_JIT=false
+
+	# the same reason as above
+	if $LANG_D; then
+		export CFLAGS="${CFLAGS/-Wformat/}"
+	fi
 
 	STRIP_FOR_TARGET=${CROSS_COMPILE}strip
 	_builddir="$srcdir/build-cross-native"
