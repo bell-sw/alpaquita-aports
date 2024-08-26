@@ -1,26 +1,28 @@
 pkgname=libunwind
 pkgver=1.8.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Portable and efficient C programming interface (API) to determine the call-chain of a program"
 url="https://www.nongnu.org/libunwind/"
 arch="all"
 license="MIT"
 # !check: v1.4.0 12 tests failing - https://github.com/libunwind/libunwind/issues/164
 options="!check !stackprot !annobin"
-depends_dev="libucontext-dev"
+depends_dev="musl:libucontext-dev"
 makedepends_build="autoconf automake libtool"
 makedepends_host="$depends_dev linux-headers xz-dev"
 makedepends="$makedepends_build $makedepends_host"
 subpackages="$pkgname-dbg $pkgname-static $pkgname-dev $pkgname-doc"
 source="https://github.com/libunwind/libunwind/releases/download/v$pkgver/libunwind-$pkgver.tar.gz
 	force-enable-man.patch
-	fix-libunwind-pc-in.patch
+	musl:fix-libunwind-pc-in.patch
 	Remove-the-useless-endina.h-for-loongarch64.patch
 	"
 
 build() {
+	[ "$CLIBC" = 'musl' ] && export LDFLAGS="$LDFLAGS -lucontext"
+
 	# shellcheck disable=2046
-	LDFLAGS="$LDFLAGS -lucontext" CFLAGS="$CFLAGS -fno-stack-protector" \
+	CFLAGS="$CFLAGS -fno-stack-protector" \
 	./configure \
 		--build="$CBUILD" \
 		--host="$CHOST" \
