@@ -1,0 +1,31 @@
+From 51f2a393364cdaccb30973e1dc21f660000b6f06 Mon Sep 17 00:00:00 2001
+From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
+Date: Mon, 26 Aug 2024 14:08:59 +0300
+Subject: [PATCH] abuild: handle libc tags in makedepends_{host,build}
+
+---
+ abuild.in | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/abuild.in b/abuild.in
+index c97e685..769338f 100644
+--- a/abuild.in
++++ b/abuild.in
+@@ -224,10 +224,14 @@ remove_libc_tags() {
+ 
+ 	depends="$(remove_tagged_items "$depends" $rm_tag)"
+ 	makedepends="$(remove_tagged_items "$makedepends" $rm_tag)"
++	makedepends_build="$(remove_tagged_items "$makedepends_build" $rm_tag)"
++	makedepends_host="$(remove_tagged_items "$makedepends_host" $rm_tag)"
+ 
+ 	for t in musl glibc; do
+ 		depends="${depends//$t:/}"
+ 		makedepends="${makedepends//$t:/}"
++		makedepends_build="${makedepends_build//$t:/}"
++		makedepends_host="${makedepends_host//$t:/}"
+ 	done
+ }
+ 
+-- 
+2.45.2
+
