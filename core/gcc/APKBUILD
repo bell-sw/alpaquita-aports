@@ -12,7 +12,7 @@ _pkgsnap="${pkgver##*_git}"
 [ "$CHOST" != "$CTARGET" ] && _target="-$CTARGET_ARCH" || _target=""
 
 pkgname="$pkgname$_target"
-pkgrel=3
+pkgrel=4
 pkgdesc="The GNU Compiler Collection"
 url="https://gcc.gnu.org"
 arch="all"
@@ -20,7 +20,7 @@ license="GPL-2.0-or-later AND LGPL-2.1-or-later"
 _gccrel=$pkgver-r$pkgrel
 depends="binutils$_target"
 makedepends_build="gcc$_cross g++$_cross bison flex texinfo gawk zip gmp-dev mpfr-dev mpc1-dev zlib-dev"
-makedepends_host="linux-headers gmp-dev mpfr-dev mpc1-dev isl-dev zlib-dev !gettext-dev libucontext-dev"
+makedepends_host="linux-headers gmp-dev mpfr-dev mpc1-dev isl-dev zlib-dev !gettext-dev musl:libucontext-dev"
 subpackages=" "
 [ "$CHOST" = "$CTARGET" ] && subpackages="gcc-gdb gcc-doc$_target"
 replaces="libstdc++ binutils"
@@ -167,7 +167,7 @@ fi
 if $LANG_D; then
 	subpackages="$subpackages libgphobos::$CTARGET_ARCH libgphobos-dev$_target:libgphobos_dev gcc-gdc$_target:gdc"
 	_languages="$_languages,d"
-	makedepends_build="$makedepends_build libucontext-dev"
+	makedepends_build="$makedepends_build musl:libucontext-dev"
 	if [ "$CBUILD" = "$CTARGET" ]; then
 		makedepends_build="$makedepends_build gcc-gdc-bootstrap"
 	else
@@ -240,7 +240,7 @@ source="https://gcc.gnu.org/pub/gcc/releases/gcc-${_pkgbase:-$pkgver}/gcc-${_pkg
 	0027-configure-Add-enable-autolink-libatomic-use-in-LINK_.patch
 	0028-configure-fix-detection-of-atomic-builtins-in-libato.patch
 	musl:0029-libstdc-do-not-throw-exceptions-for-non-C-locales-on.patch
-	0030-gdc-unconditionally-link-libgphobos-against-libucont.patch
+	musl:0030-gdc-unconditionally-link-libgphobos-against-libucont.patch
 	musl:0031-druntime-link-against-libucontext-on-all-platforms.patch
 	musl:0032-libgnat-time_t-is-always-64-bit-on-musl-libc.patch
 	0033-libphobos-do-not-use-LFS64-symbols.patch
@@ -671,7 +671,7 @@ libgphobos_dev() {
 gdc() {
 	pkgdesc="GCC-based D language compiler"
 	depends="gcc=$_gccrel libgphobos=$_gccrel libgphobos-dev$_target=$_gccrel $CLIBC-dev"
-	depends="$depends libucontext-dev"
+	depends="$depends musl:libucontext-dev"
 	provides="gcc-gdc-bootstrap=$_gccrel"
 
 	mkdir -p "$subpkgdir/$_gcclibexec" \
