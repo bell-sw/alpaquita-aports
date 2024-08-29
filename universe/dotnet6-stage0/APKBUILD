@@ -1,6 +1,6 @@
 pkgname=dotnet6-stage0
 pkgver=6.0.116
-pkgrel=3
+pkgrel=4
 
 [ "$CBUILD" != "$CHOST" ] && _cross="-$CARCH" || _cross=""
 [ "$CLIBC" = "musl" ] && _musl="-musl" || _musl=""
@@ -23,7 +23,7 @@ _iltoolsver=6.0.12-servicing.22579.1
 _patches="
 	roslyn_57003-mono-namedmutex.patch
 	roslyn_revert-lift-version-codeanalysis.patch
-	runtime_76500-mono-musl-support.patch
+	musl:runtime_76500-mono-musl-support.patch
 	runtime_76500-properly-set-toolchain-for-crossbuilding-on-alpine.patch
 	runtime_82269-mono-thread-coop-undefine-fortify-source.patch
 	runtime_84442-support-adding-rids-with-dash-in-base-part.patch
@@ -90,7 +90,7 @@ makedepends_host="
 	krb5-dev
 	libintl
 	libstdc++
-	libucontext-dev
+	musl:libucontext-dev
 	libunwind-dev
 	libxml2-dev
 	libxml2-utils
@@ -104,7 +104,7 @@ makedepends_host="
 	zlib-dev
 	"
 case $CARCH in
-	s390x|x86) makedepends_host="$makedepends_host libucontext-dev";;
+	s390x|x86) makedepends_host="$makedepends_host musl:libucontext-dev";;
 	*) makedepends_host="$makedepends_host lld-dev";;
 esac
 makedepends_build="
