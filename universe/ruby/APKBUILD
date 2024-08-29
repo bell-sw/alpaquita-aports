@@ -4,7 +4,7 @@ pkgname=ruby
 # create/move it.
 pkgver=3.3.3
 _abiver="${pkgver%.*}.0"
-pkgrel=1
+pkgrel=2
 pkgdesc="An object-oriented language for quick and easy programming"
 url="https://www.ruby-lang.org/"
 arch="all"
@@ -14,7 +14,7 @@ depends_dev="
 	$pkgname=$pkgver-r$pkgrel
 	$pkgname-rdoc=$pkgver-r$pkgrel
 	gmp-dev
-	libucontext-dev
+	musl:libucontext-dev
 	"
 makedepends="$depends_dev
 	autoconf
@@ -138,7 +138,7 @@ build() {
 	export CXXFLAGS="${CPPFLAGS/-Os/-O3}"
 
 	# Needed for coroutine stuff
-	export LIBS="-lucontext"
+	[ "$CLIBC" = 'musl' ] && export LIBS="-lucontext"
 
 	# ruby saves path to install. we want use $PATH
 	export INSTALL=install
