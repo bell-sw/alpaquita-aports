@@ -1,0 +1,77 @@
+From 1add9b3ad5de05dd2029e5653520a3781c2e5349 Mon Sep 17 00:00:00 2001
+From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
+Date: Mon, 2 Sep 2024 14:55:40 +0300
+Subject: [PATCH] abuild: return libc specific logic
+
+This reverts commit 6aa8fcc ("abuild: remove libc specific
+logic") except the uclibc workaround.
+---
+ abuild.1.scd |  2 +-
+ abuild.in    | 17 +++++++++++++----
+ 2 files changed, 14 insertions(+), 5 deletions(-)
+
+diff --git a/abuild.1.scd b/abuild.1.scd
+index b7b1dfc..753a1ea 100644
+--- a/abuild.1.scd
++++ b/abuild.1.scd
+@@ -28,7 +28,7 @@ other related operations.
+ 	Set APKINDEX description (default: *$repo $(git describe)*)
+ 
+ *-f*
+-	Force specified cmd (skip checks: apk up to date, arch)
++	Force specified cmd (skip checks: apk up to date, arch, libc)
+ 
+ *-F*
+ 	Force run as root
+diff --git a/abuild.in b/abuild.in
+index 769338f..b071232 100644
+--- a/abuild.in
++++ b/abuild.in
+@@ -2413,6 +2413,11 @@ check_arch() {
+ 	return $ret
+ }
+ 
++# return true if libc is not masked in options
++check_libc() {
++	! options_has "!libc_$CLIBC"
++}
++
+ # check if package is up to date
+ apk_up2date() {
+ 	local i s
+@@ -2463,6 +2468,7 @@ abuildindex_up2date() {
+ 
+ up2date() {
+ 	check_arch || return 0
++	check_libc || return 0
+ 	apk_up2date && abuildindex_up2date
+ }
+ 
+@@ -2940,9 +2946,12 @@ uninstalldeps() { undeps; }
+ index() { update_abuildrepo_index; }
+ 
+ all() {
+-	if ! [ -n "$force" ] && ! check_arch; then
+-		echo "Package not available for the target architecture ($CARCH). Aborting."
+-		return 0
++	if ! [ -n "$force" ]; then
++		if ! check_arch; then
++			echo "Package not available for the target architecture ($CARCH). Aborting."
++			return 0
++		fi
++		check_libc || return 0
+ 	fi
+ 	if up2date && [ -z "$force" ]; then
+ 		msg "Package is up to date"
+@@ -3005,7 +3014,7 @@ usage() {
+ 		 -c  Enable colored output
+ 		 -d  Disable dependency checking
+ 		 -D  Set APKINDEX description (default: \$repo \$(git describe))
+-		 -f  Force specified cmd (skip checks: apk up to date, arch)
++		 -f  Force specified cmd (skip checks: apk up to date, arch, libc)
+ 		 -F  Force run as root
+ 		 -h  Show this help
+ 		 -k  Keep built packages, even if APKBUILD or sources are newer
+-- 
+2.45.2
+
