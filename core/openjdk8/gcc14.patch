@@ -1,0 +1,58 @@
+This fixes the followin errors:
+
+  jdk-8u422/jdk/src/solaris/native/common/jdk_util_md.h:40:19: error: implicit declaration of function 'isnanf' [-Wimplicit-function-declaration]
+     40 | #define ISNANF(f) isnanf(f)
+        |                   ^~~~~~
+
+  jdk-8u422/jdk/src/share/bin/splashscreen_stubs.c:64:5: error: returning 'void *' from a function with return type 'int' makes integer from pointer without a cast [-Wint-conversion]
+     64 |     INVOKE(SplashLoadMemory, NULL)(pdata, size);
+        |     ^~~~~~
+
+  jdk-8u422/jdk/src/share/bin/splashscreen_stubs.c:68:5: error: returning 'void *' from a function with return type 'int' makes integer from pointer without a cast [-Wint-conversion]
+     68 |     INVOKE(SplashLoadFile, NULL)(filename);
+        |     ^~~~~~
+
+  jdk-8u422/jdk/src/share/native/sun/awt/image/jpeg/imageioJPEG.c:2853:19: error: passing argument 1 of 'freeArray' from incompatible pointer type [-Wincompatible-pointer-types]
+   2853 |         freeArray(scale, numBands);
+        |                   ^~~~~
+        |                   |
+        |                   UINT8 ** {aka unsigned char **}
+
+--- a/jdk/src/solaris/native/common/jdk_util_md.h
++++ b/jdk/src/solaris/native/common/jdk_util_md.h
+@@ -37,7 +37,7 @@
+ #define ISNAND(d) isnan(d)
+ #elif defined(__linux__) || defined(_ALLBSD_SOURCE)
+ #include <math.h>
+-#define ISNANF(f) isnanf(f)
++#define ISNANF(f) isnan(f)
+ #define ISNAND(d) isnan(d)
+ #elif defined(_AIX)
+ #include <math.h>
+--- a/jdk/src/share/bin/splashscreen_stubs.c
++++ b/jdk/src/share/bin/splashscreen_stubs.c
+@@ -61,11 +61,11 @@
+ #define INVOKEV(name) _INVOKE(name, ,;)
+ 
+ int     DoSplashLoadMemory(void* pdata, int size) {
+-    INVOKE(SplashLoadMemory, NULL)(pdata, size);
++    INVOKE(SplashLoadMemory, 0)(pdata, size);
+ }
+ 
+ int     DoSplashLoadFile(const char* filename) {
+-    INVOKE(SplashLoadFile, NULL)(filename);
++    INVOKE(SplashLoadFile, 0)(filename);
+ }
+ 
+ void    DoSplashInit(void) {
+--- a/jdk/src/share/native/sun/awt/image/jpeg/imageioJPEG.c
++++ b/jdk/src/share/native/sun/awt/image/jpeg/imageioJPEG.c
+@@ -2686,7 +2686,7 @@
+     RELEASE_ARRAYS(env, data, NULL);
+ }
+ 
+-static void freeArray(void** arr, jint size) {
++static void freeArray(UINT8** arr, jint size) {
+     int i;
+     if (arr != NULL) {
+         for (i = 0; i < size; i++) {
