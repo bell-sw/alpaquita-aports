@@ -75,7 +75,10 @@ build() {
 	export CFLAGS="$CFLAGS -O2 -flto=auto"
 
 	local extra_conf_args=
-	[ "$CLIBC" = "musl" ] && extra_conf_args="-Dusenm"
+	case "$CLIBC" in
+	musl)	extra_conf_args="-Dusenm";;
+	glibc)	[ -n "$BOOTSTRAP" ] && extra_conf_args="-Accflags=-DNO_LOCALE";;
+	esac
 	./Configure -des \
 		-Dcccdlflags='-fPIC' \
 		-Dccdlflags='-rdynamic' \
