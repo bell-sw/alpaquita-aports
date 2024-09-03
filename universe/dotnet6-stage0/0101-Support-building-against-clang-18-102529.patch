@@ -1,0 +1,60 @@
+Backport clang18 fixes from 2f62289888b3798dce6a230cafcd74e283bd91d1
+
+From 2f62289888b3798dce6a230cafcd74e283bd91d1 Mon Sep 17 00:00:00 2001
+From: Omair Majid <omajid@redhat.com>
+Date: Wed, 5 Jun 2024 17:54:17 -0400
+Subject: [PATCH] Support building against clang 18 (#102529)
+
+This is a targeted backport from a few other PRs that makes it possible
+to build dotnet/runtme's 6.0 branch on Fedora 40 which includes clang
+18.
+
+- https://github.com/dotnet/arcade/pull/14572
+- https://github.com/dotnet/runtime/pull/94782
+- https://github.com/dotnet/runtime/pull/99811
+
+--- a/src/runtime/eng/native/configurecompiler.cmake
++++ b/src/runtime/eng/native/configurecompiler.cmake
+@@ -376,6 +376,9 @@ if (CLR_CMAKE_HOST_UNIX)
+     add_compile_options(-Wno-single-bit-bitfield-constant-conversion)
+     add_compile_options(-Wno-cast-function-type-strict)
+     add_compile_options(-Wno-incompatible-function-pointer-types-strict)
++
++    # clang 18.1 supressions
++    add_compile_options(-Wno-switch-default)
+   else()
+     add_compile_options(-Wno-unknown-pragmas)
+     add_compile_options(-Wno-uninitialized)
+--- a/src/runtime/eng/native/init-compiler.sh
++++ b/src/runtime/eng/native/init-compiler.sh
+@@ -46,7 +46,7 @@ if [[ -z "$CLR_CC" ]]; then
+     # Set default versions
+     if [[ -z "$majorVersion" ]]; then
+         # note: gcc (all versions) and clang versions higher than 6 do not have minor version in file name, if it is zero.
+-        if [[ "$compiler" == "clang" ]]; then versions=( 16 15 14 13 12 11 10 9 8 7 6.0 5.0 4.0 3.9 3.8 3.7 3.6 3.5 )
++        if [[ "$compiler" == "clang" ]]; then versions=( 18 17 16 15 14 13 12 11 10 9 8 7 6.0 5.0 4.0 3.9 3.8 3.7 3.6 3.5 )
+         elif [[ "$compiler" == "gcc" ]]; then versions=( 12 11 10 9 8 7 6 5 4.9 ); fi
+ 
+         for version in "${versions[@]}"; do
+--- a/src/runtime/src/coreclr/pal/src/include/pal/palinternal.h
++++ b/src/runtime/src/coreclr/pal/src/include/pal/palinternal.h
+@@ -430,6 +430,7 @@ function_name() to call the system's implementation
+ #undef va_list
+ #undef va_start
+ #undef va_end
++#undef va_arg
+ #undef va_copy
+ #undef stdin
+ #undef stdout
+--- a/src/runtime/src/libraries/Native/Unix/CMakeLists.txt.orig
++++ b/src/runtime/src/libraries/Native/Unix/CMakeLists.txt
+@@ -60,6 +60,9 @@ if(CMAKE_C_COMPILER_ID STREQUAL Clang)
+     add_compile_options(-Wno-single-bit-bitfield-constant-conversion)
+     add_compile_options(-Wno-cast-function-type-strict)
+     add_compile_options(-Wno-incompatible-function-pointer-types-strict)
++
++    # clang 18.1 supressions
++    add_compile_options(-Wno-switch-default)
+ elseif(CMAKE_C_COMPILER_ID STREQUAL GNU)
+     add_compile_options(-Wno-stringop-truncation)
+ endif()
