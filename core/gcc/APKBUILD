@@ -142,6 +142,33 @@ else
 	export BOOT_LDFLAGS="$LDFLAGS"
 fi
 
+case "$CARCH" in
+# GDC hasn't been ported to PowerPC
+# See libphobos/configure.tgt in GCC sources for supported targets
+# riscv fails with: error: static assert  "unimplemented"
+ppc64le|riscv64|loongarch64)	LANG_D=false ;;
+# GDC does currently not work on 32-bit musl architectures.
+# This is a known upstream issue.
+# See: https://github.com/dlang/druntime/pull/3383
+armhf|armv7|x86)	LANG_D=false ;;
+esac
+
+# libitm has TEXTRELs in ARM build, so disable for now
+case "$CTARGET_ARCH" in
+arm*)		_libitm=false ;;
+mips*)		_libitm=false ;;
+riscv64)	_libitm=false ;;
+loongarch64)	_libitm=false ;;
+esac
+
+# Internal libffi fails to build on MIPS at the moment, need to
+# investigate further.  We disable LANG_GO on mips64 as it requires
+# the internal libffi.
+case "$CTARGET_ARCH" in
+mips*)		LANG_GO=false ;;
+loongarch64)	LANG_GO=false ;;
+esac
+
 # Fortran uses libquadmath if toolchain has __float128
 # currently on x86, x86_64 and ia64
 _libquadmath=$LANG_FORTRAN
@@ -158,6 +185,16 @@ if $_libgomp; then
 	depends="$depends libgomp=$_gccrel"
 	subpackages="$subpackages libgomp::$CTARGET_ARCH"
 fi
+
+case "$CARCH" in
+riscv64)
+LANG_ADA=false;;
+esac
+
+case "$CTARGET_ARCH" in
+loongarch64)
+LANG_ADA=false;;
+esac
 
 _languages=c
 if $LANG_CXX; then
@@ -284,19 +321,38 @@ prepare() {
 }
 
 build() {
-	local _x86_64_configure=
 	local _arch_configure=
 	local _libc_configure=
 	local _cross_configure=
 	local _bootstrap_configure=
 	local _symvers=
 	local _jit_configure=
+	local _hash_style_configure=
 
 	cd "$_gccdir"
 
 	case "$CTARGET" in
 	aarch64-*-*-*)		_arch_configure="--with-arch=armv8-a --with-abi=lp64";;
-	x86_64-*-*-*)		_x86_64_configure="--with-arch=x86-64-v2";;
+	x86_64-*-*-*)		_arch_configure="--with-arch=x86-64-v2";;
+	armv5-*-*-*eabi)	_arch_configure="--with-arch=armv5te --with-tune=arm926ej-s --with-float=soft --with-abi=aapcs-linux";;
+	armv6-*-*-*eabihf)	_arch_configure="--with-arch=armv6kz --with-tune=arm1176jzf-s --with-fpu=vfpv2 --with-float=hard --with-abi=aapcs-linux";;
+	armv7-*-*-*eabihf)	_arch_configure="--with-arch=armv7-a --with-tune=generic-armv7-a --with-fpu=vfpv3-d16 --with-float=hard --with-abi=aapcs-linux --with-mode=thumb";;
+	mips-*-*-*)		_arch_configure="--with-arch=mips32 --with-mips-plt --with-float=soft --with-abi=32";;
+	mips64-*-*-*)		_arch_configure="--with-arch=mips3 --with-tune=mips64 --with-mips-plt --with-float=soft --with-abi=64";;
+	mips64el-*-*-*)		_arch_configure="--with-arch=mips3 --with-tune=mips64 --with-mips-plt --with-float=soft --with-abi=64";;
+	mipsel-*-*-*)		_arch_configure="--with-arch=mips32 --with-mips-plt --with-float=soft --with-abi=32";;
+	powerpc-*-*-*)		_arch_configure="--enable-secureplt --enable-decimal-float=no";;
+	powerpc64*-*-*-*)	_arch_configure="--with-abi=elfv2 --enable-secureplt --enable-decimal-float=no --enable-targets=powerpcle-linux";;
+	i486-*-*-*)		_arch_configure="--with-arch=i486 --with-tune=generic --enable-cld";;
+	i586-*-*-*)		_arch_configure="--with-arch=pentium-m --with-fpmath=sse --with-tune=generic --enable-cld";;
+	s390x-*-*-*)		_arch_configure="--with-arch=z196 --with-tune=zEC12 --with-zarch --with-long-double-128 --enable-decimal-float";;
+	riscv64-*-*-*)		_arch_configure="--with-arch=rv64gc --with-abi=lp64d --enable-autolink-libatomic";;
+	loongarch64-*-*-*)      _arch_configure="--with-arch=loongarch64 --with-abi=lp64d";;
+	esac
+
+	case "$CTARGET_ARCH" in
+	mips*)	_hash_style_configure="--with-linker-hash-style=sysv" ;;
+	*)	_hash_style_configure="--with-linker-hash-style=gnu" ;;
 	esac
 
 	case "$CTARGET_LIBC" in
@@ -361,11 +417,11 @@ build() {
 	echo "  CTARGET_ARCH=$CTARGET_ARCH"
 	echo "  CTARGET_LIBC=$CTARGET_LIBC"
 	echo "  languages=$_languages"
-	echo "  x86_64_configure=$_x86_64_configure"
 	echo "  arch_configure=$_arch_configure"
 	echo "  libc_configure=$_libc_configure"
 	echo "  cross_configure=$_cross_configure"
 	echo "  bootstrap_configure=$_bootstrap_configure"
+	echo "  hash_style_configure=$_hash_style_configure"
 	echo "  gcc_cv_libc_provides_ssp=$gcc_cv_libc_provides_ssp"
 	echo ""
 
@@ -389,14 +445,13 @@ build() {
 		--enable-languages=$_languages
 		--enable-link-serialization=2
 		--enable-linker-build-id
-		$_x86_64_configure
 		$_arch_configure
 		$_libc_configure
 		$_cross_configure
 		$_bootstrap_configure
 		--with-system-zlib
-		--with-linker-hash-style=gnu
 		--with-bugurl='$VENDOR_BUG_REPORT_URL'
+		$_hash_style_configure
 		"
 
 	mkdir -p "$_builddir"
