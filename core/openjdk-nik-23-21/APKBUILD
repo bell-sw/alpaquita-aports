@@ -7,18 +7,21 @@ _nikmajor=23
 _javamajor=21
 
 pkgname=$_pkgname-$_nikmajor-$_javamajor
-pkgver=23.1.3
-pkgrel=4
+pkgver=23.1.4
+pkgrel=0
 
 # java version required for the build
-_javaver=21.0.3
+_javaver=21.0.4
 
+
+# The maintenance happens on the master branch of the repo at
+# graalvm-community-jdk21u and there are no tags, so use commit hash.
+_hash_graal="18ee9458dc9b00e3f4ef3f7d7a6b1fe2e2ee986b"
 
 # These are the tips of release/graal-vm/23.1 branches in
-# the corresponding repositories as of 2024-04-10
-#_hash_graal="0e92f11f6952143e878ed713e1a7e0c31bacf05d"
-#_hash_graaljs="01c7595d92803e05247fed6389178c24c2763843"
-#_hash_graalpython="1a76fd3ccf5336ba462792448fa52c7bf3fa3bfb"
+# the corresponding repositories as of 2024-07-10
+#_hash_graaljs="2e77deef4a104c3dfe8724aad8ae7a4a1d586fc8"
+_hash_graalpython="vm-23.1.3"
 _hash_truffleruby="e86d3721c8ab04a0f64f394ecd457cf84a3f394d"
 _date_truffleruby="2023-11-23"
 
@@ -93,25 +96,35 @@ provides="openjdk-nik-$_nikmajor-$_javamajor=$pkgver-r$pkgrel"
 
 _source_release=""
 
+# NB: graalvm/graalvm-community-jdk21u (not oracle/graal).
 if [ "$_hash_graal" ]; then
 _source_release="$_source_release
-	graal-$pkgver-$_hash_graal.tar.gz::https://github.com/oracle/graal/archive/$_hash_graal.tar.gz
+	graal-$pkgver-$_hash_graal.tar.gz::https://github.com/graalvm/graalvm-community-jdk21u/archive/$_hash_graal.tar.gz
 	"
 else
 _source_release="$_source_release
-	graal-vm-$pkgver.tar.gz::https://github.com/oracle/graal/archive/refs/tags/vm-$pkgver.tar.gz
+	graal-vm-$pkgver.tar.gz::https://github.com/graalvm/graalvm-community-jdk21u/archive/refs/tags/vm-$pkgver.tar.gz
 	"
 fi
 
-if [ "$_hash_graaljs" ]; then
+
+# 23.1 doesn't receive any maintenance or development upstream by
+# oracle at github, and 24 backports of security fixes are large and
+# contain binary files, so applying them as patches is rather awkward.
+# So just use our own tarballs.
+
+# if [ "$_hash_graaljs" ]; then
+# _source_release="$_source_release
+# 	graaljs-$pkgver-$_hash_graaljs.tar.gz::https://github.com/oracle/graaljs/archive/$_hash_graaljs.tar.gz
+# 	"
+# else
+# _source_release="$_source_release
+# 	graaljs-vm-$pkgver.tar.gz::https://github.com/oracle/graaljs/archive/refs/tags/vm-$pkgver.tar.gz
+# 	"
+# fi
 _source_release="$_source_release
-	graaljs-$pkgver-$_hash_graaljs.tar.gz::https://github.com/oracle/graaljs/archive/$_hash_graaljs.tar.gz
+	https://packages.bell-sw.com/alpaquita/distfiles/graaljs-graal-$pkgver.tar.xz
 	"
-else
-_source_release="$_source_release
-	graaljs-vm-$pkgver.tar.gz::https://github.com/oracle/graaljs/archive/refs/tags/vm-$pkgver.tar.gz
-	"
-fi
 
 if [ "$_hash_graalpython" ]; then
 _source_release="$_source_release
@@ -139,7 +152,7 @@ _source_release="$_source_release
 	"
 
 _patches="
-	https://packages.bell-sw.com/alpaquita/distfiles/graal-$pkgver-ra-rollback-gu.patch.xz
+	http://packages.bell-sw.com/alpaquita/distfiles/graal-23.1.3-ra-rollback-gu.patch.xz
 
 	graal-6814-mempool-max-value-exceeded.patch
 	graal-copy-longs-intrinsics.patch
@@ -149,6 +162,7 @@ _patches="
 	graal-enable-awt-swing.patch
 	graal-fast-lock.patch
 	graal-fix-component-stability-property.patch
+	graal-libffi-patches.patch
    musl:graal-musl-lfs64.patch
 	graal-no-watchdog.patch
 	graal-parallel-gc.patch
@@ -156,9 +170,7 @@ _patches="
 	graal-sdk-llvm-suite.patch
 	graal-vendor-properties.patch
 	graal-version.patch
-
-	graaljs-accept-python-3.12.patch
-	graaljs-avoid-c++17.patch
+	graal-version-bump.patch
 
 	graalpython-graalpython-ssizet.patch
 
@@ -191,11 +203,11 @@ unpack() {
 	mkdir -p "$builddir"
 
 	# rename the directories to their basenames, dropping git refs
-	[ "$_hash_graal" ] &&		mv graal-$_hash_graal             "$builddir"/graal
-	[ "$_hash_graal" ] ||		mv graal-*$pkgver                 "$builddir"/graal
+	[ "$_hash_graal" ] &&	 mv graalvm-community-jdk21u-$_hash_graal "$builddir"/graal
+	[ "$_hash_graal" ] ||	 mv graalvm-community-jdk21u-*$pkgver     "$builddir"/graal
 
-	[ "$_hash_graaljs" ] &&		mv graaljs-$_hash_graaljs         "$builddir"/graaljs
-	[ "$_hash_graaljs" ] ||		mv graaljs-*$pkgver               "$builddir"/graaljs
+	# we now use our own tarball with backports
+	mv graaljs-graal-$pkgver "$builddir"/graaljs
 
 	[ "$_hash_graalpython" ] &&	mv graalpython-$_hash_graalpython "$builddir"/graalpython
 	[ "$_hash_graalpython" ] ||	mv graalpython-*$pkgver           "$builddir"/graalpython
@@ -445,10 +457,10 @@ _ruby() {
 
 
 sha512sums="
-b637c14a7038e23f2cee811c3dcc6dd8e95a596599bf63f5e79a9b6a6f2e81f783db7a01c50dd6e407b398f784c6b07509ac16aa81693263ae9e293a514ffcf6  graal-vm-23.1.3.tar.gz
-5ee0bf086ee5e960fbb02247c7bc2d635bb25393a50b176608e5435e751cecbf60963d13bc5661529a8439d7e3f473dcf6a9ada1d027ebdee0d3578cd8aeba57  graaljs-vm-23.1.3.tar.gz
-0a3913cda744486fae27d56cfe74d969c66338e548f94f96e566fab29457c52736fdf04af730e2b29a7dbef6f337b3c67ce27d0f58e662a3db2014cd0459039f  graalpython-vm-23.1.3.tar.gz
-f10581bdd2990c88ad2681fb5ea5550769c5e28fb761898a98d65ed86faab8f2d30b93aecf87d514a8ddc0bbdea3778c17b81d5023397d00c34ca518c294650d  truffleruby-23.1.3-e86d3721c8ab04a0f64f394ecd457cf84a3f394d.tar.gz
+674e86d3c23d3b9317762f30832e8f160d999d6c40f2da563d48f995446731cf74fc2f8b3dd255db51cc83379a9be280874aed7c8697cc107edde3170b2831ca  graal-23.1.4-18ee9458dc9b00e3f4ef3f7d7a6b1fe2e2ee986b.tar.gz
+b332c6290256b27a9b57ca9066d35561a8290af9cbb56c6d2e11835daf48e30ae3910f79c753dad602f472c23428b0c36109fe641f524240030afd3c80e69e39  graaljs-graal-23.1.4.tar.xz
+0a3913cda744486fae27d56cfe74d969c66338e548f94f96e566fab29457c52736fdf04af730e2b29a7dbef6f337b3c67ce27d0f58e662a3db2014cd0459039f  graalpython-23.1.4-vm-23.1.3.tar.gz
+f10581bdd2990c88ad2681fb5ea5550769c5e28fb761898a98d65ed86faab8f2d30b93aecf87d514a8ddc0bbdea3778c17b81d5023397d00c34ca518c294650d  truffleruby-23.1.4-e86d3721c8ab04a0f64f394ecd457cf84a3f394d.tar.gz
 9753206ec8cf0c1edeedb24d0db2de6bc96296352a15716ca0ecb218d55789a88bf042ea9f51bfb78c489f2afa5096ea51d9a7e17cbe3de0f26333c74f7c34f2  fastr-23.1-6d47efd1cf2bde0a1fa67b0c5bffb0e1312479f9.tar.gz
 f7f791afd2262c96792fc72e08feb830a3fa830f6dbbc89ff853d300527a5649bbb9057e6b931eddf47428a0bf414a0abc356e3a02a412ace9487f343b66513d  mx-7.22.0.tar.gz
 9a0e53f4954484265c2719e3d4d233df505dced63f8070cfdc305d4fd941962a05d95b27e53a8fcd7ed21f08afd5010a2e822f58a07539fedbf82156367bdfc7  graal-23.1.3-ra-rollback-gu.patch.xz
@@ -460,15 +472,15 @@ bcfec4b86dbf525c5b2e6c3d1ba9ed2d3c9a84e7d45820946f6e5a6582d86747446e7d89a408217d
 7ec154b912061a4d661d6427e96d0b63c2cbafccc591667be7abf84e1abe6c57b84028715275c73f014816de982507b8efba383cb46b0b8b22e478a7171a9008  graal-enable-awt-swing.patch
 268627c3def272b827071879d812d9145260f1e8364449aadc3aeafb4cea7e62ca2f440dd4c37f27aa6790afb38a766876cc9bee0bd1b9b067c036b1ccf5d1eb  graal-fast-lock.patch
 98be20e3e6b9625ecffa9ed5037246880d8b4b0e4669a21e2d5d7e7fdd3b6f3af6a2ea53b8ad9b516a6982c2ed88f689713bca572a5c71133e46d6738614b5f7  graal-fix-component-stability-property.patch
+29ad23e33a3b64e7b3509e240f7e095b03e7ec377d6679f3c8ae32675643013272f058e0c0d14d353c5acbd8b05058b89cd10aa2a29274cb6c1a7926b5da9c6c  graal-libffi-patches.patch
 bb03fdc8ace4db429ac069cc67e95b2695e444dca9697b51b25e30b709c929e2e3d100be35cf73e41fd37dbf4300b5ad5b9682913a38330a3bf7b3adae2fdb2f  graal-musl-lfs64.patch
 5a72f3e4806530e5fbd64c1b93fc731ffc68ce238745f2f0ae7d2d766f2332afb64c090321e221db741dc781b087aa1b515176e01462b257de49c7fb36423155  graal-no-watchdog.patch
 c0172a2e7fb4d5be4cab61f7422c0159d2f40c3c1ea4fd6c2407770df4d31a27d68b6e7223c856f2989e7045c8ef8b10d0e550d498e50dce6d77a24832784486  graal-parallel-gc.patch
 03d0fcef696d6ba1befc600c2be200c1df8362f47e00e08349d4d56f5372a95d713d5b239d0081818c37dbd20440e93b120538ddc1f9d605c6ffe8ebc9a433d3  graal-relaunch-on-alpine.patch
 cbd93ceb89a6f9b80f407d5185b1b383990457063cf4e38468ba3cfbd75fb28a08d6683cc3c490543243ba9488522b3579ca4abb12292ac6e42adb84938ce2ad  graal-sdk-llvm-suite.patch
 c4928aae55059b3fa972962702522ce013f4f3b669e9ac98a031bcce8c15295e5cc42c2df881c5c639fb2d82b7c74131881a5683a6e135d9e3d3b530e5014019  graal-vendor-properties.patch
-7848875b34b9f34c4e3d7a88227aab7702a533a10cd5dacf084bb092eaf495e98f92ed8c0e84bab74abc69f5482e8ba9e3e964263516b41379feee3dfce455d6  graal-version.patch
-28bee3282b98dbba38a93bfd2d014a1dfd3dee215c36ec7556419576965648237a9de3cd7b70f53d137ba3884eaacf19765af7939330572eb7221b33cd29fe2c  graaljs-accept-python-3.12.patch
-72ad929ddd0059a87ce5a9693d2705448c2d05dfcd52cbdcf75e1d6a740a3c9f5ae51ffc878fa6407c201a8b505860266e951100677f5cecd1aad658fa539aeb  graaljs-avoid-c++17.patch
+c34e0c407178e94aa6c678a62f46d269bbd9ee8e20a014e7c29c35434d0492fb5ce81d267b5ff0dc7c535cc3526fed5efb0c2652748db8f76d55f9e30d7c9278  graal-version.patch
+5235efd51b094122389edc495b9b5697babd4b99f4944854ade74b1e935f81669fe0d50321749e8600eae686dc6ad44098c7088a2ee2f1b444d506382a08a523  graal-version-bump.patch
 3c09ff6173f701ba27e883af5e908fb3427bdeb52f6dceaeafed913a6f53c50e936c1315e348649cce60c667b15620d72f4143f3333b728425727c81bb26557b  graalpython-graalpython-ssizet.patch
 fa4abc33be7105c72a67fbbf421c5d57c5f49eb5b9923e362439d592ff830b43cdfa9556cd75a8c56e4ca1ab086ae8cbca856b9bedba6328869e28c32cdc4c8a  fastr-patch_fastr_musl_3_3.patch
 3174b1cc99e95f2eda274a8a68cb4f46399be5d3917292789390761b9a193185878c2427fa12caa99996d4f22476a93fae9b506384519c3ec12e4a2674f9c694  fastr-reduce-parallelism.patch
