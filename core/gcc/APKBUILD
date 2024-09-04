@@ -22,7 +22,7 @@ depends="binutils$_target"
 makedepends_build="gcc$_cross g++$_cross bison flex texinfo gawk zip gmp-dev mpfr-dev mpc1-dev zlib-dev"
 makedepends_host="linux-headers gmp-dev mpfr-dev mpc1-dev isl-dev zlib-dev !gettext-dev musl:libucontext-dev"
 subpackages=" "
-[ "$CHOST" = "$CTARGET" ] && subpackages="gcc-gdb gcc-doc$_target"
+[ "$CHOST" = "$CTARGET" ] && subpackages="gcc-gdb gcc-doc"
 replaces="libstdc++ binutils"
 options="!check"
 
@@ -173,7 +173,7 @@ esac
 # currently on x86, x86_64 and ia64
 _libquadmath=$LANG_FORTRAN
 case "$CTARGET_ARCH" in
-x86 | x86_64 | ppc64le)	_libquadmath=$LANG_FORTRAN ;;
+x86 | x86_64 | ppc64le) ;;
 *)		_libquadmath=false ;;
 esac
 
@@ -219,23 +219,21 @@ if $LANG_FORTRAN; then
 	_languages="$_languages,fortran"
 fi
 if $LANG_ADA; then
-	subpackages="$subpackages gcc-gnat$_target:gnat"
+	subpackages="$subpackages gcc-gnat$_target:gnat libgnat::$CTARGET_ARCH"
 	_languages="$_languages,ada"
 	if [ "$CBUILD" = "$CTARGET" ]; then
 		makedepends_build="$makedepends_build gcc-gnat-bootstrap"
-		subpackages="$subpackages libgnat-static:libgnatstatic:$CTARGET_ARCH libgnat::$CTARGET_ARCH"
+		subpackages="$subpackages libgnat-static:libgnatstatic:$CTARGET_ARCH"
 	else
-		subpackages="$subpackages libgnat::$CTARGET_ARCH"
 		makedepends_build="$makedepends_build gcc-gnat gcc-gnat$_cross"
 	fi
 fi
 if $LANG_JIT; then
 	subpackages="$subpackages libgccjit:jit libgccjit-dev:jitdev"
 fi
-makedepends="$makedepends_build $makedepends_host"
 
 # when using upstream releases, use this URI template
-# https://gcc.gnu.org/pub/gcc/releases/gcc-${_pkgbase:-$pkgver}/gcc-${_pkgbase:-$pkgver}.tar.xz
+# https://gcc.gnu.org/pub/gcc/releases/gcc-$_pkgbase/gcc-$_pkgbase.tar.xz
 #
 # right now, we are using a git snapshot. snapshots are taken from gcc.gnu.org/pub/gcc/snapshots.
 # However, since they are periodically deleted from the GCC mirrors the utilized snapshots are
@@ -245,7 +243,7 @@ makedepends="$makedepends_build $makedepends_host"
 # PLEASE submit all patches to gcc to https://gitlab.alpinelinux.org/kaniini/alpine-gcc-patches,
 # so that they can be properly tracked and easily rebased if needed.
 #source="https://dev.alpinelinux.org/archive/gcc/${_pkgbase%%.*}-$_pkgsnap/gcc-${_pkgbase%%.*}-$_pkgsnap.tar.xz
-source="https://gcc.gnu.org/pub/gcc/releases/gcc-${_pkgbase:-$pkgver}/gcc-${_pkgbase:-$pkgver}.tar.xz
+source="https://gcc.gnu.org/pub/gcc/releases/gcc-$_pkgbase/gcc-$_pkgbase.tar.xz
 	0001-posix_memalign.patch
 	0002-gcc-poison-system-directories.patch
 	0003-specs-turn-on-Wl-z-now-by-default.patch
@@ -288,33 +286,14 @@ source="https://gcc.gnu.org/pub/gcc/releases/gcc-${_pkgbase:-$pkgver}/gcc-${_pkg
 #     - CVE-2023-4039
 
 # we build out-of-tree
-#_gccdir="$srcdir"/gcc-${_pkgbase%%.*}-$_pkgsnap
-_gccdir="$srcdir"/gcc-${_pkgbase:-$pkgver}
-_gcclibdir="/usr/lib/gcc/$CTARGET/${_pkgbase:-$pkgver}"
-_gcclibexec="/usr/libexec/gcc/$CTARGET/${_pkgbase:-$pkgver}"
+#builddir="$srcdir"/gcc-${_pkgbase%%.*}-$_pkgsnap
+builddir="$srcdir"/gcc-$_pkgbase
+_gcclibdir="/usr/lib/gcc/$CTARGET/$_pkgbase"
+_gcclibexec="/usr/libexec/gcc/$CTARGET/$_pkgbase"
 
 prepare() {
-	cd "$_gccdir"
-
-	_err=
-	for i in $source; do
-		case "$i" in
-		*.patch)
-			msg "Applying $i"
-			patch -p1 -i "$srcdir"/$i || _err="$_err $i"
-			;;
-		esac
-	done
-
-	if [ -n "$_err" ]; then
-		error "The following patches failed:"
-		for i in $_err; do
-			echo "  $i"
-		done
-		return 1
-	fi
-
-	echo ${_pkgbase:-$pkgver} > gcc/BASE-VER
+	default_prepare
+	echo $_pkgbase > gcc/BASE-VER
 }
 
 build() {
@@ -325,8 +304,6 @@ build() {
 	local _symvers=
 	local _jit_configure=
 	local _hash_style_configure=
-
-	cd "$_gccdir"
 
 	case "$CTARGET" in
 	aarch64-*-*-*)		_arch_configure="--with-arch=armv8-a --with-abi=lp64";;
@@ -446,7 +423,7 @@ build() {
 
 	mkdir -p "$_builddir"
 	cd "$_builddir"
-	"$_gccdir"/configure $gccconfiguration \
+	"$builddir"/configure $gccconfiguration \
 		--with-pkgversion="$version"
 
 	msg "building gcc"
@@ -458,7 +435,7 @@ build() {
 	if $LANG_JIT; then
 		mkdir -p "$_builddir"/libgccjit-build
 		cd "$_builddir"/libgccjit-build
-		"$_gccdir"/configure $gccconfiguration \
+		"$builddir"/configure $gccconfiguration \
 			--disable-bootstrap \
 			--enable-host-shared \
 			--enable-languages=jit \
@@ -473,7 +450,7 @@ package() {
 	cd "$_builddir"
 	make -j1 DESTDIR="$pkgdir" install
 
-	ln -s gcc "$pkgdir"/usr/bin/cc
+	[ "$CHOST" = "$CTARGET" ] && ln -s gcc "$pkgdir"/usr/bin/cc
 	ln -s ${CTARGET}-gcc "$pkgdir"/usr/bin/${CTARGET}-cc
 
 	if $LANG_JIT; then
@@ -517,24 +494,22 @@ package() {
 
 	# move ada runtime libs
 	if $LANG_ADA; then
-		for i in $(find "$pkgdir"/$_gcclibdir/adalib/ -type f -maxdepth 1 -name "libgna*.so"); do
+		for i in $(find "$pkgdir"/$_gcclibdir/adalib/ -type f -maxdepth 1 \( -name "libgna*.so" -o -name "libgna*.a" \) ); do
 			mv "$i" "$pkgdir"/usr/lib/
 			ln -s ../../../../${i##*/} $i
 		done
-		if [ "$CHOST" = "$CTARGET" ]; then
-			for i in $(find "$pkgdir"/$_gcclibdir/adalib/ -type f -maxdepth 1 -name "libgna*.a"); do
-				mv "$i" "$pkgdir"/usr/lib/
-				ln -s ../../../../${i##*/} $i
-			done
-		fi
 	fi
 
 	if [ "$CHOST" != "$CTARGET" ]; then
 		# cross-gcc: remove any files that would conflict with the
 		# native gcc package
-		rm -rf "$pkgdir"/usr/bin/cc "$pkgdir"/usr/include "${pkgdir:?}"/usr/share
+		rm -rf "$pkgdir"/usr/include "${pkgdir:?}"/usr/share
 		# libcc1 does not depend on target, don't ship it
 		rm -rf "$pkgdir"/usr/lib/libcc1.so*
+
+		# These are moved into packages with arch=$CTARGET_ARCH so remove
+		# cross prefix
+		mv "$pkgdir"/usr/$CTARGET/lib/*.so.* "$pkgdir"/usr/lib/
 
 		# fixup gcc library symlinks to be linker scripts so
 		# linker finds the libs from relocated sysroot
@@ -595,8 +570,7 @@ libatomic() {
 	depends=
 	replaces="gcc"
 
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/${_target:+$CTARGET/}lib/libatomic.so.* "$subpkgdir"/usr/lib/
+	amove usr/lib/libatomic.so.*
 }
 
 libcxx() {
@@ -609,8 +583,7 @@ libcxx() {
 		nm -D "$pkgdir"/usr/lib/libstdc++.so.* | grep clock_gettime
 	fi
 
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/${_target:+$CTARGET/}lib/libstdc++.so.* "$subpkgdir"/usr/lib/
+	amove usr/lib/libstdc++.so.*
 }
 
 libcxx_dev() {
@@ -628,15 +601,11 @@ libcxx_dev() {
 
 gpp() {
 	pkgdesc="GNU C++ standard library and compiler"
-	depends="libstdc++=$_gccrel libstdc++-dev$_target=$_gccrel gcc$_target=$_gccrel libc-dev"
-	mkdir -p "$subpkgdir/$_gcclibexec" \
-		"$subpkgdir"/usr/bin \
-		"$subpkgdir"/usr/${_target:+$CTARGET/}include \
-		"$subpkgdir"/usr/${_target:+$CTARGET/}lib \
+	depends="libstdc++-dev$_target=$_gccrel gcc$_target=$_gccrel libc-dev"
+	[ "$CHOST" = "$CTARGET" ] && depends="$depends libstdc++=$_gccrel"
 
-	mv "$pkgdir/$_gcclibexec/cc1plus" "$subpkgdir/$_gcclibexec/"
-
-	mv "$pkgdir"/usr/bin/*++ "$subpkgdir"/usr/bin/
+	amove $_gcclibexec/cc1plus
+	amove usr/bin/*++
 }
 
 jit() {
@@ -655,8 +624,8 @@ libobjc() {
 	pkgdesc="GNU Objective-C runtime"
 	replaces="objc"
 	depends=
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/${_target:+$CTARGET/}lib/libobjc.so.* "$subpkgdir"/usr/lib/
+
+	amove usr/lib/libobjc.so.*
 }
 
 objc() {
@@ -664,21 +633,17 @@ objc() {
 	replaces="gcc"
 	depends="libc-dev gcc=$_gccrel libobjc=$_gccrel"
 
-	mkdir -p "$subpkgdir/$_gcclibexec" \
-		"$subpkgdir"/$_gcclibdir/include \
-		"$subpkgdir"/usr/lib
-	mv "$pkgdir/$_gcclibexec/cc1obj" "$subpkgdir/$_gcclibexec/"
-	mv "$pkgdir"/$_gcclibdir/include/objc "$subpkgdir"/$_gcclibdir/include/
-	mv "$pkgdir"/usr/lib/libobjc.so "$pkgdir"/usr/lib/libobjc.a \
-		"$subpkgdir"/usr/lib/
+	amove $_gcclibexec/cc1obj
+	amove $_gcclibdir/include/objc
+	amove usr/lib/libobjc.so
+	amove usr/lib/libobjc.a
 }
 
 libgcc() {
 	pkgdesc="GNU C compiler runtime libraries"
 	depends=
 
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/${_target:+$CTARGET/}lib/libgcc_s.so.* "$subpkgdir"/usr/lib/
+	amove usr/lib/libgcc_s.so.*
 }
 
 libgomp() {
@@ -686,17 +651,15 @@ libgomp() {
 	depends=
 	replaces="gcc"
 
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/${_target:+$CTARGET/}lib/libgomp.so.* "$subpkgdir"/usr/lib/
+	amove usr/lib/libgomp.so.*
 }
 
 libgphobos() {
 	pkgdesc="D programming language standard library for GCC"
 	depends=
 
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/${_target:+$CTARGET/}lib/libgdruntime.so.* "$subpkgdir"/usr/lib/
-	mv "$pkgdir"/usr/${_target:+$CTARGET/}lib/libgphobos.so.*  "$subpkgdir"/usr/lib/
+	amove usr/lib/libgdruntime.so.*
+	amove usr/lib/libgphobos.so.*
 }
 
 libgphobos_dev() {
@@ -716,27 +679,19 @@ gdc() {
 	depends="$depends musl:libucontext-dev"
 	provides="gcc-gdc-bootstrap=$_gccrel"
 
-	mkdir -p "$subpkgdir/$_gcclibexec" \
-		"$subpkgdir"/$_gcclibdir/include/d/ \
-		"$subpkgdir"/usr/lib \
-		"$subpkgdir"/usr/bin
-	# Copy: The installed '.d' files, the static lib, the binary itself
+	# Copy: The installed '.d' files, the binary itself
 	# The shared libs are part of 'libgphobos' so one can run program
 	# without installing the compiler
-	mv "$pkgdir/$_gcclibexec/d21" "$subpkgdir/$_gcclibexec/"
-	mv "$pkgdir"/$_gcclibdir/include/d/* "$subpkgdir"/$_gcclibdir/include/d/
-	mv "$pkgdir"/usr/bin/$CTARGET-gdc "$subpkgdir"/usr/bin/
-	if [ "$CHOST" = "$CTARGET" ]; then
-		mv "$pkgdir"/usr/bin/gdc "$subpkgdir"/usr/bin/
-	fi
+	amove $_gcclibexec/d21
+	amove $_gcclibdir/include/d
+	amove usr/bin/*gdc
 }
 
 libgo() {
 	pkgdesc="Go runtime library for GCC"
 	depends=
 
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/libgo.so.* "$subpkgdir"/usr/lib/
+	amove usr/lib/libgo.so.*
 }
 
 go() {
@@ -744,31 +699,24 @@ go() {
 	depends="gcc=$_gccrel libgo=$_gccrel !go"
 	install="$pkgname-go.post-install"
 
-	mkdir -p "$subpkgdir"/$_gcclibexec \
-		"$subpkgdir"/usr/lib \
-		"$subpkgdir"/usr/bin
-	mv "$pkgdir"/usr/lib/go "$subpkgdir"/usr/lib/
-	mv "$pkgdir"/usr/bin/*gccgo "$subpkgdir"/usr/bin/
-	mv "$pkgdir"/usr/bin/*go "$subpkgdir"/usr/bin
-	mv "$pkgdir"/usr/bin/*gofmt "$subpkgdir"/usr/bin
-	mv "$pkgdir"/$_gcclibexec/go1 "$subpkgdir"/$_gcclibexec/
-	mv "$pkgdir"/$_gcclibexec/cgo "$subpkgdir"/$_gcclibexec/
-	mv "$pkgdir"/$_gcclibexec/buildid "$subpkgdir"/$_gcclibexec/
-	mv "$pkgdir"/$_gcclibexec/test2json "$subpkgdir"/$_gcclibexec/
-	mv "$pkgdir"/$_gcclibexec/vet "$subpkgdir"/$_gcclibexec/
-	mv "$pkgdir"/usr/lib/libgo.a \
-		"$pkgdir"/usr/lib/libgo.so \
-		"$pkgdir"/usr/lib/libgobegin.a \
-		"$pkgdir"/usr/lib/libgolibbegin.a \
-		"$subpkgdir"/usr/lib/
+	amove usr/bin/*go
+	amove usr/bin/*gofmt
+	amove $_gcclibexec/go1
+	amove $_gcclibexec/cgo
+	amove $_gcclibexec/buildid
+	amove $_gcclibexec/test2json
+	amove $_gcclibexec/vet
+	amove usr/lib/libgo.a
+	amove usr/lib/libgo.so
+	amove usr/lib/libgobegin.a
+	amove usr/lib/libgolibbegin.a
 }
 
 libgfortran() {
 	pkgdesc="Fortran runtime library for GCC"
 	depends=
 
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/libgfortran.so.* "$subpkgdir"/usr/lib/
+	amove usr/lib/libgfortran.so.*
 }
 
 libquadmath() {
@@ -776,8 +724,7 @@ libquadmath() {
 	pkgdesc="128-bit math library for GCC"
 	depends=
 
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/libquadmath.so.* "$subpkgdir"/usr/lib/
+	amove usr/lib/libquadmath.so.*
 }
 
 gfortran() {
@@ -786,38 +733,30 @@ gfortran() {
 	$_libquadmath && depends="$depends libquadmath=$_gccrel"
 	replaces="gcc"
 
-	mkdir -p "$subpkgdir"/$_gcclibexec \
-		"$subpkgdir"/$_gcclibdir \
-		"$subpkgdir"/usr/lib \
-		"$subpkgdir"/usr/bin
-	mv "$pkgdir"/usr/bin/*gfortran "$subpkgdir"/usr/bin/
-	mv "$pkgdir"/usr/lib/libgfortran.a \
-		"$pkgdir"/usr/lib/libgfortran.so \
-		"$subpkgdir"/usr/lib/
+	amove usr/bin/*gfortran
+	amove usr/lib/libgfortran.a
+	amove usr/lib/libgfortran.so
 	if $_libquadmath; then
-		mv "$pkgdir"/usr/lib/libquadmath.a \
-			"$pkgdir"/usr/lib/libquadmath.so \
-			"$subpkgdir"/usr/lib/
+		amove usr/lib/libquadmath.a
+		amove usr/lib/libquadmath.so
 	fi
-	mv "$pkgdir"/$_gcclibdir/finclude "$subpkgdir"/$_gcclibdir/
-	mv "$pkgdir"/$_gcclibexec/f951 "$subpkgdir"/$_gcclibexec
-	mv "$pkgdir"/usr/lib/libgfortran.spec "$subpkgdir"/$_gcclibdir
+	amove $_gcclibdir/finclude
+	amove $_gcclibexec/f951
+	amove usr/lib/libgfortran.spec
 }
 
 libgnat() {
 	pkgdesc="GNU Ada runtime shared libraries"
 	depends=
 
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/libgna*.so "$subpkgdir"/usr/lib/
+	amove usr/lib/libgna*.so
 }
 
 libgnatstatic() {
 	pkgdesc="GNU Ada static libraries"
 	depends=
 
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/libgna*.a "$subpkgdir"/usr/lib/
+	amove usr/lib/libgna*.a
 }
 
 gnat() {
@@ -826,12 +765,9 @@ gnat() {
 	provides="$pkgname-gnat-bootstrap=$_gccrel"
 	[ "$CHOST" = "$CTARGET" ] && depends="$depends libgnat=$_gccrel"
 
-	mkdir -p "$subpkgdir"/$_gcclibexec \
-		"$subpkgdir"/$_gcclibdir \
-		"$subpkgdir"/usr/bin
-	mv "$pkgdir"/$_gcclibexec/*gnat* "$subpkgdir"/$_gcclibexec/
-	mv "$pkgdir"/$_gcclibdir/*ada* "$subpkgdir"/$_gcclibdir/
-	mv "$pkgdir"/usr/bin/*gnat* "$subpkgdir"/usr/bin/
+	amove $_gcclibexec/*gnat*
+	amove $_gcclibdir/*ada*
+	amove usr/bin/*gnat*
 }
 
 gdb() {
