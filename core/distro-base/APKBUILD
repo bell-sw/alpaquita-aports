@@ -1,6 +1,6 @@
 pkgname=distro-base
 pkgver=23
-pkgrel=2
+pkgrel=3
 pkgdesc="Meta package for minimal $VENDOR_NAME $VENDOR_DISTRO_NAME base"
 url="$VENDOR_URL"
 arch="noarch"
@@ -49,7 +49,9 @@ Kernel \\r on an \\m (\\l)
 EOF
 
 	# create os-release
-	cat >"$subpkgdir"/etc/os-release<<EOF
+
+	mkdir -p "$subpkgdir"/usr/lib
+	cat >"$subpkgdir"/usr/lib/os-release<<EOF
 NAME="$VENDOR_NAME $VENDOR_DISTRO_NAME Linux $_rel"
 ID=$VENDOR_DISTRO
 ID_LIKE=alpine
@@ -59,4 +61,5 @@ HOME_URL="$VENDOR_URL"
 BUG_REPORT_URL="$VENDOR_BUG_REPORT_URL"
 LIBC_TYPE=$CLIBC
 EOF
+	ln -s ../usr/lib/os-release "$subpkgdir"/etc/os-release
 }
