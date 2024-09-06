@@ -1,0 +1,26 @@
+From 2f30dc3f9b67f66ee950236a9d6e907cb8eff32c Mon Sep 17 00:00:00 2001
+From: Andrei Pangin <noreply@pangin.pro>
+Date: Sat, 1 Jun 2024 23:05:45 +0100
+Subject: [PATCH] #940: lseek64 is not declared when compiling on
+ Alpine/aarch64
+
+---
+ src/symbols_linux.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/symbols_linux.cpp b/src/symbols_linux.cpp
+index b1bfbd3..d7bcd77 100644
+--- a/src/symbols_linux.cpp
++++ b/src/symbols_linux.cpp
+@@ -268,7 +268,7 @@ bool ElfParser::parseFile(CodeCache* cc, const char* base, const char* file_name
+         return false;
+     }
+ 
+-    size_t length = (size_t)lseek64(fd, 0, SEEK_END);
++    size_t length = (size_t)lseek(fd, 0, SEEK_END);
+     void* addr = mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0);
+     close(fd);
+ 
+-- 
+2.46.0
+
