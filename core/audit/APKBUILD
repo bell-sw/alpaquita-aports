@@ -6,7 +6,7 @@ url="https://people.redhat.com/sgrubb/audit/"
 arch="all"
 license="LGPL-2.1-or-later"
 depends_dev="linux-headers"
-makedepends="$depends_dev swig libcap-ng-dev python3"
+makedepends="$depends_dev swig libcap-ng-dev python3 libtool automake"
 install="$pkgname.pre-install"
 subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-libs $pkgname-openrc"
 source="https://people.redhat.com/sgrubb/audit/audit-$pkgver.tar.gz
@@ -14,9 +14,16 @@ source="https://people.redhat.com/sgrubb/audit/audit-$pkgver.tar.gz
 	usr-paths.patch
 	test-uid-42.patch
 	auditd.initd
-	auditd.confd"
+	auditd.confd
+
+	0100-Try-to-solve-Issue-390.patch
+	"
 
 build() {
+
+	# Only needed since '0100-Try-to-solve-Issue-390.patch' has changed 'Makefile.am'
+	autoreconf -fv --install
+
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -60,4 +67,5 @@ f3f2c4ee745e99877c981d889c5cbb0379d073a9b7634c1480ae603a21a13045f9978b51f8cb53c8
 a8379c26553f524a4684ee660fe1e3422d720080f137ac9ebc17873cf90d13b6b81a5fde2d9b076ee32a2c1115240146bc12daca9a22ec53e7986c7454278794  test-uid-42.patch
 b3d7ceba02b6b4406222c3b142fcfdf2b612dc52eebc490cfd121d696e4ef7c6cc5e27813d67937c464ed4c3cd283de9ccfcb75e63405a447523fa4641e79da3  auditd.initd
 69d8777772ded7a8c0db2bcf84961b121bb355fa0d4ba0e14e311f8a8bfe665cbd2b7ac632d73477f9dfa9a6eec357a7ed458fe9b3e7b5ede75b166f3f092ab7  auditd.confd
+a6222f8cef37170e244a3da4c9c6988bf0aed672e2285984d5e802756f3310c4f60cc6ece959454536f0ea3e3a3c38f004263ddd2012626b0952d37a6c2da41e  0100-Try-to-solve-Issue-390.patch
 "
