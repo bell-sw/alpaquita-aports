@@ -1,6 +1,6 @@
 pkgname=execline
 pkgver=2.9.6.0
-pkgrel=0
+pkgrel=1
 pkgdesc="A small scripting language, to be used in place of a shell in non-interactive scripts."
 url=https://skarnet.org/software/execline/
 arch="all"
@@ -17,6 +17,7 @@ build() {
 		--disable-allstatic \
 		--prefix=/usr \
 		--libdir=/usr/lib \
+		--dynlibdir=/usr/lib \
 		--with-dynlib=/usr/lib \
 		--enable-multicall
 	make
@@ -30,11 +31,6 @@ doc() {
 	default_doc
 	mkdir -p "$subpkgdir/usr/share/doc"
 	cp -a "$builddir/doc" "$subpkgdir/usr/share/doc/$pkgname"
-}
-
-static() {
-	default_static
-	rmdir -p "$pkgdir"/usr/lib || :
 }
 
 sha512sums="
