@@ -14,25 +14,35 @@ pkgrel=0
 _javaver=21.0.4
 
 
-# The maintenance happens on the master branch of the repo at
-# graalvm-community-jdk21u and there are no tags, so use commit hash.
-_hash_graal="18ee9458dc9b00e3f4ef3f7d7a6b1fe2e2ee986b"
+# when the release branch is actively maintained by oracle, most of
+# these will be _ref_foo="vm-$pkgver", but as the branch is sunset
+# languages don't get updates and start to lag behind, in which case
+# we can use either older tags or specific hashes.
 
-# These are the tips of release/graal-vm/23.1 branches in
-# the corresponding repositories as of 2024-07-10
-#_hash_graaljs="2e77deef4a104c3dfe8724aad8ae7a4a1d586fc8"
-_hash_graalpython="vm-23.1.3"
+# The maintenance now happens on the master branch of the repo at
+# graalvm/graalvm-community-jdk21u and there are no tags
+_ref_graal="18ee9458dc9b00e3f4ef3f7d7a6b1fe2e2ee986b"
+
+# graaljs 23.1 doesn't receive any maintenance or development upstream
+# by oracle at github, and 24 backports of security fixes are large
+# and contain binary files, so applying them as patches is rather
+# awkward.  So just use our own tarballs.
+# _reg_graaljs="..."
+
+# HEAD of release/graal-vm/23.1 branch as of 2024-07-10
+_ref_graalpython="vm-23.1.3"
+
+# truffleruby build wants to know the exact hash too
+_ref_truffleruby="vm-23.1.2"
 _hash_truffleruby="e86d3721c8ab04a0f64f394ecd457cf84a3f394d"
 _date_truffleruby="2023-11-23"
 
-# fastr doesn't have the $pkgver tags, so instead use the head of the
-# corresponding release branch.
-# HEAD of release/graal-vm/23.1 branch as of 2024-04-10
-_hash_fastr="6d47efd1cf2bde0a1fa67b0c5bffb0e1312479f9"
+# HEAD of release/graal-vm/23.1 branch as of 2024-07-10
+_ref_fastr="6d47efd1cf2bde0a1fa67b0c5bffb0e1312479f9"
 
 # CI NIK builds just use master, but we need a fixed version for the
 # package.  This is the latest tag along the master as of 2024-04-10
-_mxver=7.22.0
+_ref_mx=7.22.0
 
 
 pkgdesc="$VENDOR_JAVA_NAME Native Image Kit $pkgver (Java $_javamajor)"
@@ -94,61 +104,14 @@ subpackages="
 provides="openjdk-nik-$_nikmajor-$_javamajor=$pkgver-r$pkgrel"
 
 
-_source_release=""
+_source_release="
+	graalvm-community-jdk21u-$_ref_graal.tar.gz::https://github.com/graalvm/graalvm-community-jdk21u/archive/$_ref_graal.tar.gz
+	       graalpython-$_ref_graalpython.tar.gz::https://github.com/oracle/graalpython/archive/$_ref_graalpython.tar.gz
+	       truffleruby-$_ref_truffleruby.tar.gz::https://github.com/oracle/truffleruby/archive/$_ref_truffleruby.tar.gz
+	                   fastr-$_ref_fastr.tar.gz::https://github.com/oracle/fastr/archive/$_ref_fastr.tar.gz
+                                 mx-$_ref_mx.tar.gz::https://github.com/graalvm/mx/archive/refs/tags/$_ref_mx.tar.gz
 
-# NB: graalvm/graalvm-community-jdk21u (not oracle/graal).
-if [ "$_hash_graal" ]; then
-_source_release="$_source_release
-	graal-$pkgver-$_hash_graal.tar.gz::https://github.com/graalvm/graalvm-community-jdk21u/archive/$_hash_graal.tar.gz
-	"
-else
-_source_release="$_source_release
-	graal-vm-$pkgver.tar.gz::https://github.com/graalvm/graalvm-community-jdk21u/archive/refs/tags/vm-$pkgver.tar.gz
-	"
-fi
-
-
-# 23.1 doesn't receive any maintenance or development upstream by
-# oracle at github, and 24 backports of security fixes are large and
-# contain binary files, so applying them as patches is rather awkward.
-# So just use our own tarballs.
-
-# if [ "$_hash_graaljs" ]; then
-# _source_release="$_source_release
-# 	graaljs-$pkgver-$_hash_graaljs.tar.gz::https://github.com/oracle/graaljs/archive/$_hash_graaljs.tar.gz
-# 	"
-# else
-# _source_release="$_source_release
-# 	graaljs-vm-$pkgver.tar.gz::https://github.com/oracle/graaljs/archive/refs/tags/vm-$pkgver.tar.gz
-# 	"
-# fi
-_source_release="$_source_release
 	https://packages.bell-sw.com/alpaquita/distfiles/graaljs-graal-$pkgver.tar.xz
-	"
-
-if [ "$_hash_graalpython" ]; then
-_source_release="$_source_release
-	graalpython-$pkgver-$_hash_graalpython.tar.gz::https://github.com/oracle/graalpython/archive/$_hash_graalpython.tar.gz
-	"
-else
-_source_release="$_source_release
-	graalpython-vm-$pkgver.tar.gz::https://github.com/oracle/graalpython/archive/vm-$pkgver.tar.gz
-	"
-fi
-
-if [ "$_hash_truffleruby" ]; then
-_source_release="$_source_release
-	truffleruby-$pkgver-$_hash_truffleruby.tar.gz::https://github.com/oracle/truffleruby/archive/$_hash_truffleruby.tar.gz
-	"
-else
-_source_release="$_source_release
-	truffleruby-vm-$pkgver.tar.gz::https://github.com/oracle/truffleruby/archive/refs/tags/vm-$pkgver.tar.gz
-	"
-fi
-
-_source_release="$_source_release
-	fastr-23.1-$_hash_fastr.tar.gz::https://github.com/oracle/fastr/archive/$_hash_fastr.tar.gz
-	mx-$_mxver.tar.gz::https://github.com/graalvm/mx/archive/refs/tags/$_mxver.tar.gz
 	"
 
 _patches="
@@ -203,23 +166,12 @@ unpack() {
 	mkdir -p "$builddir"
 
 	# rename the directories to their basenames, dropping git refs
-	[ "$_hash_graal" ] &&	 mv graalvm-community-jdk21u-$_hash_graal "$builddir"/graal
-	[ "$_hash_graal" ] ||	 mv graalvm-community-jdk21u-*$pkgver     "$builddir"/graal
-
-	# we now use our own tarball with backports
-	mv graaljs-graal-$pkgver "$builddir"/graaljs
-
-	[ "$_hash_graalpython" ] &&	mv graalpython-$_hash_graalpython "$builddir"/graalpython
-	[ "$_hash_graalpython" ] ||	mv graalpython-*$pkgver           "$builddir"/graalpython
-
-	[ "$_hash_truffleruby" ] &&	mv truffleruby-$_hash_truffleruby "$builddir"/truffleruby
-	[ "$_hash_truffleruby" ] ||	mv truffleruby-*$pkgver           "$builddir"/truffleruby
-
-	# not in sync with the rest of them, always by hash
-	mv fastr-$_hash_fastr   "$builddir"/fastr
-
-	# the build tool has its own tags
-	mv mx-$_mxver           "$builddir"/mx
+	mv graalvm-community-jdk21u-$_ref_graal "$builddir"/graal
+	mv graaljs-graal-$pkgver                "$builddir"/graaljs # not from github
+	mv graalpython-$_ref_graalpython        "$builddir"/graalpython
+	mv truffleruby-$_ref_truffleruby        "$builddir"/truffleruby
+	mv fastr-$_ref_fastr                    "$builddir"/fastr
+	mv mx-$_ref_mx                          "$builddir"/mx
 }
 
 prepare() {
@@ -457,12 +409,12 @@ _ruby() {
 
 
 sha512sums="
-674e86d3c23d3b9317762f30832e8f160d999d6c40f2da563d48f995446731cf74fc2f8b3dd255db51cc83379a9be280874aed7c8697cc107edde3170b2831ca  graal-23.1.4-18ee9458dc9b00e3f4ef3f7d7a6b1fe2e2ee986b.tar.gz
-b332c6290256b27a9b57ca9066d35561a8290af9cbb56c6d2e11835daf48e30ae3910f79c753dad602f472c23428b0c36109fe641f524240030afd3c80e69e39  graaljs-graal-23.1.4.tar.xz
-0a3913cda744486fae27d56cfe74d969c66338e548f94f96e566fab29457c52736fdf04af730e2b29a7dbef6f337b3c67ce27d0f58e662a3db2014cd0459039f  graalpython-23.1.4-vm-23.1.3.tar.gz
-f10581bdd2990c88ad2681fb5ea5550769c5e28fb761898a98d65ed86faab8f2d30b93aecf87d514a8ddc0bbdea3778c17b81d5023397d00c34ca518c294650d  truffleruby-23.1.4-e86d3721c8ab04a0f64f394ecd457cf84a3f394d.tar.gz
-9753206ec8cf0c1edeedb24d0db2de6bc96296352a15716ca0ecb218d55789a88bf042ea9f51bfb78c489f2afa5096ea51d9a7e17cbe3de0f26333c74f7c34f2  fastr-23.1-6d47efd1cf2bde0a1fa67b0c5bffb0e1312479f9.tar.gz
+674e86d3c23d3b9317762f30832e8f160d999d6c40f2da563d48f995446731cf74fc2f8b3dd255db51cc83379a9be280874aed7c8697cc107edde3170b2831ca  graalvm-community-jdk21u-18ee9458dc9b00e3f4ef3f7d7a6b1fe2e2ee986b.tar.gz
+0a3913cda744486fae27d56cfe74d969c66338e548f94f96e566fab29457c52736fdf04af730e2b29a7dbef6f337b3c67ce27d0f58e662a3db2014cd0459039f  graalpython-vm-23.1.3.tar.gz
+37a638633465ce4bd1e948f7e3452c06c269640d9b15f529f9753d085ea7f984b75fab300e3fe56eed6d93cadcce580ae7cb2d7bf5c25184bccbc1cd19511ae9  truffleruby-vm-23.1.2.tar.gz
+9753206ec8cf0c1edeedb24d0db2de6bc96296352a15716ca0ecb218d55789a88bf042ea9f51bfb78c489f2afa5096ea51d9a7e17cbe3de0f26333c74f7c34f2  fastr-6d47efd1cf2bde0a1fa67b0c5bffb0e1312479f9.tar.gz
 f7f791afd2262c96792fc72e08feb830a3fa830f6dbbc89ff853d300527a5649bbb9057e6b931eddf47428a0bf414a0abc356e3a02a412ace9487f343b66513d  mx-7.22.0.tar.gz
+b332c6290256b27a9b57ca9066d35561a8290af9cbb56c6d2e11835daf48e30ae3910f79c753dad602f472c23428b0c36109fe641f524240030afd3c80e69e39  graaljs-graal-23.1.4.tar.xz
 9a0e53f4954484265c2719e3d4d233df505dced63f8070cfdc305d4fd941962a05d95b27e53a8fcd7ed21f08afd5010a2e822f58a07539fedbf82156367bdfc7  graal-23.1.3-ra-rollback-gu.patch.xz
 451cf642218e7a54965a596581979aaa4e9005c021589e8fac7d1e4b879794c8a0bdded554f78b10d6e8ced9ab597708d4e8c93f39234d70546095efc63a47d9  graal-6814-mempool-max-value-exceeded.patch
 2424046d2a3e26987ea3902bd3e23a97ce969d66a74a29fe3b245f9360ce055ee12e6f15708f28e51f1ded3d16ca63ef1a1c1c8e02b0c23c1e34a5240fbee942  graal-copy-longs-intrinsics.patch
