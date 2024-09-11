@@ -1,7 +1,6 @@
-From 9cfcc1b02f91d8c0bd4230ad2a48f90699861e45 Mon Sep 17 00:00:00 2001
 From: Lukas Schwaighofer <lukas@schwaighofer.name>
 Date: Tue, 26 Feb 2019 23:13:58 +0100
-Subject: [PATCH] Prevent optimizing the pow() function
+Subject: Prevent optimizing the pow() function
 
 With the current GCC 8.2.0 from Debian, a section of code calling pow() in
 zzjson_parse.c is turned into a sequence calling exp(). Since no exp()
@@ -12,7 +11,7 @@ disabled.
  1 file changed, 5 insertions(+), 1 deletion(-)
 
 diff --git a/com32/gpllib/zzjson/zzjson_parse.c b/com32/gpllib/zzjson/zzjson_parse.c
-index ecb6f61e..e66a9d8c 100644
+index ecb6f61..e66a9d8 100644
 --- a/com32/gpllib/zzjson/zzjson_parse.c
 +++ b/com32/gpllib/zzjson/zzjson_parse.c
 @@ -138,6 +138,10 @@ static ZZJSON *parse_string2(ZZJSON_CONFIG *config) {
@@ -35,6 +34,3 @@ index ecb6f61e..e66a9d8c 100644
      }
  
      zzjson = config->calloc(1, sizeof(ZZJSON));
--- 
-2.25.1
-
