@@ -4,7 +4,7 @@
 pkgname=openssl
 pkgver=3.3.2
 _abiver=${pkgver%.*.*}
-pkgrel=0
+pkgrel=1
 pkgdesc="Toolkit for general-purpose cryptography and secure communication (v.3)"
 url="https://www.openssl.org/"
 arch="all"
@@ -205,19 +205,18 @@ misc() {
 _libcrypto() {
 	pkgdesc="Crypto library from openssl"
 	replaces="libcrypto1.1"
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/etc "$subpkgdir"/
-	mv "$pkgdir"/usr/lib/libcrypto* "$subpkgdir"/usr/lib/
-	mv "$pkgdir"/usr/lib/engines-$_abiver "$subpkgdir"/usr/lib/
-	mv "$pkgdir"/usr/lib/ossl-modules "$subpkgdir"/usr/lib/
+
+	amove etc
+	amove usr/lib/libcrypto*
+	amove usr/lib/engines-$_abiver
+	amove usr/lib/ossl-modules
 }
 
 _libssl() {
 	pkgdesc="SSL shared libraries"
 	depends="libcrypto$_abiver=$pkgver-r$pkgrel"
 
-	mkdir -p "$subpkgdir"/usr/lib
-	mv "$pkgdir"/usr/lib/libssl* "$subpkgdir"/usr/lib/
+	amove usr/lib/libssl*
 }
 
 sha512sums="
