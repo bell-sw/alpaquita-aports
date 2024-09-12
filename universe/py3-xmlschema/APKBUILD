@@ -10,11 +10,13 @@ makedepends="py3-gpep517 py3-setuptools py3-wheel"
 checkdepends="py3-pytest py3-jinja2"
 options="net" # tests access xml.xsd from w3.org
 subpackages="$pkgname-pyc"
-[ -n "BOOTSTRAP" ] && options="!check" # To break a cyclic dependency on py3-pytest
 source="$pkgname-$pkgver.tar.gz::https://github.com/sissaschool/xmlschema/archive/refs/tags/v$pkgver.tar.gz
 	fix-tests-with-py3.12.5.patch
 	"
 builddir="$srcdir/xmlschema-$pkgver"
+
+[ -n "BOOTSTRAP" ] && options="!check" # To break a cyclic dependency on py3-pytest
+
 
 build() {
 	gpep517 build-wheel \
