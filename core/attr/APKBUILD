@@ -3,7 +3,7 @@
 
 pkgname=attr
 pkgver=2.5.2
-pkgrel=1
+pkgrel=2
 pkgdesc="Filesystem extended attributes utility"
 options="checkroot !check" # attr.test fails with no error message
 url="https://savannah.nongnu.org/projects/attr"
@@ -18,16 +18,10 @@ build() {
 	./configure \
 		--build="$CBUILD" \
 		--host="$CHOST" \
-		--prefix=/ \
-		--exec-prefix=/ \
-		--sbindir=/bin \
-		--bindir=/usr/bin \
-		--libdir=/lib \
-		--libexecdir=/usr/lib \
-		--includedir=/usr/include \
+		--prefix=/usr \
+		--sysconfdir=/etc \
 		--mandir=/usr/share/man \
-		--docdir=/usr/share/doc/attr \
-		--datadir=/usr/share \
+		--localstatedir=/var \
 		--disable-nls
 	make
 }
@@ -38,9 +32,6 @@ check() {
 
 package() {
 	make DESTDIR="$pkgdir" install
-
-	mkdir -p "$pkgdir"/usr/lib
-	mv "$pkgdir"/lib/pkgconfig "$pkgdir"/usr/lib
 }
 
 dev() {
