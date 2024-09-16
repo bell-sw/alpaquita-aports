@@ -1,0 +1,53 @@
+From 4dc2e77d0374364b16f7dd24d45c93aeb821aa91 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 27 Aug 2024 18:53:17 +0000
+Subject: [PATCH] support linking with aarch64 glibc-stirng
+
+* init libc.auxv at an early stage before __get_cpu_features()
+
+* provide baseline mem* impl in the early-stages
+---
+ ldso/dynlink.c                      | 3 ++-
+ src/internal/use_base_memory_func.h | 5 +++++
+ 2 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/ldso/dynlink.c b/ldso/dynlink.c
+index c389a212..e30d4c06 100644
+--- a/ldso/dynlink.c
++++ b/ldso/dynlink.c
+@@ -1788,6 +1788,8 @@ hidden void __dls2(unsigned char *base, size_t *sp)
+ 	size_t addends[symbolic_rel_cnt+1];
+ 	saved_addends = addends;
+ 
++	/* setup libc.auxv early (__get_cpu_features() below using getauxval()) */
++	libc.auxv = auxv;
+ 	__get_cpu_features();
+ 
+ 	head = &ldso;
+@@ -1815,7 +1817,6 @@ void __dls2b(size_t *sp, size_t *auxv)
+ 	 * use during dynamic linking. If possible it will also serve as the
+ 	 * thread pointer at runtime. */
+ 	search_vec(auxv, &__hwcap, AT_HWCAP);
+-	libc.auxv = auxv;
+ 	libc.tls_size = sizeof builtin_tls;
+ 	libc.tls_align = tls_align;
+ 	if (__init_tp(__copy_tls((void *)builtin_tls)) < 0) {
+diff --git a/src/internal/use_base_memory_func.h b/src/internal/use_base_memory_func.h
+index 50f1b9b9..fb4ad511 100644
+--- a/src/internal/use_base_memory_func.h
++++ b/src/internal/use_base_memory_func.h
+@@ -4,6 +4,11 @@
+ /* Use baseline implementations in the early startup stages before
+  * ifuncs are resolved.
+  */
++#ifdef __aarch64__
++__asm__ ("memset = __memset_generic");
++__asm__ ("memcpy = __memcpy_generic");
++__asm__ ("memmove = __memmove_generic");
++#endif
+ #ifdef __x86_64__
+ __asm__ ("memset = __memset_sse2_unaligned");
+ __asm__ ("memcpy = __memcpy_sse2_unaligned");
+-- 
+2.25.1
+

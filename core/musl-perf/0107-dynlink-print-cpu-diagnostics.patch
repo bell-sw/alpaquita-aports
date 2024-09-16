@@ -1,0 +1,34 @@
+From 05f55741a77ce4d8090a6a2a742d0d5c9a52d5d6 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Thu, 29 Aug 2024 18:20:10 +0000
+Subject: [PATCH] dynlink: print cpu diagnostics
+
+---
+ ldso/dynlink.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/ldso/dynlink.c b/ldso/dynlink.c
+index e30d4c06..90fca727 100644
+--- a/ldso/dynlink.c
++++ b/ldso/dynlink.c
+@@ -50,6 +50,7 @@ static void (*error)(const char *, ...) = error_noop;
+ 
+ /* provided by glibc-string library */
+ extern void *__get_cpu_features(void);
++extern void __print_cpu_diagnostics(void);
+ 
+ struct debug {
+ 	int ver;
+@@ -1921,6 +1922,9 @@ void __dls3(size_t *sp, size_t *auxv)
+ 				if (opt[5]=='=') replace_argv0 = opt+6;
+ 				else if (opt[5]) *argv = 0;
+ 				else if (*argv) replace_argv0 = *argv++;
++			} else if (!memcmp(opt, "list-diagnostics", 17)) {
++				__print_cpu_diagnostics();
++				_exit(0);
+ 			} else {
+ 				argv[0] = 0;
+ 			}
+-- 
+2.25.1
+

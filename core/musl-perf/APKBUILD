@@ -8,7 +8,7 @@ pkgver=1.2.5
 pkgrel=3
 pkgdesc="the musl c library (libc) implementation (optimized for performance)"
 url="https://musl.libc.org/"
-arch="x86_64"
+arch="aarch64 x86_64"
 license="MIT"
 options="!libc_glibc lib64 !fortify !check !annobin"
 makedepends="glibc-string"
@@ -40,6 +40,8 @@ source="https://musl.libc.org/releases/musl-$pkgver.tar.gz
 	0103-use-internal-ifunc-symbols-in-libc.patch
 	0104-increase-buffer-size-for-stdio-stream-functions.patch
 	0105-ifunc-aarch64-support.patch
+	0106-support-linking-with-aarch64-glibc-stirng.patch
+	0107-dynlink-print-cpu-diagnostics.patch
 
 	__stack_chk_fail_local.c
 	"
@@ -75,10 +77,10 @@ build() {
 
 	cp /usr/lib/libglibc-string.a "$builddir"/
 
-	local lib_ifunc="$(readelf -Ws libglibc-string.a | grep 'IFUNC.*WEAK' | rev | cut -f1 -d' ' | rev)"
+	local lib_new="$(nm --quiet --defined --extern --just-symbols libglibc-string.a | grep -v '^__')"
 	local n
 
-	for n in $lib_ifunc; do
+	for n in $lib_new; do
 		echo "Removing default implementation for $n"
 		rm -f ./src/string/$n.c ./src/string/$CARCH/$n*
 	done
@@ -171,5 +173,7 @@ b0f93f8868caf15d436ebe81088f4914cac3e21cc5b86cb0d5f40092edc6e29909188a14cde0c69a
 77a1d5c4c11acc28dbad74b36294955ca7a3a8acd8a4a9bb704e053640c911167723dc0ba586c5bfba49857055e111d2faf59a39ddefdae1090c75ce5c3e75b7  0103-use-internal-ifunc-symbols-in-libc.patch
 ffc1da978ee14e1eb58364ff78b3a6421d1db5ce76ae4ba77bc997af22c524f5319d30b4d34a5904e65aa55569bd1d7a21b1f5f3590197fd5fb08a66cad4b2b1  0104-increase-buffer-size-for-stdio-stream-functions.patch
 be2043ad357b226fa1c092dfc45cff89eef794f01aa013a176855292b5a33f7edf85a8901f2e9d49026843f358993b44f35ca2f6c3b442a8e3515cb4b53549d6  0105-ifunc-aarch64-support.patch
+66f4647a287d49655de474c8440e34d0d9881c72758afcc05c9614044f565c71cdb50d2e9f2756c608244eda4f3459e209bbfaac07fd83e6725326cf6282a55e  0106-support-linking-with-aarch64-glibc-stirng.patch
+d9dc2832635475f9494c9afa8077dece5d44111fbcdca462687119e3866f7f3e191685f919d8f8509a2b0d15e26520d6f89380c87f56bd77e6aecdd26f6f1bec  0107-dynlink-print-cpu-diagnostics.patch
 062bb49fa54839010acd4af113e20f7263dde1c8a2ca359b5fb2661ef9ed9d84a0f7c3bc10c25dcfa10bb3c5a4874588dff636ac43d5dbb3d748d75400756d0b  __stack_chk_fail_local.c
 "
