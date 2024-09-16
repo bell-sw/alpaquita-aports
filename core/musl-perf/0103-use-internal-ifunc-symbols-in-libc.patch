@@ -1,39 +1,51 @@
-From d5ff9a380d2706e4ea7656bdd99e5d1bdb0c6396 Mon Sep 17 00:00:00 2001
+From a14df93b85c9efec48dccf7fb6c0cbd9cf20428a Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 14 Sep 2021 16:44:15 +0300
 Subject: [PATCH] use internal ifunc symbols in libc
 
-memcpy() can be used before ifunc resolver, use internal
-sse2 variant in that case.
+Use baseline symbols for memcpy/memset/memmove in the startup stage
 
 It also necessary to init CPU features before calling the
 function.
 ---
- ldso/dynlink.c              |  6 ++++++
- src/env/__init_tls.c        |  2 ++
- src/env/__libc_start_main.c |  3 +++
- src/env/__stack_chk_fail.c  |  2 ++
- src/include/string.h        | 25 +++++++++++++++++++++++++
- src/include/wchar.h         |  3 +++
- 6 files changed, 41 insertions(+)
+ ldso/dlstart.c                      |  1 +
+ ldso/dynlink.c                      |  6 ++++++
+ src/env/__init_tls.c                |  1 +
+ src/env/__libc_start_main.c         |  5 +++++
+ src/env/__stack_chk_fail.c          |  1 +
+ src/internal/use_base_memory_func.h | 13 +++++++++++++
+ 6 files changed, 27 insertions(+)
+ create mode 100644 src/internal/use_base_memory_func.h
 
+diff --git a/ldso/dlstart.c b/ldso/dlstart.c
+index 259f5e18..fc866e4f 100644
+--- a/ldso/dlstart.c
++++ b/ldso/dlstart.c
+@@ -1,6 +1,7 @@
+ #include <stddef.h>
+ #include "dynlink.h"
+ #include "libc.h"
++#include "use_base_memory_func.h"
+ 
+ #ifndef START
+ #define START "_dlstart"
 diff --git a/ldso/dynlink.c b/ldso/dynlink.c
-index e9d166ae..bc4cb73a 100644
+index e9d166ae..c389a212 100644
 --- a/ldso/dynlink.c
 +++ b/ldso/dynlink.c
-@@ -4,6 +4,8 @@
- #include <stdarg.h>
- #include <stddef.h>
- #include <string.h>
-+#undef memcpy
-+#define memcpy __memcopy
- #include <unistd.h>
- #include <stdint.h>
- #include <elf.h>
-@@ -47,6 +49,8 @@ static void (*error)(const char *, ...) = error_noop;
+@@ -23,6 +23,7 @@
+ #include "fork_impl.h"
+ #include "libc.h"
+ #include "dynlink.h"
++#include "use_base_memory_func.h"
+ 
+ static size_t ldso_page_size;
+ /* libc.h may have defined a macro for dynamic PAGE_SIZE already, but
+@@ -47,6 +48,9 @@ static void (*error)(const char *, ...) = error_noop;
  #define container_of(p,t,m) ((t*)((char *)(p)-offsetof(t,m)))
  #define countof(a) ((sizeof (a))/(sizeof (a)[0]))
  
++/* provided by glibc-string library */
 +extern void *__get_cpu_features(void);
 +
  struct debug {
@@ -49,32 +61,40 @@ index e9d166ae..bc4cb73a 100644
  	reloc_all(&ldso);
  
 diff --git a/src/env/__init_tls.c b/src/env/__init_tls.c
-index a93141ed..892f9f6c 100644
+index a93141ed..d651acfa 100644
 --- a/src/env/__init_tls.c
 +++ b/src/env/__init_tls.c
-@@ -3,6 +3,8 @@
- #include <limits.h>
- #include <sys/mman.h>
- #include <string.h>
-+#undef memcpy
-+#define memcpy __memcopy
- #include <stddef.h>
- #include "pthread_impl.h"
+@@ -8,6 +8,7 @@
  #include "libc.h"
+ #include "atomic.h"
+ #include "syscall.h"
++#include "use_base_memory_func.h"
+ 
+ volatile int __thread_list_lock;
+ 
 diff --git a/src/env/__libc_start_main.c b/src/env/__libc_start_main.c
-index fdcb1ed5..6f42153c 100644
+index fdcb1ed5..7575f1c9 100644
 --- a/src/env/__libc_start_main.c
 +++ b/src/env/__libc_start_main.c
-@@ -18,6 +18,8 @@ extern weak hidden void (*const __init_array_start)(void), (*const __init_array_
+@@ -9,6 +9,7 @@
+ #include "elf.h"
+ #include "link.h"
+ #include "reloc.h"
++#include "use_base_memory_func.h"
+ 
+ static void dummy(void) {}
+ weak_alias(dummy, _init);
+@@ -18,6 +19,9 @@ extern weak hidden void (*const __init_array_start)(void), (*const __init_array_
  static void dummy1(void *p) {}
  weak_alias(dummy1, __init_ssp);
  
++/* provided by glibc-string library */
 +extern void *__get_cpu_features(void);
 +
  #define AUX_CNT 38
  
  #if UINTPTR_MAX == 0xffffffff
-@@ -72,6 +74,7 @@ void __init_libc(char **envp, char *pn)
+@@ -72,6 +76,7 @@ void __init_libc(char **envp, char *pn)
  	__progname = __progname_full = pn;
  	for (i=0; pn[i]; i++) if (pn[i]=='/') __progname = pn+i+1;
  
@@ -83,71 +103,36 @@ index fdcb1ed5..6f42153c 100644
  	__init_ssp((void *)aux[AT_RANDOM]);
  
 diff --git a/src/env/__stack_chk_fail.c b/src/env/__stack_chk_fail.c
-index e5352602..0fb469be 100644
+index e5352602..941389e4 100644
 --- a/src/env/__stack_chk_fail.c
 +++ b/src/env/__stack_chk_fail.c
-@@ -1,4 +1,6 @@
+@@ -1,6 +1,7 @@
  #include <string.h>
-+#undef memcpy
-+#define memcpy __memcopy
  #include <stdint.h>
  #include "pthread_impl.h"
++#include "use_base_memory_func.h"
  
-diff --git a/src/include/string.h b/src/include/string.h
-index 2133b5c1..86b8d570 100644
---- a/src/include/string.h
-+++ b/src/include/string.h
-@@ -1,6 +1,26 @@
- #ifndef STRING_H
- #define STRING_H
+ uintptr_t __stack_chk_guard;
  
-+#define memcpy __memcpy
-+#define memmove __memmove
-+#define memset __memset
-+#define strcmp __strcmp
-+#define strrchr __strrchr
-+#define strcpy __strcpy
-+#define strchrnul __strchrnul
-+#define strncmp __strncmp
-+#define strncpy __strncpy
-+#define memchr __memchr
-+#define strcat __strcat
-+#define stpcpy __stpcpy
-+#define strlen __strlen
-+#define stpncpy __stpncpy
-+#define memcmp __memcmp
-+#define strnlen __strnlen
-+#define memrchr __memrchr
-+#define strncat __strncat
-+#define strchr __strchr
+diff --git a/src/internal/use_base_memory_func.h b/src/internal/use_base_memory_func.h
+new file mode 100644
+index 00000000..50f1b9b9
+--- /dev/null
++++ b/src/internal/use_base_memory_func.h
+@@ -0,0 +1,13 @@
++#ifndef USE_BASE_MEMORY_FUNC_H
++#define USE_BASE_MEMORY_FUNC_H
 +
- #include "../../include/string.h"
- 
- hidden void *__memrchr(const void *, int, size_t);
-@@ -8,4 +28,9 @@ hidden char *__stpcpy(char *, const char *);
- hidden char *__stpncpy(char *, const char *, size_t);
- hidden char *__strchrnul(const char *, int);
- 
++/* Use baseline implementations in the early startup stages before
++ * ifuncs are resolved.
++ */
 +#ifdef __x86_64__
-+hidden void *__memcpy_sse2_unaligned(void *dest, const void *src, size_t n);
-+#define __memcopy __memcpy_sse2_unaligned
++__asm__ ("memset = __memset_sse2_unaligned");
++__asm__ ("memcpy = __memcpy_sse2_unaligned");
++__asm__ ("memmove = __memmove_sse2_unaligned");
 +#endif
 +
- #endif
-diff --git a/src/include/wchar.h b/src/include/wchar.h
-index 79f5d0e7..c6598a8e 100644
---- a/src/include/wchar.h
-+++ b/src/include/wchar.h
-@@ -3,6 +3,9 @@
- 
- #define __DEFINED_struct__IO_FILE
- 
-+#define wmemset __wmemset
-+#define wcslen __wcslen
-+
- #include "../../include/wchar.h"
- 
- #endif
++#endif
 -- 
 2.25.1
 
