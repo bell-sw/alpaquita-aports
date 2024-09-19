@@ -1,0 +1,370 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME is a build of OpenJDK verified by the OpenJDK
+# Technology Compatibility Kit test suite to be compliant with the Java SE
+# specifications.
+
+_java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_java_ver=23+38
+_java_rel_date=2024-09-17
+_java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 23"
+
+# TODO: This is the first time we build openjdk23 package, so we need
+# to use prebuilt binary kits to compile it.  On the next upgrade
+# (23.0.1) we will be able to use the previous (this) version of this
+# package and this paragraph can be removed
+BOOTSTRAP=true
+
+pkgname=${_java_pkg_name}23
+pkgver=${_java_ver/+/_p}
+pkgrel=0
+pkgdesc="$_java_name"
+url="$VENDOR_URL"
+license="GPL-2.0 WITH Classpath-Exception-2.0"
+arch="aarch64 x86_64"
+options="!strip ldpath-recursive !tracedeps !annobin"
+annocheck_skip="libsyslookup.so"
+depends="$pkgname-jdk=$pkgver-r$pkgrel $pkgname-doc=$pkgver-r$pkgrel"
+
+# NB: openjdk23-bootstrap is added to makedepends separately, only if
+# not bootstrapping the first package from prebuilt binaries
+makedepends="
+	alsa-lib-dev
+	automake
+	autoconf
+	bash
+	ca-certificates
+	coreutils
+	cups-dev
+	file
+	findutils
+	fontconfig-dev
+	freetype-dev
+	gawk
+	gettext
+	grep
+	libx11-dev
+	libxext-dev
+	libxi-dev
+	libxrandr-dev
+	libxrender-dev
+	libxt-dev
+	libxtst-dev
+	linux-headers
+	sed
+	zip
+	zlib-dev
+	"
+
+subpackages="
+	$pkgname-dbg:_dbg
+	$pkgname-jmods:_jmods:noarch
+	$pkgname-demos:_demos:noarch
+	$pkgname-src:_src:noarch
+	$pkgname-jre-doc:_jre_doc:noarch
+	$pkgname-doc:_doc:noarch
+	$pkgname-libs-static:_libs_static
+	$pkgname-jre-cds:_jre_cds
+	$pkgname-jre-no-deps:_jre_no_deps
+	$pkgname-jre:_jre
+	$pkgname-jdk-no-deps:_jdk_no_deps
+	$pkgname-jdk:_jdk
+	"
+
+provides="
+	openjdk23=$pkgver-r$pkgrel
+	openjdk
+	"
+
+source="
+	${VENDOR_URL/\/\//\/\/download.}java/$_java_ver/bellsoft-jdk$_java_ver-src.tar.gz
+	HelloJava.java
+	readme.txt.template
+	"
+
+builddir="$srcdir/jdk-${_java_ver%+*}"
+sonameprefix="$pkgname:"
+
+_java_home=/usr/lib/jvm/"$pkgname"
+ldpath="$_java_home/lib"
+
+_jre_tools="
+	java
+	keytool
+	rmiregistry
+	"
+
+if [ ! "$BOOTSTRAP" ]; then
+	# normal build - build with openjdk23-bootstrap, provided by a
+	# previous version of this package
+	makedepends="$makedepends
+		openjdk23-bootstrap
+		"
+fi
+
+_add_bootstrap() {
+	local -; set -u
+	local url=$1
+	local sum=$2
+	local name="$(filename_from_uri $url)"
+	source="$source $url"
+	sha512sums="$(printf '%s\n''%s  %s\n' "$sha512sums" $sum $name)"
+}
+
+init_sources() {
+	[ "$BOOTSTRAP" ] && case "$CARCH:$CLIBC" in
+	    aarch64:musl)
+		_add_bootstrap \
+		    "https://download.bell-sw.com/java/23+38/bellsoft-jdk23+38-linux-aarch64-musl.tar.gz" \
+		    "f6be994eb2aed131e00aee967fc5019442b70aa679471bc5c95f6a11a86e92a15ffbda97eb7b7f0bb3631b5bb761d46c4a36167c7fb9775531005911a655e694"
+		;;
+	    aarch64:glibc)
+		_add_bootstrap \
+		    "https://download.bell-sw.com/java/23+38/bellsoft-jdk23+38-linux-aarch64.tar.gz" \
+		    "7284cd6dede81b9d5c4024f1bb982d38516a9a7856b42fa9a2e4a8433e95c7d1ae33bedbd690afcaf838c52214851f96bbb18e3d72fdf91c15a8f93b763121e6"
+		;;
+	    x86_64:musl)
+		_add_bootstrap \
+		    "https://download.bell-sw.com/java/23+38/bellsoft-jdk23+38-linux-x64-musl.tar.gz" \
+		    "443de38219b18aa37a41236e64b3b735bdac10dceaa9ab68987eabe4413b1b676ad5a5aa89c7e271b048a93ef825f211ab730e0ed03ea0b160b803c6197fb43f"
+		;;
+	    x86_64:glibc)
+		_add_bootstrap \
+		    "https://download.bell-sw.com/java/23+38/bellsoft-jdk23+38-linux-amd64.tar.gz" \
+		    "31681bec3762ede31111d53414ee803e78f46b277a574450ce276e4c95cc73578dbbe6159216c3e7d5472ebcb996bcd722b19034e283e2aee7ec9aa3af94213c"
+		;;
+	    *)
+		error "Unexpected target: ${CARCH} ${CLIBC}"
+		exit 1
+	esac
+	default_init_sources
+}
+
+prepare() {
+	default_prepare
+
+	update_config_sub
+}
+
+build() {
+
+	if [ -z "$JOBS" ]; then
+		export JOBS=$(printf '%s\n' "$MAKEFLAGS" | sed -n -e 's/.*-j\([0-9]\+\).*/\1/p')
+	fi
+
+	local _cflags="-fstack-protector-strong -D_FORTIFY_SOURCE=2"
+	local _boot_jdk
+	if [ ! "$BOOTSTRAP" ]; then
+		_boot_jdk="$(echo /usr/lib/jvm/java-23-* | awk '{ print $1 }')"
+	else
+		_boot_jdk="$srcdir/jdk-23" # must match the binary kit version above
+	fi
+
+	[ "$CLIBC" = 'musl' ] && _cflags="$_cflags -D_LARGEFILE64_SOURCE"
+
+	CFLAGS='' CXXFLAGS='' LDFLAGS=''
+	bash ./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--target=$CTARGET \
+		--with-jvm-variants='server,client,minimal' \
+		--with-jvm-features=shenandoahgc,zgc \
+		--with-version-string=${_java_ver%+*} \
+		--with-version-build=${_java_ver#*+} \
+		--with-version-date=${_java_rel_date} \
+		--with-version-opt=LTS \
+		--with-vendor-name="$VENDOR_NAME" \
+		--with-vendor-url="$VENDOR_URL" \
+		--with-vendor-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-vendor-vm-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-extra-cflags="$_cflags" \
+		--with-extra-cxxflags="$_cflags" \
+		--disable-warnings-as-errors \
+		--with-zlib=system \
+		--with-boot-jdk="$_boot_jdk"
+
+	# The output (stdout and stderr) from the latest build is
+	# always stored in $BUILD/build.log.  The previous build log
+	# is stored as build.log.old.  This means that it is not
+	# necessary to redirect the build output yourself if you want
+	# to process it.
+
+	# You can increase the verbosity of the log file, by the LOG
+	# control variable to make.  If you want to see the command
+	# lines used in compilations, use LOG=cmdlines.  To increase
+	# the general verbosity, use LOG=info, LOG=debug or LOG=trace.
+	# Both of these can be combined with cmdlines, e.g.
+	# LOG=info,cmdlines.  The debug log level will show most shell
+	# commands executed by make, and trace will show all.  Beware
+	# that both these log levels will produce a massive build log!
+	local verbose
+	#verbose="LOG=cmdlines" # uncomment and change if/as necessary
+
+	MAKEFLAGS='' make $verbose product-bundles static-libs-bundles
+}
+
+check() {
+	_jdkdir="$builddir"/build/linux-*-release/images/jdk
+
+	$_jdkdir/bin/javac "$startdir"/HelloJava.java -d "$builddir"
+	$_jdkdir/bin/java -cp "$builddir" HelloJava
+}
+
+package() {
+	mkdir -p "$pkgdir/$_java_home"
+	tar -C "$pkgdir/$_java_home" -xf build/linux-*-release/bundles/*_bin.tar.gz --no-same-owner --strip-components=1
+}
+
+_jre_cds() {
+	pkgdesc="$_java_name (JRE Class Data Sharing archives)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	provides="openjdk23-jre-cds=$pkgver-r$pkgrel"
+
+	rm -f "$pkgdir/$_java_home/lib/server"/*.jsa
+	"$pkgdir/$_java_home/bin/java" -server -XX:+UseCompressedOops -Xshare:dump
+	"$pkgdir/$_java_home/bin/java" -server -XX:-UseCompressedOops -Xshare:dump
+
+	mkdir -p "$subpkgdir/$_java_home/lib/server"
+	mv "$pkgdir/$_java_home/lib/server"/*.jsa "$subpkgdir/$_java_home/lib/server"
+}
+
+_jre_no_deps() {
+	pkgdesc="$_java_name (JRE without dependencies)"
+	depends="java-common zlib"
+	provides="
+		java-jre-no-deps
+		java23-jre-no-deps
+		openjdk23-jre-no-deps=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/lib" "$subpkgdir/$_java_home/"
+
+	mkdir -p "$subpkgdir/$_java_home/bin"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/bin/$f" "$subpkgdir/$_java_home/bin/$f"
+	done
+
+	for f in legal conf release; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/$f"
+	done
+
+	cp "$subpkgdir/$_java_home/legal/java.base/LICENSE" "$subpkgdir/$_java_home/"
+	VENDOR_NAME="$VENDOR_NAME" VENDOR_URL="$VENDOR_URL" VENDOR_JAVA_NAME="$VENDOR_JAVA_NAME" \
+		envsubst < readme.txt.template > "$subpkgdir/$_java_home/readme.txt"
+
+	ln -sf . "$subpkgdir/$_java_home/jre"
+	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-23-${pkgname/23/}
+}
+
+_jre() {
+	pkgdesc="$_java_name (JRE)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel fontconfig ttf-dejavu-core freetype"
+	provides="
+		java-jre
+		java23-jre
+		openjdk23-jre=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir"
+}
+
+_jre_doc() {
+	pkgdesc="$_java_name (JRE Documentation)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="openjdk23-jre-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/man/man1"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/man/man1/$f".* "$subpkgdir/$_java_home/man/man1/"
+	done
+}
+
+_jdk_no_deps() {
+	pkgdesc="$_java_name (JDK without dependencies)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	provides="
+		java-jdk-no-deps
+		java23-jdk-no-deps
+		openjdk23-jdk-no-deps=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	for f in bin include; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+}
+
+_jdk() {
+	pkgdesc="$_java_name (JDK)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel $pkgname-jdk-no-deps=$pkgver-r$pkgrel"
+	provides="
+		java-jdk
+		java23-jdk
+		openjdk23-jdk=$pkgver-r$pkgrel
+		openjdk23-bootstrap=$pkgver-r$pkgrel
+		$pkgname-bootstrap=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir"
+}
+
+_jmods() {
+	pkgdesc="$_java_name (Java Modules)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk23-jmods=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/jmods" "$subpkgdir/$_java_home/"
+}
+
+_doc() {
+	pkgdesc="$_java_name (Documentation)"
+	depends="$pkgname-jre-doc=$pkgver-r$pkgrel"
+	provides="openjdk23-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/man" "$subpkgdir/$_java_home/"
+}
+
+_demos() {
+	pkgdesc="$_java_name (Demos)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk23-demos=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	tar -C "$subpkgdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-tests-demos.tar.gz --no-same-owner --strip-components=1
+}
+
+_src() {
+	pkgdesc="$_java_name (Sources)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk23-src=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/src.zip" "$subpkgdir/$_java_home/lib/"
+}
+
+_dbg() {
+	pkgdesc="$_java_name (Debug Info)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk23-dbg=$pkgver-r$pkgrel"
+
+	local debugdir="$subpkgdir/usr/lib/debug"
+	mkdir -p "$debugdir/$_java_home"
+	tar -C "$debugdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-symbols.tar.gz --no-same-owner --strip-components=1
+}
+
+_libs_static() {
+	pkgdesc="$_java_name (Static Libraries)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk23-libs-static=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	tar -C "$subpkgdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-static-libs.tar.gz --no-same-owner --strip-components=1
+}
+
+
+sha512sums="
+8753dcb8c954915c6326d9294f8d4e7be1505f77ff07a15dcd0e45001df4dc4171ce9b665dd60ebbe37fb3c4139d4ecfefe2dbe34acf78e0d7b0fe25c0a118de  bellsoft-jdk23+38-src.tar.gz
+508cc8511fecee2288f41dc009834d444785ddd4129acfabefeae03ab75a26088bc7e8a60548dac58c6d18865d994e5ad8fa340cac20ba3cc838434dc7cbbcde  HelloJava.java
+38edd959b1e1880c1b2663c27ec31708538a43e75889209530209c0328e52ddc8eeb92ebe03e2b51b5440c41354316e55897d0d21d04ceff0b488a97242de5d4  readme.txt.template
+"
