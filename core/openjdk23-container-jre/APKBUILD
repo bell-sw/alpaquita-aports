@@ -1,0 +1,75 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME is a build of OpenJDK verified by the OpenJDK
+# Technology Compatibility Kit test suite to be compliant with the Java SE
+# specifications.
+
+_java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_java_ver=23+38
+_java_maj_ver=23
+_java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK ${_java_maj_ver} Container JRE (Server VM)"
+
+pkgname=${_java_pkg_name}${_java_maj_ver}-container-jre
+pkgver=${_java_ver/+/_p}
+pkgrel=0
+pkgdesc="$_java_name"
+url="$VENDOR_URL"
+license="GPL-2.0 WITH Classpath-Exception-2.0"
+arch="aarch64 x86_64"
+options="!strip !tracedeps !annobin"
+depends="java-common zlib"
+makedepends="${_java_pkg_name}${_java_maj_ver}-lite-jdk-all~${pkgver}"
+subpackages="
+	$pkgname-cds:_cds
+	"
+provides="openjdk${_java_maj_ver}-container-jre=${pkgver}-r${pkgrel}"
+
+source="
+	HelloJava.java
+	modules
+	"
+
+builddir="$srcdir"/${pkgname}-${pkgver}
+
+_java_home=/usr/lib/jvm/"$pkgname"
+_java_jdk_home="/usr/lib/jvm/${_java_pkg_name}${_java_maj_ver}-lite"
+
+build() {
+	"${_java_jdk_home}/bin/jlink" \
+	    --add-modules "$(cat modules | tr '\n' ',')" \
+	    --compress=zip-0 \
+	    --no-header-files \
+	    --no-man-pages \
+	    --strip-debug \
+	    --module-path "${_java_jdk_home}/jmods" \
+	    --vm=server \
+	    --release-info "${_java_jdk_home}/release" \
+	    --output "${builddir}/${_java_home}"
+	install -D -m 644 "${_java_jdk_home}/readme.txt" "${builddir}/${_java_home}"
+}
+
+check() {
+	"${_java_jdk_home}/bin/javac" "${startdir}/HelloJava.java" -d "$builddir"
+	"${builddir}/${_java_home}/bin/java" -cp "$builddir" HelloJava
+}
+
+package() {
+	install -d -m 755 "${pkgdir}/${_java_home}"
+	cp -aR "${builddir}/${_java_home}"/* "${pkgdir}/${_java_home}/"
+}
+
+_cds() {
+	pkgdesc="$_java_name (Class Data Sharing archives)"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	provides="openjdk${_java_maj_ver}-container-jre-cds=${pkgver}-r${pkgrel}"
+
+	rm -f "$pkgdir/$_java_home/lib/server"/*.jsa
+	"$pkgdir/$_java_home/bin/java" -server -XX:+UseCompressedOops -Xshare:dump
+	"$pkgdir/$_java_home/bin/java" -server -XX:-UseCompressedOops -Xshare:dump
+
+	mkdir -p "$subpkgdir/$_java_home/lib/server"
+	mv "$pkgdir/$_java_home/lib/server"/*.jsa "$subpkgdir/$_java_home/lib/server"
+}
+
+sha512sums="
+508cc8511fecee2288f41dc009834d444785ddd4129acfabefeae03ab75a26088bc7e8a60548dac58c6d18865d994e5ad8fa340cac20ba3cc838434dc7cbbcde  HelloJava.java
+68804eef198301884bd8aaf4f1e3183788834f1eff9063834453e71088d8cabc03d58016cf04dcb72f103f004c7feb64fcf0529a5017aa9b4190c21d7de48eea  modules
+"
