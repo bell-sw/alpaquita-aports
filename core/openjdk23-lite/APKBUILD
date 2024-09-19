@@ -1,0 +1,351 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME is a build of OpenJDK verified by the OpenJDK
+# Technology Compatibility Kit test suite to be compliant with the Java SE
+# specifications.
+
+_java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_java_ver=23+38
+_java_rel_date=2024-09-17
+_java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 23 Lite"
+
+pkgname=${_java_pkg_name}23-lite
+pkgver=${_java_ver/+/_p}
+pkgrel=0
+pkgdesc="$_java_name"
+url="$VENDOR_URL"
+license="GPL-2.0 WITH Classpath-Exception-2.0"
+arch="aarch64 x86_64"
+options="!strip ldpath-recursive !tracedeps !annobin"
+annocheck_skip="libsyslookup.so"
+depends="$pkgname-jdk=$pkgver-r$pkgrel"
+
+makedepends="
+	alsa-lib-dev
+	automake
+	autoconf
+	bash
+	ca-certificates
+	coreutils
+	cups-dev
+	file
+	findutils
+	fontconfig-dev
+	freetype-dev
+	gawk
+	gettext
+	grep
+	libx11-dev
+	libxext-dev
+	libxi-dev
+	libxrandr-dev
+	libxrender-dev
+	libxt-dev
+	libxtst-dev
+	linux-headers
+	sed
+	zip
+	zlib-dev
+	openjdk23-bootstrap
+	"
+
+subpackages="
+	$pkgname-dbg:_dbg
+	$pkgname-jmods:_jmods:noarch
+	$pkgname-demos:_demos:noarch
+	$pkgname-src:_src:noarch
+	$pkgname-jre-doc:_jre_doc:noarch
+	$pkgname-doc:_doc:noarch
+	$pkgname-jre-client:_jre_client
+	$pkgname-jre-minimal:_jre_minimal
+	$pkgname-jre-cds:_jre_cds
+	$pkgname-jre-no-deps:_jre_no_deps
+	$pkgname-jre:_jre
+	$pkgname-jdk-no-deps:_jdk_no_deps
+	$pkgname-jdk:_jdk
+	$pkgname-jdk-all:_jdk_all:noarch
+	"
+
+provides="openjdk23-lite=$pkgver-r$pkgrel"
+
+source="
+	${VENDOR_URL/\/\//\/\/download.}java/$_java_ver/bellsoft-jdk$_java_ver-src.tar.gz
+	HelloJava.java
+	readme.txt.template
+	jdk21_lto.patch
+	nm-selection.patch
+	"
+
+builddir="$srcdir/jdk-${_java_ver%+*}"
+sonameprefix="$pkgname:"
+
+_java_home=/usr/lib/jvm/"$pkgname"
+ldpath="$_java_home/lib:$_java_home/lib/jli:$_java_home/lib/server"
+
+_jre_tools="
+	java
+	keytool
+	rmiregistry
+	"
+
+prepare() {
+	default_prepare
+
+	update_config_sub
+}
+
+build() {
+
+	if [ -z "$JOBS" ]; then
+		export JOBS=$(printf '%s\n' "$MAKEFLAGS" | sed -n -e 's/.*-j\([0-9]\+\).*/\1/p')
+	fi
+
+	local _cflags="-fstack-protector-strong -D_FORTIFY_SOURCE=2"
+	local _boot_jdk=$(echo /usr/lib/jvm/java-23-* | awk '{ print $1 }')
+
+
+	[ "$CLIBC" = 'musl' ] && _cflags="$_cflags -D_LARGEFILE64_SOURCE"
+	_cflags="$_cflags -fno-asynchronous-unwind-tables" # lite
+
+	CFLAGS='' CXXFLAGS='' LDFLAGS=''
+	bash ./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--target=$CTARGET \
+		--with-jvm-variants='server,client,minimal' \
+		--with-jvm-features=zgc,link-time-opt \
+		--with-version-string=${_java_ver%+*} \
+		--with-version-build=${_java_ver#*+} \
+		--with-version-date=${_java_rel_date} \
+		--with-version-opt=LTS \
+		--with-vendor-name="$VENDOR_NAME" \
+		--with-vendor-url="$VENDOR_URL" \
+		--with-vendor-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-vendor-vm-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-extra-cflags="$_cflags" \
+		--with-extra-cxxflags="$_cflags" \
+		--with-extra-ldflags=-fno-asynchronous-unwind-tables \
+		--disable-warnings-as-errors \
+		--enable-linktime-gc \
+		--with-zlib=system \
+		--with-boot-jdk="$_boot_jdk"
+
+	# The output (stdout and stderr) from the latest build is
+	# always stored in $BUILD/build.log.  The previous build log
+	# is stored as build.log.old.  This means that it is not
+	# necessary to redirect the build output yourself if you want
+	# to process it.
+
+	# You can increase the verbosity of the log file, by the LOG
+	# control variable to make.  If you want to see the command
+	# lines used in compilations, use LOG=cmdlines.  To increase
+	# the general verbosity, use LOG=info, LOG=debug or LOG=trace.
+	# Both of these can be combined with cmdlines, e.g.
+	# LOG=info,cmdlines.  The debug log level will show most shell
+	# commands executed by make, and trace will show all.  Beware
+	# that both these log levels will produce a massive build log!
+	local verbose
+	#verbose="LOG=cmdlines" # uncomment and change if/as necessary
+
+	MAKEFLAGS='' make $verbose product-bundles
+}
+
+check() {
+	_jdkdir="$builddir"/build/linux-*-release/images/jdk
+
+	$_jdkdir/bin/javac "$startdir"/HelloJava.java -d "$builddir"
+	$_jdkdir/bin/java -cp "$builddir" HelloJava
+}
+
+package() {
+	mkdir srcjdk
+	tar -C srcjdk -xf build/linux-*-release/bundles/*_bin.tar.gz --no-same-owner --strip-components=1
+
+	local _modules=$(srcjdk/bin/java --list-modules | sed "s/@${_java_ver%+*}//" | tr '\n' ',')
+	srcjdk/bin/jlink \
+		--compress 2 \
+		--module-path srcjdk/jmods \
+		--add-modules $_modules \
+		--output "$pkgdir/$_java_home"
+	mv srcjdk/jmods "$pkgdir/$_java_home"
+	mv srcjdk/lib/src.zip "$pkgdir/$_java_home"/lib
+}
+
+_jre_client() {
+	pkgdesc="$_java_name (JRE Client VM)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	install="$pkgname-jre-client.post-install $pkgname-jre-client.post-deinstall"
+	provides="openjdk23-lite-jre-client=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/client" "$subpkgdir/$_java_home/lib"
+}
+
+_jre_minimal() {
+	pkgdesc="$_java_name (JRE Minimal VM)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	install="$pkgname-jre-minimal.post-install $pkgname-jre-minimal.post-deinstall"
+	provides="openjdk23-lite-jre-minimal=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/minimal" "$subpkgdir/$_java_home/lib"
+}
+
+_jre_cds() {
+	pkgdesc="$_java_name (JRE Server VM Class Data Sharing archives)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	provides="openjdk23-lite-jre-cds=$pkgver-r$pkgrel"
+
+	rm -f "$pkgdir/$_java_home/lib/server"/*.jsa
+	"$pkgdir/$_java_home/bin/java" -server -XX:+UseCompressedOops -Xshare:dump
+	"$pkgdir/$_java_home/bin/java" -server -XX:-UseCompressedOops -Xshare:dump
+
+	mkdir -p "$subpkgdir/$_java_home/lib/server"
+	mv "$pkgdir/$_java_home/lib/server"/*.jsa "$subpkgdir/$_java_home/lib/server"
+}
+
+_jre_no_deps() {
+	pkgdesc="$_java_name (JRE Server VM without dependencies)"
+	depends="java-common zlib"
+	provides="
+		java-jre-no-deps
+		java23-jre-no-deps
+		openjdk23-lite-jre-no-deps=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/lib" "$subpkgdir/$_java_home/"
+	echo "-server KNOWN" > "$subpkgdir/$_java_home"/lib/jvm.cfg
+
+	mkdir -p "$subpkgdir/$_java_home/bin"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/bin/$f" "$subpkgdir/$_java_home/bin/$f"
+	done
+
+	for f in legal conf release; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/$f"
+	done
+
+	cp "$subpkgdir/$_java_home/legal/java.base/LICENSE" "$subpkgdir/$_java_home/"
+	VENDOR_NAME="$VENDOR_NAME" VENDOR_URL="$VENDOR_URL" VENDOR_JAVA_NAME="$VENDOR_JAVA_NAME" \
+		envsubst < readme.txt.template > "$subpkgdir/$_java_home/readme.txt"
+
+	ln -sf . "$subpkgdir/$_java_home/jre"
+	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-23-${pkgname/23/}
+}
+
+_jre() {
+	pkgdesc="$_java_name (JRE with default Server VM)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel fontconfig ttf-dejavu-core freetype"
+	provides="
+		java-jre
+		java23-jre
+		openjdk23-lite-jre=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir"
+}
+
+_jre_doc() {
+	pkgdesc="$_java_name (JRE Documentation)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="openjdk23-lite-jre-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/man/man1"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/man/man1/$f".* "$subpkgdir/$_java_home/man/man1/"
+	done
+}
+
+_jdk_no_deps() {
+	pkgdesc="$_java_name (JDK without dependencies)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	provides="
+		java-jdk-no-deps
+		java23-jdk-no-deps
+		openjdk23-lite-jdk-no-deps=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	for f in bin include; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+}
+
+_jdk() {
+	pkgdesc="$_java_name (JDK)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel $pkgname-jdk-no-deps=$pkgver-r$pkgrel"
+	provides="
+		java-jdk
+		java23-jdk
+		openjdk23-lite-jdk=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir"
+}
+
+_jmods() {
+	pkgdesc="$_java_name (Java Modules)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk23-lite-jmods=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/jmods" "$subpkgdir/$_java_home/"
+}
+
+_doc() {
+	pkgdesc="$_java_name (Documentation)"
+	depends="$pkgname-jre-doc=$pkgver-r$pkgrel"
+	provides="openjdk23-lite-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/man" "$subpkgdir/$_java_home/"
+}
+
+_demos() {
+	pkgdesc="$_java_name (Demos)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk23-lite-demos=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	tar -C "$subpkgdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-tests-demos.tar.gz --no-same-owner --strip-components=1
+}
+
+_src() {
+	pkgdesc="$_java_name (Sources)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk23-lite-src=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/src.zip" "$subpkgdir/$_java_home/lib/"
+}
+
+_dbg() {
+	pkgdesc="$_java_name (Debug Info)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk23-lite-dbg=$pkgver-r$pkgrel"
+
+	local debugdir="$subpkgdir/usr/lib/debug"
+	mkdir -p "$debugdir/$_java_home"
+	tar -C "$debugdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-symbols.tar.gz --no-same-owner --strip-components=1
+}
+
+_jdk_all() {
+	pkgdesc="$_java_name (JDK all)"
+	depends="binutils 
+		$pkgname=$pkgver-r$pkgrel
+		$pkgname-jre-client=$pkgver-r$pkgrel
+		$pkgname-jre-minimal=$pkgver-r$pkgrel
+		$pkgname-jdk=$pkgver-r$pkgrel
+		$pkgname-jmods=$pkgver-r$pkgrel
+	"
+	provides="openjdk23-lite-jdk-all=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir"/usr/lib/jvm/"$pkgname"
+}
+
+sha512sums="
+8753dcb8c954915c6326d9294f8d4e7be1505f77ff07a15dcd0e45001df4dc4171ce9b665dd60ebbe37fb3c4139d4ecfefe2dbe34acf78e0d7b0fe25c0a118de  bellsoft-jdk23+38-src.tar.gz
+508cc8511fecee2288f41dc009834d444785ddd4129acfabefeae03ab75a26088bc7e8a60548dac58c6d18865d994e5ad8fa340cac20ba3cc838434dc7cbbcde  HelloJava.java
+38edd959b1e1880c1b2663c27ec31708538a43e75889209530209c0328e52ddc8eeb92ebe03e2b51b5440c41354316e55897d0d21d04ceff0b488a97242de5d4  readme.txt.template
+b58a10aa2daeb82859efda153a73482cac0dae4e9c7a4aef6ab17c856a7e536bb4b1a91382dd75c4f006d202f44cbdc5c16d8af383127ffae0e8806021780f90  jdk21_lto.patch
+2fb860eb8c02b5ac324140d95836bfe6624697fe71affbc6f4c37a36afe756ac7d0921b7e9c8630bbea6d7e7ca0aff8ba1ed9010ae4bf963f74afc2f11a7b1b8  nm-selection.patch
+"
