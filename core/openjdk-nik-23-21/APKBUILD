@@ -47,8 +47,14 @@ _ref_mx=7.22.0
 
 pkgdesc="$VENDOR_JAVA_NAME Native Image Kit $pkgver (Java $_javamajor)"
 url="$VENDOR_URL"
-arch="x86_64"
 license="GPL-2.0"
+
+arch="aarch64 x86_64"
+case "$CARCH" in
+    x86_64)	JARCH="amd64" ;;
+    *)		JARCH="$CARCH" ;;
+esac
+
 depends="
 	$pkgname-core=$pkgver-r$pkgrel
 	$pkgname-native-image=$pkgver-r$pkgrel
@@ -78,6 +84,7 @@ makedepends="
 	python3
 	py3-setuptools
 	readline-dev
+	samurai
 	sed
 	unzip
 	xz-dev
@@ -251,7 +258,7 @@ _installable() {
 	# The asterisk in the jar name is either "ce" or "svm"
 	# depending on the component, but don't be obsessive about it
 	# and let the wildcard pick it up.
-	set -- "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/"$name"-installable-*-java$_javamajor.jar
+	set -- "$builddir"/graal/sdk/mxbuild/linux-$JARCH/dists/"$name"-installable-*-java$_javamajor.jar
 	echo "$1"
 }
 
@@ -429,7 +436,7 @@ bb03fdc8ace4db429ac069cc67e95b2695e444dca9697b51b25e30b709c929e2e3d100be35cf73e4
 5a72f3e4806530e5fbd64c1b93fc731ffc68ce238745f2f0ae7d2d766f2332afb64c090321e221db741dc781b087aa1b515176e01462b257de49c7fb36423155  graal-no-watchdog.patch
 c0172a2e7fb4d5be4cab61f7422c0159d2f40c3c1ea4fd6c2407770df4d31a27d68b6e7223c856f2989e7045c8ef8b10d0e550d498e50dce6d77a24832784486  graal-parallel-gc.patch
 03d0fcef696d6ba1befc600c2be200c1df8362f47e00e08349d4d56f5372a95d713d5b239d0081818c37dbd20440e93b120538ddc1f9d605c6ffe8ebc9a433d3  graal-relaunch-on-alpine.patch
-cbd93ceb89a6f9b80f407d5185b1b383990457063cf4e38468ba3cfbd75fb28a08d6683cc3c490543243ba9488522b3579ca4abb12292ac6e42adb84938ce2ad  graal-sdk-llvm-suite.patch
+1b8a36b53676007df1147fc621a138b1617375f5e0c9c4dd7bcbc2139e9ec0db67b17e6aeeb31191b285da434868f99883b03f7cd9b309d7e95333277c0f4135  graal-sdk-llvm-suite.patch
 c4928aae55059b3fa972962702522ce013f4f3b669e9ac98a031bcce8c15295e5cc42c2df881c5c639fb2d82b7c74131881a5683a6e135d9e3d3b530e5014019  graal-vendor-properties.patch
 c34e0c407178e94aa6c678a62f46d269bbd9ee8e20a014e7c29c35434d0492fb5ce81d267b5ff0dc7c535cc3526fed5efb0c2652748db8f76d55f9e30d7c9278  graal-version.patch
 5235efd51b094122389edc495b9b5697babd4b99f4944854ade74b1e935f81669fe0d50321749e8600eae686dc6ad44098c7088a2ee2f1b444d506382a08a523  graal-version-bump.patch
