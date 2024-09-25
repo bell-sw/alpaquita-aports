@@ -38,8 +38,14 @@ _mxver=6.51.5
 
 pkgdesc="$VENDOR_JAVA_NAME Native Image Kit $pkgver (Java $_javamajor)"
 url="$VENDOR_URL"
-arch="x86_64"
 license="GPL-2.0"
+
+arch="aarch64 x86_64"
+case "$CARCH" in
+    x86_64)	JARCH="amd64" ;;
+    *)		JARCH="$CARCH" ;;
+esac
+
 depends="
 	$pkgname-core=$pkgver-r$pkgrel
 	$pkgname-native-image=$pkgver-r$pkgrel
@@ -69,6 +75,7 @@ makedepends="
 	python3
 	py3-setuptools
 	readline-dev
+	samurai
 	sed
 	unzip
 	xz-dev
@@ -249,7 +256,7 @@ _installable() {
 	# The asterisk in the jar name is either "ce" or "svm"
 	# depending on the component, but don't be obsessive about it
 	# and let the wildcard pick it up.
-	set -- "$builddir"/graal/sdk/mxbuild/linux-amd64/dists/"$name"-installable-*-java$_javamajor.jar
+	set -- "$builddir"/graal/sdk/mxbuild/linux-$JARCH/dists/"$name"-installable-*-java$_javamajor.jar
 	echo "$1"
 }
 
@@ -431,7 +438,7 @@ fef737fa92e83e526a6fde7bffb6ecf020727d8b3c9915106e7e97404a087bdd9a8270124afe9511
 bb03fdc8ace4db429ac069cc67e95b2695e444dca9697b51b25e30b709c929e2e3d100be35cf73e41fd37dbf4300b5ad5b9682913a38330a3bf7b3adae2fdb2f  graal-musl-lfs64.patch
 a9b37cba8550047bac3267670863dba63a9da6e27938c2763753d9880a34cc7b99d499d50cf20f5268705a7539398a8be48a458e328e4d40a903ebe3161bbb20  graal-no-watchdog.patch
 50a88be694f9928aa944958b69eafdc1feeb96b304cb12dffc0427d65a46e713204aaa60656af71306752266025cf94da478fd69c9ff9095113095d5a50eca92  graal-parallel-gc.patch
-b2d3c14ec4a9cff5627c49826078261ef05b56bd4475ca13e77e1e852cd140a60ac4a3ee61409205cc17f86ff52114d2144d0aed360a0b4256c0ad61a8df27c6  graal-sdk-llvm-suite.patch
+e3edba458562dc232c14f3d1c9f8a153ad10b5d95daa7ee6fe1e2b2323f038fc89f640faa15c2ef48bb6574db97f42ed20a05a6470690db73c0f9e7d672d8833  graal-sdk-llvm-suite.patch
 321a4abd4e75cc5736e2fc9784f575376413989639150a082d1a4bbdf06b7ef40352af68b3c54f4c77e303a79975e91ac3a7606a5f94a1fa76acabb9c258721b  graal-url-connection-content-type.patch
 c4928aae55059b3fa972962702522ce013f4f3b669e9ac98a031bcce8c15295e5cc42c2df881c5c639fb2d82b7c74131881a5683a6e135d9e3d3b530e5014019  graal-vendor-properties.patch
 f38d4d310ecacbd7b86ba8226d6443ef0eeae4ef864daf0f0fcd7655289413441aa60f6d4dd4b92a3de27b3be08c3e4d5e6fa582775ba72c6dfed40995d7d278  graalpython-graalpython-ssizet.patch
