@@ -105,8 +105,10 @@ package() {
 
 	# Alpaquita: binaries and libraries must be under usr/
 	local dir; for dir in bin sbin lib; do
+		[ -d "$dir" ] || continue
 		mkdir -p usr/$dir
 		mv $dir/* usr/$dir
+		rmdir $dir
 	done
 }
 
