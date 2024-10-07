@@ -1,7 +1,7 @@
 pkgname=libvirt
 pkgver=10.8.0
 _ver="${pkgver/_rc/-rc}"
-pkgrel=0
+pkgrel=1
 pkgdesc="Virtualization API for several hypervisor and container systems"
 url="https://libvirt.org/"
 arch="all"
@@ -26,6 +26,7 @@ makedepends="
 	fuse3-dev
 	gnutls-dev
 	jansson-dev
+	json-c-dev
 	libcap-ng-dev
 	libgcrypt-dev
 	libgpg-error-dev
@@ -51,7 +52,6 @@ makedepends="
 	readline-dev
 	rpcsvc-proto
 	util-linux
-	yajl-dev
 	zlib-dev
 	"
 install="$pkgname.post-install"
@@ -102,6 +102,16 @@ build() {
 		-Db_lto=true \
 		--libexec=/usr/lib/$pkgname \
 		-Dinit_script=openrc \
+		-Ddriver_esx=enabled \
+		-Ddriver_interface=enabled \
+		-Ddriver_libvirtd=enabled \
+		-Ddriver_libxl=disabled \
+		-Ddriver_lxc=enabled \
+		-Ddriver_network=enabled \
+		-Ddriver_openvz=enabled \
+		-Ddriver_qemu=enabled \
+		-Ddriver_vbox=enabled \
+		-Ddriver_vmware=enabled \
 		. output
 
 	meson configure --no-pager output
