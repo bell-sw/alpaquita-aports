@@ -1,0 +1,42 @@
+pkgname=zxing-cpp
+pkgver=2.2.1
+pkgrel=0
+arch="all"
+url="https://github.com/zxing-cpp/zxing-cpp"
+pkgdesc="C++ port of ZXing"
+license="Apache-2.0"
+makedepends="
+	cmake
+	gtest-dev
+	samurai
+	stb
+	"
+source="https://github.com/zxing-cpp/zxing-cpp/archive/v$pkgver/zxing-cpp-v$pkgver.tar.gz"
+subpackages="$pkgname-dev zxing"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_BLACKBOX_TESTS=OFF \
+		-DBUILD_EXAMPLES=ON \
+		-DBUILD_UNIT_TESTS="$(want_check && echo ON || echo OFF)"
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure -j1
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+zxing() {
+	amove usr/bin
+}
+
+sha512sums="
+f1de8df783061a152a18cd9102ac0c579c40c76ab4a5ba9f30bcb8ddb532f3fac08736840a631adbf7c30a7fa00ce8d65625c8cd695288620601708e8f256a53  zxing-cpp-v2.2.1.tar.gz
+"
