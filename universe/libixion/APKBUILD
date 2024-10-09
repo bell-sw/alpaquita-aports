@@ -1,0 +1,41 @@
+pkgname=libixion
+pkgver=0.19.0
+pkgrel=0
+pkgdesc="A general purpose formula parser & interpreter"
+url="https://gitlab.com/ixion/ixion"
+arch="all"
+license="MPL-2.0"
+makedepends="boost-dev mdds-dev"
+checkdepends="bash"
+subpackages="$pkgname-dev"
+source="https://kohei.us/files/ixion/src/libixion-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--disable-python
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+dev() {
+	default_dev
+	mkdir -p "$subpkgdir"/usr
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr
+}
+
+sha512sums="
+f06edbcf5ae7459a46e01273952ce6fbc4e8f2b7782c7e07645dc30e102f20f542e449acafc26484765207b10656e0b350f4108cbf1e03947ee7267254cf6f97  libixion-0.19.0.tar.xz
+"
