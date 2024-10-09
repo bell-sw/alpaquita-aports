@@ -1,0 +1,38 @@
+pkgname=libcdr
+pkgver=0.1.7
+pkgrel=12
+pkgdesc="Import filter and tools for Corel DRAW files"
+url="https://wiki.documentfoundation.org/DLP/Libraries/libcdr"
+arch="all"
+license="MPL-2.0"
+depends_dev="boost-dev"
+makedepends="$depends_dev doxygen icu-dev lcms2-dev zlib-dev librevenge-dev"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-tools"
+source="https://dev-www.libreoffice.org/src/libcdr/libcdr-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+tools() {
+	mkdir -p "$subpkgdir"/usr
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr
+}
+
+sha512sums="9af327fcf9f3f3ef1c446e92f4d2ff06ebaccb54d4c65b021960a212bf416f7098006324625f3e1c00500597eaa9da39832cc27b83a6cd593e97b76b1eb63d38  libcdr-0.1.7.tar.xz"
