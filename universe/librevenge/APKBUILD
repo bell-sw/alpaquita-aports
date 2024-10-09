@@ -1,0 +1,44 @@
+pkgname=librevenge
+pkgver=0.0.5
+pkgrel=1
+pkgdesc="Base library for writing document import filters"
+url="https://sourceforge.net/projects/libwpd/"
+arch="all"
+license="MPL-2.0"
+depends_dev="boost-dev zlib-dev cppunit-dev"
+makedepends="$depends_dev doxygen"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://sourceforge.net/projects/libwpd/files/librevenge/librevenge-$pkgver/librevenge-$pkgver.tar.xz"
+
+prepare() {
+	default_prepare
+
+	update_config_sub
+	update_config_guess
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--disable-dependency-tracking \
+		--enable-fast-install
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+24f7fceedf45e4907782d36c4cc9e9bad6bfbef97a16487e41ab3ceaa47c8f464826833be9831455f4a7c1567b9307a93e1c85b80cb3b40447be130e0d2d365b  librevenge-0.0.5.tar.xz
+"
