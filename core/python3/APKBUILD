@@ -191,11 +191,8 @@ EOF
 
 	# test_clock_settime returns Function not implemented instead of the
 	# expected permission error in docker (CI). Disable for now.
-	#
-	# test_threading, test_asyncio hang on aarch64, investigation is needed
 	case "$CARCH" in
 		ppc64le) fail="$fail test_time";;
-		aarch64) fail="$fail test_threading test_asyncio";;
 	esac
 
 	make quicktest TESTOPTS="-j${JOBS:-$(nproc)} --exclude $fail"
