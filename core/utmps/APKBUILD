@@ -8,16 +8,18 @@ pkgname=utmps
 # - mingetty
 # - openssh
 # - util-linux
-pkgver=0.1.2.2
-pkgrel=3
+pkgver=0.1.2.3
+pkgrel=0
 pkgdesc="A secure utmp/wtmp implementation"
 url=https://skarnet.org/software/utmps/
 arch="all"
 options="!check"  # No test suite
 license="ISC"
-depends="s6-ipcserver>=2.12"
+_skalibs_version=2.14.3
+_s6_version=2.13.1
+depends="s6-ipcserver>=${_s6_version}"
 depends_static="skalibs-static"
-makedepends="skalibs-dev>=2.14"
+makedepends="skalibs-dev>=${_skalibs_version}"
 subpackages="$pkgname-static $pkgname-libs $pkgname-dev $pkgname-doc $pkgname-openrc"
 source="https://skarnet.org/software/utmps/utmps-$pkgver.tar.gz
 	utmp-prepare.initd
@@ -26,33 +28,22 @@ source="https://skarnet.org/software/utmps/utmps-$pkgver.tar.gz
 	btmpd.initd
 	utmp-init.initd
 	setup-utmp
-	utmps.pc
+	utmps.pc.in
 	wtmpd.logrotate
 	btmpd.logrotate
 	0001-add-stub-utmp.h.patch"
 install="utmps.pre-install"
 
-prepare() {
-	default_prepare
-	sed -i -e "s/@@VERSION@@/$pkgver/g" -- "$srcdir"/*.pc
-}
-
 build() {
 	./configure \
 		--enable-shared \
-		--enable-static \
 		--disable-allstatic \
-		--prefix=/usr \
-		--libdir=/usr/lib \
-		--libexecdir="/usr/lib/$pkgname" \
-		--with-lib=/usr/lib \
-		--with-dynlib=/usr/lib
-	make
+		--libexecdir="/usr/lib/$pkgname"
+	make -j${JOBS}
 }
 
 package() {
 	make DESTDIR="$pkgdir" install
-
 	install -D -m755 "$srcdir/utmp-prepare.initd" "$pkgdir/etc/init.d/utmp-prepare"
 	install -D -m755 "$srcdir/utmpd.initd" "$pkgdir/etc/init.d/utmpd"
 	install -D -m755 "$srcdir/wtmpd.initd" "$pkgdir/etc/init.d/wtmpd"
@@ -61,21 +52,21 @@ package() {
 	install -D -m644 "$srcdir/wtmpd.logrotate" "$pkgdir/etc/logrotate.d/wtmpd"
 	install -D -m644 "$srcdir/btmpd.logrotate" "$pkgdir/etc/logrotate.d/btmpd"
 	install -D -m755 "$srcdir/setup-utmp" "$pkgdir/usr/sbin/setup-utmp"
-	install -D -m644 "$srcdir/utmps.pc" "$pkgdir/usr/lib/pkgconfig/utmps.pc"
-
+	sed -e "s/@@VERSION@@/$pkgver/g; s/@@SKALIBS_VERSION@@/${_skalibs_version}/g;" "$srcdir/$pkgname.pc.in" > "$srcdir/$pkgname.pc"
+	install -D -m 0644 "$srcdir/$pkgname.pc" "$pkgdir/usr/lib/pkgconfig/$pkgname.pc"
 	mkdir -p "$pkgdir/usr/share/doc"
 	cp -a "$builddir/doc" "$pkgdir/usr/share/doc/$pkgname"
 }
 
 sha512sums="
-57a73658ecb947af9dfad7a5e2931660ad1b8fa61d36c803c373e8aba13e9afa8398c1522765f5ea2b5df87d942cea17062faf30f589afa6acc744ff3ae4a409  utmps-0.1.2.2.tar.gz
+41822b5ef582c86cd2439f13c88871bef2d496e6c7ae5493d9e2be70c7cf2f25656dedf045b4dbe925b1c6b3bfbadc7430a898ccc56951f096e768990a9735df  utmps-0.1.2.3.tar.gz
 d143fd0dc5e135b02028032b40bc38ff76f4eb4b8de683a81e2a4254fb4441e61ff8c019aedb660e8a9c7ea11c7527c84813587e7e47aa70714766e74c8b3533  utmp-prepare.initd
 23ffcf600a10415b134630487ad688ad75aee8379f4ea4b91e3c269e8e228fa8525eec32002f1aaab4e450ef78f0ebcec9c959810088587c4420f631c521770c  utmpd.initd
 52541874892750defbec2fd55bae868d98c30ef41b0d440b2dd210d83180bedbb418a97cf52b47d79f0b93770c65eb895bda07233428b7c6a060c8aebb316880  wtmpd.initd
 fb3f2792fd9e9900da22b1f5917b3a8966df7a53c52d4083777ceddd2e820ee7f52055be0a8b90e640eff74d8f9cbf97e27d07a226a45117b31ff0651a97bbec  btmpd.initd
 2363d902bb7c7c5547ebd3596180b05e4081b8f7283fcbf06449b1c4127a6d60d8d118ba7cb2968dad65d4640dc3d392f21a3ec76080bc8218ed28ea1c82eb4d  utmp-init.initd
 b6249ae817641b93aaa37842efe4fe6f9055f1fe4581edbc94f037e5d63b01ebd31136fb3cbf563c887ecd8f4764a5a92d351ca6f63e24e8e6bb423a2d5196ff  setup-utmp
-15347bd95f7e69409fb5849eeca0632d3e7cdd0ad6113ab89d9f6554ebce01996522783f3f4a29877fd0f74607a5367af8483396f70d075315c4f17acc182f5e  utmps.pc
+bf4c0cc09095dde3f00d2d0205ac1492a4d136d70c559ac2f4c387b40842d45f942fd7eea33d1d018f8791ed6ce5c285273769de788016b319f1a753fcca42a2  utmps.pc.in
 5ade986bbed30ea82b8806a3d7a0ab09a7203fb8e4c9b8785e2d549973b33644a51c522cc8891a09d5016d4b47bf848224d10d0b9834a4c77929e68c7b95d293  wtmpd.logrotate
 e085ca6d4ad3817dccb7de7f7feafad586ef567b7f81fcb7ffaf1cec75a0bc18a2023cfe0761f125d4a21975e4754d235e9bd54ed2246f9c1f17607fc0cb00de  btmpd.logrotate
 0512f0daa216919a886e6a8e5a73db1d29acd66d929f38d5df40bd55f0d446402610c59da12688b75c3c1230af9b1929793ed8bfc9b4593851bf496fc0a8d835  0001-add-stub-utmp.h.patch
