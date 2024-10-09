@@ -1,0 +1,37 @@
+pkgname=libodfgen
+pkgver=0.1.8
+pkgrel=7
+pkgdesc="Import filter and tools for Open Document Format"
+url="https://sourceforge.net/projects/libwpd/"
+arch="all"
+license="MPL-2.0"
+depends_dev="boost-dev librevenge-dev libxml2-dev"
+makedepends="$depends_dev pkgconfig doxygen"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://sourceforge.net/projects/libwpd/files/libodfgen/libodfgen-$pkgver/libodfgen-$pkgver.tar.xz"
+
+prepare() {
+	default_prepare
+
+	update_config_sub
+	update_config_guess
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--enable-fast-install
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="e4a15aa7f1db483cdbb9c531bfb234b4794890cc583c70e8aa3374771be8928e7917105d48dab80d1ab6d57e43fa78415097d9b897cb12fb2a609f4647ee99d6  libodfgen-0.1.8.tar.xz"
