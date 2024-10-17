@@ -1,0 +1,21 @@
+RFR: 8281096: Flags introduced by configure script are not passed to ADLC build
+
+Now they are, but the problem for us is that we use extra flags to
+enable fortify.  So now fortify is enabled for adlc, but fortify
+_requires_ optimizations and no optimization flags are passed here.
+
+As a kludge pass OPT_CFLAGS, which is probably wrong in general in
+presence of cross-compilation, etc, but seems to work well enough in
+our specific circumstances.
+
+--- a/hotspot/make/linux/makefiles/adlc.make
++++ b/hotspot/make/linux/makefiles/adlc.make
+@@ -70,7 +70,7 @@
+ CFLAGS += $(CFLAGS_WARN)
+ 
+ # Extra flags from gnumake's invocation or environment
+-CFLAGS += $(HOST_CFLAGS)
++CFLAGS += $(OPT_CFLAGS) $(HOST_CFLAGS)
+ LFLAGS += $(HOST_CFLAGS) $(HOST_LDFLAGS)
+ ASFLAGS += $(HOST_ASFLAGS)
+ 
