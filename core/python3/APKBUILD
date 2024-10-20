@@ -5,7 +5,7 @@ pkgname=python3
 # the python3-tkinter's pkgver needs to be synchronized with this.
 pkgver=3.12.7
 _basever="${pkgver%.*}"
-pkgrel=0
+pkgrel=1
 pkgdesc="Python programming language"
 url="https://www.python.org/"
 arch="all"
@@ -115,7 +115,7 @@ build() {
 	export CFLAGS_NODIST="${CFLAGS/-Os/} -DTHREAD_STACK_SIZE=$stacksize"
 	export CPPFLAGS_NODIST="${CPPFLAGS/-Os/}"
 	export CXXFLAGS_NODIST="${CXXFLAGS/-Os/}"
-	export LDFLAGS_NODIST=''
+	export LDFLAGS_NODIST="$LDFLAGS -Wl,-z,stack-size=$stacksize"
 
 	# we set them via NODIST to not propagate them and duplicate them to modules
 	unset LDFLAGS CFLAGS CXXFLAGS CPPFLAGS
