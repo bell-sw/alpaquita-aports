@@ -44,7 +44,6 @@ options="!strip !annobin"
 _config=${config:-config-lts.${CARCH}}
 source="https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$_kernver.tar.xz
 	config-lts.x86_64
-	config-lts-debug.x86_64
 	config-lts.aarch64
 	extramods
 	extramods.x86_64
@@ -271,11 +270,6 @@ package() {
 	return $_failed
 }
 
-_lts_debug() {
-	install="$subpkgname.post-deinstall $subpkgname.post-install $subpkgname.post-upgrade"
-	_package lts-debug "$subpkgdir"
-}
-
 _extramods() {
 	local _flavor=$(echo $subpkgname | sed -E 's/(^linux-|-extra-modules$)//g')
 	local _abi_release=${pkgver}-${pkgrel}-${_flavor}
@@ -340,7 +334,6 @@ sha512sums="
 6ed2a73c2699d0810e54753715635736fc370288ad5ce95c594f2379959b0e418665cd71bc512a0273fe226fe90074d8b10d14c209080a6466498417a4fdda68  linux-6.1.tar.xz
 6e87ef42011444382814a57a147d3b91cd392e7531fef154204517f159cd52d1f32685a1989588540bf62254d38a5bfd25a1f7f41799085bb3e70b9037c0dd71  patch-6.1.112.xz
 a7ff42efbb748a433c9139f9c0fe020a351b8b38cda05a8e2dafb04d4d3d04f61175d2d8356d4926846d7234c1f55a5de7abba27f94b125d97a1f9a0016b40ea  config-lts.x86_64
-0741c884d119c41baaa0c8c3b444e514c87b0cc362f1f718a3c4a046f9e104f0f860059921dfd4b87cd1a339d81f379acffbb75f0fc96c841db6295ebb5e4b4c  config-lts-debug.x86_64
 2e0d792f42ffa044c6df620774a6823eaa7d8e92b29cae95a6290d9905facaeedcb05e7a7dd61eb518635a3ae622d185f8dd9bba53de2a75d4ba94fd5c73a423  config-lts.aarch64
 79f209294b64df448552394fbce42d818f8757eae9573dede2cb51d3c50dbf1d348066f00b64fe9e5b5757dbc63db5f4805c9e4dd5dca2edbff7a01597bc32d8  extramods
 8b8ea3b0294787c6276f027cca3a109ebf8ddca7fd412a6e1d041c6010a8b4801b6eb97b948448567154141f8e5650ad870485719e8599bce8b29b1777dd0d75  extramods.x86_64
