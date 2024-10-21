@@ -32,7 +32,7 @@
 _flavor=lts
 pkgname=linux-${_flavor}
 pkgver=6.1.112
-pkgrel=0
+pkgrel=1
 _kernver=${pkgver%.*}
 pkgdesc="$VENDOR_DISTRO_NAME Linux lts kernel"
 url="https://www.kernel.org"
@@ -43,8 +43,8 @@ makedepends="$_depends_dev sed installkernel bc linux-headers openssl-dev
 options="!strip !annobin"
 _config=${config:-config-lts.${CARCH}}
 source="https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$_kernver.tar.xz
-	config-lts.x86_64
-	config-lts.aarch64
+	lts.x86_64.config
+	lts.aarch64.config
 	extramods
 	extramods.x86_64
 	extramods.aarch64
@@ -66,82 +66,66 @@ source="https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$_kernver
 	0112-ata-libahci-ignore-staggered-spin-up.patch
 	0113-net-skb-disable-a-single-page-frag-cache.patch
 	"
-subpackages="$pkgname-dev:_dev:$CBUILD_ARCH"
+subpackages="$pkgname-dev:_dev:$CBUILD_ARCH $pkgname-doc"
 subpackages="$subpackages $pkgname-extra-modules:_extramods:$CBUILD_ARCH"
 
 _flavors=
 for _i in $source; do
 	case $_i in
-	config-*.$CARCH)
-		_f=${_i%.$CARCH}
-		_f=${_f#config-}
-		_flavors="$_flavors ${_f}"
-
+	*.$CARCH.config)
+		_f=${_i%."$CARCH".config}
+		_flavors="$_flavors $_f"
 		[ "linux-$_f" = "$pkgname" ] && continue
-
-		_fn="$(echo $_f | tr - _)"
-		subpackages="$subpackages linux-${_f}:_${_fn}:$CBUILD_ARCH \
+		subpackages="$subpackages linux-${_f}:_${_f}:$CBUILD_ARCH \
 			linux-${_f}-dev:_dev:$CBUILD_ARCH \
 			linux-${_f}-extra-modules:_extramods:$CBUILD_ARCH"
 		;;
 	esac
 done
+builddir="$srcdir"/linux-$_kernver
 
 if [ "${pkgver%.0}" = "$pkgver" ]; then
-	source="$source
-	https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/patch-$pkgver.xz"
+	# Prepend to apply first
+	source="patch-$pkgver.patch.xz::https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/patch-$pkgver.xz $source"
 fi
 arch="all"
 license="GPL-2.0"
 
-_carch=${CARCH}
-case "$_carch" in
-aarch64*) _carch="arm64" ;;
-arm*) _carch="arm" ;;
-mips*) _carch="mips" ;;
-ppc*) _carch="powerpc" ;;
-s390*) _carch="s390" ;;
-esac
+prepare() {
+	default_prepare
 
-prepare_patches() {
-	local _ret=0
-
-	cd "$srcdir"/linux-$_kernver
-	if [ "$_kernver" != "$pkgver" ]; then
-		msg "Applying patch-$pkgver.xz"
-		unxz -c < "$srcdir"/patch-$pkgver.xz | patch -p1 -N
-	fi
-
-	for i in $source; do
-		case $i in
-		*.patch)
-			msg "Applying $i..."
-			if ! patch -s -p1 -N -i "$srcdir"/$i; then
-				error "Patch failed to apply"
-				_ret=1
-			fi
-			;;
-		esac
-	done
-	return $_ret
+	# remove localversion from patch if any
+	rm -f localversion*
 }
 
-prepare_config()
-{
-	local _flavor=$i
-	local _config=config-$_flavor.${CARCH}
-	local _builddir="$srcdir"/build-$_flavor.$CARCH
-	local _cfg_file="$_builddir"/.config
+_kernelarch() {
+	local arch="$1"
+	case "$arch" in
+		aarch64*) arch="arm64" ;;
+		arm*) arch="arm" ;;
+		ppc*) arch="powerpc" ;;
+		s390*) arch="s390" ;;
+		riscv*) arch="riscv" ;;
+		loongarch64) arch="loongarch" ;;
+	esac
+	echo "$arch"
+}
 
+_prepareconfig() {
+	local _flavor="$1"
+	local _arch="$2"
+	local _config=$_flavor.$_arch.config
+	local _builddir="$srcdir"/build-$_flavor.$_arch
+	local _cfg_file="$_builddir"/.config
 	mkdir -p "$_builddir"
 	echo "-$pkgrel-$_flavor" > "$_builddir"/localversion-$VENDOR_DISTRO
 
 	cp "$srcdir"/$_config "$_cfg_file"
-
-	make -C "$srcdir"/linux-$_kernver \
+	msg "Configuring $_flavor kernel ($_arch)"
+	make -C "$builddir" \
 		O="$_builddir" \
-		ARCH="$_carch" \
-		listnewconfig oldconfig
+		ARCH="$(_kernelarch $_arch)" \
+		olddefconfig
 
 	mkdir -p "$_builddir"/certs
 	cp "$srcdir"/x509.genkey "$_builddir"/certs/
@@ -158,12 +142,62 @@ prepare_config()
 	fi
 }
 
-prepare() {
-	prepare_patches
-
-	for i in $_flavors; do
-		prepare_config $i
+listconfigs() {
+	for i in $source; do
+		case "$i" in
+			*.config) echo $i;;
+		esac
 	done
+}
+
+prepareconfigs() {
+	for _config in $(listconfigs); do
+		local _flavor=${_config%%.*}
+		local _arch=${_config%.config}
+		_arch=${_arch#*.}
+		local _builddir="$srcdir"/build-$_flavor.$_arch
+		_prepareconfig "$_flavor" "$_arch"
+	done
+}
+
+# this is supposed to be run before version is bumped so we can compare
+# what new kernel config knobs are introduced
+prepareupdate() {
+	clean && fetch && unpack && prepare && deps
+	prepareconfigs
+	rm -r "$builddir"
+}
+
+updateconfigs() {
+	if ! [ -d "$builddir" ]; then
+		deps && fetch && unpack && prepare
+	fi
+	for _config in ${CONFIGS:-$(listconfigs)}; do
+		msg "updating $_config"
+		local _flavor=${_config%%.*}
+		local _arch=${_config%.config}
+		_arch=${_arch#*.}
+		local _builddir="$srcdir"/build-$_flavor.$_arch
+		mkdir -p "$_builddir"
+		echo "-$pkgrel-$_flavor" > "$_builddir"/localversion-$VENDOR_DISTRO
+		local actions="listnewconfig oldconfig"
+		if ! [ -f "$_builddir"/.config ]; then
+			cp "$srcdir"/$_config "$_builddir"/.config
+			actions="olddefconfig"
+		fi
+		env | grep ^CONFIG_ >> "$_builddir"/.config || true
+		make -j1 -C "$builddir" \
+			O="$_builddir" \
+			ARCH="$(_kernelarch $_arch)" \
+			$actions savedefconfig
+
+		cp "$_builddir"/defconfig "$startdir"/$_config
+	done
+}
+
+set_kbuild_timestamp() {
+	# KBUILD_BUILD_TIMESTAMP needs to be parsable by busybox date
+	export KBUILD_BUILD_TIMESTAMP="$(date '+%Y-%m-%d %H:%M:%S' -u${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
 }
 
 build() {
@@ -172,6 +206,26 @@ build() {
 	for i in $_flavors; do
 		cd "$srcdir"/build-$i.$CARCH
 		make ARCH="$_carch" CC="${CC:-gcc}" \
+			KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-$VENDOR_DISTRO_NAME"
+	done
+}
+
+build() {
+	unset LDFLAGS
+	# for some reason these sometimes leak into the kernel build,
+	# -Werror=format-security breaks some stuff
+	unset CFLAGS CPPFLAGS CXXFLAGS
+	set_kbuild_timestamp
+	local i
+	for i in $_flavors; do
+		_prepareconfig "$i" "$CARCH"
+	done
+	for i in $_flavors; do
+		msg "Building $i kernel"
+		cd "$srcdir"/build-$i.$CARCH
+
+		make ARCH="$(_kernelarch $CARCH)" \
+			CC="${CC:-gcc}" \
 			KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-$VENDOR_DISTRO_NAME"
 	done
 }
@@ -215,12 +269,14 @@ _move_extra_modules() {
 
 _package() {
 	local _buildflavor="$1" _outdir="$2"
-	local _abi_release=${pkgver}-${pkgrel}-${_buildflavor}
-	export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
+	set_kbuild_timestamp
+
+	cd "$srcdir"/build-$_buildflavor.$CARCH
+	local _abi_release="$(make -s kernelrelease)"
+
 	sign_list="boot/vmlinuz-${_abi_release}"
 	sign_verify="bellsoft-uefi-ca.pem"
 
-	cd "$srcdir"/build-$_buildflavor.$CARCH
 	mkdir -p "$_outdir"/boot "$_outdir"/lib/modules
 
 	local _install
@@ -229,8 +285,8 @@ _package() {
 		*) _install=install;;
 	esac
 
-	make -j1 modules_install $_install \
-		ARCH="$_carch" \
+	make modules_install $_install \
+		ARCH="$(_kernelarch $CARCH)" \
 		INSTALL_MOD_PATH="$_outdir" \
 		INSTALL_PATH="$_outdir"/boot \
 		INSTALL_DTBS_PATH="$_outdir/boot/dtbs-$_buildflavor"
@@ -249,8 +305,22 @@ package() {
 	install="$pkgname.pre-upgrade $pkgname.post-deinstall $pkgname.post-install $pkgname.post-upgrade"
 	_package lts "$pkgdir"
 
+	# copy files for linux-lts-doc sub package
+	mkdir -p "$pkgdir"/usr/share/doc
+	cp -r "$builddir"/Documentation \
+		"$pkgdir"/usr/share/doc/linux-doc-"$pkgver"/
+	# remove files that aren't part of the documentation itself
+	for nondoc in \
+		.gitignore conf.py docutils.conf \
+		dontdiff Kconfig Makefile
+	do
+		rm "$pkgdir"/usr/share/doc/linux-doc-"$pkgver"/"$nondoc"
+	done
+	# create /usr/share/doc/linux-doc symlink
+	cd "$pkgdir"/usr/share/doc; ln -s linux-doc-"$pkgver" linux-doc
+
 	msg "Checking modules dependencies"
-	local _abi_release=${pkgver}-${pkgrel}-lts
+	local _abi_release="$(make -C "$_builddir" -s kernelrelease)"
 
 	cd "$pkgdir"/lib/modules/${_abi_release}
 
@@ -272,7 +342,7 @@ package() {
 
 _extramods() {
 	local _flavor=$(echo $subpkgname | sed -E 's/(^linux-|-extra-modules$)//g')
-	local _abi_release=${pkgver}-${pkgrel}-${_flavor}
+	local _abi_release="$(make -C "$srcdir/build-${_flavor}.$CARCH" -s kernelrelease)"
 	local _dir="$subpkgdir"/lib/modules/${_abi_release}/kernel
 
 	depends="$depends linux-${_flavor}=$pkgver-r$pkgrel linux-firmware-extra-modules-any"
@@ -283,58 +353,81 @@ _extramods() {
 }
 
 _dev() {
-	pkgdesc="Headers and scripts for third-party modules for $VENDOR_DISTRO_NAME Linux $_flavor kernel"
-	depends="$_depends_dev"
-
 	local _flavor=$(echo $subpkgname | sed -E 's/(^linux-|-dev$)//g')
-	local _abi_release=${pkgver}-${pkgrel}-$_flavor
-	local _dir="$subpkgdir"/usr/src/linux-headers-${_abi_release}
+	local _builddir="$srcdir"/build-$_flavor.$CARCH
+	local _abi_release="$(make -C "$_builddir" -s kernelrelease)"
+	# copy the only the parts that we really need for build 3rd party
+	# kernel modules and install those as /usr/src/linux-headers,
+	# simlar to what ubuntu does
+	#
+	# this way you dont need to install the 300-400 kernel sources to
+	# build a tiny kernel module
+	#
+	pkgdesc="Headers and script for third party modules for $_flavor kernel"
+	depends="$_depends_dev"
+	local dir="$subpkgdir"/usr/src/linux-headers-"$_abi_release"
+	set_kbuild_timestamp
 
-	export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
+	# first we import config, run prepare to set up for building
+	# external modules, and create the scripts
+	mkdir -p "$dir"
+	cp -a "$_builddir"/.config "$_builddir"/localversion-$VENDOR_DISTRO \
+		"$dir"/
 
-	mkdir -p "$_dir"
+	install -D -t "$dir"/certs "$_builddir"/certs/signing_key.x509 || :
 
-	cp "$srcdir"/config-$_flavor.${CARCH} "$_dir"/.config
-	echo "-$pkgrel-$_flavor" > "$_dir"/localversion-$VENDOR_DISTRO
-
-	make -j1 -C "$srcdir"/linux-$_kernver \
-		O="$_dir" \
-		ARCH="$_carch" \
-		syncconfig prepare modules_prepare scripts
+	make -C "$builddir" \
+		O="$dir" \
+		ARCH="$(_kernelarch $CARCH)" \
+		prepare modules_prepare scripts
 
 	# remove the stuff that points to real sources. we want 3rd party
 	# modules to believe this is the sources
-	rm "$_dir"/Makefile "$_dir"/source
+	rm "$dir"/Makefile "$dir"/source
 
 	# copy the needed stuff from real sources
 	#
 	# this is taken from ubuntu kernel build script
 	# http://kernel.ubuntu.com/git/ubuntu/ubuntu-zesty.git/tree/debian/rules.d/3-binary-indep.mk
-	cd "$srcdir"/linux-$_kernver
+	cd "$builddir"
 	find .  -path './include/*' -prune \
 		-o -path './scripts/*' -prune -o -type f \
 		\( -name 'Makefile*' -o -name 'Kconfig*' -o -name 'Kbuild*' -o \
 		   -name '*.sh' -o -name '*.pl' -o -name '*.lds' -o -name 'Platform' \) \
-		-print | cpio -pdm "$_dir"
+		-print | cpio -pdm "$dir"
 
-	cp -a scripts include "$_dir"
+	cp -a scripts include "$dir"
 
-	find $(find arch -name include -type d -print) -type f \
-		| cpio -pdm "$_dir"
+	find "arch/$_karch" -name include -type d -print | while IFS='' read -r folder; do
+		find "$folder" -type f
+	done | sort -u | cpio -pdm "$dir"
 
 	install -Dm644 "$srcdir"/build-$_flavor.$CARCH/Module.symvers \
-		"$_dir"/Module.symvers
+		"$dir"/Module.symvers
 
-	mkdir -p "$subpkgdir"/lib/modules/${_abi_release}
-	ln -sf /usr/src/linux-headers-${_abi_release} \
-		"$subpkgdir"/lib/modules/${_abi_release}/build
+	# remove unneeded things
+	msg "Removing documentation..."
+	rm -r "$dir"/Documentation
+	find "$dir" -type f -name '*.o' -printf 'Removing %P\n' -delete
+	local _karch="$(_kernelarch $CARCH | sed 's/x86_64/x86/')"
+	msg "Removing unneeded arch headers..."
+	for i in "$dir"/arch/*; do
+		if [ "${i##*/}" != "$_karch" ]; then
+			echo "  ${i##*/}"
+			rm -r "$i"
+		fi
+	done
+
+	mkdir -p "$subpkgdir"/lib/modules/"$_abi_release"
+	ln -sf /usr/src/linux-headers-"$_abi_release" \
+		"$subpkgdir"/lib/modules/"$_abi_release"/build
 }
 
 sha512sums="
 6ed2a73c2699d0810e54753715635736fc370288ad5ce95c594f2379959b0e418665cd71bc512a0273fe226fe90074d8b10d14c209080a6466498417a4fdda68  linux-6.1.tar.xz
-6e87ef42011444382814a57a147d3b91cd392e7531fef154204517f159cd52d1f32685a1989588540bf62254d38a5bfd25a1f7f41799085bb3e70b9037c0dd71  patch-6.1.112.xz
-a7ff42efbb748a433c9139f9c0fe020a351b8b38cda05a8e2dafb04d4d3d04f61175d2d8356d4926846d7234c1f55a5de7abba27f94b125d97a1f9a0016b40ea  config-lts.x86_64
-2e0d792f42ffa044c6df620774a6823eaa7d8e92b29cae95a6290d9905facaeedcb05e7a7dd61eb518635a3ae622d185f8dd9bba53de2a75d4ba94fd5c73a423  config-lts.aarch64
+6e87ef42011444382814a57a147d3b91cd392e7531fef154204517f159cd52d1f32685a1989588540bf62254d38a5bfd25a1f7f41799085bb3e70b9037c0dd71  patch-6.1.112.patch.xz
+df23eea34afc04551a0e90f03c88b151f3e97f949d15a96c35c0a69b40af90619a6f40f634e57c113ddb088c3b6f2741d33f21a76e3dcc0bfbff01908349f2ef  lts.x86_64.config
+e818612adc580753f8195ab9a89c90756e9993c06d0b9b6ffafbd6e4328e79e4d73d96a75ac594c287a54fcda575cbb3271eadf5ef7d00563e9fecfd72702b1d  lts.aarch64.config
 79f209294b64df448552394fbce42d818f8757eae9573dede2cb51d3c50dbf1d348066f00b64fe9e5b5757dbc63db5f4805c9e4dd5dca2edbff7a01597bc32d8  extramods
 8b8ea3b0294787c6276f027cca3a109ebf8ddca7fd412a6e1d041c6010a8b4801b6eb97b948448567154141f8e5650ad870485719e8599bce8b29b1777dd0d75  extramods.x86_64
 f6c9c08b8a2e228fa1a0a01963f058a97cd0e8acf29c51bc1a45aff96a06defea77a5023264043156c83e7cea7b776643eb446f10b53c70fc009d22190652c04  extramods.aarch64
