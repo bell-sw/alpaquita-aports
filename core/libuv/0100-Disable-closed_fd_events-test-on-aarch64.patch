@@ -1,0 +1,20 @@
+The 'closed_fd_events' test sporadically fails on aarch64 as follows:
+
+  not ok 1 - closed_fd_events
+  # exit code 134
+  # Output from process `closed_fd_events`:
+  # close_cb
+  # Assertion failed in test/test-spawn.c on line 1796: `uv_run(uv_default_loop(), UV_RUN_ONCE) == 0` (1 == 0)
+
+--- a/test/test-list.h
++++ b/test/test-list.h
+@@ -1029,7 +1029,9 @@
+   TEST_ENTRY  (poll_close_doesnt_corrupt_stack)
+   TEST_ENTRY  (poll_closesocket)
+   TEST_ENTRY  (close_fd)
++#ifndef __aarch64__
+   TEST_ENTRY  (closed_fd_events)
++#endif
+   TEST_ENTRY  (spawn_fs_open)
+ #ifdef _WIN32
+   TEST_ENTRY  (spawn_detect_pipe_name_collisions_on_windows)
