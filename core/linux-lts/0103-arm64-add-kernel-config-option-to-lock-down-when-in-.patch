@@ -1,4 +1,4 @@
-From 9aa01dfbb0d067e66f39e453df4db80115e0744c Mon Sep 17 00:00:00 2001
+From cbb82849a0afb0fc080246fe494973e1e7e612e5 Mon Sep 17 00:00:00 2001
 From: Linn Crosetto <linn@hpe.com>
 Date: Tue, 30 Aug 2016 11:54:38 -0600
 Subject: [PATCH] arm64: add kernel config option to lock down when in Secure
@@ -39,10 +39,10 @@ arm-init to efi-init common for all arch") renamed arm-init.c to efi-init.c]
  4 files changed, 23 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/firmware/efi/efi-init.c b/drivers/firmware/efi/efi-init.c
-index 2fd770b499a3..6bb6e9c3860b 100644
+index 59b0d7197b68..e63f8a82d9f4 100644
 --- a/drivers/firmware/efi/efi-init.c
 +++ b/drivers/firmware/efi/efi-init.c
-@@ -185,9 +185,10 @@ void __init efi_init(void)
+@@ -204,9 +204,10 @@ void __init efi_init(void)
  {
  	struct efi_memory_map_data data;
  	u64 efi_system_table;
@@ -54,7 +54,7 @@ index 2fd770b499a3..6bb6e9c3860b 100644
  	if (!efi_system_table)
  		return;
  
-@@ -209,6 +210,8 @@ void __init efi_init(void)
+@@ -228,6 +229,8 @@ void __init efi_init(void)
  		return;
  	}
  
@@ -64,7 +64,7 @@ index 2fd770b499a3..6bb6e9c3860b 100644
  	/*
  	 * For memblock manipulation, the cap should come after the memblock_add().
 diff --git a/drivers/firmware/efi/fdtparams.c b/drivers/firmware/efi/fdtparams.c
-index e901f8564ca0..12b8f0b48590 100644
+index 0ec83ba58097..81a0ac408cf5 100644
 --- a/drivers/firmware/efi/fdtparams.c
 +++ b/drivers/firmware/efi/fdtparams.c
 @@ -16,6 +16,7 @@ enum {
@@ -83,7 +83,7 @@ index e901f8564ca0..12b8f0b48590 100644
  };
  
  static __initconst const struct {
-@@ -41,6 +43,7 @@ static __initconst const struct {
+@@ -43,6 +45,7 @@ static __initconst const struct {
  			[MMSIZE] = "xen,uefi-mmap-size",
  			[DCSIZE] = "xen,uefi-mmap-desc-size",
  			[DCVERS] = "xen,uefi-mmap-desc-ver",
@@ -91,7 +91,7 @@ index e901f8564ca0..12b8f0b48590 100644
  		}
  	}, {
  #endif
-@@ -51,6 +54,7 @@ static __initconst const struct {
+@@ -53,6 +56,7 @@ static __initconst const struct {
  			[MMSIZE] = "linux,uefi-mmap-size",
  			[DCSIZE] = "linux,uefi-mmap-desc-size",
  			[DCVERS] = "linux,uefi-mmap-desc-ver",
@@ -99,7 +99,7 @@ index e901f8564ca0..12b8f0b48590 100644
  		}
  	}
  };
-@@ -62,6 +66,11 @@ static int __init efi_get_fdt_prop(const void *fdt, int node, const char *pname,
+@@ -64,6 +68,11 @@ static int __init efi_get_fdt_prop(const void *fdt, int node, const char *pname,
  	int len;
  	u64 val;
  
@@ -111,7 +111,7 @@ index e901f8564ca0..12b8f0b48590 100644
  	prop = fdt_getprop(fdt, node, pname, &len);
  	if (!prop)
  		return 1;
-@@ -79,7 +88,7 @@ static int __init efi_get_fdt_prop(const void *fdt, int node, const char *pname,
+@@ -81,7 +90,7 @@ static int __init efi_get_fdt_prop(const void *fdt, int node, const char *pname,
  	return 0;
  }
  
@@ -120,7 +120,7 @@ index e901f8564ca0..12b8f0b48590 100644
  {
  	const void *fdt = initial_boot_params;
  	unsigned long systab;
-@@ -93,6 +102,7 @@ u64 __init efi_get_fdt_params(struct efi_memory_map_data *mm)
+@@ -95,6 +104,7 @@ u64 __init efi_get_fdt_params(struct efi_memory_map_data *mm)
  		[MMSIZE] = { &mm->size,		sizeof(mm->size) },
  		[DCSIZE] = { &mm->desc_size,	sizeof(mm->desc_size) },
  		[DCVERS] = { &mm->desc_version,	sizeof(mm->desc_version) },
@@ -129,7 +129,7 @@ index e901f8564ca0..12b8f0b48590 100644
  
  	BUILD_BUG_ON(ARRAY_SIZE(target) != ARRAY_SIZE(name));
 diff --git a/drivers/firmware/efi/libstub/fdt.c b/drivers/firmware/efi/libstub/fdt.c
-index 70e9789ff9de..ce8d64d7f549 100644
+index 6a337f1f8787..6c679da644dd 100644
 --- a/drivers/firmware/efi/libstub/fdt.c
 +++ b/drivers/firmware/efi/libstub/fdt.c
 @@ -132,6 +132,12 @@ static efi_status_t update_fdt(void *orig_fdt, unsigned long orig_fdt_size,
@@ -146,10 +146,10 @@ index 70e9789ff9de..ce8d64d7f549 100644
  	fdt_pack(fdt);
  
 diff --git a/include/linux/efi.h b/include/linux/efi.h
-index ea2af4a319de..7aa0c749b74a 100644
+index d267ddba8369..fbce526768d3 100644
 --- a/include/linux/efi.h
 +++ b/include/linux/efi.h
-@@ -744,7 +744,8 @@ extern void efi_mem_reserve(phys_addr_t addr, u64 size);
+@@ -756,7 +756,8 @@ extern void efi_mem_reserve(phys_addr_t addr, u64 size);
  extern int efi_mem_reserve_persistent(phys_addr_t addr, u64 size);
  extern void efi_initialize_iomem_resources(struct resource *code_resource,
  		struct resource *data_resource, struct resource *bss_resource);

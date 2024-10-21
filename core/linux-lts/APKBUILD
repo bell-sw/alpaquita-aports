@@ -1,38 +1,9 @@
 # Description:
 
-# secfixes:
-#   6.1.102-r0:
-#     - CVE-2024-41091
-#     - CVE-2024-41090
-#   6.1.97-r0:
-#     - CVE-2024-25741
-#   6.1.85-r0:
-#     - CVE-2024-24857
-#     - CVE-2024-24858
-#   6.1.84-r0:
-#     - CVE-2023-47233
-#   6.1.83-r0:
-#     - CVE-2023-6270
-#   6.1.80-r0:
-#     - CVE-2022-3061
-#   6.1.75-r0:
-#     - CVE-2023-46838
-#   6.1.74-r0:
-#     - CVE-2023-6610
-#   6.1.70-r0:
-#     - CVE-2023-6606
-#   6.1.64-r0:
-#     - CVE-2023-28464
-#   6.1.62-r0:
-#     - CVE-2023-5090
-#   6.1.60-r0:
-#     - CVE-2020-26555
-#   6.1.57-r0:
-#     - CVE-2023-34324
 _flavor=lts
 pkgname=linux-${_flavor}
-pkgver=6.1.112
-pkgrel=1
+pkgver=6.6.57
+pkgrel=0
 _kernver=${pkgver%.*}
 pkgdesc="$VENDOR_DISTRO_NAME Linux lts kernel"
 url="https://www.kernel.org"
@@ -55,16 +26,11 @@ source="https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$_kernver
 	0101-efi-Lock-down-the-kernel-if-booted-in-secure-boot-mo.patch
 	0102-mtd-phram-slram-Disable-when-the-kernel-is-locked-do.patch
 	0103-arm64-add-kernel-config-option-to-lock-down-when-in-.patch
-	0104-livepatch-Use-kallsyms_on_each_match_symbol-to-impro.patch
-	0105-livepatch-Call-klp_match_callback-in-klp_find_callba.patch
-	0106-kernel-params.c-defer-most-of-param_sysfs_init-to-la.patch
-	0107-pci-pme-wakeups.patch
-	0108-ksm-wakeups.patch
-	0109-intel_idle-tweak-cpuidle-cstates.patch
-	0110-smpboot-reuse-timer-calibration.patch
-	0111-initialize-ata-before-graphics.patch
-	0112-ata-libahci-ignore-staggered-spin-up.patch
-	0113-net-skb-disable-a-single-page-frag-cache.patch
+	0104-pci-pme-wakeups.patch
+	0105-intel_idle-tweak-cpuidle-cstates.patch
+	0106-smpboot-reuse-timer-calibration.patch
+	0107-initialize-ata-before-graphics.patch
+	0108-ata-libahci-ignore-staggered-spin-up.patch
 	"
 subpackages="$pkgname-dev:_dev:$CBUILD_ARCH $pkgname-doc"
 subpackages="$subpackages $pkgname-extra-modules:_extramods:$CBUILD_ARCH"
@@ -320,7 +286,7 @@ package() {
 	cd "$pkgdir"/usr/share/doc; ln -s linux-doc-"$pkgver" linux-doc
 
 	msg "Checking modules dependencies"
-	local _abi_release="$(make -C "$_builddir" -s kernelrelease)"
+	local _abi_release="$(make -C "$srcdir/build-lts.$CARCH" -s kernelrelease)"
 
 	cd "$pkgdir"/lib/modules/${_abi_release}
 
@@ -424,27 +390,22 @@ _dev() {
 }
 
 sha512sums="
-6ed2a73c2699d0810e54753715635736fc370288ad5ce95c594f2379959b0e418665cd71bc512a0273fe226fe90074d8b10d14c209080a6466498417a4fdda68  linux-6.1.tar.xz
-6e87ef42011444382814a57a147d3b91cd392e7531fef154204517f159cd52d1f32685a1989588540bf62254d38a5bfd25a1f7f41799085bb3e70b9037c0dd71  patch-6.1.112.patch.xz
-df23eea34afc04551a0e90f03c88b151f3e97f949d15a96c35c0a69b40af90619a6f40f634e57c113ddb088c3b6f2741d33f21a76e3dcc0bfbff01908349f2ef  lts.x86_64.config
-e818612adc580753f8195ab9a89c90756e9993c06d0b9b6ffafbd6e4328e79e4d73d96a75ac594c287a54fcda575cbb3271eadf5ef7d00563e9fecfd72702b1d  lts.aarch64.config
+96fb80417f35a1df683650fb479bc29e8957e2f89258f86ea71a253f8d502bf6b5c054fe739081fcd2471292990b971650893c7fed204d9a2f085f38e52da41f  patch-6.6.57.patch.xz
+458b2c34d46206f9b4ccbac54cc57aeca1eaecaf831bc441e59701bac6eadffc17f6ce24af6eadd0454964e843186539ac0d63295ad2cc32d112b60360c39a35  linux-6.6.tar.xz
+0cd504e8bf36799b2620387371f412ab91df476cbb88c76d3c82b8de1b3ace6ff3e5a3191fab468005ca0b220bad6d4d03e51c8a02748e24e5c723a747a0ff48  lts.x86_64.config
+c71afb1bb703631fefde6f2f6e5dd1d0efe69d821567333fc581dabca62766c708ec5488d56c6923e278c646938bc4464d1684e52844fa2354599ac7513c05ed  lts.aarch64.config
 79f209294b64df448552394fbce42d818f8757eae9573dede2cb51d3c50dbf1d348066f00b64fe9e5b5757dbc63db5f4805c9e4dd5dca2edbff7a01597bc32d8  extramods
 8b8ea3b0294787c6276f027cca3a109ebf8ddca7fd412a6e1d041c6010a8b4801b6eb97b948448567154141f8e5650ad870485719e8599bce8b29b1777dd0d75  extramods.x86_64
 f6c9c08b8a2e228fa1a0a01963f058a97cd0e8acf29c51bc1a45aff96a06defea77a5023264043156c83e7cea7b776643eb446f10b53c70fc009d22190652c04  extramods.aarch64
 8ab1221f07d35b710da7e27d6e443ca303e03b69f29a21d2a8fef236a48e0b95b5521cd1e4adb1046d048a37a9d52989e5a5c55647da6f57f1ba7bb69230ce4f  x509.genkey
 304d6a2d2c25af142b2cf2222079ebf59b8174f0825840dfc88e60016e5fcfe12973e0a250b4172ff7ea77cdb014cb5fec1a474965fee97478a6dcd0cbe6bdd3  bellsoft-uefi-ca.pem
-3e3d21971766bd7cbb840349ff89b280e4da0997b4a4210cf337bf294739827a833aa91da846703aa040231e5228c6e39fefaa51c639f46b4bb2084bd9cecc56  0100-efi-Add-an-EFI_SECURE_BOOT-flag-to-indicate-secure-b.patch
-3cba00d463dd0eab3432f58089f39dea849b35e167c08c024f62610a97267625ffa0e86213d55c27b151fb7cb2ba9dc12110cd4707e61323c73da312e9e73207  0101-efi-Lock-down-the-kernel-if-booted-in-secure-boot-mo.patch
-6c5693891863f626510ed9c8089bd62a39f054269e41d95c1b204c2be9467d376c041fe57dac0571cb8ad622e2a201f86dbdd42cb7ddbeff2a4aaa1de550d83b  0102-mtd-phram-slram-Disable-when-the-kernel-is-locked-do.patch
-9df1efb8cb3f999d77645102115a77a0079669846e7014c007cabc028172bf0e6e8efd2d96ca14ec19b2a4e69d91c83ee4133e92b0ab99ac0887478895e4ee06  0103-arm64-add-kernel-config-option-to-lock-down-when-in-.patch
-3cd54a622eab7b22b3a13f644d54d2a3cf04c58b22f74c806a50f57f9df4c93a2aaeee9b1a104073049b773b4cfb8ce35c73fb61321f133be136f9063e74d7dd  0104-livepatch-Use-kallsyms_on_each_match_symbol-to-impro.patch
-87607431e83a202bcaee12a24380b25097ea5bd5afd35fdc188155bbbc5d25a74debabddce8e86ee85e9c210d14aba93355fb353c2031a1be6b996ef79a71164  0105-livepatch-Call-klp_match_callback-in-klp_find_callba.patch
-d5bf6f8b92fdfc9484f121c9862440dc1902147e9346807f22241d14fd19dc171fb0b88037a05baa918772cc0ec6c581df2961aec513ce4ed699eeb95466a9c0  0106-kernel-params.c-defer-most-of-param_sysfs_init-to-la.patch
-94173acf89409bf5b36419ff9a8331380e26468a2dcd76c6515250087b15d928b520689e89cdb3dd814c32836f17c146621d572a8950baea64ca14688fba9c24  0107-pci-pme-wakeups.patch
-ce30be2da9f4e41dade6280e507fd889aa1fc53ee030abfb5530808b169394c68ce4102b2c6a868a4e1c10bac0cba58de9eeb0c2fefddf61f03d9963c22ebd14  0108-ksm-wakeups.patch
-85326e2d9333a851fec9f65efdbf4431d5a76d2519fa3bd15f9ed7f1c228f8b45df83886ddce30c517bf88b4ce6a490967a9168fce5d0e590f8cb90a543930b2  0109-intel_idle-tweak-cpuidle-cstates.patch
-b850e6addf2491e22dd3b1a16299d679adabf26b999d994e2ad7389abee7a5bcb9283c5bed521fd91bbc20500246e3a7ca10cfe8f355763f78e2c27b94d42e5f  0110-smpboot-reuse-timer-calibration.patch
-889828e0d3392cd8903b052da11348f80d57eaced8ea55dae4324486e9b332ec4e3450bb8587b5e2ec82e9ac7307bf4c640f9ba92df730a042a71bcb3570cffb  0111-initialize-ata-before-graphics.patch
-19eb895787790b2a2205528cacf2b3f2e707df7ee165988c0569887928da35d4206a554e69ca3ae40468d1570d36254b05786b63b688b0cf245b09685bbd0188  0112-ata-libahci-ignore-staggered-spin-up.patch
-a3cd4a65a74dcff4a999bdb468c3b3a01a77337db61e3420b7be7eba668dfc1fa282901d51e6b5a5bff9b3b106bebb6c6f2f9a315ccd1fdaf5c26197aff4a55d  0113-net-skb-disable-a-single-page-frag-cache.patch
+f8ccccfc9cb5b28fe6c23eb419551eb3bc5143d6e8231ab8a0f1fbcb5794298c9ab81934dd14966588e4ed787aeed3024d9fede25f66c3d4397c737ab7e9c7d2  0100-efi-Add-an-EFI_SECURE_BOOT-flag-to-indicate-secure-b.patch
+a82c6503bb4e6fd671d08ec897e5e5cfab978de866e89dbc29e80c8a2f484ca788ba22f0159467f800e00923d3d32ac2ff26ad6224daf82ae9a400873994675d  0101-efi-Lock-down-the-kernel-if-booted-in-secure-boot-mo.patch
+15c27c2211f57d216956619aa155497729a619b1a760cfb9e80c4bcd63f1a541dc698b7e3f8f6694c4e86591c69acc84ee22ac8bb452235f4417e860a7cf1fc9  0102-mtd-phram-slram-Disable-when-the-kernel-is-locked-do.patch
+511f20b4e5e15345164fe8575a097c1492701584886782b61cf460509821a53e7a0b2ed5fecef56ecea7f7aad6c5c38d30eada1fbae7195ce03686d223ef1e40  0103-arm64-add-kernel-config-option-to-lock-down-when-in-.patch
+499c4d1c788c9113328e07fe43aeac997aa2ea75673c809a0f78c54fda43dc9ac93582acf3b7251bfd51a45e21b5f96de610108068f4774ba4ca6ddff80ff7e5  0104-pci-pme-wakeups.patch
+54ceb47df0fc0b966eeab452693cdc7aa448522f6a8e99cfe2fe0843e0f17db3c14c32096ee5a94b240c557291ba895f78f92ae9b1c5833d446824d8bedc6bc5  0105-intel_idle-tweak-cpuidle-cstates.patch
+b8e726872d3ebcab9696c3ab585688cda2276884291a42ac97188d2d10578a91da5cb207cfc5a276b5aa8dc35159dcba4e69cdebe2254438247c272d36ce6ce9  0106-smpboot-reuse-timer-calibration.patch
+09e65fef8f6d71c3b40c184790c517c59052265505f9c9b2084220ea47dbbd03b3de9f573b3d21069a1af7bbeca887d6856bb78aba98c97370a5e2e133980e00  0107-initialize-ata-before-graphics.patch
+fd8b7c352d8a22c4382eb8568929da605fb057dd7100261888d120aef4483d7ba755d74a02bba9faa95e496395a21bf70112f743d649b8f3831ea0e138bc18e0  0108-ata-libahci-ignore-staggered-spin-up.patch
 "

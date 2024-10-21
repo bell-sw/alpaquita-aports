@@ -1,4 +1,4 @@
-From 38fe056a9991f107c71925e14d4d8aafc0042cc0 Mon Sep 17 00:00:00 2001
+From eed85b903d7eac2561ef146df2e9f4a2ef54adf5 Mon Sep 17 00:00:00 2001
 From: David Howells <dhowells@redhat.com>
 Date: Mon, 18 Feb 2019 12:45:03 +0000
 Subject: [PATCH] efi: Add an EFI_SECURE_BOOT flag to indicate secure boot mode
@@ -30,10 +30,10 @@ cc: linux-efi@vger.kernel.org
  create mode 100644 drivers/firmware/efi/secureboot.c
 
 diff --git a/arch/x86/kernel/setup.c b/arch/x86/kernel/setup.c
-index 804a252382da..827e26a1e7c5 100644
+index eb129277dcdd..7c4a6697e39d 100644
 --- a/arch/x86/kernel/setup.c
 +++ b/arch/x86/kernel/setup.c
-@@ -1201,19 +1201,7 @@ void __init setup_arch(char **cmdline_p)
+@@ -1190,19 +1190,7 @@ void __init setup_arch(char **cmdline_p)
  	/* Allocate bigger log buffer */
  	setup_log_buf(1);
  
@@ -55,10 +55,10 @@ index 804a252382da..827e26a1e7c5 100644
  	reserve_initrd();
  
 diff --git a/drivers/firmware/efi/Makefile b/drivers/firmware/efi/Makefile
-index 8d151e332584..bd29fe4ddbf3 100644
+index e489fefd23da..f2dfae764fb5 100644
 --- a/drivers/firmware/efi/Makefile
 +++ b/drivers/firmware/efi/Makefile
-@@ -27,6 +27,7 @@ obj-$(CONFIG_EFI_FAKE_MEMMAP)		+= fake_map.o
+@@ -25,6 +25,7 @@ subdir-$(CONFIG_EFI_STUB)		+= libstub
  obj-$(CONFIG_EFI_BOOTLOADER_CONTROL)	+= efibc.o
  obj-$(CONFIG_EFI_TEST)			+= test/
  obj-$(CONFIG_EFI_DEV_PATH_PARSER)	+= dev-path-parser.o
@@ -112,10 +112,10 @@ index 000000000000..b6620669e32b
 +	}
 +}
 diff --git a/include/linux/efi.h b/include/linux/efi.h
-index 4e1bfee9675d..ea2af4a319de 100644
+index 80b21d1c6eaf..d267ddba8369 100644
 --- a/include/linux/efi.h
 +++ b/include/linux/efi.h
-@@ -865,6 +865,14 @@ extern int __init efi_setup_pcdp_console(char *);
+@@ -871,6 +871,14 @@ extern int __init efi_setup_pcdp_console(char *);
  #define EFI_MEM_ATTR		10	/* Did firmware publish an EFI_MEMORY_ATTRIBUTES table? */
  #define EFI_MEM_NO_SOFT_RESERVE	11	/* Is the kernel configured to ignore soft reservations? */
  #define EFI_PRESERVE_BS_REGIONS	12	/* Are EFI boot-services memory segments available? */
@@ -130,7 +130,7 @@ index 4e1bfee9675d..ea2af4a319de 100644
  
  #ifdef CONFIG_EFI
  /*
-@@ -889,6 +897,7 @@ static inline bool efi_rt_services_supported(unsigned int mask)
+@@ -895,6 +903,7 @@ static inline bool efi_rt_services_supported(unsigned int mask)
  	return (efi.runtime_supported_mask & mask) == mask;
  }
  extern void efi_find_mirror(void);
@@ -138,7 +138,7 @@ index 4e1bfee9675d..ea2af4a319de 100644
  #else
  static inline bool efi_enabled(int feature)
  {
-@@ -908,6 +917,7 @@ static inline bool efi_rt_services_supported(unsigned int mask)
+@@ -914,6 +923,7 @@ static inline bool efi_rt_services_supported(unsigned int mask)
  }
  
  static inline void efi_find_mirror(void) {}
@@ -146,8 +146,8 @@ index 4e1bfee9675d..ea2af4a319de 100644
  #endif
  
  extern int efi_status_to_err(efi_status_t status);
-@@ -1136,13 +1146,6 @@ static inline bool efi_runtime_disabled(void) { return true; }
- extern void efi_call_virt_check_flags(unsigned long flags, const char *call);
+@@ -1133,13 +1143,6 @@ static inline bool efi_runtime_disabled(void) { return true; }
+ extern void efi_call_virt_check_flags(unsigned long flags, const void *caller);
  extern unsigned long efi_call_virt_save_flags(void);
  
 -enum efi_secureboot_mode {
