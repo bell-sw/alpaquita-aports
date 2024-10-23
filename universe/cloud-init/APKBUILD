@@ -7,12 +7,11 @@
 # Contributor: Matt Dainty <matt+alpine@bodgit-n-scarper.com>
 # Contributor: Dermot Bradley <dermot_bradley@yahoo.com>
 pkgname=cloud-init
-pkgver=23.2.2
-pkgrel=1
+pkgver=24.1.3
+pkgrel=0
 pkgdesc="Cloud instance init scripts"
 url="https://cloud-init.io"
-# Dependant package "cloud-utils-growpart" is not available for
-# s390x so disable this arch for this package too.
+# s390x: blocked by cloud-utils-growpart
 arch="noarch !s390x"
 license="Apache-2.0 OR GPL-3.0-only"
 depends="
@@ -28,6 +27,7 @@ depends="
 	py3-jinja2
 	py3-jsonpatch
 	py3-jsonschema
+	py3-netifaces
 	py3-requests
 	py3-yaml
 	sfdisk
@@ -35,38 +35,37 @@ depends="
 	shadow
 	tzdata
 	"
-makedepends="py3-setuptools"
+makedepends="
+	py3-setuptools
+	"
 checkdepends="
 	bash
 	coreutils
 	grep
+	procps-ng
 	py3-netifaces
+	py3-passlib
+	py3-pyserial
 	py3-pytest
 	py3-pytest-mock
 	py3-responses
-	py3-pyserial
+	py3-tox
 	"
 subpackages="
 	$pkgname-bash-completion
 	$pkgname-doc
+	$pkgname-logrotate
 	$pkgname-pyc
 	$pkgname-openrc
 	"
 source="cloud-init-$pkgver.tar.gz::https://github.com/canonical/cloud-init/archive/refs/tags/$pkgver.tar.gz
 	01-oauthlib-remove.patch
-	02-disable-irrelevant-modules.patch
-	03-hook-hotplug-sh.patch
-	04-add-doas.patch
-	05-set-default-datasource-list.patch
-	1000-new-distro.patch
+	04-set-default-datasource-list.patch
 	1001-recognize-distro.patch
-	1002-openrc-cloud-init-local.patch
-	1003-Update-tests-for-py3-jsonschema-4.21.patch
 	1004-test_subp.py-fix-tests-for-CI-BASH_XTRACEFD.patch
 	cloud-init-hotplugd
 	cloud-init-hotplugd.initd
 	cloud-init.logrotate
-	dhclient-stub.py
 	interfaces
 	setup-cloud-init
 	README.Alpine
@@ -90,12 +89,20 @@ build() {
 }
 
 check() {
+	local k			# exclusions
+
 	# Run tests in UTC to work around musl incompatible treatment
 	# of %s in strftime vs tests/unittests/analyze/test_dump.py
-	# test_parse_unexpected_timestamp_format_with_date_command
 	# https://www.openwall.com/lists/musl/2018/01/18/4
+
+	# Alpine disables this test instead
+	# https://github.com/canonical/cloud-init/issues/5158
+	#k="${k:+$k and }not test_parse_unexpected_timestamp_format_with_date_command"
+
+	k="${k:+$k and }not test_parse_logline_returns_event_for_amazon_linux_2_line"
+
 	TZ=UTC \
-	python3 -m pytest
+	python3 -m pytest -k "$k"
 }
 
 package() {
@@ -133,11 +140,6 @@ package() {
 		"$srcdir"/README.Alpine \
 		"$pkgdir"/usr/share/doc/"$pkgname"/
 
-	install -m755 \
-		"$srcdir"/dhclient-stub.py \
-		"$pkgdir"/usr/lib/cloud-init/dhclient
-
-
 	# Delete non-Alpine distribution template files
 	for distro in \
 		arch centos cos debian fedora freebsd gentoo mariner openbsd \
@@ -150,15 +152,16 @@ package() {
 			rm "$file"
 		done
 	done
+	rm "$pkgdir"/etc/cloud/templates/sources.list.*.tmpl
 
 	# Delete non-Alpine os-specific files
 	for distro in \
 		almalinux amazon arch bsd centos cloudlinux cos debian \
 		dragonflybsd eurolinux fedora freebsd gentoo mariner \
-		miraclelinux netbsd net_util openEuler openbsd OpenCloudOS \
+		miraclelinux netbsd openeuler openbsd OpenCloudOS \
 		openmandriva opensuse opensuse-leap opensuse-microos \
 		opensuse-tumbleweed photon rhel rhel_util rocky sle-micro \
-		sle_hpc sles TencentOS ubuntu virtuozzo
+		sle_hpc sles suse TencentOS ubuntu virtuozzo
 	do
 		rm "$pkgdir"/usr/lib/python3.*/site-packages/cloudinit/distros/"$distro".py
 		rm "$pkgdir"/usr/lib/python3.*/site-packages/cloudinit/distros/__pycache__/"$distro".*.pyc
@@ -181,15 +184,12 @@ package() {
 		byobu \
 		fan \
 		grub_dpkg \
-		keyboard \
 		landscape \
 		lxd \
 		reset_rmc \
 		rh_subscription \
 		snap \
 		spacewalk \
-		ssh_import_id \
-		ubuntu_advantage \
 		ubuntu_autoinstall \
 		ubuntu_drivers \
 		yum_add_repo \
@@ -210,22 +210,23 @@ package() {
 	done
 }
 
+logrotate() {
+	pkgdesc="Cloud instance init scripts (logrotate configuration)"
+	depends=""
+	install_if="$pkgname=$pkgver-r$pkgrel logrotate"
+
+	amove etc/logrotate.d/cloud-init
+}
+
 sha512sums="
-5a3788d3bad568b502bc4776472ca58d2543da2340a1cfcffd69429d44b1a00ba904d9986fac9babb0b4f58f0d1d326a497e56239e9c10fa35f2668de5a77dba  cloud-init-23.2.2.tar.gz
+cc2a86637926ee2201a186f4f68fd579a1a9f7b4649ab5e90fe5fcd975a45fcf893e2fbe272ae9829ce8dca4faadc82bb9fde8b957d8e1ef7769686ee0aeefe8  cloud-init-24.1.3.tar.gz
 c14ce3b27c55d1c381e27b2898bb73da8a74c53480d496bdfc87318b69fb612678205ab5a686c1ce703ef5c2c7a8529f629c8f908aeff39524d36870a83c1929  01-oauthlib-remove.patch
-81d233d121a94c5277ad92713f8660b0fef79f1f50452436f2ad67deda6dea86c685f349db53e57a209d5dc6ba0ab726292d399627778af4d3752c05bfd849fb  02-disable-irrelevant-modules.patch
-463d7ca00f576de75444e86d9b32e1452c824a9f2708b624549e7e003b330c96fbc78d44756efd95d1f954fa0633ce0c0b619e798cdb33b8c86799ee07554834  03-hook-hotplug-sh.patch
-619385c93138b6678d1a58c8e9e786a355eb11da646cf29a60ed19137ef52cfaf0c76736cd1cb8a179d01a207259d3a9147ff45179e2625a97c73eb28e261305  04-add-doas.patch
-fe0f6d3c9e4772af8aa940450ec7b905ab5105325bcab7fe5b5ec0bcbd428067957ce2f4489ee55fae0c8c248ee2100ebec321e14938e504cde52de9637b27eb  05-set-default-datasource-list.patch
-622672d0a633791c44ca776ac0a0e971356290d436615d66ce8ffcf80d163b214a1a533e7936c3b5696e2802743262f05044cbb7d97ad7770d4093cde81864fb  1000-new-distro.patch
-0cebe5dcc20fc8c728b335d25c596feb92f0e4ae377ee33814415f6bb5ddc7a12291af5e8f9a46fc5dbf82f2698f285678fbfb8a8c1596bab6d9bac2079b0f20  1001-recognize-distro.patch
-8375da32f231e1d3be9fb81d0551d239ee0118329f485f7eba6a6eaa8cc3465d5895183182f2665ebd5ae4d58b07f5a697e374703c274877d821d2d15ae85fdf  1002-openrc-cloud-init-local.patch
-182c9b9167aa1b7af6fce0aa00cb87114e49b0a3d4756db94a829a8d2f2b886c15394002d06cc079309a3b01c5e066ecd38da419ad566bc22bd89c406235e2e8  1003-Update-tests-for-py3-jsonschema-4.21.patch
-97c594607628e0db9a51d716e1f001aca0b8fbee1ad8feb113ebc5026c5faee5caddbbdbac12ac254e1d7c7b9c4d375859dd43c2789f661bb7e9ea081185a2f6  1004-test_subp.py-fix-tests-for-CI-BASH_XTRACEFD.patch
+8174411925f40f7e0eabb43cfdc273dfd0cf069e3713a3883ed128df7a5cc80b7d19e2643629cf17ae65c3d8e59cc8a074ca5932a6a4fe0e8299fad9ce861686  04-set-default-datasource-list.patch
+74f4cd95ad90a8de081651d45424ce6ba1497b539cd91a6ce27ed8753a983c4a6265dca4c18141ee438bca7aea0635abc275bfc89d433d4a43d70649793b68f1  1001-recognize-distro.patch
+06eecd784b7f49029924800b394803b675e1b7895cdbb195a34e3146d3937994e367e8d78d62a37a143db97743270c025628775eabdc8d962df851d282d08d32  1004-test_subp.py-fix-tests-for-CI-BASH_XTRACEFD.patch
 2d7b80fc248ec18f20c4ed2fbe0f8d6ea85ae57a0ece8ecf8a095cf910c576807c19ab0453c00160b85253df5725cba90abec731cb54f441a509611115519b46  cloud-init-hotplugd
 ab44fc51979a5da8569b08ed2f290a6610de6c36cf147af20f30e9224847623d3594c056a1f64c614598ac130e9bec92d566fb901024f806b768a89190c45f59  cloud-init-hotplugd.initd
 3c6c5189859633012fd389a8d8370cbd46ddd07f206d61bcf872f12105f340552073cbf28f28096109c158b641de1c8199afcfc7f751166a27d4089355e1dd7d  cloud-init.logrotate
-5a40e2a6dedb2939917f6befc4cf675b6bf307f8f185f593ba1af51a55dcd90020efda714fb526e1afdcd10af90300376070ee394b2d221df5b69894f2e143b6  dhclient-stub.py
 48b25ec4457c2b3772a7d210033551d041749a0d1869818d888030e6df7fd9bbc13a38b95cf465de3d46d96881a722f94a337584ce48f280c4a52b819586563a  interfaces
 9340e30b6c95f66cb2cdc68c0c5d765e4ce879d2f2bfb042c4b45996cf2b5c542b3762c6abfd213b4b9610f290d6ca734c28c7240fea76fb5cf58253570d2e8f  setup-cloud-init
 585471d64ea0d34f2802c08ccc701ea206311f3ff82c60c8a67d72d60618927fdd1c3c59448d1b840942c23319e6127a7eda9280e8dba776741efef1eb0b07a6  README.Alpine
