@@ -1,0 +1,43 @@
+From 965fa5540ec15692ea3b03231042a3ff9348986f Mon Sep 17 00:00:00 2001
+From: Valery Ushakov <valery.ushakov@bell-sw.com>
+Date: Thu, 2 May 2024 21:04:56 +0300
+Subject: [PATCH] abuild: allow digit+letter+digit versions
+
+3.13 started to proactively compalain about the versions like 8u42
+that apk-tools v2 still accept; disable that check for now to allow
+that kind of versions.
+---
+ abuild.in         | 4 +++-
+ tests/abuild_test | 1 -
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/abuild.in b/abuild.in
+index d1cb2a0..46e4ade 100644
+--- a/abuild.in
++++ b/abuild.in
+@@ -246,7 +246,9 @@ default_validate() {
+ 	# digit+letter+digit passes the apk2 version check
+ 	case $pkgver in
+ 		*[0-9][a-z][0-9]*)
+-			die "the digit+letter+digit version format is invalid. Use suffixes instead"
++			# was "die".  for now allow these to support
++			# versions like openjdk8 8u42
++			warning "the digit+letter+digit version format is invalid. Use suffixes instead"
+ 			;;
+ 	esac
+ 
+diff --git a/tests/abuild_test b/tests/abuild_test
+index e87c65a..f4ea04f 100755
+--- a/tests/abuild_test
++++ b/tests/abuild_test
+@@ -28,7 +28,6 @@ init_tests \
+ 	abuild_subpackage_arch \
+ 	abuild_large_doc_subpackage \
+ 	abuild_bigdocs \
+-	abuild_pkgver_digit_letter_digit \
+ 	abuild_multiline_license \
+ 	abuild_license_spdx \
+ 	abuild_git_ceiling \
+-- 
+2.46.2
+

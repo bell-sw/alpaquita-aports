@@ -1,4 +1,4 @@
-From e4425f2e18bae4906b07431632d24541989af9e2 Mon Sep 17 00:00:00 2001
+From 7f4a1ef87713c61de5c2fcb76404641deff7c714 Mon Sep 17 00:00:00 2001
 From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
 Date: Thu, 7 Dec 2023 19:43:25 +0300
 Subject: [PATCH] abuild: add option -X for skipping running the check command
@@ -9,10 +9,10 @@ Subject: [PATCH] abuild: add option -X for skipping running the check command
  1 file changed, 6 insertions(+), 4 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index 9796e70..3c2bb30 100644
+index 68f2e78..b9907af 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -1962,7 +1962,7 @@ build_abuildrepo() {
+@@ -1967,7 +1967,7 @@ build_abuildrepo() {
  	if options_has "checkroot"; then
  		_check=check_fakeroot
  	fi
@@ -21,7 +21,7 @@ index 9796e70..3c2bb30 100644
  		_check=true
  	fi
  	if ! apk_up2date || [ -n "$force" ]; then
-@@ -2582,7 +2582,7 @@ rootbld_actions() {
+@@ -2562,7 +2562,7 @@ rootbld_actions() {
  	if options_has "checkroot"; then
  		_check=check_fakeroot
  	fi
@@ -30,15 +30,15 @@ index 9796e70..3c2bb30 100644
  		_check=true
  	fi
  	for part in symlinksrc unpack prepare build $_check check_fmv rootpkg; do
-@@ -3006,6 +3006,7 @@ usage() {
- 		 -r  Install missing dependencies from system repository (using sudo)
+@@ -2985,6 +2985,7 @@ usage() {
+ 		 -r  Install missing dependencies from system repository (using \$SUDO_APK)
  		 -s  Set source package destination directory
  		 -v  Verbose: show every command as it is run (very noisy)
 +		 -X  Skip running the check command by default
  
  		Commands:
  		  build       Compile and install package into \$pkgdir
-@@ -3040,8 +3041,8 @@ usage() {
+@@ -3019,8 +3020,8 @@ usage() {
  }
  
  APKBUILD="${APKBUILD:-./APKBUILD}"
@@ -49,7 +49,7 @@ index 9796e70..3c2bb30 100644
  	case $opt in
  		'A') echo "$CARCH"; exit 0;;
  		'c') enable_colors
-@@ -3062,6 +3063,7 @@ while getopts ":AcdD:fFhkKmnP:qrRs:uvV" opt; do
+@@ -3041,6 +3042,7 @@ while getopts ":AcdD:fFhkKmnP:qrRs:uvV" opt; do
  		's') SRCDEST=$OPTARG;;
  		'v') verbose="-v"; set -x;;
  		'V') echo "$program $program_version"; exit 0;;
@@ -58,5 +58,5 @@ index 9796e70..3c2bb30 100644
  	esac
  done
 -- 
-2.42.1
+2.46.2
 

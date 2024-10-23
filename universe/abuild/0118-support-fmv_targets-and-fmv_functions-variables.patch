@@ -1,4 +1,4 @@
-From 85a25fd71bb76b94da3045c0d41609e889e140d1 Mon Sep 17 00:00:00 2001
+From f6cf891b1345f3a1cb5ea825f367f975017e6fc3 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Fri, 8 Sep 2023 14:53:40 +0000
 Subject: [PATCH] support fmv_targets and fmv_functions variables
@@ -13,10 +13,10 @@ Subject: [PATCH] support fmv_targets and fmv_functions variables
  1 file changed, 54 insertions(+), 2 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index d3f7e9b..9796e70 100644
+index 6791a02..68f2e78 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -770,6 +770,7 @@ default_prepare() {
+@@ -776,6 +776,7 @@ default_prepare() {
  	local i failed=
  	[ -n "$builddir" -a -d "$builddir" ] && cd "$builddir"
  	if ! have_patches; then
@@ -24,7 +24,7 @@ index d3f7e9b..9796e70 100644
  		return 0
  	fi
  	[ -d "$builddir" ] || { error "Is \$builddir set correctly?"; return 1; }
-@@ -789,6 +790,9 @@ default_prepare() {
+@@ -795,6 +796,9 @@ default_prepare() {
  				;;
  		esac
  	done
@@ -34,16 +34,16 @@ index d3f7e9b..9796e70 100644
  	if [ -z "$failed" ]; then
  		return 0
  	fi
-@@ -1972,7 +1976,7 @@ build_abuildrepo() {
+@@ -1977,7 +1981,7 @@ build_abuildrepo() {
  		set_source_date
  
- 		for part in remove_libc_tags sanitycheck builddeps clean fetch unpack prepare mkusers build \
+ 		for part in remove_libc_tags validate builddeps clean fetch unpack prepare mkusers build \
 -				$_check rootpkg; do
 +				$_check check_fmv rootpkg; do
  			runpart $part
  		done
- 		local _endtime=$(date -u +%s)
-@@ -2581,7 +2585,7 @@ rootbld_actions() {
+ 		_endtime=$(date -u +%s)
+@@ -2561,7 +2565,7 @@ rootbld_actions() {
  	if ! want_check; then
  		_check=true
  	fi
@@ -52,8 +52,8 @@ index d3f7e9b..9796e70 100644
  		runpart $part
  	done
  }
-@@ -3135,6 +3139,54 @@ remove_cflags()
- 	export CPPFLAGS="${CPPFLAGS/$f/}"
+@@ -3114,6 +3118,54 @@ remove_cflags()
+ 	export CPPFLAGS="${CPPFLAGS//$f/}"
  }
  
 +setup_fmv()
@@ -108,5 +108,5 @@ index d3f7e9b..9796e70 100644
  	remove_cflags "-fplugin=annobin"
  fi
 -- 
-2.42.0
+2.46.2
 

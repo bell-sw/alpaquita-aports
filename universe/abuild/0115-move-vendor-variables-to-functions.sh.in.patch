@@ -1,4 +1,4 @@
-From 92b79c1a958eb553d27441d980040ad62236acb3 Mon Sep 17 00:00:00 2001
+From fda848eca393e56527e5d32c43c08c7c4005e1b2 Mon Sep 17 00:00:00 2001
 From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
 Date: Thu, 2 Feb 2023 14:48:47 +0300
 Subject: [PATCH] move vendor variables to functions.sh.in
@@ -9,13 +9,13 @@ Subject: [PATCH] move vendor variables to functions.sh.in
  2 files changed, 8 insertions(+), 6 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index 13b4b7c..d3f7e9b 100644
+index 352bc64..6791a02 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -31,12 +31,6 @@ fi
- : ${CC:="gcc"}
- : ${CXX:="g++"}
- : ${SETFATTR:="setfattr"}
+@@ -28,12 +28,6 @@ fi
+ : ${APK:="apk"}
+ : ${ADDUSER:="abuild-adduser"}
+ : ${ADDGROUP:="abuild-addgroup"}
 -: ${VENDOR_NAME:="BellSoft"}
 -: ${VENDOR_URL:="https://bell-sw.com/"}
 -: ${VENDOR_BUG_REPORT_URL:="https://bell-sw.com/support/"}
@@ -26,10 +26,10 @@ index 13b4b7c..d3f7e9b 100644
  apk_opt_wait="--wait 30"
  doc_threshold=$((2 * 1024 * 1024)) # 2 MiB
 diff --git a/functions.sh.in b/functions.sh.in
-index ddbaba4..ff53a6f 100644
+index 6dfb8b5..9ed3b5d 100644
 --- a/functions.sh.in
 +++ b/functions.sh.in
-@@ -177,6 +177,14 @@ readconfig() {
+@@ -178,6 +178,14 @@ readconfig() {
  			export LDFLAGS="--sysroot=${CBUILDROOT} $LDFLAGS"
  		fi
  	fi
@@ -45,5 +45,5 @@ index ddbaba4..ff53a6f 100644
  }
  readconfig
 -- 
-2.42.0
+2.46.2
 

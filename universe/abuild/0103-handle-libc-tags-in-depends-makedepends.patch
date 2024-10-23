@@ -1,4 +1,4 @@
-From 14d00142015866525875ffd5f6e4cc5d7f4b602d Mon Sep 17 00:00:00 2001
+From 3c0e7adb6f2dfa83caec8256e9c2fab00d3b2d10 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Wed, 2 Feb 2022 17:41:55 +0300
 Subject: [PATCH] handle libc tags in depends/makedepends
@@ -8,10 +8,10 @@ Subject: [PATCH] handle libc tags in depends/makedepends
  1 file changed, 26 insertions(+), 1 deletion(-)
 
 diff --git a/abuild.in b/abuild.in
-index d960a02..6462f0f 100644
+index 57fc0e1..4f144bc 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -206,6 +206,28 @@ verify_pkgname() {
+@@ -202,6 +202,28 @@ verify_pkgname() {
  	return 0
  }
  
@@ -37,10 +37,10 @@ index d960a02..6462f0f 100644
 +	done
 +}
 +
- # check if apkbuild is basically sane
- default_sanitycheck() {
- 	local i= j= suggestion=
-@@ -1136,6 +1158,8 @@ prepare_metafiles() {
+ # check if apkbuild is valid
+ default_validate() {
+ 	local i= j=
+@@ -1137,6 +1159,8 @@ prepare_metafiles() {
  	mkdir -p "$controldir"
  	local builddate="$SOURCE_DATE_EPOCH"
  
@@ -49,23 +49,23 @@ index d960a02..6462f0f 100644
  	# Fix package size on several filesystems
  	case "$(stat -f -c "%T" .)" in
  	btrfs|ecryptfs|zfs)
-@@ -1897,7 +1921,7 @@ build_abuildrepo() {
+@@ -1913,7 +1937,7 @@ build_abuildrepo() {
  		# make sure SOURCE_DATE_EPOCH is set
  		set_source_date
  
--		for part in sanitycheck builddeps clean fetch unpack prepare mkusers build \
-+		for part in remove_libc_tags sanitycheck builddeps clean fetch unpack prepare mkusers build \
+-		for part in validate builddeps clean fetch unpack prepare mkusers build \
++		for part in remove_libc_tags validate builddeps clean fetch unpack prepare mkusers build \
  				$_check rootpkg; do
  			runpart $part
  		done
-@@ -2555,6 +2579,7 @@ rootbld() {
+@@ -2542,6 +2566,7 @@ rootbld() {
  	set_source_date
  
  	# networking business
 +	remove_libc_tags
- 	sanitycheck
+ 	validate
  	clean
  	fetch
 -- 
-2.42.0
+2.46.2
 

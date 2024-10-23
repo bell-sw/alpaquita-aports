@@ -1,4 +1,4 @@
-From 8a82b16c8c980a2a3452ab1827d63cc3178a8536 Mon Sep 17 00:00:00 2001
+From ed051b0cafe3d39ad4e366c546b5b5ccb9933e5d Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Thu, 14 Dec 2023 17:48:09 +0000
 Subject: [PATCH] prioritize usr/lib processing in default_dev()
@@ -14,10 +14,10 @@ already been moved.
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index 36317d6..4ad3f7a 100644
+index b9907af..b40507b 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -2040,7 +2040,7 @@ default_dev() {
+@@ -2137,7 +2137,7 @@ default_dev() {
  
  	cd "$pkgdir" || return 0
  	local libdirs=usr/
@@ -26,15 +26,15 @@ index 36317d6..4ad3f7a 100644
  	for i in usr/include usr/lib/pkgconfig usr/share/pkgconfig \
  			usr/share/aclocal usr/share/gettext \
  			usr/bin/*-config usr/share/vala/vapi \
-@@ -2060,7 +2060,7 @@ default_dev() {
+@@ -2154,7 +2154,7 @@ default_dev() {
  		fi
  	done
  	# move *.so links needed when linking the apps to -dev packages
 -	for i in lib/*.so usr/lib/*.so; do
 +	for i in usr/lib/*.so lib/*.so; do
- 		if [ -L "$i" ]; then
- 			mkdir -p "$subpkgdir"/"${i%/*}"
- 			mv "$i" "$subpkgdir/$i" || return 1
+ 		[ -L "$i" ] && amove "$i"
+ 	done
+ 	return 0
 -- 
-2.25.1
+2.46.2
 

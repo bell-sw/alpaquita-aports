@@ -1,4 +1,4 @@
-From 7e4c9f2345138851448698164328850cef9fa5e3 Mon Sep 17 00:00:00 2001
+From d4c0baef8859e6c8fc86d44b464b0438f4eb3339 Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
 Date: Wed, 15 Jun 2022 10:16:32 +0000
 Subject: [PATCH] Don't add /bin/sh dependency for glibc-bin.trigger
@@ -8,12 +8,12 @@ Subject: [PATCH] Don't add /bin/sh dependency for glibc-bin.trigger
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/abuild.in b/abuild.in
-index 3c88865..2be636e 100644
+index 5f527af..496c1c3 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -1210,7 +1210,8 @@ prepare_metafiles() {
+@@ -1222,7 +1222,8 @@ prepare_metafiles() {
  	EOF
- 	local i deps
+ 	local deps
  	deps="$depends"
 -	if [ "$pkgname" != "busybox" ] && ! depends_has busybox && ! depends_has /bin/sh; then
 +	if [ "$pkgname" != "busybox" -a "$subpkgname" != "glibc-utils" ] && ! depends_has busybox \
@@ -22,5 +22,5 @@ index 3c88865..2be636e 100644
  			local s=${i%=*}
  			[ "$name" != "${s%.*}" ] && continue
 -- 
-2.42.0
+2.46.2
 

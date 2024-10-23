@@ -1,16 +1,16 @@
-From 88ffdccc8a73ebef9709ffa3435004e02939c03e Mon Sep 17 00:00:00 2001
+From 104e55b2d1cad87eeefa7ce6ac126763b633967b Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
 Date: Thu, 20 Jan 2022 09:25:14 +0000
 Subject: [PATCH] Added support for glibc toolchains
 
 ---
  Makefile        |  3 +++
- abuild.in       | 37 +++++++++++++++++++++++++++++--------
+ abuild.in       | 35 ++++++++++++++++++++++++++++-------
  functions.sh.in | 38 ++------------------------------------
- 3 files changed, 34 insertions(+), 44 deletions(-)
+ 3 files changed, 33 insertions(+), 43 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index d3922de..066310d 100644
+index 08ae99a..cdf6369 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -7,6 +7,8 @@ sysconfdir	?= /etc
@@ -31,10 +31,10 @@ index d3922de..066310d 100644
  SSL_CFLAGS	?= $(shell pkg-config --cflags openssl)
  SSL_LDFLAGS	?= $(shell pkg-config --cflags openssl)
 diff --git a/abuild.in b/abuild.in
-index af5ccf0..d960a02 100644
+index ac8ce4e..57fc0e1 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -71,6 +71,25 @@ error() {
+@@ -68,6 +68,25 @@ error() {
  	logcmd "ERROR: $pkgname: $1"
  }
  
@@ -60,18 +60,16 @@ index af5ccf0..d960a02 100644
  amove() {
  	[ -n "$subpkgdir" ] || return 1
  
-@@ -265,8 +284,8 @@ default_sanitycheck() {
+@@ -267,7 +286,7 @@ default_validate() {
  
  		[ -e "$startdir"/$f ] || die "trigger script $f is missing"
  	done
--	if [ -n "$source" ]; then
--		for i in $source; do
-+	if [ -n "$source_all" ]; then
-+		for i in $source_all; do
- 			if install_has "$i"; then
- 				warning "You should not have \$install in source"
- 				continue
-@@ -342,7 +361,7 @@ sumcheck() {
+-	for i in $source; do
++	for i in $source_all; do
+ 		if install_has "$i"; then
+ 			warning "You should not have \$install in source"
+ 			continue
+@@ -350,7 +369,7 @@ sumcheck() {
  	set -- $sums
  	local numsums=$(( $# / 2 ))
  
@@ -80,7 +78,7 @@ index af5ccf0..d960a02 100644
  	if [ $# -ne $numsums ]; then
  		die "Number of ${algo}sums($numsums) does not correspond to number of sources($#)"
  	fi
-@@ -464,7 +483,7 @@ symlinksrc() {
+@@ -465,7 +484,7 @@ symlinksrc() {
  default_fetch() {
  	local s
  	mkdir -p "$srcdir"
@@ -89,7 +87,7 @@ index af5ccf0..d960a02 100644
  		if is_remote "$s"; then
  			uri_fetch_mirror "$s" || return 1
  			ln -sf "$SRCDEST/$(filename_from_uri $s)" "$srcdir"/
-@@ -565,7 +584,7 @@ clean() {
+@@ -566,7 +585,7 @@ clean() {
  # cleanup fetched sources
  cleancache() {
  	local s
@@ -98,25 +96,25 @@ index af5ccf0..d960a02 100644
  		if is_remote "$s"; then
  			s=$(filename_from_uri $s)
  			msg "Cleaning downloaded $s ..."
-@@ -2449,7 +2468,7 @@ builddeps() {
- # replace the md5sums in the APKBUILD
+@@ -2441,7 +2460,7 @@ builddeps() {
+ # replace the sha512sums in the APKBUILD
  checksum() {
- 	local s files
--	[ -z "$source" ] && [ -n "${md5sums}${sha256sums}${sha512sums}" ] \
-+	[ -z "$source_all" ] && [ -n "${md5sums}${sha256sums}${sha512sums}" ] \
+ 	local s files name
+-	[ -z "$source" ] && [ -n "${sha256sums}${sha512sums}" ] \
++	[ -z "$source_all" ] && [ -n "${sha256sums}${sha512sums}" ] \
  		&& msg "Removing checksums from $APKBUILD"
  	sed -E -i \
- 		-e '/^(md5|sha[0-9]+)sums=".*"$/d' \
-@@ -2461,7 +2480,7 @@ checksum() {
+ 		-e '/^sha[0-9]+sums=".*"$/d' \
+@@ -2453,7 +2472,7 @@ checksum() {
  
  	[ -z "$source" ] && return 0
  	fetch
 -	for s in $source; do
 +	for s in $source_all; do
- 		local name="$(filename_from_uri $s)"
+ 		name="$(filename_from_uri $s)"
  		case " $files " in
  		*" $name "*) die "duplicate found in \$source: $name";;
-@@ -2676,7 +2695,7 @@ listpkg() {
+@@ -2670,7 +2689,7 @@ listpkg() {
  
  source_has() {
  	local i
@@ -125,7 +123,7 @@ index af5ccf0..d960a02 100644
  		[ "$1" = "${i##*/}" ] && return 0
  		[ "$1" = "${i%%::*}" ] && return 0
  	done
-@@ -2952,6 +2971,8 @@ cd "$startdir" || die
+@@ -2942,6 +2961,8 @@ cd "$startdir" || die
  
  builddir=${builddir:-"$srcdir/$pkgname-$pkgver"}
  
@@ -135,7 +133,7 @@ index af5ccf0..d960a02 100644
  if [ -z "$REPODEST" ]; then
  	warning "REPODEST is not set and is now required. Defaulting to $HOME/packages"
 diff --git a/functions.sh.in b/functions.sh.in
-index 382a86b..5745fb4 100644
+index f5d3607..335219f 100644
 --- a/functions.sh.in
 +++ b/functions.sh.in
 @@ -6,25 +6,8 @@ program=${0##*/}
@@ -191,5 +189,5 @@ index 382a86b..5745fb4 100644
  	*)			echo "unknown" ;;
  	esac
 -- 
-2.42.0
+2.46.2
 

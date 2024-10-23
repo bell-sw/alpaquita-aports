@@ -1,4 +1,4 @@
-From 1add9b3ad5de05dd2029e5653520a3781c2e5349 Mon Sep 17 00:00:00 2001
+From f45d8c9b792383a35f97dbf295cdc0d745ddbc22 Mon Sep 17 00:00:00 2001
 From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
 Date: Mon, 2 Sep 2024 14:55:40 +0300
 Subject: [PATCH] abuild: return libc specific logic
@@ -11,7 +11,7 @@ logic") except the uclibc workaround.
  2 files changed, 14 insertions(+), 5 deletions(-)
 
 diff --git a/abuild.1.scd b/abuild.1.scd
-index b7b1dfc..753a1ea 100644
+index 789ab6c..ba83a97 100644
 --- a/abuild.1.scd
 +++ b/abuild.1.scd
 @@ -28,7 +28,7 @@ other related operations.
@@ -24,10 +24,10 @@ index b7b1dfc..753a1ea 100644
  *-F*
  	Force run as root
 diff --git a/abuild.in b/abuild.in
-index 769338f..b071232 100644
+index 41a5298..d1cb2a0 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -2413,6 +2413,11 @@ check_arch() {
+@@ -2386,6 +2386,11 @@ check_arch() {
  	return $ret
  }
  
@@ -39,7 +39,7 @@ index 769338f..b071232 100644
  # check if package is up to date
  apk_up2date() {
  	local i s
-@@ -2463,6 +2468,7 @@ abuildindex_up2date() {
+@@ -2436,6 +2441,7 @@ abuildindex_up2date() {
  
  up2date() {
  	check_arch || return 0
@@ -47,7 +47,7 @@ index 769338f..b071232 100644
  	apk_up2date && abuildindex_up2date
  }
  
-@@ -2940,9 +2946,12 @@ uninstalldeps() { undeps; }
+@@ -2916,9 +2922,12 @@ uninstalldeps() { undeps; }
  index() { update_abuildrepo_index; }
  
  all() {
@@ -63,7 +63,7 @@ index 769338f..b071232 100644
  	fi
  	if up2date && [ -z "$force" ]; then
  		msg "Package is up to date"
-@@ -3005,7 +3014,7 @@ usage() {
+@@ -2982,7 +2991,7 @@ usage() {
  		 -c  Enable colored output
  		 -d  Disable dependency checking
  		 -D  Set APKINDEX description (default: \$repo \$(git describe))
@@ -73,5 +73,5 @@ index 769338f..b071232 100644
  		 -h  Show this help
  		 -k  Keep built packages, even if APKBUILD or sources are newer
 -- 
-2.45.2
+2.46.2
 
