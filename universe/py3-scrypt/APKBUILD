@@ -1,0 +1,34 @@
+pkgname=py3-scrypt
+pkgver=0.8.20
+pkgrel=5
+pkgdesc="Python bindings for the scrypt key derivation function"
+url="https://pypi.org/project/scrypt/"
+license="BSD-2-Clause"
+arch="all"
+depends="python3"
+makedepends="python3-dev openssl-dev py3-gpep517 py3-installer py3-setuptools py3-wheel"
+subpackages="$pkgname-pyc"
+source="https://files.pythonhosted.org/packages/source/s/scrypt/scrypt-$pkgver.tar.gz"
+builddir="$srcdir/scrypt-$pkgver"
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/scrypt-*.whl
+
+	# do not install the tests module
+	rm -r "$pkgdir"/usr/lib/python*/site-packages/scrypt/tests
+}
+
+sha512sums="
+da8d34755d4b6c98dc57ff7baf17839cf2434a6d7eb9f6fdc69b3e458d41b4fc49f7fd3a5631318b82bc4b2e46dedb806035897bf1be5a4670b4120f6b46efbc  scrypt-0.8.20.tar.gz
+"
