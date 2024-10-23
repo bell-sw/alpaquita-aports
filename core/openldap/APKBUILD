@@ -280,7 +280,6 @@ package() {
 libldap() {
 	pkgdesc="OpenLDAP libraries"
 	depends=""
-	provides=""
 
 	amove usr/lib/*.so*
 	amove etc/openldap/ldap.conf
@@ -288,7 +287,6 @@ libldap() {
 
 lloadd() {
 	pkgdesc="Standalone LDAP Load Balancer Daemon"
-	provides=""
 
 	amove etc/openldap/lloadd.conf
 	amove usr/sbin/lloadd
@@ -298,7 +296,6 @@ lloadd() {
 lloadd_openrc() {
 	pkgdesc="Standalone LDAP Load Balancer Daemon (OpenRC init scripts)"
 	depends="$depends_openrc"
-	provides=""
 	install_if="openrc $pkgname-lloadd=$pkgver-r$pkgrel"
 
 	amove etc/init.d/lloadd
@@ -307,7 +304,6 @@ lloadd_openrc() {
 
 clients() {
 	pkgdesc="LDAP client utilities"
-	provides=""
 
 	amove usr/bin
 }
@@ -315,7 +311,6 @@ clients() {
 passwd_argon2() {
 	pkgdesc="Argon2 OpenLDAP support"
 	depends="$pkgname"
-	provides=""
 
 	amove usr/lib/openldap/argon2.*
 }
@@ -323,7 +318,6 @@ passwd_argon2() {
 passwd_pbkdf2() {
 	pkgdesc="PBKDF2 OpenLDAP support"
 	depends="$pkgname"
-	provides=""
 
 	amove usr/lib/openldap/pw-pbkdf2.*
 }
@@ -331,7 +325,6 @@ passwd_pbkdf2() {
 passwd_sha2() {
 	pkgdesc="SHA2 OpenLDAP support"
 	depends="$pkgname"
-	provides=""
 
 	amove usr/lib/openldap/pw-sha2.*
 }
@@ -339,7 +332,6 @@ passwd_sha2() {
 _backend_all() {
 	pkgdesc="Virtual package that installs all OpenLDAP backends"
 	depends="$_backend_pkgs"
-	provides=""
 
 	mkdir -p "$subpkgdir"
 }
@@ -347,7 +339,6 @@ _backend_all() {
 _overlay_all() {
 	pkgdesc="Virtual package that installs all OpenLDAP overlays"
 	depends="$_overlay_pkgs"
-	provides=""
 
 	mkdir -p "$subpkgdir"
 }
@@ -355,7 +346,6 @@ _overlay_all() {
 _backend() {
 	backend_name="${subpkgname#openldap-back-}"
 	pkgdesc="OpenLDAP $backend_name backend"
-	provides=""
 
 	case "$backend_name" in
 		lload) pkgdesc="OpenLDAP load balancer backend (module)";;
@@ -368,7 +358,6 @@ _backend() {
 _overlay() {
 	overlay_name="${subpkgname#openldap-overlay-}"
 	pkgdesc="OpenLDAP $overlay_name overlay"
-	provides=""
 
 	case "$overlay_name" in
 		proxycache)
