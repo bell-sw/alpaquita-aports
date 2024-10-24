@@ -150,23 +150,10 @@ prepare() {
 }
 
 build() {
-	local _extra_cflags= _extra_libs= _extra_libs_static=
+	local _extra_cflags= _extra_libs=
 	if [ -z "$BOOTSTRAP" ] ; then
 		_extra_cflags="$(pkg-config --cflags --static utmps)"
-		_extra_libs_static="$(pkg-config --libs --static utmps)"
-
-		# In Alpine, utmps and skalibs static libraries are installed
-		# to /usr/lib whereas their shared libraries are installed to
-		# /lib.  Although, shared libraries have a higher priority when
-		# linking, the linker searches the path /usr/lib first.  It
-		# lets a dynamic busybox be linked with libutmps and libskarnet
-		# statically.
-		#
-		# In Alpaquita, /lib is a symbolic link to /usr/lib.  That
-		# means static and shared libraries are in the same directory.
-		# So if we want to link a dynamic busybox statically with those
-		# libraries, we have to clearly specify that.
-		_extra_libs="-Wl,-Bstatic $_extra_libs_static -Wl,-Bdynamic"
+		_extra_libs="-Wl,--push-state,-Bstatic $(pkg-config --libs --static utmps) -Wl,--pop-state"
 	fi
 
 	# build bbsuid
@@ -208,11 +195,10 @@ build() {
 }
 
 check() {
-	local _extra_cflags= _extra_libs= _extra_libs_static=
+	local _extra_cflags= _extra_libs=
 	if [ -z "$BOOTSTRAP" ] ; then
 		_extra_cflags="$(pkg-config --cflags --static utmps)"
-		_extra_libs_static="$(pkg-config --libs --static utmps)"
-		_extra_libs="-Wl,-Bstatic $_extra_libs_static -Wl,-Bdynamic"
+		_extra_libs="-Wl,--push-state,-Bstatic $(pkg-config --libs --static utmps) -Wl,--pop-state"
 	fi
 
 	# Set VERBOSE to see expected outcome of each test (runtest -v flag).
