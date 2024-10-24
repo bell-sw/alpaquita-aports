@@ -134,14 +134,9 @@ build() {
 		# TODO: Find a better way (libutmps.so w/o dependency on libskarnet.so)?
 		# also throw in lto when not bootstrapping
 		export CFLAGS="$CFLAGS -ffat-lto-objects -flto=auto $(pkg-config --cflags --static utmps)"
-		# Clearly specify we want to link with utmps statically.  For
-		# more information, see:
-		#
-		# 	../../core/busybox/APKBUILD
-		#
 		# Prepend each linker flag with '-Wl,', otherwise libtool will
 		# mangle the order of linker options.
-		export LDFLAGS="$LDFLAGS -Wl,-Bstatic $(pkg-config --libs --static utmps | sed 's/-/-Wl,-/g') -Wl,-Bdynamic"
+		export LDFLAGS="$LDFLAGS -Wl,--push-state,-Bstatic $(pkg-config --libs --static utmps | sed 's/-/-Wl,-/g') -Wl,--pop-state"
 	fi
 
 	# --disable-chfn-chsh - chfn and chsh are provided by shadow package
