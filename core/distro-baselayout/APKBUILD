@@ -1,6 +1,6 @@
 pkgname=distro-baselayout
 pkgver=3.6.7
-pkgrel=0
+pkgrel=1
 pkgdesc="$VENDOR_DISTRO_NAME base dir structure and init scripts"
 url="$VENDOR_URL"
 arch="noarch"
@@ -227,13 +227,6 @@ package() {
 		# Allowing unprivileged use of the bpf(2) syscall may allow a
 		# malicious user to compromise the machine.
 		kernel.unprivileged_bpf_disabled = 1
-	EOF
-	cat > "$pkgdir/etc/sysfs.d/00-${VENDOR_DISTRO}.conf" <<-EOF
-		# Tune scheduler settings for server workloads.
-		# Increase the minimum preemption granularity:
-		kernel/debug/sched/min_granularity_ns = 10000000
-		# Reduce disturbance of CPU-bound tasks:
-		kernel/debug/sched/wakeup_granularity_ns = 15000000
 	EOF
 	cat > "$pkgdir"/etc/fstab <<-EOF
 		/dev/cdrom	/media/cdrom	iso9660	noauto,ro 0 0
