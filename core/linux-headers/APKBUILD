@@ -1,18 +1,26 @@
 pkgname=linux-headers
-pkgver=6.1.12
-_kernver=${pkgver%.*}
+pkgver=6.6.58 # Follow the latest Linux stable
+case $pkgver in
+	*.*.*)	_kernver=${pkgver%.*};;
+	*.*) _kernver=$pkgver;;
+esac
 pkgrel=0
 pkgdesc="Linux system headers"
-url="http://kernel.org/"
-arch="noarch"
+url="https://kernel.org/"
+arch="all" # Headers are architecture specific
 license="GPL-2.0-only"
 makedepends="perl"
-options="!check !dbg !strip !tracedeps"
+options="!check !dbg !strip !tracedeps !archcheck"
 source="https://kernel.org/pub/linux/kernel/v6.x/linux-$_kernver.tar.xz
-	https://kernel.org/pub/linux/kernel/v6.x/patch-$pkgver.xz
 	revert-broken-uapi.patch
 	0003-remove-inclusion-of-sysinfo.h-in-kernel.h.patch
 	"
+if [ "${pkgver%.0}" = "$pkgver" ]; then
+	source="
+		$source
+		https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/patch-$pkgver.xz
+		"
+fi
 builddir="$srcdir/linux-$_kernver"
 
 _carch="$CARCH"
@@ -50,8 +58,8 @@ package() {
 }
 
 sha512sums="
-6ed2a73c2699d0810e54753715635736fc370288ad5ce95c594f2379959b0e418665cd71bc512a0273fe226fe90074d8b10d14c209080a6466498417a4fdda68  linux-6.1.tar.xz
-02a058eb50464e0819f5b05ea5d154d2e7a944cf590224c4f4ff07e4f57f9173962e1b04e1a0cb4a55795f4f66fb80afb6686c9c75bce435c8dfb2b733bfe21f  patch-6.1.12.xz
+458b2c34d46206f9b4ccbac54cc57aeca1eaecaf831bc441e59701bac6eadffc17f6ce24af6eadd0454964e843186539ac0d63295ad2cc32d112b60360c39a35  linux-6.6.tar.xz
+9feecb9b368461c27c93cdc852d30caaa53fedb6f7c8cf066feb5ec35a87b016250b7573d17b1cdb992df80a840b5bc80d4aa84a00b631ac4bfaa8b64bc23cda  patch-6.6.58.xz
 32597f2672d1ec365a936d15041a7cf219ef9353241d4a5c378244cf2fc155610443a19bbcd391c86099a0b08486c45e042ec7c90b0d04fe675c3ad0ffc36b53  revert-broken-uapi.patch
 607c074d72aca88fea9ecdbd62198d8f7857daca75e5d027966e0a9997338d6ac8ce0a1e9114b19232b390751d05acca09e28b0cfad2a12d5942f5575a9f4684  0003-remove-inclusion-of-sysinfo.h-in-kernel.h.patch
 "
