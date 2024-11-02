@@ -114,6 +114,7 @@ _make_tools() {
 }
 
 build() {
+	export KBUILD_BUILD_TIMESTAMP="$(date '+%Y-%m-%d %H:%M:%S' -u${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
 	_make_tools perf cpupower gpio iio spi tmon bpf/bpftool
 	(
 		cd tools/usb/usbip
