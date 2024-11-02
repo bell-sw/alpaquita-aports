@@ -3,7 +3,7 @@
 
 pkgname=docbook-xsl
 pkgver=1.79.2
-pkgrel=10
+pkgrel=11
 pkgdesc="stylesheets for DocBook XML transformations to various output formats"
 url="https://docbook.org/"
 arch="noarch"
@@ -41,13 +41,14 @@ prepare() {
 }
 
 package() {
+	depends="$pkgname-ns=$pkgver-r$pkgrel $pkgname-nons=$pkgver-r$pkgrel"
+
 	mkdir -p "$pkgdir"
 	install -D -m644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
 }
 
 ns() {
 	pkgdesc="$pkgdesc (namespace version)"
-	install_if="$pkgname=$pkgver-r$pkgrel"
 	replaces="$pkgname"  # for backward compatibility (Alpine <3.21)
 
 	cd "$srcdir"/$pkgname-$pkgver
