@@ -1,6 +1,6 @@
 pkgname=vala
 pkgver=0.56.17
-pkgrel=0
+pkgrel=1
 pkgdesc="Compiler for the GObject type system"
 url="https://wiki.gnome.org/Projects/Vala"
 arch="all"
@@ -14,9 +14,6 @@ source="https://download.gnome.org/sources/vala/${pkgver%.*}/vala-$pkgver.tar.xz
 	"
 
 build() {
-	# tests fails with our CFLAGS
-	# https://gitlab.gnome.org/GNOME/vala/-/issues/1559
-	unset CFLAGS
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -25,7 +22,9 @@ build() {
 }
 
 check() {
-	make check
+	# tests fails with our CFLAGS
+	# https://gitlab.gnome.org/GNOME/vala/-/issues/1559
+	make -C tests check CFLAGS=""
 }
 
 package() {
