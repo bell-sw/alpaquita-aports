@@ -1,0 +1,36 @@
+pkgname=psqlodbc
+pkgver=16.00.0005
+pkgrel=0
+_pkgver="${pkgver//./_}"
+pkgdesc="PostgreSQL ODBC driver"
+url="https://odbc.postgresql.org/"
+arch="all"
+license="GPL-2.0-or-later"
+makedepends="libpq-dev unixodbc-dev libtool autoconf automake"
+source="$pkgname-$pkgver.tar.gz::https://github.com/postgresql-interfaces/psqlodbc/archive/REL-$_pkgver.tar.gz"
+builddir="$srcdir/psqlodbc-REL-$_pkgver"
+
+prepare() {
+	default_prepare
+	autoreconf -fvi
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+61f4696ed5ab7b0e1b584faa73af997cd1685ad632de8bfe079854fed06e3aa79f0e4a7a7564a8fe96e87f338a54e7dbc2c5baccd440716e351038fc89b1c613  psqlodbc-16.00.0005.tar.gz
+"
