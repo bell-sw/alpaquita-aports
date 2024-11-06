@@ -494,16 +494,12 @@ package() {
 
 	# move ada runtime libs
 	if $LANG_ADA; then
-		for i in $(find "$pkgdir"/$_gcclibdir/adalib/ -type f -maxdepth 1 -name "libgna*.so"); do
+		local libgnat_static=
+		[ "$CHOST" = "$CTARGET" ] && libgnat_static="libgna*.a"
+		for i in $(find "$pkgdir"/$_gcclibdir/adalib/ -type f -maxdepth 1 \( -name "libgna*.so" -o -name "$libgnat_static" \) ); do
 			mv "$i" "$pkgdir"/usr/lib/
 			ln -s ../../../../${i##*/} $i
 		done
-		if [ "$CHOST" = "$CTARGET" ]; then
-			for i in $(find "$pkgdir"/$_gcclibdir/adalib/ -type f -maxdepth 1 -name "libgna*.a"); do
-				mv "$i" "$pkgdir"/usr/lib/
-				ln -s ../../../../${i##*/} $i
-			done
-		fi
 	fi
 
 	if [ "$CHOST" != "$CTARGET" ]; then
@@ -514,8 +510,8 @@ package() {
 		rm -rf "$pkgdir"/usr/lib/libcc1.so*
 
 		# These are moved into packages with arch=$CTARGET_ARCH so remove
-		# cross prefix
-		[ "$BOOTSTRAP" != 'nolibc' ] && mv "$pkgdir"/usr/$CTARGET/lib/*.so.* "$pkgdir"/usr/lib/
+		# cross prefix (doesn't exist when BOOTSTRAP=nolibc)
+		[ "$BOOTSTRAP" != nolibc ] && mv "$pkgdir"/usr/$CTARGET/lib/*.so.* "$pkgdir"/usr/lib/
 
 		# fixup gcc library symlinks to be linker scripts so
 		# linker finds the libs from relocated sysroot
