@@ -1,0 +1,19 @@
+diff --git a/vendor/compiler_builtins-0.1.123/build.rs b/vendor/compiler_builtins-0.1.123/build.rs
+index 5ccff76..5c9054a 100644
+--- a/vendor/compiler_builtins-0.1.123/build.rs
++++ b/vendor/compiler_builtins-0.1.123/build.rs
+@@ -317,6 +317,14 @@ mod c {
+             cfg.flag("-fno-builtin");
+             cfg.flag("-fvisibility=hidden");
+             cfg.flag("-ffreestanding");
++
++            // On Musl, when stack protector is enabled, the final rlib contains
++            // undefined (U) __stack_chk* symbols, and so on
++            // rustc -C target-feature=+crt-static fails
++            if target.triple.contains("musl") {
++                cfg.flag("-fno-stack-protector");
++            }
++
+             // Avoid the following warning appearing once **per file**:
+             // clang: warning: optimization flag '-fomit-frame-pointer' is not supported for target 'armv7' [-Wignored-optimization-argument]
+             //
