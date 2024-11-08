@@ -1,6 +1,10 @@
+From f8f755599c1523ac9515a7b3bd5b51f84b090644 Mon Sep 17 00:00:00 2001
+From: Valery Ushakov <valery.ushakov@bell-sw.com>
+Date: Wed, 22 Feb 2023 04:01:20 +0300
+Subject: [PATCH] delocalize glibc-utils scripts, use /bin/sh
+
 Eliminate dependency on bash by converting $"..." message strings into
 plain, untranslated strings.
-
 ---
  debug/xtrace.sh | 26 +++++++++++++-------------
  elf/ldd.bash.in | 32 ++++++++++++++++----------------
@@ -8,13 +12,13 @@ plain, untranslated strings.
  3 files changed, 42 insertions(+), 42 deletions(-)
 
 diff --git a/debug/xtrace.sh b/debug/xtrace.sh
-index 3d1f2af43a..4d8bbedf82 100755
+index 77ec1d84df..f426181202 100755
 --- a/debug/xtrace.sh
 +++ b/debug/xtrace.sh
 @@ -1,4 +1,4 @@
 -#!/bin/bash
 +#!/bin/sh
- # Copyright (C) 1999-2023 Free Software Foundation, Inc.
+ # Copyright (C) 1999-2024 Free Software Foundation, Inc.
  # This file is part of the GNU C Library.
  
 @@ -22,26 +22,26 @@ TEXTDOMAIN=libc
@@ -65,7 +69,7 @@ index 3d1f2af43a..4d8bbedf82 100755
 +  printf "Copyright (C) %s Free Software Foundation, Inc.
  This is free software; see the source for copying conditions.  There is NO
  warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- " "2023"
+ " "2024"
 -  printf $"Written by %s.
 +  printf "Written by %s.
  " "Ulrich Drepper"
@@ -104,13 +108,13 @@ index 3d1f2af43a..4d8bbedf82 100755
  fi
  
 diff --git a/elf/ldd.bash.in b/elf/ldd.bash.in
-index e45dec5894..21daab3e08 100644
+index d6b640df66..62cbdd9a1b 100644
 --- a/elf/ldd.bash.in
 +++ b/elf/ldd.bash.in
 @@ -1,4 +1,4 @@
 -#!/bin/bash
 +#!/bin/sh
- # Copyright (C) 1996-2023 Free Software Foundation, Inc.
+ # Copyright (C) 1996-2024 Free Software Foundation, Inc.
  # This file is part of the GNU C Library.
  
 @@ -35,16 +35,16 @@ while test $# -gt 0; do
@@ -121,7 +125,7 @@ index e45dec5894..21daab3e08 100644
 +    printf "Copyright (C) %s Free Software Foundation, Inc.
  This is free software; see the source for copying conditions.  There is NO
  warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- " "2023"
+ " "2024"
 -    printf $"Written by %s and %s.
 +    printf "Written by %s and %s.
  " "Roland McGrath" "Ulrich Drepper"
@@ -214,13 +218,13 @@ index e45dec5894..21daab3e08 100644
    fi
  done
 diff --git a/elf/sotruss.sh b/elf/sotruss.sh
-index 874a6bed3f..97e9219c8b 100755
+index ac1a83984e..95ef3ada27 100755
 --- a/elf/sotruss.sh
 +++ b/elf/sotruss.sh
 @@ -1,4 +1,4 @@
 -#!/bin/bash
 +#!/bin/sh
- # Copyright (C) 2011-2023 Free Software Foundation, Inc.
+ # Copyright (C) 2011-2024 Free Software Foundation, Inc.
  # This file is part of the GNU C Library.
  
 @@ -29,7 +29,7 @@ SOTRUSS_WHICH=$$
@@ -275,7 +279,7 @@ index 874a6bed3f..97e9219c8b 100755
 +    printf "Copyright (C) %s Free Software Foundation, Inc.
  This is free software; see the source for copying conditions.  There is NO
  warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- " "2023"
+ " "2024"
 -    printf $"Written by %s.\n" "Ulrich Drepper"
 +    printf "Written by %s.\n" "Ulrich Drepper"
      exit 0
