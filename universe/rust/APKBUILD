@@ -276,6 +276,7 @@ build() {
 		--enable-vendor \
 		--dist-compression-formats=gz \
 		--python="python3" \
+		--set="build.verbose=2" \
 		--set="rust.musl-root=/usr" \
 		--set="rust.backtrace-on-ice=true" \
 		--set="rust.codegen-units=1" \
@@ -301,6 +302,9 @@ build() {
 		--set="target.$_build.ar=ar" \
 		--set="target.$_build.linker=cc" \
 		$extra_conf_opts
+
+	# Log C compiler invocations from the cc crate
+	export CC_ENABLE_DEBUG_OUTPUT=1
 
 	if [ -z "$BOOTSTRAP" ]; then
 		python3 ./x.py dist --jobs ${JOBS:-2}
