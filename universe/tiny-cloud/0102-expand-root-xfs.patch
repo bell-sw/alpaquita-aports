@@ -1,0 +1,42 @@
+--- a/lib/tiny-cloud/init-early
++++ b/lib/tiny-cloud/init-early
+@@ -6,22 +6,30 @@ source /lib/tiny-cloud/init-common
+ expand_root() {
+     skip_action expand_root && return
+ 
+-    # explicitly use busybox, in case util-linux is also installed
+-    local mountpoint=$(busybox mountpoint -n / | cut -d' ' -f1)
+-    local volume=$(echo "$mountpoint" |
+-        sed -Ee "s/(nvme\d+n\d|(xv|s)d[a-z])p?\d?$/\1/"
+-    )
+-    local partition
++    local dev=$(awk '$2 == "/" {print $1}' /proc/mounts 2>/dev/null)
++    local filesystem=$(awk '$2 == "/" {print $3}' /proc/mounts 2>/dev/null)
++    local partition=$(cat /sys/class/block/"${dev#/dev/}"/partition 2>/dev/null)
+ 
+-    if [ "$mountpoint" != "$volume" ]; then
++    # only support ext2/ext3/ext4 and xfs for now
++    case "$filesystem" in
++        ext*|xfs) ;;
++        *) return;;
++    esac
++
++    if [ -n "$partition" ]; then
+         # it's a partition, resize it
+-        partition=$(echo "$mountpoint" | sed -Ee "s/.*(\d+)$/\1/")
++        local volume=$(readlink -f /sys/class/block/"${dev#/dev/}"/..)
++        volume=/dev/"${volume##*/}"
+         echo ", +" | sfdisk -q --no-reread -N "$partition" "$volume"
+         partx -u "$volume"
+     fi
++
+     # resize filesystem
+     mount -orw,remount /
+-    resize2fs "$mountpoint"
++    case "$filesystem" in
++        ext*)   resize2fs  "$dev" ;;
++        xfs)    xfs_growfs "$dev" ;;
++    esac
+ }
+ 
+ has_cloud_hotplugs() { [ -n "$HOTPLUG_MODULES" ]; }
