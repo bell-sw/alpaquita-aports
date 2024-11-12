@@ -1,0 +1,83 @@
+# Description:
+
+pkgname=libxcrypt
+pkgver=4.4.36
+pkgrel=0
+pkgdesc="Modern library for one-way hashing of passwords"
+url="https://github.com/besser82/libxcrypt/"
+arch="all"
+license="LGPL"
+options="!libc_musl"
+makedepends="perl"
+subpackages="
+	$pkgname-static
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-compat:compat
+	"
+source="https://github.com/besser82/libxcrypt/releases/download/v${pkgver}/${pkgname}-${pkgver}.tar.xz"
+
+_build() {
+	local build_path=$1
+	shift
+
+	mkdir -p $build_path
+	cd $build_path
+
+	../configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		--enable-hashes=strong,glibc \
+		--disable-failure-tokens \
+		$@
+	make
+
+	cd ..
+}
+
+build() {
+	_build build-new-api \
+		--enable-obsolete-api=no \
+		--enable-static
+
+	_build build-compat \
+		--enable-obsolete-api=glibc \
+		--disable-static
+}
+
+check() {
+	make -C build-new-api check
+	make -C build-compat check
+}
+
+package() {
+	make -C build-new-api DESTDIR="$pkgdir/" install
+}
+
+dev() {
+	replaces="glibc-dev<2.39.0"
+	default_dev
+}
+
+static() {
+	replaces="glibc-dev<2.39.0"
+	default_static
+}
+
+compat() {
+	pkgdesc='Modern library for one-way hashing of passwords (legacy API functions)'
+	depends="glibc>=2.39.0"
+
+	make -C "$builddir/build-compat" DESTDIR="$subpkgdir/" install
+	rm -rf \
+		"$subpkgdir"/usr/include \
+		"$subpkgdir"/usr/share \
+		"$subpkgdir"/usr/lib/pkgconfig \
+		"$subpkgdir"/usr/lib/*.so
+}
+
+sha512sums="
+468560e6f90877540d22e32c867cbcf3786983a6fdae6ef86454f4b7f2bbaae1b6589d1af75cda73078fa8f6e91b1a32f8353f26d433246eef7be3e96d4ae1c7  libxcrypt-4.4.36.tar.xz
+"
