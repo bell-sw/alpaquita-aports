@@ -1,0 +1,64 @@
+From e7cba89b570cc219f654659588422e9e8a25d190 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 12 Nov 2024 15:55:31 +0000
+Subject: [PATCH] process rela.dyn/plt relocations with ifuncs in static-pie
+
+---
+ ldso/dlstart.c | 32 +++++++++++++++++++++++++++++++-
+ 1 file changed, 31 insertions(+), 1 deletion(-)
+
+diff --git a/ldso/dlstart.c b/ldso/dlstart.c
+index 259f5e18..d5568bcd 100644
+--- a/ldso/dlstart.c
++++ b/ldso/dlstart.c
+@@ -18,6 +18,20 @@
+ 	*(fp) = static_func_ptr; } while(0)
+ #endif
+ 
++static int resolve_ifunc_addr(size_t *addr)
++{
++	if (!addr || !*addr)
++		return 0;
++
++	void *new_addr = ((void *(*)(void))*addr)();
++
++	if (!new_addr)
++		return -1;
++
++	*addr = (size_t)new_addr;
++	return 0;
++}
++
+ hidden void _dlstart_c(size_t *sp, size_t *dynv)
+ {
+ 	size_t i, aux[AUX_CNT], dyn[DYN_CNT];
+@@ -136,9 +150,25 @@ hidden void _dlstart_c(size_t *sp, size_t *dynv)
+ 	rel = (void *)(base+dyn[DT_RELA]);
+ 	rel_size = dyn[DT_RELASZ];
+ 	for (; rel_size; rel+=3, rel_size-=3*sizeof(size_t)) {
+-		if (!IS_RELATIVE(rel[1], 0)) continue;
++		const size_t type = rel[1];
++		const int ifunc = R_TYPE(type)==REL_IRELATIVE;
++		if (!IS_RELATIVE(type, 0) && !ifunc) continue;
++
+ 		size_t *rel_addr = (void *)(base + rel[0]);
+ 		*rel_addr = base + rel[2];
++		if (ifunc)
++			resolve_ifunc_addr(rel_addr);
++	}
++
++	if (dyn[DT_PLTREL] == DT_RELA) {
++		rel = (void *)(base+dyn[DT_JMPREL]);
++		rel_size = dyn[DT_PLTRELSZ];
++		for (; rel_size; rel+=3, rel_size-=3*sizeof(size_t)) {
++			if (R_TYPE(rel[1])!=REL_IRELATIVE) continue;
++			size_t *rel_addr = (void *)(base + rel[0]);
++			*rel_addr = base + rel[2];
++			resolve_ifunc_addr(rel_addr);
++		}
+ 	}
+ 
+ 	rel = (void *)(base+dyn[DT_RELR]);
+-- 
+2.25.1
+
