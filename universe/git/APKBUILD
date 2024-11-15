@@ -153,7 +153,11 @@ prepare() {
 }
 
 build() {
-	make prefix=/usr \
+	# disable parallelism as some dependencies don't seems to work
+	# out right: an include file is not yet generated when a test
+	# that uses it is compiled
+	make -j1 \
+		prefix=/usr \
 		DESTDIR="$pkgdir" \
 		perllibdir="$(_perl_config vendorlib)" \
 		all
