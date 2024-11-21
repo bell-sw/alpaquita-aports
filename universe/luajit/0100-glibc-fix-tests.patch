@@ -5,7 +5,13 @@ stack traceback:
         [C]: at 0x55c8e5bc5e90
 Failed test when running /home/apkbuild/alpaquita-aports2/universe/luajit/src/luajit2-2.1-20230410/test-suite/target/bin/luajit ffi_include_std.lua 1: 256
 
-1 tests failed.
+test-suite/target/bin/luajit-2.1.1723681758: ffi_include_std.lua:41: ';' expected near '__s128' at line 1503
+stack traceback:
+	[C]: in function 'cdef'
+	ffi_include_std.lua:41: in main chunk
+	[C]: at 0xaaaaaf9a5480
+Failed test when running /ws/workspace/aq-build-pkg/aports/universe/luajit/src/luajit2-2.1-20240815/test-suite/target/bin/luajit-2.1.1723681758 ffi_include_std.lua 1: 256
+
 --- a/test-suite/test/sysdep/ffi_include_std.lua
 +++ b/test-suite/test/sysdep/ffi_include_std.lua
 @@ -23,7 +23,6 @@
@@ -16,3 +22,16 @@ Failed test when running /home/apkbuild/alpaquita-aports2/universe/luajit/src/lu
  #include <fcntl.h>
  ]]
    fp:close()
+@@ -39,6 +38,12 @@
+   fp:close()
+   os.remove("/tmp/__tmp.c")
+   s = s:gsub("__uint128_t", "unsigned long long")
++  s = s:gsub("__int128", "signed long long")
++  s = s:gsub("__Float32x4_t", "double")
++  s = s:gsub("__Float64x2_t", "double")
++  s = s:gsub("__SVFloat32_t", "float")
++  s = s:gsub("__SVFloat64_t", "double")
++  s = s:gsub("__SVBool_t", "_Bool")
+   ffi.cdef(s)
+ end
+ 
