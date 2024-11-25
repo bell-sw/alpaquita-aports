@@ -1,0 +1,35 @@
+pkgname=unrar
+pkgver=7.1.1
+pkgrel=0
+pkgdesc="Extract, view, and test RAR archives"
+url="https://www.rarlab.com/rar_add.htm"
+arch="all"
+license="custom"
+options="!check"
+subpackages="$pkgname-dbg"
+
+source="https://www.rarlab.com/rar/unrarsrc-$pkgver.tar.gz"
+builddir="$srcdir/$pkgname"
+
+build() {
+	local CXXFLAGS="-std=c++11 $CXXFLAGS"
+	local LDFLAGS="-pthread $LDFLAGS"
+
+	make CXXFLAGS="$CXXFLAGS" LDFLAGS="$LDFLAGS" STRIP=: unrar
+}
+
+
+package() {
+	install -Dm755 unrar \
+		"$pkgdir"/usr/bin/unrar
+
+	install -Dm644 readme.txt \
+		"$pkgdir"/usr/share/doc/$pkgname/readme.txt
+	install -Dm644 license.txt \
+		"$pkgdir"/usr/share/licenses/$pkgname/license.txt
+}
+
+
+sha512sums="
+f70254c2285fbd30064ea4b5d7d4d3f18ec3d003c412a1aff9c6d5112dc1f5a2f342cd4f3442d898ced6e1757a7a461df4a6e7904af028b2705488d63e5a9362  unrarsrc-7.1.1.tar.gz
+"
