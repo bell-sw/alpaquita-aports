@@ -1,0 +1,32 @@
+pkgname=py3-invoke
+pkgver=2.2.0
+pkgrel=2
+pkgdesc="Pythonic task execution"
+options="!check" # Can't find invoke.vendor.six
+url="https://www.pyinvoke.org/"
+arch="noarch"
+license="BSD-2-Clause"
+depends="py3-yaml"
+makedepends="
+	py3-gpep517
+	py3-setuptools
+	py3-wheel
+	"
+subpackages="$pkgname-pyc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/pyinvoke/invoke/archive/refs/tags/$pkgver.tar.gz"
+builddir="$srcdir/invoke-$pkgver"
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+}
+
+sha512sums="
+3d0adabec4825fb45524d3ab4f2a790d31245a89e038c08c770fc9f33c81ed182769e8f17d3d6f33a913b431cba475b975826ddfd533a945d481b52deba759a2  py3-invoke-2.2.0.tar.gz
+"
