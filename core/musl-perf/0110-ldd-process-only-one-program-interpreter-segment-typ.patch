@@ -1,0 +1,30 @@
+From d1ff82520cd6381c432ad9704582275d0c2d3e5c Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Fri, 29 Nov 2024 14:11:01 +0000
+Subject: [PATCH] ldd: process only one program interpreter segment type
+
+It shouldn't appear more than once, and the kernel will only
+process the first one anyway.
+---
+ ldso/dynlink.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/ldso/dynlink.c b/ldso/dynlink.c
+index 95426fce..3ff540d6 100644
+--- a/ldso/dynlink.c
++++ b/ldso/dynlink.c
+@@ -1957,8 +1957,10 @@ void __dls3(size_t *sp, size_t *auxv)
+ 		 * linker had ldd not taken its place. */
+ 		if (ldd_mode) {
+ 			for (i=0; i<app.phnum; i++) {
+-				if (app.phdr[i].p_type == PT_INTERP)
++				if (app.phdr[i].p_type == PT_INTERP) {
+ 					ldso.name = laddr(&app, app.phdr[i].p_vaddr);
++					break;
++				}
+ 			}
+ 			int needed_so = 0;
+ 			for (i=0; app.dynv[i]; i+=2) {
+-- 
+2.25.1
+
