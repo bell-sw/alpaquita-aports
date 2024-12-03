@@ -3,7 +3,7 @@
 
 pkgname=apk-tools
 pkgver=2.14.6
-pkgrel=0
+pkgrel=1
 pkgdesc="APK Package Manager (Derivative from Alpine Package Keeper)"
 arch="all"
 url="https://gitlab.alpinelinux.org/alpine/apk-tools"
@@ -30,6 +30,7 @@ if [ "$CBUILD" = "$CHOST" ]; then
 	depends="$depends ca-certificates-bundle"
 fi
 source="https://gitlab.alpinelinux.org/alpine/apk-tools/-/archive/v$pkgver/apk-tools-v$pkgver.tar.gz
+	db-fix-apk_cache_download.patch
 	_apk
 	0100-Get-rid-of-separation-of-sbin-lib-and-their-usr-coun.patch
 	0101-add-alternative-packages-support.patch
@@ -84,6 +85,7 @@ luaapk() {
 
 sha512sums="
 5be32716fda98939845c50daae5b9e226c1758f4d43a9b9eb50d7e54e700ff2d300b0b8af672a1dd8dd172e704594d04dcb9c7c487a13362359120600234c97c  apk-tools-v2.14.6.tar.gz
+e77c04d7e52a72329ffdfa72266485c0d2ebbfad4dd8c95d786e6d992cbcbcc3c13560b8e8c3853c832c256b48cd76d6d6750ba9bfe5289dac4f88c417c6d5fb  db-fix-apk_cache_download.patch
 92d5ee1edaae8e9bf32938e6b901e2a6f97530fcb6493060acfbb8883bf8bc825462f2e8ce6a6cfeba43acb4dd6d36acd33d060a4bce3907562e60c7cdb65e5f  _apk
 9b1213d9470e1f5f907a59d54221706eeaa24b0a4b826de93c89aaeb1e6712be569bfd28f55f7921fb87be621484e349f745866f1e009bf9ec04317803e28864  0100-Get-rid-of-separation-of-sbin-lib-and-their-usr-coun.patch
 29342141faad6e253355a32f4bc1b6048dc82497a669c73fc1fdc66436675818686ec230508ea06436f7463e46ee734194b3b3ebdf8bfdfbce40ffc1c2e7e621  0101-add-alternative-packages-support.patch
