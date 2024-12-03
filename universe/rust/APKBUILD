@@ -192,6 +192,9 @@ _bootstrap_install() {
 }
 
 build() {
+	# Fixing checksum after 0101-fno-stack-protector.patch
+	sed -i -e 's/"files":{[^}]*}/"files":{}/' \
+		vendor/compiler_builtins-*/.cargo-checksum.json
 	if [ "$_build" != "$_target" ]; then
 		export PKG_CONFIG_ALLOW_CROSS=1
 
@@ -553,5 +556,5 @@ c5a94cc3518f3dbefb2011d1c4267530062843262133332cff96db2e779d7f9b57bdab336c50b927
 c31fdfe8a9b3411576c75da46645cf0465b9053000a2ab49cf9b2f2733f679d6d33acbf236d67a20e14935d094a685453b7f1840180249f39d610fd0902c3125  check-rustc
 2e1ecef253416be09e12e782763fbf842d7a29e488e3827c407f925c986e520ea316da418d0ffb19c0ef03b0cf06a15576ad58c4ca2904e7d1f016750ec7bd9a  correct-less-r-flag.patch
 ccfbcc91b01a1488f944b2a77b9d9f430f79d8839f9d483639714838e263fd8277a54f9855faf752bf617f47550c64be5e55c4dfbf7fa21293500f26f1309306  0100-Add-Alpaquita-targets.patch
-6997b117cd5b7963e8924c3e2791e39571339b24b923e4858f28e2e7fe6511543ff5f6f61fa5e87ab9897b9e8834e43bc63ca51eb311d7eeda891d6642ed275d  0101-fno-stack-protector.patch
+564f4bf1e44040268b58af424f52b790ff7209cf9207116f0c8969b93a102a9e3e04a00d0bf2691373f7cc66314c525a0a142807e5081f6a0fff8f1118b26a8a  0101-fno-stack-protector.patch
 "
