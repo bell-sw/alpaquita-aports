@@ -1,4 +1,4 @@
-From 1b32f9d9facb97fd7cc7fb0a32a717f33fbbc08a Mon Sep 17 00:00:00 2001
+From e24bf622eb7aa44a72d48dce69e95b9700c01231 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 22 Feb 2022 18:18:06 +0300
 Subject: [PATCH] add alternative packages support
@@ -6,17 +6,17 @@ Subject: [PATCH] add alternative packages support
 ---
  src/apk_package.h     |   1 +
  src/apk_solver.h      |   1 +
- src/apk_solver_data.h |   6 +-
+ src/apk_solver_data.h |   2 +
  src/app_add.c         |   2 +-
  src/package.c         |   8 +++
  src/solver.c          | 129 ++++++++++++++++++++++++++++++++++++++----
- 6 files changed, 134 insertions(+), 13 deletions(-)
+ 6 files changed, 132 insertions(+), 11 deletions(-)
 
 diff --git a/src/apk_package.h b/src/apk_package.h
-index 7db969c..40be216 100644
+index 09b3faa..bb22db9 100644
 --- a/src/apk_package.h
 +++ b/src/apk_package.h
-@@ -115,6 +115,7 @@ struct apk_package {
+@@ -118,6 +118,7 @@ struct apk_package {
  	unsigned char marked : 1;
  	unsigned char uninstallable : 1;
  	unsigned char cached_non_repository : 1;
@@ -25,19 +25,19 @@ index 7db969c..40be216 100644
  
  	time_t build_time;
 diff --git a/src/apk_solver.h b/src/apk_solver.h
-index c386b13..636fb4f 100644
+index c1c5d9c..e6f0ce6 100644
 --- a/src/apk_solver.h
 +++ b/src/apk_solver.h
-@@ -34,6 +34,7 @@ struct apk_changeset {
- #define APK_SOLVERF_LATEST		0x0008
+@@ -35,6 +35,7 @@ struct apk_changeset {
  #define APK_SOLVERF_IGNORE_CONFLICT	0x0010
  #define APK_SOLVERF_INSTALLED	 	0x0020
-+#define APK_SOLVERF_NEW_ADD	 	0x0040
+ #define APK_SOLVERF_REMOVE		0x0040
++#define APK_SOLVERF_NEW_ADD	 	0x0080
  
  void apk_solver_set_name_flags(struct apk_name *name,
  			       unsigned short solver_flags,
 diff --git a/src/apk_solver_data.h b/src/apk_solver_data.h
-index 8aee485..783d002 100644
+index 027ee13..64a1aa7 100644
 --- a/src/apk_solver_data.h
 +++ b/src/apk_solver_data.h
 @@ -40,6 +40,7 @@ struct apk_solver_name_state {
@@ -48,30 +48,19 @@ index 8aee485..783d002 100644
  };
  
  struct apk_solver_package_state {
-@@ -47,8 +48,8 @@ struct apk_solver_package_state {
- 	unsigned short max_dep_chain;
- 	unsigned short pinning_allowed;
- 	unsigned short pinning_preferred;
--	unsigned solver_flags : 6;
--	unsigned solver_flags_inheritable : 6;
-+	unsigned solver_flags : 7;
-+	unsigned solver_flags_inheritable : 7;
- 	unsigned seen : 1;
- 	unsigned pkg_available : 1;
- 	unsigned pkg_selectable : 1;
 @@ -60,6 +61,7 @@ struct apk_solver_package_state {
- 	unsigned iif_triggered : 1;
- 	unsigned iif_failed : 1;
- 	unsigned error : 1;
-+	unsigned old_alternative : 1;
+ 	unsigned char iif_triggered : 1;
+ 	unsigned char iif_failed : 1;
+ 	unsigned char error : 1;
++	unsigned char old_alternative : 1;
  };
  
  #endif
 diff --git a/src/app_add.c b/src/app_add.c
-index 51415d9..f14605d 100644
+index 291146a..dfa0a68 100644
 --- a/src/app_add.c
 +++ b/src/app_add.c
-@@ -195,7 +195,7 @@ static int add_main(void *ctx, struct apk_database *db, struct apk_string_array
+@@ -196,7 +196,7 @@ static int add_main(void *ctx, struct apk_database *db, struct apk_string_array
  		if (virtpkg == NULL) {
  			apk_deps_add(&world, &dep);
  			apk_solver_set_name_flags(dep.name,
@@ -81,10 +70,10 @@ index 51415d9..f14605d 100644
  		} else {
  			apk_deps_add(&virtpkg->depends, &dep);
 diff --git a/src/package.c b/src/package.c
-index 8967389..f411449 100644
+index bdc8bd6..429710d 100644
 --- a/src/package.c
 +++ b/src/package.c
-@@ -831,6 +831,9 @@ int apk_pkg_add_info(struct apk_database *db, struct apk_package *pkg,
+@@ -837,6 +837,9 @@ int apk_pkg_add_info(struct apk_database *db, struct apk_package *pkg,
  	case 'k':
  		pkg->provider_priority = apk_blob_pull_uint(&value, 10);
  		break;
@@ -94,7 +83,7 @@ index 8967389..f411449 100644
  	case 'F': case 'M': case 'R': case 'Z': case 'r': case 'q':
  	case 'a': case 's': case 'f':
  		/* installed db entries which are handled in database.c */
-@@ -870,6 +873,7 @@ static int read_info_line(void *ctx, apk_blob_t line)
+@@ -876,6 +879,7 @@ static int read_info_line(void *ctx, apk_blob_t line)
  		{ "builddate",	't' },
  		{ "commit",	'c' },
  		{ "provider_priority", 'k' },
@@ -102,7 +91,7 @@ index 8967389..f411449 100644
  	};
  	struct read_info_ctx *ri = (struct read_info_ctx *) ctx;
  	apk_blob_t l, r;
-@@ -1159,6 +1163,10 @@ int apk_pkg_write_index_header(struct apk_package *info, struct apk_ostream *os)
+@@ -1165,6 +1169,10 @@ int apk_pkg_write_index_header(struct apk_package *info, struct apk_ostream *os)
  		apk_blob_push_blob(&bbuf, APK_BLOB_STR("\nk:"));
  		apk_blob_push_uint(&bbuf, info->provider_priority, 10);
  	}
@@ -114,7 +103,7 @@ index 8967389..f411449 100644
  
  	if (APK_BLOB_IS_NULL(bbuf)) {
 diff --git a/src/solver.c b/src/solver.c
-index e8eb753..d6ccf99 100644
+index d6700ce..9753d75 100644
 --- a/src/solver.c
 +++ b/src/solver.c
 @@ -51,6 +51,13 @@ void apk_solver_set_name_flags(struct apk_name *name,
@@ -131,7 +120,7 @@ index e8eb753..d6ccf99 100644
  	name->solver_flags_set = 1;
  	foreach_array_item(p, name->providers) {
  		struct apk_package *pkg = p->pkg;
-@@ -230,19 +237,27 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
+@@ -230,20 +237,28 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
  							    dep->name->ss.max_dep_chain+1);
  			}
  
@@ -155,15 +144,16 @@ index e8eb753..d6ccf99 100644
  
  		name->ss.no_iif &= pkg->ss.iif_failed;
  		name->ss.max_dep_chain = max(name->ss.max_dep_chain, pkg->ss.max_dep_chain);
- 
--		dbg_printf("discover %s: max_dep_chain=%d no_iif=%d\n",
--			name->name, name->ss.max_dep_chain, name->ss.no_iif);
-+		dbg_printf("discover %s: max_dep_chain=%d no_iif=%d new_alternative=%d\n",
-+			name->name, name->ss.max_dep_chain, name->ss.no_iif, name->ss.new_alternative);
+ 		num_virtual += (p->pkg->name != name);
  	}
- 	foreach_array_item(p, name->providers) {
- 		struct apk_package *pkg = p->pkg;
-@@ -294,9 +309,9 @@ static void apply_constraint(struct apk_solver_state *ss, struct apk_package *pp
+-	dbg_printf("discover %s: max_dep_chain=%d no_iif=%d num_virtual=%d\n",
+-		name->name, name->ss.max_dep_chain, name->ss.no_iif, num_virtual);
++	dbg_printf("discover %s: max_dep_chain=%d no_iif=%d num_virtual=%d new_alternative=%d\n",
++		name->name, name->ss.max_dep_chain, name->ss.no_iif, num_virtual, name->ss.new_alternative);
+ 	if (num_virtual == 0)
+ 		name->priority = 0;
+ 	else if (num_virtual != name->providers->num)
+@@ -301,9 +316,9 @@ static void apply_constraint(struct apk_solver_state *ss, struct apk_package *pp
  	struct apk_provider *p0;
  	int is_provided;
  
@@ -175,7 +165,7 @@ index e8eb753..d6ccf99 100644
  		apk_version_op_string(dep->result_mask),
  		BLOB_PRINTF(*dep->version));
  
-@@ -327,19 +342,59 @@ static void exclude_non_providers(struct apk_solver_state *ss, struct apk_name *
+@@ -334,19 +349,59 @@ static void exclude_non_providers(struct apk_solver_state *ss, struct apk_name *
  {
  	struct apk_provider *p;
  	struct apk_dependency *d;
@@ -237,7 +227,7 @@ index e8eb753..d6ccf99 100644
  		disqualify_package(ss, p->pkg, "provides transitivity");
  	next: ;
  	}
-@@ -505,6 +560,20 @@ static void reconsider_name(struct apk_solver_state *ss, struct apk_name *name)
+@@ -512,6 +567,20 @@ static void reconsider_name(struct apk_solver_state *ss, struct apk_name *name)
  		name->name, name->ss.has_options, name->ss.reverse_deps_done);
  }
  
@@ -258,7 +248,7 @@ index e8eb753..d6ccf99 100644
  static int compare_providers(struct apk_solver_state *ss,
  			     struct apk_provider *pA, struct apk_provider *pB)
  {
-@@ -570,7 +639,7 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -586,7 +655,7 @@ static int compare_providers(struct apk_solver_state *ss,
  		    (solver_flags & APK_SOLVERF_INSTALLED)) {
  			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
  			if (r) {
@@ -267,7 +257,7 @@ index e8eb753..d6ccf99 100644
  				return r;
  			}
  		}
-@@ -598,6 +667,15 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -614,6 +683,15 @@ static int compare_providers(struct apk_solver_state *ss,
  			return r;
  		}
  
@@ -283,7 +273,7 @@ index e8eb753..d6ccf99 100644
  		/* Prefer installed */
  		if (!(solver_flags & APK_SOLVERF_UPGRADE)) {
  			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
-@@ -637,6 +715,14 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -653,6 +731,14 @@ static int compare_providers(struct apk_solver_state *ss,
  		return r;
  	}
  
@@ -298,7 +288,7 @@ index e8eb753..d6ccf99 100644
  	/* Prefer highest declared provider priority. */
  	r = pkgA->provider_priority - pkgB->provider_priority;
  	if (r) {
-@@ -661,10 +747,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
+@@ -677,10 +763,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
  	struct apk_provider *p0;
  
  	if (name->ss.locked) {
@@ -314,7 +304,7 @@ index e8eb753..d6ccf99 100644
  		if (ss->ignore_conflict)
  			return;
  		/* Conflict: providing same name */
-@@ -689,8 +780,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
+@@ -705,8 +796,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
  			if (p0->pkg == p.pkg)
  				continue;
  			if (p.version == &apk_atom_null &&
@@ -331,7 +321,7 @@ index e8eb753..d6ccf99 100644
  			disqualify_package(ss, p0->pkg, "conflicting provides");
  		}
  	}
-@@ -742,6 +840,13 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
+@@ -759,6 +857,13 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
  
  	pkg = chosen.pkg;
  	if (pkg) {
@@ -345,7 +335,7 @@ index e8eb753..d6ccf99 100644
  		if (!pkg->ss.pkg_selectable || !pkg->ss.tag_ok) {
  			/* Selecting broken or unallowed package */
  			mark_error(ss, pkg, "broken package / tag not ok");
-@@ -797,6 +902,10 @@ static void cset_track_deps_added(struct apk_package *pkg)
+@@ -814,6 +919,10 @@ static void cset_track_deps_added(struct apk_package *pkg)
  		if (d->conflict || !d->name->ss.installed_name)
  			continue;
  		d->name->ss.installed_name->ss.requirers++;
@@ -357,5 +347,5 @@ index e8eb753..d6ccf99 100644
  }
  
 -- 
-2.43.0
+2.25.1
 
