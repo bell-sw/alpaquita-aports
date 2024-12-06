@@ -184,6 +184,7 @@ EOF
 		# glibc related
 		fail="$fail test_curses"				# OverflowError: mktime argument out of range
 		fail="$fail test_email"					# _curses.error: inswstr() returned ERR
+		ignore=""
 		;;
 	esac
 
@@ -200,7 +201,7 @@ EOF
 		ppc64le) fail="$fail test_time";;
 	esac
 
-	make quicktest TESTOPTS="-j${JOBS:-$(nproc)} --exclude $fail --ignore $ignore"
+	make quicktest TESTOPTS="-j${JOBS:-$(nproc)} --exclude $fail ${ignore:+--ignore $ignore}"
 }
 
 package() {
