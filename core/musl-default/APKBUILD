@@ -5,7 +5,7 @@
 
 pkgname=musl-default
 pkgver=1.2.5
-pkgrel=9
+pkgrel=10
 pkgdesc="the musl c library (libc) implementation"
 url="https://musl.libc.org/"
 arch="all"
@@ -88,7 +88,7 @@ build() {
 	# and the discussion in https://www.openwall.com/lists/musl/2023/05/22/2
 	# this makes libc.so about 5% bigger in itself, but should yield an overall improved libc.so for general use.
 	# NB: if musl detects an -O it skips its own, so remove just the O value
-	export CFLAGS="${CFLAGS/-O* /}"
+	export CFLAGS="${CFLAGS/-O? /}"
 
 	# note: not autotools
 	# shellcheck disable=2153
