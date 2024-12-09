@@ -9,7 +9,7 @@ _java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 21 Lite"
 
 pkgname=${_java_pkg_name}21-lite
 pkgver=${_java_ver/+/_p}
-pkgrel=0
+pkgrel=1
 pkgdesc="$_java_name"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
@@ -98,7 +98,7 @@ build() {
 		export JOBS=$(printf '%s\n' "$MAKEFLAGS" | sed -n -e 's/.*-j\([0-9]\+\).*/\1/p')
 	fi
 
-	local _cflags="-fstack-protector-strong -D_FORTIFY_SOURCE=2"
+	local _cflags="${CFLAGS/-O? /}"
 	local _boot_jdk=$(echo /usr/lib/jvm/java-21-* | awk '{ print $1 }')
 
 	[ "$CLIBC" = 'musl' ] && _cflags="$_cflags -D_LARGEFILE64_SOURCE"
@@ -311,7 +311,7 @@ _dbg() {
 
 _jdk_all() {
 	pkgdesc="$_java_name (JDK all)"
-	depends="binutils 
+	depends="binutils
 		$pkgname=$pkgver-r$pkgrel
 		$pkgname-jre-client=$pkgver-r$pkgrel
 		$pkgname-jre-minimal=$pkgver-r$pkgrel
