@@ -1,4 +1,4 @@
-From e4b33b63eef2210de1f2065d1c451af0dc9f5ce3 Mon Sep 17 00:00:00 2001
+From fe757a29542de69419b3865d4b0b4c1c51732c95 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 26 Dec 2023 10:27:22 +0000
 Subject: [PATCH] database: verify old file onwers with fallback paths
@@ -14,7 +14,7 @@ Fix it for system symlinks: lib, bin and sbin.
  1 file changed, 76 insertions(+), 2 deletions(-)
 
 diff --git a/src/database.c b/src/database.c
-index 1f26529..8c68433 100644
+index 482d141..a3c4ca0 100644
 --- a/src/database.c
 +++ b/src/database.c
 @@ -2732,9 +2732,56 @@ static void apk_db_purge_pkg(struct apk_database *db,
