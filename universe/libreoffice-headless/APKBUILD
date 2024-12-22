@@ -2,8 +2,8 @@ pkgname=libreoffice-headless
 # "fresh" version. before, we used to package still, but community/ is only
 # supported for 6 months and fresh works perfectly okay for that, while being
 # more up to date and needing fewer dependency workarounds.
-pkgver=7.6.7.2
-pkgrel=2
+pkgver=24.8.4.2
+pkgrel=0
 pkgdesc="LibreOffice (headless build) - Meta package for the full office suite"
 url="https://www.libreoffice.org/"
 # armhf disabled due to requiring armv6k as minimum arm architecture
@@ -12,6 +12,7 @@ arch="all !ppc64le !s390x !armhf"
 license="MPL-2.0"
 makedepends="
 	abseil-cpp-dev
+	argon2-dev
 	autoconf
 	automake
 	bash
@@ -34,6 +35,7 @@ makedepends="
 	lcms2-dev
 	libabw-dev
 	libcdr-dev
+	libcmis-dev
 	libe-book-dev
 	libepubgen-dev
 	libetonyek-dev
@@ -108,18 +110,15 @@ esac
 
 # grep _TARBALL download.lst
 source="https://download.documentfoundation.org/libreoffice/src/$_v/libreoffice-$pkgver.tar.xz
+	$_addsrcurl/dragonbox-1.1.3.tar.gz
 	$_addsrcurl/dtoa-20180411.tgz
 	$_addsrcurl/frozen-1.1.1.tar.gz
-	$_addsrcurl/pdfium-5778.tar.bz2
-	$_addsrcurl/libcmis-0.6.1.tar.xz
-	$_addsrcurl/dragonbox-1.1.3.tar.gz
+	$_addsrcurl/pdfium-6425.tar.bz2
+	$_addsrcurl/zxcvbn-c-2.5.tar.gz
 	https://dev-www.libreoffice.org/extern/f543e6e2d7275557a839a164941c0a86e5f2c3f2a0042bfc434c88c6dde9e140-opens___.ttf
 	musl:linux-musl.patch
 	musl:musl-stacksize.patch
 	musl:musl-libintl.patch
-	icu74.patch
-	gcc14.patch
-	gcc14-arm7.patch
 	"
 options="!check" # todo, huge testsuite, not much value, ..
 builddir="$srcdir/libreoffice-$pkgver"
@@ -216,10 +215,11 @@ build() {
 		;;
 	esac
 
-	# force c++17 here since otherwise it's not set for abseil conftest
-	export CXXFLAGS="$CXXFLAGS -std=c++17"
+	# force c++20 here since otherwise it's not set for abseil conftest
+	export CXXFLAGS="$CXXFLAGS -std=c++20"
 
-	./configure \
+	# configure contains bashism
+	bash ./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
 		--prefix=/usr \
@@ -236,6 +236,7 @@ build() {
 		--with-external-tar="$srcdir" \
 		--with-lang="$languages" \
 		--with-system-dicts \
+		--with-system-libcmis \
 		--with-system-libs \
 		--with-system-zxing \
 		--with-tls=nss \
@@ -246,9 +247,9 @@ build() {
 		--without-system-dragonbox \
 		--without-system-frozen \
 		--without-system-jars \
-		--without-system-libcmis \
 		--without-system-libfixmath \
 		--without-system-sane \
+		--without-system-zxcvbn \
 		--disable-coinmp \
 		--disable-firebird-sdbc \
 		--disable-lpsolve \
@@ -396,17 +397,14 @@ writer() {
 }
 
 sha512sums="
-443d818f35d9cac1af3a911f031b0b8f455eb28afa1a563ee3551b3285810f3b7b19265a64f853eef07e0c550c5d81f95e2774db46bd9dfee7b9aee029eb3747  libreoffice-7.6.7.2.tar.xz
+27dac8d94067c0e22050a85f1c2075775d5058d72e833c997fb3660cdd62f054f036831d16c3c25ec97a2dbabd75be2a7ad47b2c2d000e7d47327bb743deffd9  libreoffice-24.8.4.2.tar.xz
+41ac356ebced3312c0f9ea0f07ff372337ab78af69071f63f63dc12bd2b0088d5d89aae3792276599dd0393bfdfd2b979946c43d36042e43105080bcdcbe089d  dragonbox-1.1.3.tar.gz
 722aa814c33a34bfffe6c0201b0035cc3b65854a0ba9ae2f51620a89d68019353e2c306651b35bca337186b22b2e9865ef3c5e3df8e9328006f882e4577f8c85  dtoa-20180411.tgz
 e22561a4e634e388e11f95b3005bc711e543013d314f6aaeda34befb2c673aea2d71a717d8822bc8fa85bdc8409945ba2ad91a1bac4f8cb5303080de01a5f60e  frozen-1.1.1.tar.gz
-1bb45c9a8f36fc3098d872f952151fb3a8314291c8d6c1b68d7b8170c062fd71d30fff389f344a957878c7d3dde6f5a913ea88e7d8d197e5e3fdd96b90b6e84f  pdfium-5778.tar.bz2
-a322cda7f9bb8e191033b41d1076208c5edfbf8a0ef1d0c2a210b5be61d75a8918c3530db246fb7c8b070778cf0674d929efaafcf4b1e342fdbc776011fb9b31  libcmis-0.6.1.tar.xz
-41ac356ebced3312c0f9ea0f07ff372337ab78af69071f63f63dc12bd2b0088d5d89aae3792276599dd0393bfdfd2b979946c43d36042e43105080bcdcbe089d  dragonbox-1.1.3.tar.gz
+3842991ac80d0993bd0aeaaf5e0a8fd5998222178d5532de6919dc270c6fa3062f746b7c60f749ff5f4c53ef48a2d4dba2047feaf82aa85782d7a48ae6377bd4  pdfium-6425.tar.bz2
+d7199b3cc36cd0e401bd8f857132425908307aefcdb1bb635ee81c34cf71ccbcdf0fe36a336a55da1281692b508881b54773afa41379a448863095f4abd5c0e8  zxcvbn-c-2.5.tar.gz
 6a6d131dad5191614950a49323ae6d9385afe331983c1c85fde82ce6ee816051d95dde9ef90658b8f0a8a0a21754e72ff724bf41f6b96c046b7b4c2660f7095b  f543e6e2d7275557a839a164941c0a86e5f2c3f2a0042bfc434c88c6dde9e140-opens___.ttf
 5bb780c1a5f57131a7df712be3d1a57d12c26516c52efc9ef8413f2e74f7caaee9b901a7e793a68706364e084ac2cbe0a59feac9e9921775b1012cf12162193b  linux-musl.patch
 3364062dac89722d6ec738a254e2296f4f6e0426e689e16be59fa1bcc504aea4a183859f82277f1409c25965b08655d1e643cef4dff03d96aba1fa4bfc2feb06  musl-stacksize.patch
 d99d074e89e2713a3b6a56fa60d9d989ca6eefc8884ccbf88cb16c7b09da6dde4ba4ebc6a4d8408b61a08088df7cb1bcda60738f91e5569179fc45d7e9b901a3  musl-libintl.patch
-9f96ca0fde7014fcdef8a974f6e3fc4e3360186fedbaa3c65e29196384fca066cc819536695c614a904f3add80b8ee004f6588ab4fd32e52f69b655fe72fa885  icu74.patch
-2f4d00cec8ddf2362b787420f5f6e71f060fd4800291b907918255615cfa0996d7cc199898e69665ec0d6041776025043c796402a02be1192b087632cad9bea3  gcc14.patch
-b46b39a218913dc0ad573b371c44bc0844ac7b463ed283e56365a9ac30abdf13c66403191599ef80f913440ca814ad6620152fb02edeeb011732a241a1f02303  gcc14-arm7.patch
 "
