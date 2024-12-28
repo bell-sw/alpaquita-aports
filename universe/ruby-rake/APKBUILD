@@ -3,7 +3,7 @@ _gemname=rake
 # Keep version in sync with "Bundled gems" (https://stdgems.org) for the
 # packaged Ruby version.
 pkgver=13.2.1
-pkgrel=0
+pkgrel=1
 pkgdesc="A Ruby task runner, inspired by make"
 url="https://github.com/ruby/rake"
 arch="noarch"
@@ -22,7 +22,8 @@ build() {
 check() {
 	# FIXME: Fix test_signal_propagation_in_tests
 	ruby -Ilib -Itest -e "Dir.glob('./test/**/test_*.rb', &method(:require))" -- \
-		--ignore-name=test_signal_propagation_in_tests
+		--ignore-name=test_signal_propagation_in_tests \
+		--verbose
 }
 
 package() {
