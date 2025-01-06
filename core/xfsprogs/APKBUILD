@@ -1,6 +1,6 @@
 pkgname=xfsprogs
 pkgver=6.12.0
-pkgrel=0
+pkgrel=1
 pkgdesc="XFS filesystem utilities"
 url="https://xfs.org/index.php/Main_Page"
 arch="all"
@@ -8,6 +8,7 @@ license="LGPL-2.1-or-later"
 makedepends="
 	bash
 	inih-dev
+	libedit-dev
 	linux-headers
 	lvm2-dev
 	python3
@@ -29,7 +30,8 @@ build() {
 		--sbindir=/sbin \
 		--libexecdir=/usr/lib \
 		--localstatedir=/var \
-		--enable-gettext=no
+		--enable-gettext=no \
+		--enable-editline=yes
 	# work around parallel build problem
 	make V=1 headers libhandle
 	make V=1
