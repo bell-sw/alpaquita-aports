@@ -26,7 +26,7 @@ build() {
 	# statvfs API is broken on 32 bit and musl implementation is equally
 	# broken on 64 bit. Avoid using it.
 	# https://lists.gnu.org/archive/html/bug-coreutils/2024-08/msg00021.html
-	fu_cv_sys_stat_statvfs=n \
+	[ "$CLIBC" = "musl" ] && export fu_cv_sys_stat_statvfs=n
 	CFLAGS="$CFLAGS -I/usr/include/utmps -flto=auto" \
 	LIBS="-lutmps -lskarnet" \
 	./configure \
