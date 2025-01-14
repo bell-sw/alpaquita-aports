@@ -1,6 +1,6 @@
 pkgname=distro-base
 pkgver=23
-pkgrel=3
+pkgrel=4
 pkgdesc="Meta package for minimal $VENDOR_NAME $VENDOR_DISTRO_NAME base"
 url="$VENDOR_URL"
 arch="noarch"
@@ -41,9 +41,12 @@ release() {
 	echo $pkgver | grep -q '\.' || _rel="Stream"
 	echo $_ver > "$subpkgdir/etc/$VENDOR_DISTRO-release"
 
+	local basic="$VENDOR_NAME $VENDOR_DISTRO_NAME Linux"
+	local pretty="$basic $_rel $pkgver ($CLIBC)"
+
 	# create /etc/issue
 	cat >"$subpkgdir"/etc/issue<<EOF
-Welcome to $VENDOR_NAME $VENDOR_DISTRO_NAME Linux $_rel $pkgver
+Welcome to $pretty
 Kernel \\r on an \\m (\\l)
 
 EOF
@@ -52,11 +55,11 @@ EOF
 
 	mkdir -p "$subpkgdir"/usr/lib
 	cat >"$subpkgdir"/usr/lib/os-release<<EOF
-NAME="$VENDOR_NAME $VENDOR_DISTRO_NAME Linux $_rel"
+NAME="$basic $_rel"
 ID=$VENDOR_DISTRO
 ID_LIKE=alpine
 VERSION_ID=$_ver
-PRETTY_NAME="$VENDOR_NAME $VENDOR_DISTRO_NAME Linux $_rel $pkgver ($CLIBC)"
+PRETTY_NAME="$pretty"
 HOME_URL="$VENDOR_URL"
 BUG_REPORT_URL="$VENDOR_BUG_REPORT_URL"
 LIBC_TYPE=$CLIBC
