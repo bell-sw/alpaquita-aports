@@ -1,4 +1,4 @@
-From bcc1c4ceed8f534cce5145b4db52afde97a46df7 Mon Sep 17 00:00:00 2001
+From c1d455e0678257b20a819ad31f290edde0a0ff4e Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 5 Apr 2022 14:37:27 +0300
 Subject: [PATCH] support gradual downgrade with apk add
@@ -60,12 +60,12 @@ index e6f0ce6..4c7d1fa 100644
  void apk_solver_set_name_flags(struct apk_name *name,
  			       unsigned short solver_flags,
 diff --git a/src/apk_solver_data.h b/src/apk_solver_data.h
-index aa0b777..26853da 100644
+index 03726d6..4338c70 100644
 --- a/src/apk_solver_data.h
 +++ b/src/apk_solver_data.h
-@@ -41,6 +41,7 @@ struct apk_solver_name_state {
- 	unsigned reverse_deps_done : 1;
+@@ -42,6 +42,7 @@ struct apk_solver_name_state {
  	unsigned has_virtual_provides : 1;
+ 	unsigned has_auto_selectable : 1;
  	unsigned new_alternative : 1;
 +	unsigned new_downgrade : 1;
  };
@@ -94,7 +94,7 @@ index dfa0a68..145aa22 100644
  		actx->virtpkg = optarg;
  		break;
 diff --git a/src/solver.c b/src/solver.c
-index 4c59efc..fb81e65 100644
+index a0c6837..433d358 100644
 --- a/src/solver.c
 +++ b/src/solver.c
 @@ -234,18 +234,24 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
@@ -136,7 +136,7 @@ index 4c59efc..fb81e65 100644
  }
  
  static void name_requirers_changed(struct apk_solver_state *ss, struct apk_name *name)
-@@ -682,7 +688,7 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -697,7 +703,7 @@ static int compare_providers(struct apk_solver_state *ss,
  		}
  
  		/* Prefer installed */
@@ -145,7 +145,7 @@ index 4c59efc..fb81e65 100644
  			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
  			if (r) {
  				dbg_printf("    prefer installed\n");
-@@ -804,15 +810,32 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
+@@ -819,15 +825,32 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
  		reevaluate_reverse_installif(ss, name);
  }
  
@@ -169,7 +169,7 @@ index 4c59efc..fb81e65 100644
  	struct apk_package *pkg = NULL;
  	struct apk_dependency *d;
  
- 	dbg_printf("select_package: %s (requirers=%d, iif=%d)\n", name->name, name->ss.requirers, name->ss.has_iif);
+ 	dbg_printf("select_package: %s (requirers=%d, autosel=%d, iif=%d)\n", name->name, name->ss.requirers, name->ss.has_auto_selectable, name->ss.has_iif);
  
  	if (name->ss.requirers || name->ss.has_iif) {
 +
@@ -179,7 +179,7 @@ index 4c59efc..fb81e65 100644
  		foreach_array_item(p, name->providers) {
  			dbg_printf("  consider "PKG_VER_FMT" iif_triggered=%d, tag_ok=%d, selectable=%d, available=%d, flags=0x%x, provider_priority=%d, installed=%d\n",
  				PKG_VER_PRINTF(p->pkg),
-@@ -837,11 +860,28 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
+@@ -847,11 +870,28 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
  				dbg_printf("    ignore: virtual package without provider_priority\n");
  				continue;
  			}
@@ -459,5 +459,5 @@ index 0000000..d8f4814
 +@EXPECT
 +OK: 0 MiB in 3 packages
 -- 
-2.25.1
+2.48.1
 

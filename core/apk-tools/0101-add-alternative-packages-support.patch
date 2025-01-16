@@ -1,4 +1,4 @@
-From 148fe1cfde150e3d173d42f91d3fe526c99141c8 Mon Sep 17 00:00:00 2001
+From e9a2d9f9a5f145af0b48ed550fa5d426426b431d Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 22 Feb 2022 18:18:06 +0300
 Subject: [PATCH] add alternative packages support
@@ -37,18 +37,18 @@ index c1c5d9c..e6f0ce6 100644
  void apk_solver_set_name_flags(struct apk_name *name,
  			       unsigned short solver_flags,
 diff --git a/src/apk_solver_data.h b/src/apk_solver_data.h
-index d65c139..aa0b777 100644
+index 22330f3..03726d6 100644
 --- a/src/apk_solver_data.h
 +++ b/src/apk_solver_data.h
-@@ -40,6 +40,7 @@ struct apk_solver_name_state {
- 	unsigned has_options : 1;
+@@ -41,6 +41,7 @@ struct apk_solver_name_state {
  	unsigned reverse_deps_done : 1;
  	unsigned has_virtual_provides : 1;
+ 	unsigned has_auto_selectable : 1;
 +	unsigned new_alternative : 1;
  };
  
  struct apk_solver_package_state {
-@@ -59,6 +60,7 @@ struct apk_solver_package_state {
+@@ -60,6 +61,7 @@ struct apk_solver_package_state {
  	unsigned char iif_triggered : 1;
  	unsigned char iif_failed : 1;
  	unsigned char error : 1;
@@ -103,7 +103,7 @@ index bdc8bd6..429710d 100644
  
  	if (APK_BLOB_IS_NULL(bbuf)) {
 diff --git a/src/solver.c b/src/solver.c
-index f2a01ad..4c59efc 100644
+index 935415c..a0c6837 100644
 --- a/src/solver.c
 +++ b/src/solver.c
 @@ -229,11 +229,19 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
@@ -214,8 +214,8 @@ index f2a01ad..4c59efc 100644
  		disqualify_package(ss, p->pkg, "provides transitivity");
  	next: ;
  	}
-@@ -507,6 +556,20 @@ static void reconsider_name(struct apk_solver_state *ss, struct apk_name *name)
- 		name->name, name->ss.has_options, name->ss.reverse_deps_done);
+@@ -522,6 +571,20 @@ static void reconsider_name(struct apk_solver_state *ss, struct apk_name *name)
+ 		name->name, name->ss.has_options, name->ss.has_auto_selectable, name->ss.reverse_deps_done);
  }
  
 +static int check_installed_deps(struct apk_package *pkg)
@@ -235,7 +235,7 @@ index f2a01ad..4c59efc 100644
  static int compare_providers(struct apk_solver_state *ss,
  			     struct apk_provider *pA, struct apk_provider *pB)
  {
-@@ -581,7 +644,7 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -596,7 +659,7 @@ static int compare_providers(struct apk_solver_state *ss,
  		    (solver_flags & APK_SOLVERF_INSTALLED)) {
  			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
  			if (r) {
@@ -244,7 +244,7 @@ index f2a01ad..4c59efc 100644
  				return r;
  			}
  		}
-@@ -609,6 +672,15 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -624,6 +687,15 @@ static int compare_providers(struct apk_solver_state *ss,
  			return r;
  		}
  
@@ -260,7 +260,7 @@ index f2a01ad..4c59efc 100644
  		/* Prefer installed */
  		if (!(solver_flags & APK_SOLVERF_UPGRADE)) {
  			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
-@@ -648,6 +720,14 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -663,6 +735,14 @@ static int compare_providers(struct apk_solver_state *ss,
  		return r;
  	}
  
@@ -275,7 +275,7 @@ index f2a01ad..4c59efc 100644
  	/* Prefer highest declared provider priority. */
  	r = pkgA->provider_priority - pkgB->provider_priority;
  	if (r) {
-@@ -672,10 +752,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
+@@ -687,10 +767,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
  	struct apk_provider *p0;
  
  	if (name->ss.locked) {
@@ -291,7 +291,7 @@ index f2a01ad..4c59efc 100644
  		if (ss->ignore_conflict)
  			return;
  		/* Conflict: providing same name */
-@@ -700,8 +785,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
+@@ -715,8 +800,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
  			if (p0->pkg == p.pkg)
  				continue;
  			if (p.version == &apk_atom_null &&
@@ -308,7 +308,7 @@ index f2a01ad..4c59efc 100644
  			disqualify_package(ss, p0->pkg, "conflicting provides");
  		}
  	}
-@@ -754,6 +846,13 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
+@@ -764,6 +856,13 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
  
  	pkg = chosen.pkg;
  	if (pkg) {
@@ -322,7 +322,7 @@ index f2a01ad..4c59efc 100644
  		if (!pkg->ss.pkg_selectable || !pkg->ss.tag_ok) {
  			/* Selecting broken or unallowed package */
  			mark_error(ss, pkg, "broken package / tag not ok");
-@@ -809,6 +908,10 @@ static void cset_track_deps_added(struct apk_package *pkg)
+@@ -819,6 +918,10 @@ static void cset_track_deps_added(struct apk_package *pkg)
  		if (d->conflict || !d->name->ss.installed_name)
  			continue;
  		d->name->ss.installed_name->ss.requirers++;
@@ -334,5 +334,5 @@ index f2a01ad..4c59efc 100644
  }
  
 -- 
-2.25.1
+2.48.1
 
