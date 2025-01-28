@@ -1,36 +1,36 @@
 pkgname=async-profiler
-pkgver=2.9
-pkgrel=3
+pkgver=3.0
+pkgrel=0
 pkgdesc="Low overhead sampling profiler for Java"
 url="https://github.com/async-profiler/async-profiler"
 arch="all"
 license="Apache-2.0"
 makedepends="openjdk17"
-options="!check !fhs" # no test suite? required /opt location
+options="!fhs"
+checkdepends="bash"
 source="
 	$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz
-	0001-async-profiler-corrected-location-for-installed-pack.patch
-	0002-940-lseek64-is-not-declared-when-compiling-on-Alpine.patch
-	0003-parse-from-both-.rela.plt-and-.rela.dyn.patch
+	0001-940-lseek64-is-not-declared-when-compiling-on-Alpine.patch
+	0002-parse-from-both-.rela.plt-and-.rela.dyn.patch
 "
 
 build() {
-	make
+	make all
 }
 
 package() {
-	local i
-	for i in build/jattach build/fdtransfer build/libasyncProfiler.so profiler.sh;
-	do
-		install -m755 -D "$i" "$pkgdir"/opt/"$pkgname"/$(basename "$i")
-	done
-	install -m644 -D build/async-profiler.jar "$pkgdir"/opt/"$pkgname"/async-profiler.jar
-	install -m644 -D build/converter.jar "$pkgdir"/opt/"$pkgname"/converter.jar
+	install -m755 -D build/lib/libasyncProfiler.so "$pkgdir"/opt/async-profiler/lib/libasyncProfiler.so
+	install -m755 -D build/bin/asprof "$pkgdir"/opt/async-profiler/bin/asprof
+	install -m644 -D build/lib/async-profiler.jar "$pkgdir"/opt/async-profiler/lib/async-profiler.jar
+	install -m644 -D build/lib/converter.jar "$pkgdir"/opt/async-profiler/lib/converter.jar
+
+	install -dm755 "$pkgdir"/usr/lib "$pkgdir"/usr/bin
+	ln -s ../../opt/async-profiler/lib/libasyncProfiler.so "$pkgdir"/usr/lib/libasyncProfiler.so
+	ln -s ../../opt/async-profiler/bin/asprof "$pkgdir"/usr/bin/asprof
 }
 
 sha512sums="
-882fdc4633875006d9e7734a7e1b258c5330fc61cb942e78d28733ed87772d1334a8ac17f7fb2cc20f0d7954c9cb8d9a7596cd8a1fc702eec2085b8b144a645f  async-profiler-2.9.tar.gz
-bd8cc5fb71214d050191da507d18bab824e25ba49e19078ab2effe5954b2cc5971375070a033ecee3c3dd16f0f6932d851fb0822017b4d6235e26065c8cb59c0  0001-async-profiler-corrected-location-for-installed-pack.patch
-ebae6c55c257b20e6a93914dd20c5b6628747204abcc0372fc638e6403d6c62c511eee0619d592ef1a8c432fa25cf336b318a9da10aa76588ff63c6b76a7d71d  0002-940-lseek64-is-not-declared-when-compiling-on-Alpine.patch
-e69bb74ebdc2e22fc27ce114f5996d7ed8b0347e44b85e98d762f556a8c46be674d8afc65805aa3b3c3e4e616d5757c8fd6fe98214c23cde61b322d90b8d4572  0003-parse-from-both-.rela.plt-and-.rela.dyn.patch
+70c01baac8effb2ea2d84b9c4b29091119a438d25e28cfceb4c27061175ac9d19f7ba3ef5c87b4b17b6306c7974338537d381950c7414385a6dee6a142c6a2c0  async-profiler-3.0.tar.gz
+ebae6c55c257b20e6a93914dd20c5b6628747204abcc0372fc638e6403d6c62c511eee0619d592ef1a8c432fa25cf336b318a9da10aa76588ff63c6b76a7d71d  0001-940-lseek64-is-not-declared-when-compiling-on-Alpine.patch
+5c3d31d8f96e72ee2b67b7fd33a922d78c47b4e7e17bf78b1be24ef4d2389a300536369e267e659c20437169a262c1cb8f45f585685f2a38628059274a5d0339  0002-parse-from-both-.rela.plt-and-.rela.dyn.patch
 "
