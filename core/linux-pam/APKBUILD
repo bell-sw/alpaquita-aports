@@ -5,28 +5,23 @@
 # discretion of the local system administrator.
 
 pkgname=linux-pam
-pkgver=1.6.1
-pkgrel=2
+pkgver=1.7.0
+pkgrel=0
 pkgdesc="Linux PAM (Pluggable Authentication Modules for Linux)"
 url="https://www.kernel.org/pub/linux/libs/pam"
 arch="all"
 license="BSD-3-Clause"
-depends_dev="gettext-dev"
 makedepends="
-	$depends_dev
-	autoconf
-	automake
 	bison
 	flex-dev
 	glibc:libxcrypt-dev
-	libtool
 	linux-headers
+	meson
 	musl:utmps-dev
 	"
 options="suid !check"
 subpackages="$pkgname-dev $pkgname-manual::noarch $pkgname-doc"
 source="https://github.com/linux-pam/linux-pam/releases/download/v$pkgver/Linux-PAM-$pkgver.tar.xz
-	https://github.com/linux-pam/linux-pam/releases/download/v$pkgver/Linux-PAM-$pkgver-docs.tar.xz
 
 	base-auth.pamd
 	base-account.pamd
@@ -50,35 +45,28 @@ build() {
 		export CFLAGS="$CFLAGS -flto=auto $(pkg-config --cflags utmps)"
 		export LDFLAGS="$LDFLAGS $(pkg-config --libs utmps)"
 	fi
-	./configure \
-		--build=$CBUILD \
-		--host=$CHOST \
-		--prefix=/usr \
-		--libdir=/usr/lib \
-		--sbindir=/usr/sbin \
-		--sysconfdir=/etc \
-		--mandir=/usr/share/man \
-		--infodir=/usr/share/info \
-		--localstatedir=/var \
-		--disable-nls \
-		--disable-db \
-		--disable-examples
-	make
+	abuild-meson \
+		-Dexamples=false \
+		-Dhtmldir=/usr/share/doc/Linux-PAM \
+		-Ddocdir=/usr/share/man \
+		build .
+
+	meson compile -C build
 }
 
 package() {
-	make DESTDIR="$pkgdir" install
+	DESTDIR="$pkgdir" meson install -C build
 
 	# install our pam.d files
-	install -Dm644 "$srcdir"/base-auth.pamd "$pkgdir"/etc/pam.d/base-auth
-	install -Dm644 "$srcdir"/base-password.pamd "$pkgdir"/etc/pam.d/base-password
-	install -Dm644 "$srcdir"/base-account.pamd "$pkgdir"/etc/pam.d/base-account
-	install -Dm644 "$srcdir"/base-session.pamd "$pkgdir"/etc/pam.d/base-session
+	install -Dm644 "$srcdir"/base-auth.pamd "$pkgdir"/usr/lib/pam.d/base-auth
+	install -Dm644 "$srcdir"/base-password.pamd "$pkgdir"/usr/lib/pam.d/base-password
+	install -Dm644 "$srcdir"/base-account.pamd "$pkgdir"/usr/lib/pam.d/base-account
+	install -Dm644 "$srcdir"/base-session.pamd "$pkgdir"/usr/lib/pam.d/base-session
 	install -Dm644 "$srcdir"/base-session-noninteractive.pamd \
-		"$pkgdir"/etc/pam.d/base-session-noninteractive
-	install -Dm644 "$srcdir"/other.pamd "$pkgdir"/etc/pam.d/other
-	install -Dm644 "$srcdir"/login.pamd "$pkgdir"/etc/pam.d/login
-	install -Dm644 "$srcdir"/su.pamd "$pkgdir"/etc/pam.d/su
+		"$pkgdir"/usr/lib/pam.d/base-session-noninteractive
+	install -Dm644 "$srcdir"/other.pamd "$pkgdir"/usr/lib/pam.d/other
+	install -Dm644 "$srcdir"/login.pamd "$pkgdir"/usr/lib/pam.d/login
+	install -Dm644 "$srcdir"/su.pamd "$pkgdir"/usr/lib/pam.d/su
 
 	# make "unix_chkpwd" shadow group and enable g+s
 	chgrp shadow "$pkgdir"/usr/sbin/unix_chkpwd \
@@ -95,8 +83,7 @@ manual() {
 }
 
 sha512sums="
-ddb5a5f296f564b76925324550d29f15d342841a97815336789c7bb922a8663e831edeb54f3dcd1eaf297e3325c9e2e6c14b8740def5c43cf3f160a8a14fa2ea  Linux-PAM-1.6.1.tar.xz
-c6054ec6832f604c0654cf074e4e241c44037fd41cd37cca7da94abe008ff72adc4466d31bd254517eda083c7ec3f6aefd37785b3ee3d0d4553250bd29963855  Linux-PAM-1.6.1-docs.tar.xz
+ab5cadb0eb5e95e36146fdbbc77eef4e5e0f38aeee4e819b080a1316f69969c3c33e4a2daf3246ded4c2e58ce517d7f1acb0d8de02a4898ff753f4c3aeec51cf  Linux-PAM-1.7.0.tar.xz
 3acebf9e78ce79f781946445b1b05a2f754692b69b3ab7c1699e601c7939e5374cc7be55b2e20b5d18285e5bc84daf0a93f553a9fc63ed3544cd01dd5b593cc2  base-auth.pamd
 85806253a2a9163c6fb75e38bcbe4ee10e8713b784c60f46d0f89119c8aa7b5a98e1e920a1bde52fb7a33f65858954cadefc925d91f17dfa0f15f0132fe5cc01  base-account.pamd
 8289d81b54630b764eb5e0b49b53cff7cf69a624a031b687046145fb027a07ec19d01a8608ed022315c0b40083e5c8a522675bbd429c3109dab87556d59656bf  base-password.pamd
