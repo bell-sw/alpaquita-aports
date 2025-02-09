@@ -9,12 +9,18 @@ pkgdesc="Toolkit for general-purpose cryptography and secure communication (v.3)
 url="https://www.openssl.org/"
 arch="all"
 license="Apache-2.0"
-replaces="openssl"
 makedepends_build="perl"
 makedepends_host="linux-headers"
 makedepends="$makedepends_host $makedepends_build"
-subpackages="$pkgname-dbg $pkgname-libs-static $pkgname-dev $pkgname-doc
-	$pkgname-misc::noarch libcrypto$_abiver:_libcrypto libssl$_abiver:_libssl"
+subpackages="
+	$pkgname-dbg
+	$pkgname-libs-static
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-misc::noarch
+	libcrypto$_abiver:_libcrypto
+	libssl$_abiver:_libssl
+	"
 source="https://github.com/openssl/openssl/releases/download/openssl-$pkgver/openssl-$pkgver.tar.gz
 	CVE-2024-9143.patch
 	CVE-2024-13176.patch
@@ -123,7 +129,7 @@ builddir="$srcdir/openssl-$pkgver"
 #     - CVE-2023-4807
 
 build() {
-	local _target _optflags
+	local target optflags
 
 	# openssl will prepend crosscompile always core CC et al
 	CC=${CC#"$CROSS_COMPILE"}
@@ -132,8 +138,8 @@ build() {
 
 	# determine target OS for openssl
 	case "$CARCH" in
-		aarch64*)	_target="linux-aarch64" ;;
-		x86_64)		_target="linux-x86_64"; _optflags="enable-ec_nistp_64_gcc_128" ;;
+		aarch64*)	target="linux-aarch64" ;;
+		x86_64)		target="linux-x86_64"; optflags="enable-ec_nistp_64_gcc_128" ;;
 		*)		msg "Unable to determine architecture from (CARCH=$CARCH)" ; return 1 ;;
 	esac
 
@@ -143,11 +149,11 @@ build() {
 
 	# when cross building do not enable threads as libatomic is not avaiable
 	if [ "$CBUILD" != "$CHOST" ]; then
-		_optflags="$_optflags no-threads"
+		optflags="$optflags no-threads"
 	fi
 
 	perl ./Configure \
-		$_target \
+		$target \
 		--prefix=/usr \
 		--libdir=lib \
 		--openssldir=/etc/ssl \
@@ -163,7 +169,7 @@ build() {
 		no-ssl3 \
 		no-seed \
 		no-weak-ssl-ciphers \
-		$_optflags \
+		$optflags \
 		$CPPFLAGS \
 		$CFLAGS \
 		$LDFLAGS -Wa,--noexecstack
