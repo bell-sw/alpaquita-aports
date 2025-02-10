@@ -168,16 +168,6 @@ set_kbuild_timestamp() {
 
 build() {
 	unset LDFLAGS
-	export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
-	for i in $_flavors; do
-		cd "$srcdir"/build-$i.$CARCH
-		make ARCH="$_carch" CC="${CC:-gcc}" \
-			KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-$VENDOR_DISTRO_NAME"
-	done
-}
-
-build() {
-	unset LDFLAGS
 	# for some reason these sometimes leak into the kernel build,
 	# -Werror=format-security breaks some stuff
 	unset CFLAGS CPPFLAGS CXXFLAGS
