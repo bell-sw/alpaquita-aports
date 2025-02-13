@@ -12,7 +12,7 @@ _pkgsnap="${pkgver##*_git}"
 [ "$CHOST" != "$CTARGET" ] && _target="-$CTARGET_ARCH" || _target=""
 
 pkgname="$pkgname$_target"
-pkgrel=4
+pkgrel=5
 pkgdesc="The GNU Compiler Collection"
 url="https://gcc.gnu.org"
 arch="all"
@@ -302,6 +302,7 @@ build() {
 	local _bootstrap_configure=
 	local _symvers=
 	local _jit_configure=
+	local _sanitizer_configure=
 	local _hash_style_configure=
 
 	case "$CTARGET" in
@@ -330,21 +331,25 @@ build() {
 
 	case "$CTARGET_LIBC" in
 	musl)
-		# musl does not support libsanitizer
-		# alpine musl provides libssp_nonshared.a, so we don't need libssp either
+		case "$CTARGET_ARCH" in
+		x86_64)	_sanitizer_configure="--enable-libsanitizer" ;;
+		*)	_sanitizer_configure="--disable-libsanitizer" ;;
+		esac
+
+		# alpine musl provides libssp_nonshared.a, so we don't need libssp
 		# musl does not support CET
-		_libc_configure="--disable-libssp --disable-libsanitizer --disable-cet"
+		_libc_configure="--disable-libssp --disable-cet"
 		_symvers="--disable-symvers"
 		;;
 	glibc)
-		# Since libssp and libsanitizer are compiled for a target arch,
-		# it's needed to put their objects to separate packages as it's
-		# done for libstdc++ for example.  But we are going to use a
-		# cross GCC only to build a temporary bootstrap environment for
-		# now.  So let's simply disable these features since they are
-		# not really necessary for this task.
+		# Since libssp is compiled for a target arch, it's needed to
+		# put their objects to a separate package as it's done for
+		# libstdc++ for example.  But we are going to use a cross GCC
+		# only to build a temporary bootstrap environment for now.  So
+		# let's simply disable libssp since it is not really necessary
+		# for this task.
 		if [ "$CHOST" != "$CTARGET" ] ; then
-			_libc_configure="--disable-libssp --disable-libsanitizer"
+			_libc_configure="--disable-libssp"
 		# glibc has supported stack protector for ages, but the GCC
 		# configure stage cannot properly detect whether a target libc
 		# supports stack protector in case of cross-compilation.  This
@@ -359,6 +364,9 @@ build() {
 		_libc_configure="$_libc_configure --enable-cet"
 		;;
 	esac
+
+	# the same reason as for --disable-libssp on glibc, see above
+	[ "$CHOST" != "$CTARGET" ] && _sanitizer_configure="--disable-libsanitizer"
 
 	_libc_configure="$_libc_configure --enable-gnu-indirect-function=yes"
 
@@ -413,6 +421,7 @@ build() {
 		--enable-linker-build-id
 		$_arch_configure
 		$_libc_configure
+		$_sanitizer_configure
 		$_cross_configure
 		$_bootstrap_configure
 		--with-bugurl='$VENDOR_BUG_REPORT_URL'
