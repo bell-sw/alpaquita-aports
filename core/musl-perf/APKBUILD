@@ -7,7 +7,7 @@
 
 pkgname=musl-perf
 pkgver=1.2.5
-pkgrel=10
+pkgrel=11
 pkgdesc="the musl c library (libc) implementation (optimized for performance)"
 url="https://musl.libc.org/"
 arch="aarch64 x86_64"
@@ -52,6 +52,7 @@ source="https://musl.libc.org/releases/musl-$pkgver.tar.gz
 	loongarch64-add-fpu-and-simd-context-to-signal.h.patch
 	loongarch64-add-bits-hwcap.h.patch
 	LoongArch64-add-new-reloc-types-and-NT_LOONGARCH_HW_.patch
+	CVE-2025-26519.patch
 
 	0100-ldso-dynlink-add-ifunc-support.patch
 	0101-support-ifunc-in-static-linking.patch
@@ -71,6 +72,8 @@ source="https://musl.libc.org/releases/musl-$pkgver.tar.gz
 builddir="$srcdir/musl-$pkgver"
 
 # secfixes:
+#   1.2.5-r11:
+#     - CVE-2025-26519
 #   1.2.2_pre2-r0:
 #     - CVE-2020-28928
 #   1.1.23-r2:
@@ -192,6 +195,7 @@ b4d95231944fd236827a62343bbce74b20a56739e2b8937bda69bfc7b53f2ce5bd709459ee61615b
 b0f93f8868caf15d436ebe81088f4914cac3e21cc5b86cb0d5f40092edc6e29909188a14cde0c69ab86b51631aa34a4b8136a515f2a1b53c424c8b251c5ea689  loongarch64-add-fpu-and-simd-context-to-signal.h.patch
 70003d89e31b1c83274d1e850f86d8a54f30c1d5e22f769ae229d30d2bbdc095dbf4c262fb55079aaf8bfdf9a213f9468150b50c000b6596b051729a0d25f913  loongarch64-add-bits-hwcap.h.patch
 546fa317b532c3a63a592b6613e9a2136ee7750113ab048b261acf94e33a34732f3f26d6f734879c025d944f0b8e5307656c485bd32ce8f2364ee537ab236c95  LoongArch64-add-new-reloc-types-and-NT_LOONGARCH_HW_.patch
+7a6a9836d2de91afc1115868e68f347bd2365fa48188e65938cfa654ae9bafdbb3a56bf12d3185a96800a85198378c8dbf9c25d977ca0e318220529fa4458123  CVE-2025-26519.patch
 560ebc146d4e4880367f15264c06f0905865f1850db10777e7ae9ce5d6cf8bb5bd1118a92e473a7d8c4c798e921048e60624c2610abc4ca52e2a04b9892ebaf5  0100-ldso-dynlink-add-ifunc-support.patch
 6bb5771cea35415c25e80afd8bf064782eef66c3bd574d153ea13e78f771bad4e5b7c0b4fec0d5c5b2bde08aa1b24a646e65b71af4af61fea54d71a55cc3707d  0101-support-ifunc-in-static-linking.patch
 c19e101f3018a292d4b13c044223c6e4caeda9bbe6af17968acb87a4b96031dca9a210b284634a2e03da66a027e37abf8346d9eee5fb230619840545268029e0  0102-Makefile-link-glibc-string-lib.patch
