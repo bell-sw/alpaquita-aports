@@ -3,12 +3,12 @@
 
 pkgname=apk-tools
 pkgver=2.14.9
-pkgrel=0
+pkgrel=1
 pkgdesc="APK Package Manager (Derivative from Alpine Package Keeper)"
 arch="all"
 url="https://gitlab.alpinelinux.org/alpine/apk-tools"
 license="GPL-2.0-only"
-subpackages="$pkgname-dbg $pkgname-dev $pkgname-doc $pkgname-zsh-completion"
+subpackages="$pkgname-dbg $pkgname-dev $pkgname-doc $pkgname-zsh-completion libapk2:libapk"
 # starting with musl 1.2.4 and glibc 2.37, we added DT_RELR
 # it is possible for old systems to upgrade, and apk-tools would upgrade first,
 # which would upgrade to a binary that cannot run until musl/glibc is upgraded.
@@ -64,6 +64,10 @@ build() {
 
 check() {
 	make check LUA="$_lua"
+}
+
+libapk() {
+	amove usr/lib/libapk.so.*
 }
 
 package() {
