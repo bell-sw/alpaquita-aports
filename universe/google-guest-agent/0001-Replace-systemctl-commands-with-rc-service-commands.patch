@@ -1,0 +1,117 @@
+From 6e99040b6927483137cae640d40baba7d8806f5b Mon Sep 17 00:00:00 2001
+From: Takha Polat <takha.polat@bell-sw.com>
+Date: Wed, 19 Feb 2025 22:41:38 +0500
+Subject: [PATCH] Replace systemctl commands with rc-service commands
+
+---
+ google_guest_agent/non_windows_accounts.go |  2 +-
+ google_guest_agent/oslogin.go              | 41 +++++++++++-----------
+ 2 files changed, 22 insertions(+), 21 deletions(-)
+
+diff --git a/google_guest_agent/non_windows_accounts.go b/google_guest_agent/non_windows_accounts.go
+index cc373b1..4eac658 100644
+--- a/google_guest_agent/non_windows_accounts.go
++++ b/google_guest_agent/non_windows_accounts.go
+@@ -187,13 +187,13 @@ func (a *accountsMgr) Set(ctx context.Context) error {
+ 
+ 	// Start SSHD if not started. We do this in agent instead of adding a
+ 	// Wants= directive, and here instead of instance setup, so that this
+ 	// can be disabled by the instance configs file.
+ 	for _, svc := range []string{"ssh", "sshd"} {
+ 		// Ignore output, it's just a best effort.
+-		systemctlStart(ctx, svc)
++		openrcStart(ctx, svc)
+ 	}
+ 
+ 	return nil
+ }
+ 
+ var badSSHKeys []string
+diff --git a/google_guest_agent/oslogin.go b/google_guest_agent/oslogin.go
+index 106203d..af5f63c 100644
+--- a/google_guest_agent/oslogin.go
++++ b/google_guest_agent/oslogin.go
+@@ -158,21 +158,21 @@ func (o *osloginMgr) Set(ctx context.Context) error {
+ 		logger.Errorf("Error updating group.conf: %v.", err)
+ 	}
+ 
+ 	for _, svc := range []string{"nscd", "unscd", "systemd-logind", "cron", "crond"} {
+ 		// These services should be restarted if running
+ 		logger.Debugf("systemctl try-restart %s, if it exists", svc)
+-		if err := systemctlTryRestart(ctx, svc); err != nil {
++		if err := openrcTryRestart(ctx, svc); err != nil {
+ 			logger.Errorf("Error restarting service: %v.", err)
+ 		}
+ 	}
+ 
+ 	// SSH should be started if not running, reloaded otherwise.
+ 	for _, svc := range []string{"ssh", "sshd"} {
+ 		logger.Debugf("systemctl reload-or-restart %s, if it exists", svc)
+-		if err := systemctlReloadOrRestart(ctx, svc); err != nil {
++		if err := openrcRestart(ctx, svc); err != nil {
+ 			logger.Errorf("Error reloading service: %v.", err)
+ 		}
+ 	}
+ 
+ 	now := fmt.Sprintf("%d", time.Now().Unix())
+ 	mdsClient.WriteGuestAttributes(ctx, "guest-agent/sshable", now)
+@@ -475,37 +475,38 @@ func createOSLoginSudoersFile() error {
+ 		return err
+ 	}
+ 	fmt.Fprintf(sudoFile, "#includedir /var/google-sudoers.d\n")
+ 	return sudoFile.Close()
+ }
+ 
+-// systemctlTryRestart tries to restart a systemd service if it is already
+-// running. Stopped services will be ignored.
+-func systemctlTryRestart(ctx context.Context, servicename string) error {
+-	if !systemctlUnitExists(ctx, servicename) {
++
++func openrcTryRestart(ctx context.Context, servicename string) error {
++	if !openrcServiceExists(ctx, servicename) {
+ 		return nil
+ 	}
+-	return run.Quiet(ctx, "systemctl", "try-restart", servicename+".service")
++
++	res := run.WithOutput(ctx, "rc-service", servicename, "status")
++	if !strings.Contains(res.StdOut, "status: started") {
++		return nil
++	}
++
++	return run.Quiet(ctx, "rc-service", servicename, "restart")
+ }
+ 
+-// systemctlReloadOrRestart tries to reload a running systemd service if
+-// supported, restart otherwise. Stopped services will be started.
+-func systemctlReloadOrRestart(ctx context.Context, servicename string) error {
+-	if !systemctlUnitExists(ctx, servicename) {
++func openrcRestart(ctx context.Context, servicename string) error {
++	if !openrcServiceExists(ctx, servicename) {
+ 		return nil
+ 	}
+-	return run.Quiet(ctx, "systemctl", "reload-or-restart", servicename+".service")
++	return run.Quiet(ctx, "rc-service", servicename, "restart")
+ }
+ 
+-// systemctlStart tries to start a stopped systemd service. Started services
+-// will be ignored.
+-func systemctlStart(ctx context.Context, servicename string) error {
+-	if !systemctlUnitExists(ctx, servicename) {
++func openrcStart(ctx context.Context, servicename string) error {
++	if !openrcServiceExists(ctx, servicename) {
+ 		return nil
+ 	}
+-	return run.Quiet(ctx, "systemctl", "start", servicename+".service")
++	return run.Quiet(ctx, "rc-service", servicename, "start")
+ }
+ 
+-func systemctlUnitExists(ctx context.Context, servicename string) bool {
+-	res := run.WithOutput(ctx, "systemctl", "list-units", "--all", servicename+".service")
+-	return !strings.Contains(res.StdOut, "0 loaded units listed")
++func openrcServiceExists(ctx context.Context, servicename string) bool {
++	res := run.WithOutput(ctx, "rc-service", "-e", servicename)
++	return res.ExitCode == 0
+ }
+-- 
+2.48.1
+

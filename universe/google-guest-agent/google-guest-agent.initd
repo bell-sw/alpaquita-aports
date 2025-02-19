@@ -1,0 +1,18 @@
+#!/sbin/openrc-run
+
+name="google-guest-agent"
+description="Google Compute Engine Guest Agent"
+
+command="/usr/bin/google_guest_agent"
+command_user="root"
+command_background="true"
+pidfile="/run/google_guest_agent.pid"
+
+output_log="/var/log/google-guest-agent.log"
+error_log="/var/log/google-guest-agent.err"
+
+depend() {
+	after net
+	before sshd
+	use logger
+}

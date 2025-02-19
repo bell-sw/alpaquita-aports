@@ -1,0 +1,30 @@
+#!/sbin/openrc-run
+
+name="google-metadata-script-runner"
+description="Google Compute Engine Startup Scripts"
+
+command="/usr/bin/google_metadata_script_runner"
+command_args="startup"
+command_user="root"
+
+depend() {
+    need net
+    use logger google-guest-agent
+}
+
+stop() {
+    if [ "$RC_CMD" = "restart" ]; then
+        ewend 0 "Restarting is not applicable for $name"
+    else
+        ewend 0 "Stopping is not applicable for $name"
+    fi
+}
+
+start() {
+    ebegin "Executing Google Compute Engine Startup Scripts"
+    if [ "$RC_CMD" = "restart" ]; then
+        ewend 0 "Restarting is not applicable for $name"
+    else
+        default_start
+    fi
+}
