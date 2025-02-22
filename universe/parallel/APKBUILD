@@ -1,0 +1,30 @@
+pkgname=parallel
+pkgver=20250122
+pkgrel=0
+pkgdesc="Shell tool for executing jobs in parallel"
+arch="noarch"
+url="https://www.gnu.org/software/parallel"
+license="GPL-3.0-or-later"
+options="!check" # Test suite not part of src pkg
+depends="perl"
+subpackages="$pkgname-doc $pkgname-bash-completion $pkgname-zsh-completion"
+source="https://ftp.gnu.org/gnu/parallel/parallel-$pkgver.tar.bz2"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+9f14739e986da5a6a6efcea0b3175a9b9557289f5da774fd8ba264bae497290c8d8d80cd9549e0ec0aaab9ed69b622a6a1cd8b36656fa1adeaee151b7eb95942  parallel-20250122.tar.bz2
+"
