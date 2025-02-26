@@ -1,42 +1,29 @@
 diff --git a/cloudinit/config/cc_ca_certs.py b/cloudinit/config/cc_ca_certs.py
-index 3f6b8fb1..cbab552e 100644
+index d6dbc977f..beb222acc 100644
 --- a/cloudinit/config/cc_ca_certs.py
 +++ b/cloudinit/config/cc_ca_certs.py
-@@ -79,6 +79,7 @@ configuration option ``remove_defaults``.
-     order to provide the ``update-ca-certificates`` command.
- """
+@@ -78,6 +78,7 @@ for distro in (
+ 
  distros = [
+     "almalinux",
 +    "alpaquita",
+     "aosc",
+     "cloudlinux",
      "alpine",
-     "debian",
-     "fedora",
-@@ -175,7 +176,7 @@ def disable_default_ca_certs(distro_name, distro_cfg):
+@@ -157,7 +158,7 @@ def disable_default_ca_certs(distro_name, distro_cfg):
      """
      if distro_name in ["rhel", "photon"]:
          remove_default_ca_certs(distro_cfg)
--    elif distro_name in ["alpine", "debian", "ubuntu"]:
-+    elif distro_name in ["alpaquita", "alpine", "debian", "ubuntu"]:
+-    elif distro_name in ["alpine", "aosc", "debian", "ubuntu"]:
++    elif distro_name in ["alpaquita", "alpine", "aosc", "debian", "ubuntu"]:
          disable_system_ca_certs(distro_cfg)
  
          if distro_name in ["debian", "ubuntu"]:
-diff --git a/cloudinit/config/cc_growpart.py b/cloudinit/config/cc_growpart.py
-index 00245b8f..f3815036 100644
---- a/cloudinit/config/cc_growpart.py
-+++ b/cloudinit/config/cc_growpart.py
-@@ -369,7 +369,7 @@ def get_mapped_device(blockdev, distro_name):
-     """
-     realpath = os.path.realpath(blockdev)
- 
--    if distro_name == "alpine":
-+    if distro_name in ["alpaquita", "alpine"]:
-         if blockdev.startswith("/dev/mapper"):
-             # For Alpine systems a /dev/mapper/ entry is *not* a
-             # symlink to the related /dev/dm-X block device,
 diff --git a/cloudinit/config/cc_keyboard.py b/cloudinit/config/cc_keyboard.py
-index 66af8596..26b152a3 100644
+index e6e7749ce..2e72c0060 100644
 --- a/cloudinit/config/cc_keyboard.py
 +++ b/cloudinit/config/cc_keyboard.py
-@@ -77,7 +77,7 @@ def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
+@@ -43,7 +43,7 @@ def handle(name: str, cfg: Config, cloud: Cloud, args: list) -> None:
          return
      kb_cfg = cfg["keyboard"]
      layout = kb_cfg["layout"]
@@ -46,18 +33,18 @@ index 66af8596..26b152a3 100644
      else:
          model = kb_cfg.get("model", DEFAULT_KEYBOARD_MODEL)
 diff --git a/cloudinit/config/cc_ntp.py b/cloudinit/config/cc_ntp.py
-index 1f636d09..3d516ee4 100644
+index e2b83191a..94b79ae2a 100644
 --- a/cloudinit/config/cc_ntp.py
 +++ b/cloudinit/config/cc_ntp.py
-@@ -24,6 +24,7 @@ NTP_CONF = "/etc/ntp.conf"
+@@ -23,6 +23,7 @@ NTP_CONF = "/etc/ntp.conf"
  NR_POOL_SERVERS = 4
  distros = [
      "almalinux",
 +    "alpaquita",
      "alpine",
-     "centos",
-     "cloudlinux",
-@@ -98,6 +99,17 @@ NTP_CLIENT_CONFIG = {
+     "aosc",
+     "azurelinux",
+@@ -99,6 +100,17 @@ NTP_CLIENT_CONFIG = {
  
  # This is Distro-specific configuration overrides of the base config
  DISTRO_CLIENT_CONFIG = {
@@ -75,7 +62,7 @@ index 1f636d09..3d516ee4 100644
      "alpine": {
          "chrony": {
              "confpath": "/etc/chrony/chrony.conf",
-@@ -418,7 +430,7 @@ def generate_server_names(distro):
+@@ -370,7 +382,7 @@ def generate_server_names(distro):
          # For legal reasons x.pool.sles.ntp.org does not exist,
          # use the opensuse pool
          pool_distro = "opensuse"
@@ -84,7 +71,7 @@ index 1f636d09..3d516ee4 100644
          # Alpine-specific pool (i.e. x.alpine.pool.ntp.org) does not exist
          # so use general x.pool.ntp.org instead. The same applies to EuroLinux
          pool_distro = ""
-@@ -478,7 +490,7 @@ def write_ntp_config_template(
+@@ -430,7 +442,7 @@ def write_ntp_config_template(
          return
      if (
          len(servers) == 0
@@ -94,46 +81,46 @@ index 1f636d09..3d516ee4 100644
      ):
          # Alpine's Busybox ntpd only understands "servers" configuration
 diff --git a/cloudinit/config/cc_resolv_conf.py b/cloudinit/config/cc_resolv_conf.py
-index aa88919c..061147a8 100644
+index 408bbbca8..4da7f2e41 100644
 --- a/cloudinit/config/cc_resolv_conf.py
 +++ b/cloudinit/config/cc_resolv_conf.py
-@@ -57,6 +57,7 @@ meta: MetaSchema = {
-     "title": "Configure resolv.conf",
-     "description": MODULE_DESCRIPTION,
+@@ -26,6 +26,7 @@ RESOLVE_CONFIG_TEMPLATE_MAP = {
+ meta: MetaSchema = {
+     "id": "cc_resolv_conf",
      "distros": [
 +        "alpaquita",
          "alpine",
+         "azurelinux",
          "fedora",
-         "mariner",
 diff --git a/cloudinit/config/cc_ssh_import_id.py b/cloudinit/config/cc_ssh_import_id.py
-index a4ca1b98..a6363c58 100644
+index 7c1422dee..489e8cce2 100644
 --- a/cloudinit/config/cc_ssh_import_id.py
 +++ b/cloudinit/config/cc_ssh_import_id.py
-@@ -19,7 +19,7 @@ from cloudinit.distros import ug_util
- from cloudinit.settings import PER_INSTANCE
+@@ -23,7 +23,7 @@ SSH_IMPORT_ID_BINARY = "ssh-import-id"
  
- # https://launchpad.net/ssh-import-id
--distros = ["alpine", "cos", "debian", "ubuntu"]
-+distros = ["alpaquita", "alpine", "cos", "debian", "ubuntu"]
- 
- SSH_IMPORT_ID_BINARY = "ssh-import-id"
- MODULE_DESCRIPTION = """\
+ meta: MetaSchema = {
+     "id": "cc_ssh_import_id",
+-    "distros": ["alpine", "cos", "debian", "ubuntu"],
++    "distros": ["alpaquita", "alpine", "cos", "debian", "ubuntu"],
+     "frequency": PER_INSTANCE,
+     "activate_by_schema_keys": [],
+ }  # type: ignore
 diff --git a/cloudinit/distros/__init__.py b/cloudinit/distros/__init__.py
-index 9c4d6b23..ee2d7997 100644
+index e65cbfb5d..05b5af19c 100644
 --- a/cloudinit/distros/__init__.py
 +++ b/cloudinit/distros/__init__.py
-@@ -58,7 +58,7 @@ from cloudinit.net.renderer import Renderer
+@@ -60,7 +60,7 @@ from cloudinit.net.renderer import Renderer
  ALL_DISTROS = "all"
  
  OSFAMILIES = {
 -    "alpine": ["alpine"],
 +    "alpine": ["alpine", "alpaquita"],
+     "aosc": ["aosc"],
      "arch": ["arch"],
      "debian": ["debian", "ubuntu"],
-     "freebsd": ["freebsd", "dragonfly"],
 diff --git a/cloudinit/distros/alpaquita.py b/cloudinit/distros/alpaquita.py
 new file mode 100644
-index 00000000..83573edb
+index 000000000..83573edb6
 --- /dev/null
 +++ b/cloudinit/distros/alpaquita.py
 @@ -0,0 +1,7 @@
@@ -145,10 +132,10 @@ index 00000000..83573edb
 +class Distro(alpine.Distro):
 +    pass
 diff --git a/cloudinit/util.py b/cloudinit/util.py
-index c9b7287a..54add846 100644
+index 9c90e35f5..0de2cb1f1 100644
 --- a/cloudinit/util.py
 +++ b/cloudinit/util.py
-@@ -601,7 +601,7 @@ def get_linux_distro():
+@@ -609,7 +609,7 @@ def get_linux_distro():
              # which will include both version codename and architecture
              # on all distributions.
              flavor = platform.machine()
@@ -157,28 +144,28 @@ index c9b7287a..54add846 100644
              flavor = os_release.get("PRETTY_NAME", "")
          elif distro_name == "virtuozzo" and not os_release_rhel:
              # Only use this if the redhat file is not parsed
-@@ -649,6 +649,7 @@ def _get_variant(info):
+@@ -657,6 +657,7 @@ def _get_variant(info):
          linux_dist = info["dist"][0].lower()
          if linux_dist in (
              "almalinux",
 +            "alpaquita",
              "alpine",
+             "aosc",
              "arch",
-             "centos",
 diff --git a/config/cloud.cfg.tmpl b/config/cloud.cfg.tmpl
-index ed9a7619..0506524c 100644
+index e03effcd7..f103af105 100644
 --- a/config/cloud.cfg.tmpl
 +++ b/config/cloud.cfg.tmpl
 @@ -11,7 +11,7 @@
-                  "openbsd": "openBSD", "openmandriva": "OpenMandriva admin",
-                  "photon": "PhotonOS", "ubuntu": "Ubuntu",
-                  "unknown": "Ubuntu"}) %}
--{% set groups = ({"alpine": "adm, wheel", "arch": "wheel, users",
-+{% set groups = ({"alpaquita": "adm, wheel", "alpine": "adm, wheel", "arch": "wheel, users",
+                  "netbsd": "NetBSD", "openbsd": "openBSD",
+                  "openmandriva": "OpenMandriva admin", "photon": "PhotonOS",
+                  "ubuntu": "Ubuntu", "unknown": "Ubuntu"}) %}
+-{% set groups = ({"alpine": "adm, wheel", "aosc": "wheel", "arch": "wheel, users",
++{% set groups = ({"alpaquita": "adm, wheel", "alpine": "adm, wheel", "aosc": "wheel", "arch": "wheel, users",
+                   "azurelinux": "wheel",
                    "debian": "adm, audio, cdrom, dialout, dip, floppy, netdev, plugdev, sudo, video",
                    "gentoo": "users, wheel", "mariner": "wheel",
-                   "photon": "wheel",
-@@ -19,7 +19,7 @@
+@@ -20,7 +20,7 @@
                    "suse": "cdrom, users",
                    "ubuntu": "adm, cdrom, dip, lxd, sudo",
                    "unknown": "adm, cdrom, dip, lxd, sudo"}) %}
@@ -187,7 +174,7 @@ index ed9a7619..0506524c 100644
                    "freebsd": "/bin/tcsh", "netbsd": "/bin/sh",
                    "openbsd": "/bin/ksh"}) %}
  {% set usernames = ({"amazon": "ec2-user", "centos": "cloud-user",
-@@ -57,7 +57,7 @@ disable_root: false
+@@ -58,7 +58,7 @@ disable_root: false
  disable_root: true
  {% endif %}
  
@@ -196,7 +183,7 @@ index ed9a7619..0506524c 100644
                     "openmandriva", "photon", "TencentOS"] or is_rhel %}
  
  {% if is_rhel %}
-@@ -87,7 +87,7 @@ apt:
+@@ -88,7 +88,7 @@ apt:
  
  # If you use datasource_list array, keep array items in a single line.
  # If you use multi line array, ds-identify script won't read array items.
@@ -205,7 +192,7 @@ index ed9a7619..0506524c 100644
  datasource_list: ['NoCloud', 'ConfigDrive', 'LXD', 'OpenNebula', 'Azure', 'AltCloud', 'OVF', 'MAAS', 'GCE', 'OpenStack', 'AliYun', 'Vultr', 'Ec2', 'CloudStack', 'Bigstep', 'Scaleway', 'Hetzner', 'IBMCloud', 'Oracle', 'Exoscale', 'RbxCloud', 'UpCloud', 'VMware', 'NWCS', 'Akamai', 'None']
  {% endif %}
  # Example datasource config
-@@ -130,7 +130,7 @@ cloud_init_modules:
+@@ -131,7 +131,7 @@ cloud_init_modules:
    - set_hostname
    - update_hostname
    - update_etc_hosts
@@ -214,34 +201,44 @@ index ed9a7619..0506524c 100644
    - resolv_conf
  {% endif %}
  {% if not is_bsd or variant not in ["photon"] %}
-@@ -159,7 +159,7 @@ cloud_config_modules:
+@@ -160,7 +160,7 @@ cloud_config_modules:
+ {% endif %}
    - locale
  {% endif %}
-   - set_passwords
 -{% if variant == "alpine" %}
 +{% if variant == "alpine" %}	# NB: TODO: no alpaquita
    - apk_configure
  {% elif variant in ["debian", "ubuntu", "unknown"] %}
    - grub_dpkg
-@@ -222,7 +222,7 @@ cloud_final_modules:
+@@ -206,7 +206,9 @@ cloud_final_modules:
+   - ansible
+   - mcollective
+   - salt_minion
++{% if variant not in ["alpaquita", "alpine"] %}
+   - reset_rmc
++{% endif %}
+   - scripts_vendor
+   - scripts_per_once
+   - scripts_per_boot
+@@ -223,7 +225,7 @@ cloud_final_modules:
  # (not accessible to handlers/transforms)
  system_info:
    # This will affect which distro class gets used
--{% if variant in ["alpine", "amazon", "arch", "debian", "fedora", "freebsd",
-+{% if variant in ["alpaquita", "alpine", "amazon", "arch", "debian", "fedora", "freebsd",
-                   "gentoo", "mariner", "netbsd", "openbsd", "OpenCloudOS",
-                   "openeuler", "openmandriva", "photon", "suse", "TencentOS",
-                   "ubuntu"] or is_rhel %}
-@@ -240,7 +240,7 @@ system_info:
+-{% if variant in ["alpine", "amazon", "aosc", "arch", "azurelinux", "debian", "fedora",
++{% if variant in ["alpaquita", "alpine", "amazon", "aosc", "arch", "azurelinux", "debian", "fedora",
+                   "freebsd", "gentoo", "mariner", "netbsd", "openbsd",
+                   "OpenCloudOS", "openeuler", "openmandriva", "photon", "suse",
+                   "TencentOS", "ubuntu"] or is_rhel %}
+@@ -241,7 +243,7 @@ system_info:
  {% else %}
      name: {{ variant }}
  {% endif %}
--{% if variant in ["alpine", "amazon", "arch", "debian", "fedora", "gentoo",
-+{% if variant in ["alpaquita", "alpine", "amazon", "arch", "debian", "fedora", "gentoo",
-                   "mariner", "OpenCloudOS", "openeuler", "openmandriva",
-                   "photon", "suse", "TencentOS", "ubuntu", "unknown"]
-                  or is_bsd or is_rhel %}
-@@ -264,7 +264,7 @@ system_info:
+-{% if variant in ["alpine", "amazon", "aosc", "arch", "azurelinux", "debian", "fedora",
++{% if variant in ["alpaquita", "alpine", "amazon", "aosc", "arch", "azurelinux", "debian", "fedora",
+                   "gentoo", "mariner", "OpenCloudOS", "openeuler",
+                   "openmandriva", "photon", "suse", "TencentOS", "ubuntu",
+                   "unknown"]
+@@ -266,7 +268,7 @@ system_info:
      primary_group: users
      no_user_group: true
  {% endif %}
@@ -250,7 +247,7 @@ index ed9a7619..0506524c 100644
  {% if variant in usernames %}
      doas:
        - permit nopass usernames[{{ variant }}]
-@@ -279,7 +279,7 @@ system_info:
+@@ -281,7 +283,7 @@ system_info:
  {% else %}
      shell: /bin/bash
  {% endif %}
@@ -259,29 +256,29 @@ index ed9a7619..0506524c 100644
    network:
      renderers: ['eni']
  {% elif variant == "debian" %}
-@@ -321,7 +321,7 @@ system_info:
+@@ -323,7 +325,7 @@ system_info:
    # Automatically discover the best ntp_client
    ntp_client: auto
  {% endif %}
--{% if variant in ["alpine", "amazon", "arch", "debian", "fedora", "gentoo",
-+{% if variant in ["alpaquita", "alpine", "amazon", "arch", "debian", "fedora", "gentoo",
-                   "mariner", "OpenCloudOS", "openeuler", "openmandriva",
-                   "photon", "suse", "TencentOS", "ubuntu", "unknown"]
-                   or is_rhel %}
-@@ -368,7 +368,7 @@ system_info:
+-{% if variant in ["alpine", "amazon", "aosc", "arch", "azurelinux", "debian", "fedora",
++{% if variant in ["alpaquita", "alpine", "amazon", "aosc", "arch", "azurelinux", "debian", "fedora",
+                   "gentoo", "mariner", "OpenCloudOS", "openeuler",
+                   "openmandriva", "photon", "suse", "TencentOS", "ubuntu",
+                   "unknown"]
+@@ -371,7 +373,7 @@ system_info:
  {% endif %}
  {% if variant in ["debian", "ubuntu", "unknown"] %}
    ssh_svcname: ssh
--{% elif variant in ["alpine", "amazon", "arch", "fedora", "gentoo",
-+{% elif variant in ["alpaquita", "alpine", "amazon", "arch", "fedora", "gentoo",
-                     "mariner", "OpenCloudOS", "openeuler", "openmandriva",
-                     "photon", "suse", "TencentOS"] or is_rhel %}
-   ssh_svcname: sshd
+-{% elif variant in ["alpine", "amazon", "aosc", "arch", "azurelinux", "fedora",
++{% elif variant in ["alpaquita", "alpine", "amazon", "aosc", "arch", "azurelinux", "fedora",
+                     "gentoo", "mariner", "OpenCloudOS", "openeuler",
+                     "openmandriva", "photon", "suse", "TencentOS"]
+                    or is_rhel %}
 diff --git a/tests/unittests/config/test_cc_ca_certs.py b/tests/unittests/config/test_cc_ca_certs.py
-index 46b2a635..76d58590 100644
+index 7b811caf4..86212a6df 100644
 --- a/tests/unittests/config/test_cc_ca_certs.py
 +++ b/tests/unittests/config/test_cc_ca_certs.py
-@@ -349,7 +349,7 @@ class TestRemoveDefaultCaCerts(TestCase):
+@@ -350,7 +350,7 @@ class TestRemoveDefaultCaCerts(TestCase):
                          ]
                      )
                      self.assertEqual([], mock_subp.call_args_list)
@@ -291,28 +288,28 @@ index 46b2a635..76d58590 100644
                      mock_write.assert_called_once_with(
                          conf["ca_cert_config"], expected, omode="wb"
 diff --git a/tests/unittests/config/test_cc_ntp.py b/tests/unittests/config/test_cc_ntp.py
-index 74ccf2de..c0ea0e33 100644
+index ead6f5213..c056d4b9d 100644
 --- a/tests/unittests/config/test_cc_ntp.py
 +++ b/tests/unittests/config/test_cc_ntp.py
-@@ -250,7 +250,7 @@ class TestNtp(FilesystemMockingTestCase):
- 
+@@ -247,7 +247,7 @@ class TestNtp(FilesystemMockingTestCase):
      def _get_expected_pools(self, pools, distro, client):
+         expected_pools = None
          if client in ["ntp", "chrony"]:
 -            if client == "ntp" and distro == "alpine":
 +            if client == "ntp" and distro in ["alpaquita", "alpine"]:
                  # NTP for Alpine Linux is Busybox's ntp which does not
                  # support 'pool' lines in its configuration file.
                  expected_pools = []
-@@ -265,7 +265,7 @@ class TestNtp(FilesystemMockingTestCase):
- 
+@@ -263,7 +263,7 @@ class TestNtp(FilesystemMockingTestCase):
      def _get_expected_servers(self, servers, distro, client):
+         expected_servers = None
          if client in ["ntp", "chrony"]:
 -            if client == "ntp" and distro == "alpine":
 +            if client == "ntp" and distro in ["alpaquita", "alpine"]:
                  # NTP for Alpine Linux is Busybox's ntp which only supports
                  # 'server' lines without iburst option.
                  expected_servers = [
-@@ -381,7 +381,7 @@ class TestNtp(FilesystemMockingTestCase):
+@@ -379,7 +379,7 @@ class TestNtp(FilesystemMockingTestCase):
                  confpath = ntpconfig["confpath"]
                  m_select.return_value = ntpconfig
                  cc_ntp.handle("cc_ntp", valid_empty_config, mycloud, [])
@@ -321,7 +318,7 @@ index 74ccf2de..c0ea0e33 100644
                      # _mock_ntp_client_config call above did not specify a
                      # client value and so it defaults to "ntp" which on
                      # Alpine Linux only supports servers and not pools.
-@@ -461,7 +461,7 @@ class TestNtp(FilesystemMockingTestCase):
+@@ -459,7 +459,7 @@ class TestNtp(FilesystemMockingTestCase):
              if distro == "cos":
                  return
  
@@ -331,32 +328,32 @@ index 74ccf2de..c0ea0e33 100644
                  expected_service_call = [
                      "rc-service",
 diff --git a/tests/unittests/test_cli.py b/tests/unittests/test_cli.py
-index 24762450..09f01cd1 100644
+index 58f003eb7..5bd5f2557 100644
 --- a/tests/unittests/test_cli.py
 +++ b/tests/unittests/test_cli.py
-@@ -300,7 +300,7 @@ class TestCLI:
-                 ["all"],
+@@ -315,7 +315,7 @@ class TestCLI:
                  [
                      "**Supported distros:** all",
--                    "**Supported distros:** almalinux, alpine, centos, "
-+                    "**Supported distros:** almalinux, alpaquita, alpine, centos, "
-                     "cloudlinux, cos, debian, eurolinux, fedora, freebsd, "
-                     "mariner, miraclelinux, "
-                     "openbsd, openeuler, OpenCloudOS, openmandriva, "
+                     "**Supported distros:** "
+-                    "almalinux, alpine, aosc, azurelinux, "
++                    "almalinux, alpaquita, alpine, aosc, azurelinux, "
+                     "centos, cloudlinux, cos, debian, eurolinux, fedora, "
+                     "freebsd, mariner, miraclelinux, openbsd, openeuler, "
+                     "OpenCloudOS, openmandriva, opensuse, opensuse-microos, "
 diff --git a/tests/unittests/test_util.py b/tests/unittests/test_util.py
-index 70edb40b..4d558f62 100644
+index 190eca761..1402e876e 100644
 --- a/tests/unittests/test_util.py
 +++ b/tests/unittests/test_util.py
-@@ -1308,6 +1308,7 @@ class TestGetVariant:
+@@ -1340,6 +1340,7 @@ class TestGetVariant:
          "info, expected_variant",
          [
              ({"system": "Linux", "dist": ("almalinux",)}, "almalinux"),
 +            ({"system": "linux", "dist": ("alpaquita",)}, "alpaquita"),
              ({"system": "linux", "dist": ("alpine",)}, "alpine"),
              ({"system": "linux", "dist": ("arch",)}, "arch"),
-             ({"system": "linux", "dist": ("centos",)}, "centos"),
+             ({"system": "linux", "dist": ("azurelinux",)}, "azurelinux"),
 diff --git a/tools/render-template b/tools/render-template
-index 5ef5a374..06264412 100755
+index 78beeecb2..4263cb307 100755
 --- a/tools/render-template
 +++ b/tools/render-template
 @@ -12,6 +12,7 @@ def main():
@@ -366,4 +363,4 @@ index 5ef5a374..06264412 100755
 +        "alpaquita",
          "alpine",
          "amazon",
-         "arch",
+         "aosc",
