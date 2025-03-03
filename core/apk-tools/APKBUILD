@@ -3,7 +3,7 @@
 
 pkgname=apk-tools
 pkgver=2.14.9
-pkgrel=1
+pkgrel=2
 pkgdesc="APK Package Manager (Derivative from Alpine Package Keeper)"
 arch="all"
 url="https://gitlab.alpinelinux.org/alpine/apk-tools"
@@ -71,6 +71,7 @@ libapk() {
 }
 
 package() {
+	depends="$depends libapk2=$pkgver-r$pkgrel"
 	make LIBDIR="/usr/lib" DESTDIR="$pkgdir" LUA="$_lua" install
 	install -d "$pkgdir"/var/lib/apk \
 		"$pkgdir"/lib/apk/exec \
@@ -83,6 +84,7 @@ package() {
 
 luaapk() {
 	pkgshortdesc="Lua module for apk-tools"
+	depends="$depends libapk2=$pkgver-r$pkgrel"
 	amove usr/lib/lua
 }
 
