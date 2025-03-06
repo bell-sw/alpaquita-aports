@@ -31,6 +31,10 @@ build() {
 }
 
 check() {
+	# Since clang is used in tests and clang doesn't have an annobin plugin,
+	# at least for clang18 and clang19, remove annobin plugin from CFLAGS
+	export CFLAGS="${CFLAGS//-fplugin=annobin/}"
+
 	npm test
 }
 
