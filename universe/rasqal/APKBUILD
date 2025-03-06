@@ -7,6 +7,7 @@ arch="all"
 license="LGPL-2.1-or-later"
 depends_dev="raptor2-dev"
 makedepends="$depends_dev"
+checkdepends="perl"
 subpackages="$pkgname-dev $pkgname-doc"
 source="https://download.librdf.org/source/rasqal-$pkgver.tar.gz"
 
@@ -26,6 +27,10 @@ build() {
 		--infodir=/usr/share/info \
 		--localstatedir=/var
 	make
+}
+
+check() {
+	make check
 }
 
 package() {
