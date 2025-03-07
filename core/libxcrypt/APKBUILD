@@ -1,21 +1,21 @@
 # Description:
 
 pkgname=libxcrypt
-pkgver=4.4.36
+pkgver=4.4.38
 pkgrel=0
 pkgdesc="Modern library for one-way hashing of passwords"
 url="https://github.com/besser82/libxcrypt/"
 arch="all"
 license="LGPL"
 options="!libc_musl"
-makedepends="perl"
+makedepends="autoconf automake libtool perl"
 subpackages="
 	$pkgname-static
 	$pkgname-dev
 	$pkgname-doc
 	$pkgname-compat:compat
 	"
-source="https://github.com/besser82/libxcrypt/releases/download/v${pkgver}/${pkgname}-${pkgver}.tar.xz"
+source="$pkgname-$pkgver.tar.gz::https://github.com/besser82/libxcrypt/archive/refs/tags/v$pkgver.tar.gz"
 
 _build() {
 	local build_path=$1
@@ -38,6 +38,7 @@ _build() {
 }
 
 build() {
+	./autogen.sh
 	_build build-new-api \
 		--enable-obsolete-api=no \
 		--enable-static
@@ -79,5 +80,5 @@ compat() {
 }
 
 sha512sums="
-468560e6f90877540d22e32c867cbcf3786983a6fdae6ef86454f4b7f2bbaae1b6589d1af75cda73078fa8f6e91b1a32f8353f26d433246eef7be3e96d4ae1c7  libxcrypt-4.4.36.tar.xz
+05b0288ca1f1371674516df2e6cc9034f34057bb86a4b1702577dcf1eb7ce4730fad3e660d69123f108aec1f1ab8a0f84aec50ada012fe523e94d10e2303835e  libxcrypt-4.4.38.tar.gz
 "
