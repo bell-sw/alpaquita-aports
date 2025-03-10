@@ -16,7 +16,6 @@ checkdepends="
 	py3-pytest
 	py3-pytest-mock
 	py3-pytest-timeout
-	py3-virtualenv
 	"
 subpackages="$pkgname-pyc"
 [ -n "BOOTSTRAP" ] && options="!check" # To break a cyclic dependency on py3-pytest
@@ -25,6 +24,13 @@ builddir="$srcdir"/$_pkgname-$pkgver
 
 replaces="py-filelock" # Backwards compatibility
 provides="py-filelock=$pkgver-r$pkgrel" # Backwards compatibility
+
+prepare() {
+	default_prepare
+
+	# circular dependency with py3-virtualenv
+	rm tests/test_virtualenv.py
+}
 
 build() {
 	SETUPTOOLS_SCM_PRETEND_VERSION=$pkgver \
