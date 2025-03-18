@@ -1,0 +1,46 @@
+maintainer="Celeste <cielesti@protonmail.com>"
+pkgname=fast_float
+pkgver=8.0.2
+pkgrel=0
+_tests=97a0b2e638feb479387554cf253e346500541e7e
+pkgdesc="Fast implementation of the C++ from_chars functions for float and double types"
+url="https://github.com/fastfloat/fast_float"
+arch="noarch"
+license="Apache-2.0 OR MIT"
+makedepends="cmake samurai"
+checkdepends="doctest-dev"
+source="https://github.com/fastfloat/fast_float/archive/v$pkgver/fast_float-$pkgver.tar.gz
+	https://github.com/fastfloat/supplemental_test_files/archive/$_tests/fast_float-tests-$_tests.tar.gz
+	"
+
+prepare() {
+	default_prepare
+
+	mkdir -p builddir/_deps
+	mv "$srcdir"/supplemental_test_files-$_tests \
+		builddir/_deps/supplemental_test_files-src
+}
+
+build() {
+	cmake -B builddir -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_DATAROOTDIR=/usr/lib \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DFASTFLOAT_TEST="$(want_check && echo ON || echo OFF)" \
+		-DSYSTEM_DOCTEST=ON \
+		-DFETCHCONTENT_FULLY_DISCONNECTED=ON
+	cmake --build builddir
+}
+
+check() {
+	ctest --test-dir builddir
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install builddir
+}
+
+sha512sums="
+0475d4a9100fda4cf0ba3a5f90090d2b86f4a472dbc125db57101b75555a05148965432d8258dd2a0cdffe97c10b27efe45baf9a8fe129f71d7a58b0dc705b4e  fast_float-8.0.2.tar.gz
+f2714a5d406c4e1f7a6e180a95d795edaa9033e6988955b76143884c020a9c379754474aa92f739a7f1feb9ac2d6c8d3bdb4ebe8bd23ab4b352ab809821eb43a  fast_float-tests-97a0b2e638feb479387554cf253e346500541e7e.tar.gz
+"
