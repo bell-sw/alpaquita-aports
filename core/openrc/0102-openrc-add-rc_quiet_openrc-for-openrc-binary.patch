@@ -1,15 +1,15 @@
-From c8f214a23dc59decbeeb87e8e299ceb3073db447 Mon Sep 17 00:00:00 2001
+From 3dc6f846dd0895eb08b3dc57bb45713ea95cbe1f Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Wed, 23 Nov 2022 18:15:15 +0300
 Subject: [PATCH] openrc: add rc_quiet_openrc for openrc binary
 
 ---
  etc/rc.conf     | 4 ++++
- src/openrc/rc.c | 4 ++++
- 2 files changed, 8 insertions(+)
+ src/openrc/rc.c | 6 ++++++
+ 2 files changed, 10 insertions(+)
 
 diff --git a/etc/rc.conf b/etc/rc.conf
-index e93eed59..f6eb16ef 100644
+index ca0f9207..1dd30b41 100644
 --- a/etc/rc.conf
 +++ b/etc/rc.conf
 @@ -58,6 +58,10 @@
@@ -24,20 +24,22 @@ index e93eed59..f6eb16ef 100644
  # variables through, add them here. Use a * to allow all variables through.
  #rc_env_allow="VAR1 VAR2"
 diff --git a/src/openrc/rc.c b/src/openrc/rc.c
-index c1ca1bd7..63081d48 100644
+index b09de7fe..25405c58 100644
 --- a/src/openrc/rc.c
 +++ b/src/openrc/rc.c
-@@ -768,6 +768,10 @@ int main(int argc, char **argv)
- 	env_filter();
- 	env_config();
+@@ -861,6 +861,12 @@ int main(int argc, char **argv)
  
+ 	svcdir = rc_svcdir();
+ 
++	/* Do not put this code into env_config() intentionally, because
++	 * env_config() can be invoked by the openrc-run binary. */
 +	errno = 0;
 +	if (rc_conf_yesno("rc_quiet_openrc") || errno == ENOENT)
 +		setenv("EINFO_QUIET", "YES", 1);
 +
- 	/* complain about old configuration settings if they exist */
- 	if (exists(RC_CONF_OLD)) {
- 		ewarn("%s still exists on your system and should be removed.",
+ 	newlevel = argv[optind++];
+ 	/* To make life easier, we only have the shutdown runlevel as
+ 	 * nothing really needs to know that we're rebooting.
 -- 
-2.38.1
+2.48.1
 
