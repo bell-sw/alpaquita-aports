@@ -1,11 +1,12 @@
 pkgname=vte3
 pkgver=0.80.0
-pkgrel=0
+pkgrel=1
 pkgdesc="Virtual Terminal Emulator library"
 url="https://gitlab.gnome.org/GNOME/vte"
 arch="all"
 license="LGPL-2.0-or-later"
-subpackages="$pkgname-dbg $pkgname-dev $pkgname-lang"
+subpackages="$pkgname-dbg $pkgname-dev $pkgname-lang $pkgname-profile"
+depends="$pkgname-profile"
 makedepends="
 	bash
 	fast_float
@@ -45,6 +46,10 @@ check() {
 
 package() {
 	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+profile() {
+	amove etc/profile.d
 }
 
 sha512sums="
