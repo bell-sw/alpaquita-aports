@@ -5,8 +5,14 @@ pkgdesc="Virtual Terminal Emulator library"
 url="https://gitlab.gnome.org/GNOME/vte"
 arch="all"
 license="LGPL-2.0-or-later"
-subpackages="$pkgname-dbg $pkgname-dev $pkgname-lang $pkgname-profile"
 depends="$pkgname-profile"
+subpackages="
+	$pkgname-app
+	$pkgname-dbg
+	$pkgname-dev
+	$pkgname-lang
+	$pkgname-profile::noarch
+	"
 makedepends="
 	bash
 	fast_float
@@ -49,7 +55,17 @@ package() {
 }
 
 profile() {
+	pkgdesc="$pkgdesc (profile files)"
+
 	amove etc/profile.d
+}
+
+app() {
+	pkgdesc="$pkgdesc (apps)"
+
+	amove usr/bin
+	amove usr/share/xdg-terminals
+	amove usr/share/applications
 }
 
 sha512sums="
