@@ -10,10 +10,11 @@ subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
 source="https://github.com/ivmai/libatomic_ops/releases/download/v$pkgver/libatomic_ops-$pkgver.tar.gz"
 
 build() {
-	CFLAGS="$CFLAGS -O2 -flto=auto" \
+	CFLAGS="${CFLAGS//-Os/-O2} -flto=auto" \
 	cmake -B build -G Ninja \
 		-DCMAKE_BUILD_TYPE=None \
 		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
 		-DBUILD_SHARED_LIBS=ON \
 		-Dbuild_tests="$(want_check && echo ON || echo OFF)"
 	cmake --build build
@@ -21,6 +22,7 @@ build() {
 	cmake -B build-static -G Ninja \
 		-DCMAKE_BUILD_TYPE=None \
 		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
 		-DBUILD_SHARED_LIBS=OFF \
 		-Dbuild_tests=OFF
 	cmake --build build-static
