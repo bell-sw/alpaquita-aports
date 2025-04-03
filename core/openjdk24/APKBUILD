@@ -1,0 +1,446 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME is a build of OpenJDK verified by the OpenJDK
+# Technology Compatibility Kit test suite to be compliant with the Java SE
+# specifications.
+
+: ${BUILD_FROM_SOURCE:=0}
+
+_java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_java_ver=24+37
+_java_rel_date=2025-03-18
+_java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 24"
+
+pkgname=${_java_pkg_name}24
+pkgver=${_java_ver/+/_p}
+pkgrel=0
+pkgdesc="$_java_name"
+url="$VENDOR_URL"
+license="GPL-2.0 WITH Classpath-Exception-2.0"
+arch="aarch64 x86_64"
+options="!strip ldpath-recursive !tracedeps !annobin"
+annocheck_skip="libsyslookup.so"
+depends="$pkgname-jdk=$pkgver-r$pkgrel"
+
+makedepends="
+	alsa-lib-dev
+	automake
+	autoconf
+	bash
+	ca-certificates
+	coreutils
+	cups-dev
+	file
+	findutils
+	fontconfig-dev
+	freetype-dev
+	gawk
+	gettext
+	grep
+	libx11-dev
+	libxext-dev
+	libxi-dev
+	libxrandr-dev
+	libxrender-dev
+	libxt-dev
+	libxtst-dev
+	linux-headers
+	openjdk23-bootstrap
+	sed
+	zip
+	zlib-dev
+	"
+
+subpackages="
+	$pkgname-dbg:_dbg
+	$pkgname-jmods:_jmods:noarch
+	$pkgname-demos:_demos:noarch
+	$pkgname-src:_src:noarch
+	$pkgname-libs-static:_libs_static
+	$pkgname-jre-cds:_jre_cds
+	$pkgname-jre-no-deps:_jre_no_deps
+	$pkgname-jre:_jre
+	$pkgname-jdk-no-deps:_jdk_no_deps
+	$pkgname-jdk:_jdk
+	"
+
+provides="
+	openjdk24=$pkgver-r$pkgrel
+	openjdk
+	"
+
+if [ "$BUILD_FROM_SOURCE" -eq 0 ]; then
+	case "$CARCH:$CLIBC" in
+		x86_64:glibc )
+			JDK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-x86_64/jdk-24+37_linux-x64_bin-static-libs.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-x86_64/jdk-24+37_linux-x64_bin-symbols.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-x86_64/jdk-24+37_linux-x64_bin.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-x86_64/jdk-24+37_linux-x64_bin-tests-demos.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-x86_64/jdk-24+37_linux-x64_bin-tests.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-x86_64/jre-24+37_linux-x64_bin.tar.gz
+"
+			JDK_SHA="
+77125c364acb9f050569ce3fbb97a866f2f6c84c5e0077ec0533e3ad89072af2bf99907c623972a2400701c1adfad2974cc97e7cb484631ec98bf5fb11f9bae3  jdk-24+37_linux-x64_bin-static-libs.tar.gz
+c909991e45b571af81931acb6e4d11fd5b73822ac5217b2e1f2ddd998a8c964842b1b2e5b7e901d9c573f86b1093846648dddfaa3a250ab8d1dfec45f5835871  jdk-24+37_linux-x64_bin-symbols.tar.gz
+fd6069224bf77a635ece51bf3c643e4dd6a3b11638179ca589ab719606aba5b72a5fcdf45a9fc777719867974bad5c0d3dda64750443305885944f9945dccd95  jdk-24+37_linux-x64_bin.tar.gz
+c5624d1d0c31cf5082048c81bfb89e804ebd7abc3621e055fc354aa0b434f10c68a209d52e782683d0be1f9fd9f55656dfaf62130a554203a6466837d7f706eb  jdk-24+37_linux-x64_bin-tests-demos.tar.gz
+0baeebf738e8ec9ab916c4012fd63486097fea81a2a6b9ad18b7021d8d289a6f2a5b20ff9e490b1b43be1677730da8413173150ed8d4bd600ef880141dbda089  jdk-24+37_linux-x64_bin-tests.tar.gz
+0568e8e6e6b2ae53233ec128625f7992fe5b155b91d021a90b0008c52752c327a0249e1ca4b101d5d45cd0e0e260d82d15bb3deeda798e8870e63b72fd6c18e6  jre-24+37_linux-x64_bin.tar.gz
+"
+		;;
+		x86_64:musl )
+			JDK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-x86_64/jdk-24+37_linux-x64-musl_bin-static-libs.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-x86_64/jdk-24+37_linux-x64-musl_bin-symbols.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-x86_64/jdk-24+37_linux-x64-musl_bin.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-x86_64/jdk-24+37_linux-x64-musl_bin-tests-demos.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-x86_64/jdk-24+37_linux-x64-musl_bin-tests.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-x86_64/jre-24+37_linux-x64-musl_bin.tar.gz
+"
+			JDK_SHA="
+8ab374c89cc0917bd3546cdecf9836438c46b2fb495d3914295d71f8d6dda7a6c0f4ccd3b945d4dd4c0a1a7e236736740d56f15d3da05f0c1de32894f88a2559  jdk-24+37_linux-x64-musl_bin-static-libs.tar.gz
+61cad69074d63fcf769854355e5ba34209d064a17b471b1dc454c99151fe41776aad7fd1142620b49b37d5dac66de78c188fae7304f0343a7b178a7bfdb7ec04  jdk-24+37_linux-x64-musl_bin-symbols.tar.gz
+5b86443bfbaaec4ad31650c1cb80eb5407fe11176a7c2f2ff292d6b1a6a5bbdee855b4fc17a43b12ab9de8887468ef3b7d3a4c9bc70c08e0d7fa7298c76530a3  jdk-24+37_linux-x64-musl_bin.tar.gz
+1664a1fe4893873a5b7b55b1c212b2df7b8c1c9fbd950ca2c9be1d0883e7069f03b2b3459f70b6fbec66f43fed316c6b80a802b5b8756fe59e24f49cfadbda07  jdk-24+37_linux-x64-musl_bin-tests-demos.tar.gz
+2c4f7b1ebb9293cea51496ee2ba1f23c57da38e092ae7ac9f4f8ba36c35e15b10a572219e701e7d62e692d4b3f4bd611b37f81f5655ea12a2d91789023b91223  jdk-24+37_linux-x64-musl_bin-tests.tar.gz
+f044f9d294f917b1bd923a1b49c85b8518f399543e5ed575c1f7fb8dec83efb29b2c7cc3b29aa9345603b48826a69c814568be73974b58dca4e8639990887008  jre-24+37_linux-x64-musl_bin.tar.gz
+"
+		;;
+		aarch64:glibc )
+			JDK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-aarch64/jdk-24+37_linux-aarch64_bin-static-libs.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-aarch64/jdk-24+37_linux-aarch64_bin-symbols.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-aarch64/jdk-24+37_linux-aarch64_bin.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-aarch64/jdk-24+37_linux-aarch64_bin-tests-demos.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-aarch64/jdk-24+37_linux-aarch64_bin-tests.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-aarch64/jre-24+37_linux-aarch64_bin.tar.gz
+"
+			JDK_SHA="
+2dec561b419c931aa9ef7f4e0721fcdb15bb528a7765519d7e95a0515d285c237db38ec00d0e6b7bba2ca5016fd53053a518f6809a1f2f7cb52552fe128bcda5  jdk-24+37_linux-aarch64_bin-static-libs.tar.gz
+6449bc69adfd91eaf1d5d94474250158098a0f7b9036020195729b3b100b955bf766eeec8b2b1e3f40d3c323a71c7449faeb30cea7e50f67a0f3c364963f321e  jdk-24+37_linux-aarch64_bin-symbols.tar.gz
+e0a04cd8b718c2e5812b49de1eccceafc32d1440bfbc93ab534f46429d04e60badb0ec141551fda6da021c449d221751bb8fa62b5d28556a3c7f03cc143eaa3c  jdk-24+37_linux-aarch64_bin.tar.gz
+dbd21e10b1c5389a041c134e856b30ebd4dbe11fea2477d758aca950e6f9e4077ab77f720c482f5cc24f85d847a14f64fcc026d7cf6e47df8c5054205bcfa285  jdk-24+37_linux-aarch64_bin-tests-demos.tar.gz
+d856cba83ab5b9b2a98a1fc84f6ca137d9a6d6a4fd02ce1f9e60f455d96277697846fb173bd8be43cbdde8e1a6be58f08a17fbd4ababd1c083c20f3667ef8fc4  jdk-24+37_linux-aarch64_bin-tests.tar.gz
+731524264ec4d985697cafe27b6622ed4fb08700c50baefc787b20c3ff179bb4bcdd3ad6debde1a8a360762be2719fe10cc01760bb1c831c9f2e95fd97c92dd1  jre-24+37_linux-aarch64_bin.tar.gz
+"
+		;;
+		aarch64:musl )
+			JDK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-aarch64/jdk-24+37_linux-aarch64-musl_bin-static-libs.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-aarch64/jdk-24+37_linux-aarch64-musl_bin-symbols.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-aarch64/jdk-24+37_linux-aarch64-musl_bin.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-aarch64/jdk-24+37_linux-aarch64-musl_bin-tests-demos.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-aarch64/jdk-24+37_linux-aarch64-musl_bin-tests.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-aarch64/jre-24+37_linux-aarch64-musl_bin.tar.gz
+"
+			JDK_SHA="
+f9d53eb85802db776a64adfb43fc761e740a3aec40afad80cd6483e8a8b367872f48b109f3d2fad47504c3340e92451b704ce5b21e0d30b30818b2793646e08d  jdk-24+37_linux-aarch64-musl_bin-static-libs.tar.gz
+bdd9b4ee8b7f3f0d07b85438b9d40fbb55542e0e11e6b31afde4ba97e65ed99d1526dd96b5c8d9f85853c5f390146511de5859c491eaa1e86324e8af5493fa37  jdk-24+37_linux-aarch64-musl_bin-symbols.tar.gz
+648b60c755c36962e887c00dd036054132d06d2ac1a791273f488a74b600a318db720b753ac8233c598270f49db4bd15c27215d308eb68889146ba42ab5d4995  jdk-24+37_linux-aarch64-musl_bin.tar.gz
+921c14f512a3f17b13f94b055077f206915f4548bf0f3368b5bd8dd844d8d05262a1e510b5716448dfc27989c616387b95b4bf5346ada9c9630a778628d23be9  jdk-24+37_linux-aarch64-musl_bin-tests-demos.tar.gz
+f1cc3149360a5753dd42b15279aad16f8757e256a9cecf4d64e2168d99740f824087cb20bd2cd471dc82cf2f649cfb0d563b315b00bac3d48ee9972ba125e25d  jdk-24+37_linux-aarch64-musl_bin-tests.tar.gz
+9183a19180fed26e96ae92b93148c9cc56ed8cb8a7c488af63ab6c9912a4a0c23458333f1503cafad03141a97f9b2af34edfc46de5f72ed5578a5d9664893dc9  jre-24+37_linux-aarch64-musl_bin.tar.gz
+"
+		;;
+	esac
+else
+	case "$CARCH:$CLIBC" in
+		x86_64:glibc)
+			JDK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-x86_64/src.tar.gz
+"
+			JDK_SHA="
+2ad83f8509b42e0d3f85e35c054bdaca493e6224d36816fa8ad88e058224d9e9744a6611d38a38d1f0d123c82c162bb34bfa74955b72dc75f205e370c2ce4859  src.tar.gz
+"
+		;;
+		x86_64:musl)
+			JDK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-x86_64/src.tar.gz
+"
+			JDK_SHA="
+8826bf60ec7e61a68fcff47373e4b7ba205594bb6c6d4ee43d90dc8fab67546fd3c2b7ca19e110a5c0f875fbaf5b27ad4ea8ee14b9416f55d4ea980cdf973b06  src.tar.gz
+"
+		;;
+		aarch64:glibc)
+			JDK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-aarch64/src.tar.gz
+"
+			JDK_SHA="
+f7bf53493ad48e793941d0dcf0b1933c64e8b57f0f262d337c07cf3718e96c50c90b94436e85a42b48c00d3ae799e799fa27f9a0a623623c280b6de462c9f41f  src.tar.gz
+"
+		;;
+		aarch64:musl)
+			JDK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/java/24+37/linux-alpaquita-musl-aarch64/src.tar.gz
+"
+			JDK_SHA="
+87cbf6f32858e94b31a1230495d1d002aa2891936f7154ab73f46e1ad7d5e3c5d05e9059cce3591e84be3c02231464377d1933da5e0924f26a68c27ed66a4011  src.tar.gz
+"
+		;;
+	esac
+
+fi
+
+source="
+	$JDK_BIN
+	HelloJava.java
+"
+
+builddir="$srcdir/jdk-${_java_ver%+*}"
+sonameprefix="$pkgname:"
+
+_java_home=/usr/lib/jvm/"$pkgname"
+ldpath="$_java_home/lib"
+
+_jre_tools="
+	java
+	keytool
+	rmiregistry
+	"
+
+unpack() {
+	mkdir -p "$builddir"
+	if [ "${BUILD_FROM_SOURCE}" -eq 0 ]; then
+
+		mkdir -p "$builddir"/build/linux-${CARCH}-release/images/jdk
+		mkdir -p "$builddir"/build/linux-${CARCH}-release/bundles/
+		# Copy all tar.gz to expected location for processing
+		for f in $srcdir/*.tar.[xg]z; do
+			cp "$f" "$builddir"/build/linux-${CARCH}-release/bundles/
+		done
+		tar xf "$builddir"/build/linux-${CARCH}-release/bundles/jdk-*_bin.tar.gz -C "$builddir"/build/linux-${CARCH}-release/images/jdk --strip-component 1
+	else
+	    default_unpack
+	fi
+}
+
+prepare() {
+	default_prepare
+	if [ "${BUILD_FROM_SOURCE}" -ne 0 ]; then
+		update_config_sub
+	fi
+}
+
+build() {
+
+	[ "${BUILD_FROM_SOURCE}" -eq 0 ] && return 0
+
+	if [ -z "$JOBS" ]; then
+		export JOBS=$(printf '%s\n' "$MAKEFLAGS" | sed -n -e 's/.*-j\([0-9]\+\).*/\1/p')
+	fi
+
+	local _cflags="${CFLAGS/-O? /}"
+	local _boot_jdk
+	_boot_jdk="$(echo /usr/lib/jvm/java-23-* | awk '{ print $1 }')"
+
+	[ "$CLIBC" = 'musl' ] && _cflags="$_cflags -D_LARGEFILE64_SOURCE"
+
+	CFLAGS='' CXXFLAGS='' LDFLAGS=''
+	bash ./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--target=$CTARGET \
+		--with-jvm-variants='server,client,minimal' \
+		--with-jvm-features=shenandoahgc,zgc \
+		--with-version-string=${_java_ver%+*} \
+		--with-version-build=${_java_ver#*+} \
+		--with-version-date=${_java_rel_date} \
+		--with-version-opt=LTS \
+		--with-vendor-name="$VENDOR_NAME" \
+		--with-vendor-url="$VENDOR_URL" \
+		--with-vendor-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-vendor-vm-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-extra-cflags="$_cflags" \
+		--with-extra-cxxflags="$_cflags" \
+		--disable-warnings-as-errors \
+		--with-zlib=system \
+		--with-boot-jdk="$_boot_jdk"
+
+	# The output (stdout and stderr) from the latest build is
+	# always stored in $BUILD/build.log.  The previous build log
+	# is stored as build.log.old.  This means that it is not
+	# necessary to redirect the build output yourself if you want
+	# to process it.
+
+	# You can increase the verbosity of the log file, by the LOG
+	# control variable to make.  If you want to see the command
+	# lines used in compilations, use LOG=cmdlines.  To increase
+	# the general verbosity, use LOG=info, LOG=debug or LOG=trace.
+	# Both of these can be combined with cmdlines, e.g.
+	# LOG=info,cmdlines.  The debug log level will show most shell
+	# commands executed by make, and trace will show all.  Beware
+	# that both these log levels will produce a massive build log!
+	local verbose
+	#verbose="LOG=cmdlines" # uncomment and change if/as necessary
+
+	MAKEFLAGS='' make $verbose product-bundles static-libs-bundles
+}
+
+check() {
+	_jdkdir="$builddir"/build/linux-*-release/images/jdk
+
+	$_jdkdir/bin/javac "$startdir"/HelloJava.java -d "$builddir"
+	$_jdkdir/bin/java -cp "$builddir" HelloJava
+}
+
+package() {
+	mkdir -p "$pkgdir/$_java_home"
+	tar -C "$pkgdir/$_java_home" -xf build/linux-*-release/bundles/jdk*_bin.tar.gz --no-same-owner --strip-components=1
+}
+
+_jre_cds() {
+	pkgdesc="$_java_name (JRE Class Data Sharing archives)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	provides="openjdk24-jre-cds=$pkgver-r$pkgrel"
+
+	rm -f "$pkgdir/$_java_home/lib/server"/*.jsa
+	"$pkgdir/$_java_home/bin/java" -server -XX:+UseCompressedOops -Xshare:dump
+	"$pkgdir/$_java_home/bin/java" -server -XX:-UseCompressedOops -Xshare:dump
+
+	mkdir -p "$subpkgdir/$_java_home/lib/server"
+	mv "$pkgdir/$_java_home/lib/server"/*.jsa "$subpkgdir/$_java_home/lib/server"
+}
+
+_jre_no_deps() {
+	pkgdesc="$_java_name (JRE without dependencies)"
+	depends="java-common zlib"
+	provides="
+		java-jre-no-deps
+		java24-jre-no-deps
+		openjdk24-jre-no-deps=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/lib" "$subpkgdir/$_java_home/"
+
+	mkdir -p "$subpkgdir/$_java_home/bin"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/bin/$f" "$subpkgdir/$_java_home/bin/$f"
+	done
+
+	for f in legal conf release; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/$f"
+	done
+
+	cp "$subpkgdir/$_java_home/legal/java.base/LICENSE" "$subpkgdir/$_java_home/"
+	cat <<- EOF >"$subpkgdir/$_java_home/readme.txt"
+		BellSoft Liberica is a build of OpenJDK that is verified to be compliant with the Java SE
+		specification using OpenJDK Technology Compatibility Kit test suite.
+
+		To check BellSoft Liberica details and updates, please visit https://bell-sw.com/liberica.
+	EOF
+	ln -sf . "$subpkgdir/$_java_home/jre"
+	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-24-${pkgname/24/}
+}
+
+_jre() {
+	pkgdesc="$_java_name (JRE)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel fontconfig ttf-dejavu-core freetype"
+	provides="
+		java-jre
+		java24-jre
+		openjdk24-jre=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir"
+}
+
+_jre_doc() {
+	pkgdesc="$_java_name (JRE Documentation)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="openjdk24-jre-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/man/man1"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/man/man1/$f".* "$subpkgdir/$_java_home/man/man1/"
+	done
+}
+
+_jdk_no_deps() {
+	pkgdesc="$_java_name (JDK without dependencies)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	provides="
+		java-jdk-no-deps
+		java24-jdk-no-deps
+		openjdk24-jdk-no-deps=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	for f in bin include; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+}
+
+_jdk() {
+	pkgdesc="$_java_name (JDK)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel $pkgname-jdk-no-deps=$pkgver-r$pkgrel"
+	provides="
+		java-jdk
+		java24-jdk
+		openjdk24-jdk=$pkgver-r$pkgrel
+		openjdk24-bootstrap=$pkgver-r$pkgrel
+		$pkgname-bootstrap=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir"
+}
+
+_jmods() {
+	pkgdesc="$_java_name (Java Modules)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk24-jmods=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/jmods" "$subpkgdir/$_java_home/"
+}
+
+_doc() {
+	pkgdesc="$_java_name (Documentation)"
+	depends="$pkgname-jre-doc=$pkgver-r$pkgrel"
+	provides="openjdk24-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/man" "$subpkgdir/$_java_home/"
+}
+
+_demos() {
+	pkgdesc="$_java_name (Demos)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk24-demos=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	tar -C "$subpkgdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-tests-demos.tar.gz --no-same-owner --strip-components=1
+}
+
+_src() {
+	pkgdesc="$_java_name (Sources)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk24-src=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/src.zip" "$subpkgdir/$_java_home/lib/"
+}
+
+_dbg() {
+	pkgdesc="$_java_name (Debug Info)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk24-dbg=$pkgver-r$pkgrel"
+
+	local debugdir="$subpkgdir/usr/lib/debug"
+	mkdir -p "$debugdir/$_java_home"
+	tar -C "$debugdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-symbols.tar.gz --no-same-owner --strip-components=1
+}
+
+_libs_static() {
+	pkgdesc="$_java_name (Static Libraries)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk24-libs-static=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	tar -C "$subpkgdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-static-libs.tar.gz --no-same-owner --strip-components=1
+}
+
+
+sha512sums="
+508cc8511fecee2288f41dc009834d444785ddd4129acfabefeae03ab75a26088bc7e8a60548dac58c6d18865d994e5ad8fa340cac20ba3cc838434dc7cbbcde  HelloJava.java
+$JDK_SHA
+"
