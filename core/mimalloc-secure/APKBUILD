@@ -7,17 +7,14 @@ arch="all"
 license="MIT"
 makedepends_build="cmake"
 subpackages="$pkgname-dbg $pkgname-static $pkgname-dev $pkgname-global"
-_builddir="$srcdir"/mimalloc-$pkgver
 source="$pkgname-$pkgver.tar.gz::https://github.com/microsoft/mimalloc/archive/refs/tags/v$pkgver.tar.gz
 	musl:../mimalloc/0001-fix-musl-build-with-linux-prctl.h.patch
 	../mimalloc/malloc.sh
 	"
-builddir="$srcdir/$pkgname-$pkgver"
+builddir="$srcdir/mimalloc-$pkgver"
 _so_ver=${pkgver%%.*}
 
 build() {
-	cd "$_builddir"
-
 	cmake . \
 		-DCMAKE_INSTALL_PREFIX="$pkgdir/usr" \
 		-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON \
@@ -27,7 +24,6 @@ build() {
 }
 
 package() {
-	cd "$_builddir"
 	make install
 
 	mkdir -p "$pkgdir"/usr/bin/
@@ -42,7 +38,6 @@ EOF
 }
 
 check() {
-	cd "$_builddir"
 	make test
 }
 
