@@ -1,0 +1,41 @@
+pkgname=libdecor
+pkgver=0.2.2
+pkgrel=0
+pkgdesc="Client-side decorations library for Wayland clients"
+url="https://gitlab.freedesktop.org/libdecor/libdecor"
+license="MIT"
+arch="all"
+makedepends="
+	meson
+	cairo-dev
+	dbus-dev
+	gtk+3.0-dev
+	pango-dev
+	wayland-dev
+	wayland-protocols
+	"
+subpackages="$pkgname-dev $pkgname-gtk"
+source="https://gitlab.freedesktop.org/libdecor/libdecor/-/archive/$pkgver/libdecor-$pkgver.tar.gz"
+options="!check" # no test suite
+
+build() {
+	abuild-meson \
+		-Ddemo=false \
+		. output
+	meson compile -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+gtk() {
+	pkgdesc="$pkgdesc (GTK plugin)"
+	depends="$pkgname=$pkgver-r$pkgrel"
+
+	amove usr/lib/libdecor/plugins-1/libdecor-gtk.so
+}
+
+sha512sums="
+ddaaa75f1dc983e6d59e168896f8044cf6ac761675db6af410c6d2186bdc66942c98f36eb7a6e2836ce02dbb98189a80db30b7cef3dbaf49c7aae47c3eee22cc  libdecor-0.2.2.tar.gz
+"
