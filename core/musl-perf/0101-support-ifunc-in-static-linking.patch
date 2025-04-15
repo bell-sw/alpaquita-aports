@@ -1,36 +1,39 @@
-From a7276611a9cdaa6d0e09a93a224d49adc10fa976 Mon Sep 17 00:00:00 2001
+From 39e7c3b59772efab21c00ded3e2d23ccd528d5e2 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Fri, 17 Sep 2021 18:13:40 +0300
 Subject: [PATCH] support ifunc in static linking
 
 ---
- src/env/__libc_start_main.c | 38 +++++++++++++++++++++++++++++++++++++
- 1 file changed, 38 insertions(+)
+ src/env/__init_tls.c        | 34 ++++++++++++++++++++++++++++++++++
+ src/env/__libc_start_main.c |  1 +
+ 2 files changed, 35 insertions(+)
 
-diff --git a/src/env/__libc_start_main.c b/src/env/__libc_start_main.c
-index c5b277bd..fdcb1ed5 100644
---- a/src/env/__libc_start_main.c
-+++ b/src/env/__libc_start_main.c
-@@ -6,6 +6,9 @@
- #include "syscall.h"
- #include "atomic.h"
+diff --git a/src/env/__init_tls.c b/src/env/__init_tls.c
+index a93141ed..2e4fd163 100644
+--- a/src/env/__init_tls.c
++++ b/src/env/__init_tls.c
+@@ -8,6 +8,9 @@
  #include "libc.h"
+ #include "atomic.h"
+ #include "syscall.h"
 +#include "elf.h"
 +#include "link.h"
 +#include "reloc.h"
  
- static void dummy(void) {}
- weak_alias(dummy, _init);
-@@ -17,6 +20,39 @@ weak_alias(dummy1, __init_ssp);
+ volatile int __thread_list_lock;
  
- #define AUX_CNT 38
+@@ -73,12 +76,41 @@ void *__copy_tls(unsigned char *mem)
  
-+#if UINTPTR_MAX == 0xffffffff
+ #if ULONG_MAX == 0xffffffff
+ typedef Elf32_Phdr Phdr;
 +#define R_TYPE(x) ((x)&255)
-+#else
+ #else
+ typedef Elf64_Phdr Phdr;
 +#define R_TYPE(x) ((x)&0x7fffffff)
-+#endif
-+
+ #endif
+ 
+ extern weak hidden const size_t _DYNAMIC[];
+ 
 +static ElfW(Addr) resolve_ifunc_addr(const ElfW(Addr) addr)
 +{
 +	void *new_addr = ((void *(*)(void))addr)();
@@ -58,15 +61,27 @@ index c5b277bd..fdcb1ed5 100644
 +		process_iplt(i);
 +}
 +
- #ifdef __GNUC__
- __attribute__((__noinline__))
- #endif
-@@ -89,6 +125,8 @@ int __libc_start_main(int (*main)(int,char **,char **), int argc, char **argv,
+ static void static_init_tls(size_t *aux)
+ {
+ 	unsigned char *p;
+@@ -148,6 +180,8 @@ static void static_init_tls(size_t *aux)
+ 	/* Failure to initialize thread pointer is always fatal. */
+ 	if (__init_tp(__copy_tls(mem)) < 0)
+ 		a_crash();
++
++	init_ifunc();
+ }
+ 
+ weak_alias(static_init_tls, __init_tls);
+diff --git a/src/env/__libc_start_main.c b/src/env/__libc_start_main.c
+index c5b277bd..f6f8188d 100644
+--- a/src/env/__libc_start_main.c
++++ b/src/env/__libc_start_main.c
+@@ -89,6 +89,7 @@ int __libc_start_main(int (*main)(int,char **,char **), int argc, char **argv,
  static int libc_start_main_stage2(int (*main)(int,char **,char **), int argc, char **argv)
  {
  	char **envp = argv+argc+1;
 +
-+	init_ifunc();
  	__libc_start_init();
  
  	/* Pass control to the application */
