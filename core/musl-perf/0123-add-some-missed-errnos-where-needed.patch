@@ -1,0 +1,80 @@
+From c6f7641e6cbfba9448645e95380f6ee2884084d4 Mon Sep 17 00:00:00 2001
+From: q66 <q66@chimera-linux.org>
+Date: Mon, 19 Aug 2024 16:24:10 +0200
+Subject: [PATCH] add some missed errnos where needed
+
+There are some forgotten places where errno is not set
+correctly, which results in potential failed mallocs that
+do not ENOMEM. This confuses some tests.
+
+Patch-Source: https://github.com/chimera-linux/cports/blob/master/main/musl/patches/mimalloc-errno.patch
+---
+ mimalloc/src/alloc-aligned.c | 3 +++
+ mimalloc/src/alloc.c         | 2 +-
+ mimalloc/src/page.c          | 2 ++
+ 3 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/mimalloc/src/alloc-aligned.c b/mimalloc/src/alloc-aligned.c
+index 3d3202eb..0003b5a6 100644
+--- a/mimalloc/src/alloc-aligned.c
++++ b/mimalloc/src/alloc-aligned.c
+@@ -68,6 +68,7 @@ static mi_decl_noinline void* mi_heap_malloc_zero_aligned_at_overalloc(mi_heap_t
+ #if MI_DEBUG > 0
+       _mi_error_message(EOVERFLOW, "aligned allocation with a very large alignment cannot be used with an alignment offset (size %zu, alignment %zu, offset %zu)\n", size, alignment, offset);
+ #endif
++      errno = EINVAL;
+       return NULL;
+     }
+     oversize = (size <= MI_SMALL_SIZE_MAX ? MI_SMALL_SIZE_MAX + 1 /* ensure we use generic malloc path */ : size);
+@@ -140,6 +141,7 @@ static mi_decl_noinline void* mi_heap_malloc_zero_aligned_at_generic(mi_heap_t*
+     #if MI_DEBUG > 0
+     _mi_error_message(EOVERFLOW, "aligned allocation request is too large (size %zu, alignment %zu)\n", size, alignment);
+     #endif
++    errno = ENOMEM;
+     return NULL;
+   }
+ 
+@@ -173,6 +175,7 @@ static void* mi_heap_malloc_zero_aligned_at(mi_heap_t* const heap, const size_t
+     #if MI_DEBUG > 0
+     _mi_error_message(EOVERFLOW, "aligned allocation requires the alignment to be a power-of-two (size %zu, alignment %zu)\n", size, alignment);
+     #endif
++    errno = EINVAL;
+     return NULL;
+   }
+ 
+diff --git a/mimalloc/src/alloc.c b/mimalloc/src/alloc.c
+index e955c925..015b2512 100644
+--- a/mimalloc/src/alloc.c
++++ b/mimalloc/src/alloc.c
+@@ -221,7 +221,7 @@ mi_decl_nodiscard mi_decl_restrict void* mi_zalloc(size_t size) mi_attr_noexcept
+ 
+ mi_decl_nodiscard extern inline mi_decl_restrict void* mi_heap_calloc(mi_heap_t* heap, size_t count, size_t size) mi_attr_noexcept {
+   size_t total;
+-  if (mi_count_size_overflow(count,size,&total)) return NULL;
++  if (mi_count_size_overflow(count,size,&total)) { errno = ENOMEM; return NULL; }
+   return mi_heap_zalloc(heap,total);
+ }
+ 
+diff --git a/mimalloc/src/page.c b/mimalloc/src/page.c
+index 5969fcc4..e1d48752 100644
+--- a/mimalloc/src/page.c
++++ b/mimalloc/src/page.c
+@@ -959,6 +959,7 @@ static mi_page_t* mi_find_page(mi_heap_t* heap, size_t size, size_t huge_alignme
+   if mi_unlikely(req_size > (MI_MEDIUM_OBJ_SIZE_MAX - MI_PADDING_SIZE) || huge_alignment > 0) {
+     if mi_unlikely(req_size > MI_MAX_ALLOC_SIZE) {
+       _mi_error_message(EOVERFLOW, "allocation request is too large (%zu bytes)\n", req_size);
++      errno = ENOMEM;
+       return NULL;
+     }
+     else {
+@@ -1017,6 +1018,7 @@ void* _mi_malloc_generic(mi_heap_t* heap, size_t size, bool zero, size_t huge_al
+   if mi_unlikely(page == NULL) { // out of memory
+     const size_t req_size = size - MI_PADDING_SIZE;  // correct for padding_size in case of an overflow on `size`
+     _mi_error_message(ENOMEM, "unable to allocate memory (%zu bytes)\n", req_size);
++    errno = ENOMEM;
+     return NULL;
+   }
+ 
+-- 
+2.25.1
+

@@ -1,0 +1,27 @@
+From f2667d6d7c64a199cd3df86fa352804ddb02e697 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Fri, 27 Dec 2024 18:41:36 +0000
+Subject: [PATCH] re-enable memory align via hint address
+
+Otherwise, it adds 4 syscalls (remap and alignment with two unmap).
+---
+ mimalloc/src/prim/unix/prim.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/mimalloc/src/prim/unix/prim.c b/mimalloc/src/prim/unix/prim.c
+index 8293806a..ab2a9cde 100644
+--- a/mimalloc/src/prim/unix/prim.c
++++ b/mimalloc/src/prim/unix/prim.c
+@@ -239,8 +239,7 @@ static void* unix_mmap_prim_aligned(void* addr, size_t size, size_t try_alignmen
+     // fall back to regular mmap
+   }
+   #endif
+-  // we cannot do this for our libc allocator as it results in early map with range that conflicts with asan
+-  #if (MI_INTPTR_SIZE >= 8) && !defined(MAP_ALIGNED) && !defined(MI_LIBC_BUILD)
++  #if (MI_INTPTR_SIZE >= 8) && !defined(MAP_ALIGNED)
+   // on 64-bit systems, use the virtual address area after 2TiB for 4MiB aligned allocations
+   if (addr == NULL) {
+     void* hint = _mi_os_get_aligned_hint(try_alignment, size);
+-- 
+2.25.1
+

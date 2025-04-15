@@ -7,7 +7,8 @@
 
 pkgname=musl-perf
 pkgver=1.2.5
-pkgrel=11
+pkgrel=12
+_mimalloc_ver=2.2.3
 pkgdesc="the musl c library (libc) implementation (optimized for performance)"
 url="https://musl.libc.org/"
 arch="aarch64 x86_64"
@@ -45,6 +46,7 @@ nocc)	pkgname="$pkgname-dev"; subpackages="";;
 nolibc) ;;
 esac
 source="https://musl.libc.org/releases/musl-$pkgver.tar.gz
+	mimalloc-$_mimalloc_ver.tar.gz::https://github.com/microsoft/mimalloc/archive/refs/tags/v$_mimalloc_ver.tar.gz
 	isatty-glibc-align.patch
 	ldso-fix-non-functional-fix-to-early-dynamic-PAGE_SI.patch
 	loongarch64-Add-lsx-and-lasx-vector-structure-defini.patch
@@ -66,6 +68,17 @@ source="https://musl.libc.org/releases/musl-$pkgver.tar.gz
 	0109-ldd-detect-static-pie-binaries.patch
 	0110-ldd-process-only-one-program-interpreter-segment-typ.patch
 
+	0120-plumb-in-support-for-externally-provided-allocator-l.patch
+	0121-implement-necessary-bits-for-musl-integration.patch
+	0122-make-internal-declarations-static.patch
+	0123-add-some-missed-errnos-where-needed.patch
+	0124-re-enable-memory-align-via-hint-address.patch
+	0125-turn-off-THP-via-madvise-instead-of-prctl.patch
+	0126-detect-invalid-ptr-in-secure-mode-1.patch
+	0127-support-new-mi_collect-bool-force-interface.patch
+	0128-fix-musl-build-with-linux-prctl.h.patch
+
+	mimalloc.c
 	__stack_chk_fail_local.c
 	"
 # this is needed for BOOTSTRAP=nocc (see above)
@@ -81,9 +94,10 @@ builddir="$srcdir/musl-$pkgver"
 #   1.1.15-r4:
 #     - CVE-2016-8859
 
-builddir="$srcdir"/musl-$pkgver
-
 prepare() {
+	mv ../mimalloc-$_mimalloc_ver mimalloc
+	cp ../mimalloc.c mimalloc/src/
+
 	default_prepare
 
 	echo "$pkgver" > VERSION
@@ -123,7 +137,10 @@ build() {
 		--infodir=/usr/share/info \
 		--localstatedir=/var \
 		--enable-optimize \
-		--enable-debug
+		--enable-debug \
+		--with-malloc=external
+
+	EXTRA_OBJ="src/malloc/external/mimalloc.o" \
 	make
 }
 
@@ -188,6 +205,7 @@ dbg() {
 
 sha512sums="
 7bb7f7833923cd69c7a1a9b8a5f1784bfd5289663eb6061dcd43d583e45987df8a68a1be05d75cc1c88a3f5b610653d1a70f4a9cff4d8f7fd41ae73ee058c17c  musl-1.2.5.tar.gz
+55262050f63868e3029cd929a74d312dc0f34b606534b1d0b3735eecc8eed68aae97523a50228b4ac4044e1e03192f2909440e3a27607e2d364607ac0bda828f  mimalloc-2.2.3.tar.gz
 4fe4309d9e5eb12f3aaf9dac300c7bf1a9e104d9b0e7754353314f4b6507de68d8d5bf0ac45164d7e2ab4d71728b5ef8b302f8ee7a6b548f54e022218031e2cf  isatty-glibc-align.patch
 1b85079c706b017106ecbf4afbc65b4a2171297a673035645e4c3ddb7e2aae0549b04932df83778323b7329ae8d32160a89e0c1b2534c278708c61b1f40a1ed8  ldso-fix-non-functional-fix-to-early-dynamic-PAGE_SI.patch
 b4d95231944fd236827a62343bbce74b20a56739e2b8937bda69bfc7b53f2ce5bd709459ee61615bd10d2839f43311eced9344ee8185701fd38ec0de0d43c6ae  loongarch64-Add-lsx-and-lasx-vector-structure-defini.patch
@@ -207,5 +225,15 @@ d9dc2832635475f9494c9afa8077dece5d44111fbcdca462687119e3866f7f3e191685f919d8f850
 30ca0bddde27051c2dc92897a73da4e04b85894bd44a6edbe5ed8274b643e2e90564f80f94a5c9cde1f753c024af98244b00f34a7c96a4abde85b20ab2202d25  0108-process-rela.dyn-plt-relocations-with-ifuncs-in-stat.patch
 5d584afd53a0544112db7df936443cdeaf4bd7b7a60a37a398522d6e177af3e53060126c171d40c5bef6aeb30f5de06127495de93b7834e27f6f1f46a836b989  0109-ldd-detect-static-pie-binaries.patch
 17eb26d06f563bd955d39dedb23ea9a47cec95bac245cf19aed9ee187a939b787de3d769c729d65cf3738290b10dc3d4d2800a359fdb3c532936ff7d4cd0a375  0110-ldd-process-only-one-program-interpreter-segment-typ.patch
+c8fd853b44d005be715fe8943dba2629d880ca4b50dbe9a802c19f760afc8c1b8d07e87e23c38a9c76744ca405da5ef1f698e674fd7ba8a58be15fe7481a8cf1  0120-plumb-in-support-for-externally-provided-allocator-l.patch
+d02613b62504eeaf04e9c1738d748447573f62aa62f6fbb8ead88de7b234c5cd86818185ccd336673ff1356f04d1eb5d8e8037aea7f0acc4834b2c2efa21f4d3  0121-implement-necessary-bits-for-musl-integration.patch
+868e808ab8e61c9b5c640d5f3fb3467fb32dc9ed76123d208aa9a4a7bfdd21f209e18beba1aac9be961d934810dcdadf9a2bfbca1018fc1069760e3701949d0e  0122-make-internal-declarations-static.patch
+f5701969c7c273e9995be6b66273958d95999be8262de1a910392ea0f856bb152392f24352eefd78732f401185e28222ec8704888d8904ce0b736700088b3a8e  0123-add-some-missed-errnos-where-needed.patch
+6694c239f5843d0b0c802c8b1a82381d95175112eb94486a1761f4a6fef28c7774299ec9897170838183ef754285d6157ad8c7099828a37791f980a0b38f29fb  0124-re-enable-memory-align-via-hint-address.patch
+e34317bd04902ef78c22b475a922028ae7bc058ff62797b7042ba7259fb8a82bf677ede6ab8c47694b390d9c83e06d003ba00935721e8d64917cd5f437ce42d5  0125-turn-off-THP-via-madvise-instead-of-prctl.patch
+be5245fe610714ec7acfc51423b4b0f6d5009e5b8c42c938aefd8ffeb0e27bcdcece34f97c020fae3e71de1a1ce4eac6d18ddd183f13bcc857a9142735ced397  0126-detect-invalid-ptr-in-secure-mode-1.patch
+0c765220a202d915a304ca9c37d065dc3ce7ed2758268aec665266048f56608585408495c763c98d2a89d73a4258760afc6724b4376643d120e6b6f51ffe91e6  0127-support-new-mi_collect-bool-force-interface.patch
+bb5b6773e3d575aabdb96468d3c5e2c0fb7bd9b9998bb470c6a89ec994988cdd6556258da8732fb3b23b7c14ecf62d023ef5c0e66251ce8eba02af07ad2f0782  0128-fix-musl-build-with-linux-prctl.h.patch
 062bb49fa54839010acd4af113e20f7263dde1c8a2ca359b5fb2661ef9ed9d84a0f7c3bc10c25dcfa10bb3c5a4874588dff636ac43d5dbb3d748d75400756d0b  __stack_chk_fail_local.c
+c80c64c6ff7423987cd41c136802318fe6713acd35f0b460ec574383dc04d85bb2f4dbe03710728e6672215551f6f104cf9df650d3dbc8a0632f85219aed5ba2  mimalloc.c
 "
