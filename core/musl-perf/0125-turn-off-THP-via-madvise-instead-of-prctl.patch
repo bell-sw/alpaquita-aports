@@ -1,0 +1,54 @@
+From 3180ffc8a71a22ac9584e033218bf49da5b46203 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Wed, 15 Jan 2025 17:23:42 +0000
+Subject: [PATCH] turn off THP via madvise instead of prctl
+
+---
+ mimalloc/src/options.c | 3 +++
+ mimalloc/src/os.c      | 5 +++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/mimalloc/src/options.c b/mimalloc/src/options.c
+index 1a1fb0ee..8834af9c 100644
+--- a/mimalloc/src/options.c
++++ b/mimalloc/src/options.c
+@@ -182,10 +182,13 @@ void _mi_options_init(void) {
+   mi_max_warning_count = mi_option_get(mi_option_max_warnings);
+   #if MI_GUARDED
+   if (mi_option_get(mi_option_guarded_sample_rate) > 0) {
++    /* Disabled in MI_LIBC_BUILD via madvise(), not prctl() */
++    #ifndef MI_LIBC_BUILD
+     if (mi_option_is_enabled(mi_option_allow_large_os_pages)) {
+       mi_option_disable(mi_option_allow_large_os_pages);
+       _mi_warning_message("option 'allow_large_os_pages' is disabled to allow for guarded objects\n");
+     }
++    #endif
+   }
+   #endif
+   if (mi_option_is_enabled(mi_option_verbose)) { mi_options_print(); }
+diff --git a/mimalloc/src/os.c b/mimalloc/src/os.c
+index f5f6d025..f0d96715 100644
+--- a/mimalloc/src/os.c
++++ b/mimalloc/src/os.c
+@@ -9,6 +9,8 @@ terms of the MIT license. A copy of the license can be found in the file
+ #include "mimalloc/atomic.h"
+ #include "mimalloc/prim.h"
+ 
++#include <linux/mman.h>
++
+ #define mi_os_stat_increase(stat,amount)      _mi_stat_increase(&_mi_stats_main.stat, amount)
+ #define mi_os_stat_decrease(stat,amount)      _mi_stat_decrease(&_mi_stats_main.stat, amount)
+ #define mi_os_stat_counter_increase(stat,inc) _mi_stat_counter_increase(&_mi_stats_main.stat, inc)
+@@ -342,6 +344,9 @@ void* _mi_os_alloc_aligned(size_t size, size_t alignment, bool commit, bool allo
+   void* os_base = NULL;
+   void* p = mi_os_prim_alloc_aligned(size, alignment, commit, allow_large, &os_is_large, &os_is_zero, &os_base );
+   if (p != NULL) {
++    #ifdef MI_LIBC_BUILD
++    madvise(p, size, MADV_NOHUGEPAGE);
++    #endif
+     *memid = _mi_memid_create_os(commit, os_is_zero, os_is_large);
+     memid->mem.os.base = os_base;
+     // memid->mem.os.alignment = alignment;
+-- 
+2.25.1
+

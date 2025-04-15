@@ -1,0 +1,26 @@
+From 626eac433d3a758874b7e1282d799499b3d4fc80 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Fri, 21 Feb 2025 13:25:43 +0000
+Subject: [PATCH] support new mi_collect(bool force) interface
+
+It allows to eagerly return memory to the OS.
+---
+ mimalloc/include/mimalloc.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mimalloc/include/mimalloc.h b/mimalloc/include/mimalloc.h
+index 7b55a7f9..4483a966 100644
+--- a/mimalloc/include/mimalloc.h
++++ b/mimalloc/include/mimalloc.h
+@@ -150,7 +150,7 @@ mi_decl_export void mi_register_output(mi_output_fun* out, void* arg) mi_attr_no
+ typedef void (mi_cdecl mi_error_fun)(int err, void* arg);
+ mi_decl_export void mi_register_error(mi_error_fun* fun, void* arg);
+ 
+-mi_decl_export void mi_collect(bool force)    mi_attr_noexcept;
++__attribute__((visibility("default"))) void mi_collect(bool force) mi_attr_noexcept;
+ mi_decl_export int  mi_version(void)          mi_attr_noexcept;
+ mi_decl_export void mi_stats_reset(void)      mi_attr_noexcept;
+ mi_decl_export void mi_stats_merge(void)      mi_attr_noexcept;
+-- 
+2.25.1
+

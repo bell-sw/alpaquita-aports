@@ -1,0 +1,183 @@
+From 70a5760fb5b0d16666a03b2a78664a363c947c1d Mon Sep 17 00:00:00 2001
+From: q66 <q66@chimera-linux.org>
+Date: Sat, 10 Aug 2024 10:49:11 +0200
+Subject: [PATCH] implement necessary bits for musl integration
+
+Patch-Source: https://github.com/chimera-linux/cports/blob/master/main/musl/patches/0001-implement-necessary-bits-for-musl-integration.patch
+---
+ mimalloc/include/mimalloc.h      |  4 +++-
+ mimalloc/include/mimalloc/prim.h | 18 ++++++++++++++++++
+ mimalloc/src/alloc.c             |  2 +-
+ mimalloc/src/init.c              |  7 ++++++-
+ mimalloc/src/options.c           |  8 ++++++++
+ mimalloc/src/prim/unix/prim.c    |  5 +++--
+ 6 files changed, 39 insertions(+), 5 deletions(-)
+
+diff --git a/mimalloc/include/mimalloc.h b/mimalloc/include/mimalloc.h
+index ff6f0568..7b55a7f9 100644
+--- a/mimalloc/include/mimalloc.h
++++ b/mimalloc/include/mimalloc.h
+@@ -60,7 +60,9 @@ terms of the MIT license. A copy of the license can be found in the file
+   #define mi_attr_alloc_size2(s1,s2)
+   #define mi_attr_alloc_align(p)
+ #elif defined(__GNUC__)                 // includes clang and icc
+-  #if defined(MI_SHARED_LIB) && defined(MI_SHARED_LIB_EXPORT)
++  #ifdef MI_LIBC_BUILD
++    #define mi_decl_export static
++  #elif defined(MI_SHARED_LIB) && defined(MI_SHARED_LIB_EXPORT)
+     #define mi_decl_export              __attribute__((visibility("default")))
+   #else
+     #define mi_decl_export
+diff --git a/mimalloc/include/mimalloc/prim.h b/mimalloc/include/mimalloc/prim.h
+index bddd66e9..e59e8908 100644
+--- a/mimalloc/include/mimalloc/prim.h
++++ b/mimalloc/include/mimalloc/prim.h
+@@ -251,6 +251,7 @@ static inline void mi_prim_tls_slot_set(size_t slot, void* value) mi_attr_noexce
+ //-------------------------------------------------------------------
+ 
+ 
++#ifndef MI_LIBC_BUILD
+ // Do we have __builtin_thread_pointer? This would be the preferred way to get a unique thread id
+ // but unfortunately, it seems we cannot test for this reliably at this time (see issue #883)
+ // Nevertheless, it seems needed on older graviton platforms (see issue #851).
+@@ -265,11 +266,14 @@ static inline void mi_prim_tls_slot_set(size_t slot, void* value) mi_attr_noexce
+     #define MI_USE_BUILTIN_THREAD_POINTER  1
+   #endif
+ #endif
++#endif
+ 
+ 
+ 
+ // defined in `init.c`; do not use these directly
++#ifndef MI_LIBC_BUILD
+ extern mi_decl_thread mi_heap_t* _mi_heap_default;  // default heap to allocate from
++#endif
+ extern bool _mi_process_is_initialized;             // has mi_process_init been called?
+ 
+ static inline mi_threadid_t _mi_prim_thread_id(void) mi_attr_noexcept;
+@@ -310,6 +314,13 @@ static inline mi_threadid_t _mi_prim_thread_id(void) mi_attr_noexcept {
+   #endif
+ }
+ 
++#elif defined(MI_LIBC_BUILD)
++
++// chimera musl
++static inline mi_threadid_t _mi_prim_thread_id(void) mi_attr_noexcept {
++  return __pthread_self()->tid;
++}
++
+ #else
+ 
+ // otherwise use portable C, taking the address of a thread local variable (this is still very fast on most platforms).
+@@ -404,6 +415,13 @@ static inline mi_heap_t* mi_prim_get_default_heap(void) {
+   return (mi_unlikely(heap == NULL) ? (mi_heap_t*)&_mi_heap_empty : heap);
+ }
+ 
++#elif defined(MI_LIBC_BUILD)
++
++// chimera musl
++static inline mi_heap_t* mi_prim_get_default_heap(void) {
++  return __pthread_self()->malloc_tls;
++}
++
+ #else // default using a thread local variable; used on most platforms.
+ 
+ static inline mi_heap_t* mi_prim_get_default_heap(void) {
+diff --git a/mimalloc/src/alloc.c b/mimalloc/src/alloc.c
+index 0fed5e75..e955c925 100644
+--- a/mimalloc/src/alloc.c
++++ b/mimalloc/src/alloc.c
+@@ -480,7 +480,7 @@ static bool mi_try_new_handler(bool nothrow) {
+ #else
+ typedef void (*std_new_handler_t)(void);
+ 
+-#if (defined(__GNUC__) || (defined(__clang__) && !defined(_MSC_VER)))  // exclude clang-cl, see issue #631
++#if !defined(MI_LIBC_BUILD) && (defined(__GNUC__) || (defined(__clang__) && !defined(_MSC_VER)))  // exclude clang-cl, see issue #631
+ std_new_handler_t __attribute__((weak)) _ZSt15get_new_handlerv(void) {
+   return NULL;
+ }
+diff --git a/mimalloc/src/init.c b/mimalloc/src/init.c
+index ddded152..cfed7866 100644
+--- a/mimalloc/src/init.c
++++ b/mimalloc/src/init.c
+@@ -146,7 +146,9 @@ mi_threadid_t _mi_thread_id(void) mi_attr_noexcept {
+ }
+ 
+ // the thread-local default heap for allocation
++#ifndef MI_LIBC_BUILD
+ mi_decl_thread mi_heap_t* _mi_heap_default = (mi_heap_t*)&_mi_heap_empty;
++#endif
+ 
+ extern mi_decl_hidden mi_heap_t _mi_heap_main;
+ 
+@@ -558,6 +560,9 @@ void _mi_heap_set_default_direct(mi_heap_t* heap)  {
+   *mi_prim_tls_pthread_heap_slot() = heap;
+   #elif defined(MI_TLS_PTHREAD)
+   // we use _mi_heap_default_key
++  #elif defined(MI_LIBC_BUILD)
++  // chimera musl
++  __pthread_self()->malloc_tls = heap;
+   #else
+   _mi_heap_default = heap;
+   #endif
+@@ -589,7 +594,7 @@ mi_decl_nodiscard bool mi_is_redirected(void) mi_attr_noexcept {
+ // Called once by the process loader from `src/prim/prim.c`
+ void _mi_process_load(void) {
+   mi_heap_main_init();
+-  #if defined(__APPLE__) || defined(MI_TLS_RECURSE_GUARD)
++  #if !defined(MI_LIBC_BUILD) && (defined(__APPLE__) || defined(MI_TLS_RECURSE_GUARD))
+   volatile mi_heap_t* dummy = _mi_heap_default; // access TLS to allocate it before setting tls_initialized to true;
+   if (dummy == NULL) return;                    // use dummy or otherwise the access may get optimized away (issue #697)
+   #endif
+diff --git a/mimalloc/src/options.c b/mimalloc/src/options.c
+index 4759e0b0..1a1fb0ee 100644
+--- a/mimalloc/src/options.c
++++ b/mimalloc/src/options.c
+@@ -403,6 +403,7 @@ static void mi_add_stderr_output(void) {
+ static _Atomic(size_t) error_count;   // = 0;  // when >= max_error_count stop emitting errors
+ static _Atomic(size_t) warning_count; // = 0;  // when >= max_warning_count stop emitting warnings
+ 
++#ifndef MI_LIBC_BUILD
+ // When overriding malloc, we may recurse into mi_vfprintf if an allocation
+ // inside the C runtime causes another message.
+ // In some cases (like on macOS) the loader already allocates which
+@@ -423,6 +424,13 @@ static mi_decl_noinline bool mi_recurse_enter_prim(void) {
+ static mi_decl_noinline void mi_recurse_exit_prim(void) {
+   recurse = false;
+ }
++#else
++// We don't really care because from a libc, we cannot override
++// the output functions (so there is no chance of recursive alloc)
++// and we get to avoid a thread-local thing this way
++static bool mi_recurse_enter_prim(void) { return true; }
++static void mi_recurse_exit_prim(void) {}
++#endif
+ 
+ static bool mi_recurse_enter(void) {
+   #if defined(__APPLE__) || defined(MI_TLS_RECURSE_GUARD)
+diff --git a/mimalloc/src/prim/unix/prim.c b/mimalloc/src/prim/unix/prim.c
+index ad6ca2a9..8293806a 100644
+--- a/mimalloc/src/prim/unix/prim.c
++++ b/mimalloc/src/prim/unix/prim.c
+@@ -239,7 +239,8 @@ static void* unix_mmap_prim_aligned(void* addr, size_t size, size_t try_alignmen
+     // fall back to regular mmap
+   }
+   #endif
+-  #if (MI_INTPTR_SIZE >= 8) && !defined(MAP_ALIGNED)
++  // we cannot do this for our libc allocator as it results in early map with range that conflicts with asan
++  #if (MI_INTPTR_SIZE >= 8) && !defined(MAP_ALIGNED) && !defined(MI_LIBC_BUILD)
+   // on 64-bit systems, use the virtual address area after 2TiB for 4MiB aligned allocations
+   if (addr == NULL) {
+     void* hint = _mi_os_get_aligned_hint(try_alignment, size);
+@@ -861,7 +862,7 @@ bool _mi_prim_random_buf(void* buf, size_t buf_len) {
+ // Thread init/done
+ //----------------------------------------------------------------
+ 
+-#if defined(MI_USE_PTHREADS)
++#if defined(MI_USE_PTHREADS) && !defined(MI_LIBC_BUILD)
+ 
+ // use pthread local storage keys to detect thread ending
+ // (and used with MI_TLS_PTHREADS for the default heap)
+-- 
+2.25.1
+
