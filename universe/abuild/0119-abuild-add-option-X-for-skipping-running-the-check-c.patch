@@ -1,4 +1,4 @@
-From 45806acb1abed3d85cf2079edfe0faff848eab01 Mon Sep 17 00:00:00 2001
+From d46ceefb2d2faa5956b704e2f470b429b76279dd Mon Sep 17 00:00:00 2001
 From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
 Date: Thu, 7 Dec 2023 19:43:25 +0300
 Subject: [PATCH] abuild: add option -X for skipping running the check command
@@ -9,10 +9,10 @@ Subject: [PATCH] abuild: add option -X for skipping running the check command
  1 file changed, 6 insertions(+), 4 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index f14b2df..886bbdd 100644
+index 6ebed6a..64931a3 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -1967,7 +1967,7 @@ build_abuildrepo() {
+@@ -1993,7 +1993,7 @@ build_abuildrepo() {
  	if options_has "checkroot"; then
  		_check=check_fakeroot
  	fi
@@ -21,7 +21,7 @@ index f14b2df..886bbdd 100644
  		_check=true
  	fi
  	if ! apk_up2date || [ -n "$force" ]; then
-@@ -2562,7 +2562,7 @@ rootbld_actions() {
+@@ -2585,7 +2585,7 @@ rootbld_actions() {
  	if options_has "checkroot"; then
  		_check=check_fakeroot
  	fi
@@ -30,7 +30,7 @@ index f14b2df..886bbdd 100644
  		_check=true
  	fi
  	for part in symlinksrc unpack prepare build $_check check_fmv rootpkg; do
-@@ -2986,6 +2986,7 @@ usage() {
+@@ -3039,6 +3039,7 @@ usage() {
  		 -r  Install missing dependencies from system repository (using \$SUDO_APK)
  		 -s  Set source package destination directory
  		 -v  Verbose: show every command as it is run (very noisy)
@@ -38,7 +38,7 @@ index f14b2df..886bbdd 100644
  
  		Commands:
  		  build       Compile and install package into \$pkgdir
-@@ -3020,8 +3021,8 @@ usage() {
+@@ -3073,8 +3074,8 @@ usage() {
  }
  
  APKBUILD="${APKBUILD:-./APKBUILD}"
@@ -49,7 +49,7 @@ index f14b2df..886bbdd 100644
  	case $opt in
  		'A') echo "$CARCH"; exit 0;;
  		'c') enable_colors
-@@ -3043,6 +3044,7 @@ while getopts ":AcC:dD:fFhkKmnP:qrRs:uvV" opt; do
+@@ -3096,6 +3097,7 @@ while getopts ":AcC:dD:fFhkKmnP:qrRs:uvV" opt; do
  		's') SRCDEST=$OPTARG;;
  		'v') verbose="-v"; set -x;;
  		'V') echo "$program $program_version"; exit 0;;
@@ -58,5 +58,5 @@ index f14b2df..886bbdd 100644
  	esac
  done
 -- 
-2.47.0
+2.49.0
 

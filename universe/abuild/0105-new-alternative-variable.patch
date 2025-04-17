@@ -1,4 +1,4 @@
-From 489e1498c726475080a193655e774748d4d172d7 Mon Sep 17 00:00:00 2001
+From ef078436f4252dd3357c700c00eac424f9837efd Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 1 Mar 2022 16:59:59 +0300
 Subject: [PATCH] new 'alternative' variable
@@ -9,10 +9,10 @@ Subject: [PATCH] new 'alternative' variable
  2 files changed, 15 insertions(+)
 
 diff --git a/APKBUILD.5.scd b/APKBUILD.5.scd
-index 0589607..a372872 100644
+index e25110f..f2c0369 100644
 --- a/APKBUILD.5.scd
 +++ b/APKBUILD.5.scd
-@@ -174,6 +174,12 @@ file.
+@@ -183,6 +183,12 @@ file.
  	to decide which package should define the permissions of a directory
  	even without *replaces* set.
  
@@ -26,12 +26,12 @@ index 0589607..a372872 100644
  	Specifies subpackages or split packages built with this
  	package. Typically, this will include _$pkgname-dev_ for development
 diff --git a/abuild.in b/abuild.in
-index 260a8ed..071f68a 100644
+index b246b35..fd27540 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -263,6 +263,11 @@ default_validate() {
- 		die "provider_priority must be a number"
- 	fi
+@@ -261,6 +261,11 @@ default_validate() {
+ 		*[!0-9]*) die "provider_priority must be a number" ;;
+ 	esac
  
 +	if [ -n "$alternative" ] \
 +		&& ! echo $alternative | egrep -q '^[01]$'; then
@@ -40,8 +40,8 @@ index 260a8ed..071f68a 100644
 +
  	# check pkgname and subpkgnames
  	for i in "$pkgname" $subpackages; do
- 		verify_pkgname "${i%%:*}" || die "${i%%:*} is not a valid package name"
-@@ -1248,6 +1253,10 @@ prepare_metafiles() {
+ 		i="${i%%:*}"
+@@ -1255,6 +1260,10 @@ prepare_metafiles() {
  		echo "provider_priority = $provider_priority" >> "$pkginfo"
  	fi
  
@@ -53,5 +53,5 @@ index 260a8ed..071f68a 100644
  	for i in $replaces; do
  		echo "replaces = $i" >> "$pkginfo"
 -- 
-2.47.0
+2.49.0
 

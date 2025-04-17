@@ -1,4 +1,4 @@
-From 34d39aeb0062ab1cdf4d0ea1d2e8667961becc89 Mon Sep 17 00:00:00 2001
+From 844c848b1f4ad486720b61075073c6fa8fd41108 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Thu, 14 Dec 2023 17:48:09 +0000
 Subject: [PATCH] prioritize usr/lib processing in default_dev()
@@ -14,10 +14,10 @@ already been moved.
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index 886bbdd..f206c09 100644
+index 64931a3..4f7ff23 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -2137,7 +2137,7 @@ default_dev() {
+@@ -2160,7 +2160,7 @@ default_dev() {
  
  	cd "$pkgdir" || return 0
  	local libdirs=usr/
@@ -26,7 +26,7 @@ index 886bbdd..f206c09 100644
  	for i in usr/include usr/lib/pkgconfig usr/share/pkgconfig \
  			usr/share/aclocal usr/share/gettext \
  			usr/bin/*-config usr/share/vala/vapi \
-@@ -2154,7 +2154,7 @@ default_dev() {
+@@ -2177,7 +2177,7 @@ default_dev() {
  		fi
  	done
  	# move *.so links needed when linking the apps to -dev packages
@@ -36,5 +36,5 @@ index 886bbdd..f206c09 100644
  	done
  	return 0
 -- 
-2.47.0
+2.49.0
 
