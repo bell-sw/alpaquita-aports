@@ -1,0 +1,67 @@
+pkgname=debian-devscripts
+pkgver=2.25.1
+pkgrel=1
+pkgdesc="debian developer scripts"
+url="https://tracker.debian.org/pkg/devscripts"
+arch="noarch"
+license="GPL-2.0-or-later"
+checkdepends="perl"
+# checkbashisms is the common accepted name, but prefix for rest
+subpackages="
+	$pkgname-doc
+	$pkgname-bash-completion
+	checkbashisms
+	$pkgname-hardening-check:harden
+	"
+source="$pkgname-$pkgver.tar.gz::https://salsa.debian.org/debian/devscripts/-/archive/v$pkgver/devscripts-v$pkgver.tar.gz"
+builddir="$srcdir"/devscripts-v$pkgver/scripts
+
+prepare() {
+	default_prepare
+
+	sed -i "s/###VERSION###/$pkgver/" checkbashisms.pl
+
+	mv checkbashisms.pl checkbashisms
+	mv hardening-check.pl hardening-check
+}
+
+check() {
+	printf '#!/bin/sh\necho "hello world"\n' > ./testfile
+	perl ./checkbashisms --version
+	perl ./checkbashisms ./testfile
+}
+
+package() {
+	depends="
+		checkbashisms=$pkgver-r$pkgrel
+		$pkgname-hardening-check=$pkgver-r$pkgrel
+		"
+
+	# only these useful for now
+	install -Dm755 -t "$pkgdir"/usr/bin/ \
+		checkbashisms \
+		hardening-check
+
+	install -Dm644 checkbashisms.1 \
+		-t "$pkgdir"/usr/share/man/man1/
+	install -Dm644 checkbashisms.bash_completion \
+		$pkgdir/usr/share/bash-completion/completions/checkbashisms
+}
+
+checkbashisms() {
+	pkgdesc="$pkgdesc (checkbashisms)"
+	depends="perl"
+
+	amove usr/bin/checkbashisms
+}
+
+harden() {
+	pkgdesc="$pkgdesc (hardening-check)"
+	depends="perl"
+
+	amove usr/bin/hardening-check
+}
+
+sha512sums="
+eeec65e20cfdc4ab0519ffbad25ed08db167de351cc47dc388026aa829d7df93bf7f31057659f3b54055135c28f4b016a9582b42bae10de369dcfceb1d559e92  debian-devscripts-2.25.1.tar.gz
+"
