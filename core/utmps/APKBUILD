@@ -1,22 +1,19 @@
-# Description:
-
 pkgname=utmps
 # NOTE: If you're upgrading to a new version that fixes some security
 # vulnerability, rebuild the following aports:
 # - busybox
 # - dropbear
-# - mingetty
 # - openssh
 # - util-linux
-pkgver=0.1.2.3
-pkgrel=2
+pkgver=0.1.3.0
+pkgrel=0
 pkgdesc="A secure utmp/wtmp implementation"
 url=https://skarnet.org/software/utmps/
 arch="all"
 options="!check !libc_glibc"  # No test suite
 license="ISC"
-_skalibs_version=2.14.3
-_s6_version=2.13.1
+_skalibs_version=2.14.4
+_s6_version=2.13.2
 depends="s6-ipcserver>=${_s6_version}"
 depends_static="skalibs-static"
 makedepends="skalibs-dev>=${_skalibs_version}"
@@ -28,18 +25,19 @@ source="https://skarnet.org/software/utmps/utmps-$pkgver.tar.gz
 	btmpd.initd
 	utmp-init.initd
 	setup-utmp
-	utmps.pc.in
 	wtmpd.logrotate
-	btmpd.logrotate
-	0001-add-stub-utmp.h.patch"
+	btmpd.logrotate"
 install="utmps.pre-install"
 
 build() {
 	./configure \
-		--enable-shared \
 		--prefix=/usr \
+		--enable-shared \
 		--disable-allstatic \
-		--libexecdir="/usr/lib/$pkgname"
+		--libexecdir="/usr/lib/$pkgname" \
+		--with-pkgconfig \
+		--enable-pkgconfig \
+		--enable-utmp
 	make
 }
 
@@ -53,22 +51,18 @@ package() {
 	install -D -m644 "$srcdir/wtmpd.logrotate" "$pkgdir/etc/logrotate.d/wtmpd"
 	install -D -m644 "$srcdir/btmpd.logrotate" "$pkgdir/etc/logrotate.d/btmpd"
 	install -D -m755 "$srcdir/setup-utmp" "$pkgdir/usr/sbin/setup-utmp"
-	sed -e "s/@@VERSION@@/$pkgver/g; s/@@SKALIBS_VERSION@@/${_skalibs_version}/g;" "$srcdir/$pkgname.pc.in" > "$srcdir/$pkgname.pc"
-	install -D -m 0644 "$srcdir/$pkgname.pc" "$pkgdir/usr/lib/pkgconfig/$pkgname.pc"
 	mkdir -p "$pkgdir/usr/share/doc"
 	cp -a "$builddir/doc" "$pkgdir/usr/share/doc/$pkgname"
 }
 
 sha512sums="
-41822b5ef582c86cd2439f13c88871bef2d496e6c7ae5493d9e2be70c7cf2f25656dedf045b4dbe925b1c6b3bfbadc7430a898ccc56951f096e768990a9735df  utmps-0.1.2.3.tar.gz
+307010371d8c7d9e56e1823c599d84f44719e6050ccf30799f08d7a6c071ca2fbc46ef236d5e2422dc1b96f8a7582ae735635302c28becd6aac3263302c385d9  utmps-0.1.3.0.tar.gz
 d143fd0dc5e135b02028032b40bc38ff76f4eb4b8de683a81e2a4254fb4441e61ff8c019aedb660e8a9c7ea11c7527c84813587e7e47aa70714766e74c8b3533  utmp-prepare.initd
 222489d993be37a2f099be4b0d3a800d26bea08ed8f56d0b6584caeb84a5feffb4e59a903b7a0878456a8d7f45821a1ae889eb7cbdcf2e00693ce9d39eadb5fd  utmpd.initd
 04faf944a081ec72f0d3c01fc6c0d885b9de5686b75daf9c93df69c9b9fc4240bed4bbe0aea603f13124d0f6ef7731a6c33aa6842de4d4324b2a7cd80a000126  wtmpd.initd
 aa7cb2ebd571d2c681e24137109ce37f5bdcf0dd980f7644e475a61a35a992226f701106d8ed91b496b51eca2f8a0e0b2a3d1b62ba7d5f4b3a8693308c584678  btmpd.initd
 2363d902bb7c7c5547ebd3596180b05e4081b8f7283fcbf06449b1c4127a6d60d8d118ba7cb2968dad65d4640dc3d392f21a3ec76080bc8218ed28ea1c82eb4d  utmp-init.initd
 b6249ae817641b93aaa37842efe4fe6f9055f1fe4581edbc94f037e5d63b01ebd31136fb3cbf563c887ecd8f4764a5a92d351ca6f63e24e8e6bb423a2d5196ff  setup-utmp
-bf4c0cc09095dde3f00d2d0205ac1492a4d136d70c559ac2f4c387b40842d45f942fd7eea33d1d018f8791ed6ce5c285273769de788016b319f1a753fcca42a2  utmps.pc.in
 5ade986bbed30ea82b8806a3d7a0ab09a7203fb8e4c9b8785e2d549973b33644a51c522cc8891a09d5016d4b47bf848224d10d0b9834a4c77929e68c7b95d293  wtmpd.logrotate
 e085ca6d4ad3817dccb7de7f7feafad586ef567b7f81fcb7ffaf1cec75a0bc18a2023cfe0761f125d4a21975e4754d235e9bd54ed2246f9c1f17607fc0cb00de  btmpd.logrotate
-0512f0daa216919a886e6a8e5a73db1d29acd66d929f38d5df40bd55f0d446402610c59da12688b75c3c1230af9b1929793ed8bfc9b4593851bf496fc0a8d835  0001-add-stub-utmp.h.patch
 "
