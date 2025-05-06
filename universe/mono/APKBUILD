@@ -1,6 +1,6 @@
 pkgname=mono
 pkgver=6.14.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Free implementation of the .NET platform including runtime and compiler"
 url="https://www.mono-project.com/"
 # loongarch64: vendored boringssl: Unknown processor:loongarch64
@@ -16,7 +16,7 @@ makedepends="
 	$depends_dev
 	bash
 	cmake
-	libucontext-dev
+	musl:libucontext-dev
 	linux-headers
 	perl
 	samurai
@@ -28,14 +28,15 @@ subpackages="
 	"
 source="https://dl.winehq.org/mono/sources/mono/mono-$pkgver.tar.xz
 	aarch64-fix-pointer-to-int-cast-size.patch
-	s390x-musl.patch
+	musl:s390x-musl.patch
 	"
 options="!check" # fail
 
 build() {
+	[ "$CLIBC" = 'musl' ] && export LDFLAGS="$LDFLAGS -lucontext"
+
 	CFLAGS="$CFLAGS -O2 -flto=auto" \
 	CXXFLAGS="$CXXFLAGS -O2 -flto=auto" \
-	LDFLAGS="$LDFLAGS -lucontext" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
