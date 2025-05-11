@@ -23,16 +23,14 @@ build() {
 check() {
 	# tests that don't expect ansi colors
 	_tests_colors="not test_async_replwrap_multiline and not REPLWrapTestCase"
-	# tests that have 'python' hardcoded
-	_tests_py2="not test_100000 and not test_run_exit"
 	# this test fails _only_ in our Linux distro and is not reproducible in
 	# the python interactive prompt.
-	_tests_todo="not test_before_across_chunks"	
+	_tests_todo="not test_before_across_chunks"
 	# tests that may hang
 	_tests_hang="not test_socket"
 	python3 -m venv --clear --without-pip --system-site-packages .testenv
 	.testenv/bin/python3 -m installer .dist/*.whl
-	.testenv/bin/python3 -m pytest -v -k "$_tests_colors and $_tests_py2 and $_tests_todo and $_tests_hang and not test_interrupt"
+	.testenv/bin/python3 -m pytest -v -k "$_tests_colors and $_tests_todo and $_tests_hang and not test_interrupt"
 }
 
 package() {
