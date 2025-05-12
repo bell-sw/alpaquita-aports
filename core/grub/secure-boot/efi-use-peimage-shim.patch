@@ -29,18 +29,18 @@ Caveats:
 Signed-off-by: Heinrich Schuchardt <heinrich.schuchardt@canonical.com>
 Signed-off-by: Julian Andres Klode <julian.klode@canonical.com>
 ---
- grub-core/Makefile.core.def    |  12 +
- grub-core/loader/efi/peimage.c | 824 +++++++++++++++++++++++++++++++++++++++++
+ grub-core/Makefile.core.def    |  13 +
+ grub-core/loader/efi/peimage.c | 826 +++++++++++++++++++++++++++++++++++++++++
  include/grub/efi/peimage.h     |  19 +
- 3 files changed, 855 insertions(+)
+ 3 files changed, 858 insertions(+)
  create mode 100644 grub-core/loader/efi/peimage.c
  create mode 100644 include/grub/efi/peimage.h
 
 diff --git a/grub-core/Makefile.core.def b/grub-core/Makefile.core.def
-index 333d3fe..c3ad031 100644
+index 333d3fe..7e7e360 100644
 --- a/grub-core/Makefile.core.def
 +++ b/grub-core/Makefile.core.def
-@@ -1875,6 +1875,18 @@ module = {
+@@ -1875,6 +1875,19 @@ module = {
    common = lib/cmdline.c;
  };
  
@@ -53,6 +53,7 @@ index 333d3fe..c3ad031 100644
 +  enable = x86_64_efi;
 +  enable = riscv32_efi;
 +  enable = riscv64_efi;
++  enable = loongarch64_efi;
 +};
 +
 +
@@ -61,10 +62,10 @@ index 333d3fe..c3ad031 100644
    efi = loader/efi/fdt.c;
 diff --git a/grub-core/loader/efi/peimage.c b/grub-core/loader/efi/peimage.c
 new file mode 100644
-index 0000000..d3a5e31
+index 0000000..b04fc61
 --- /dev/null
 +++ b/grub-core/loader/efi/peimage.c
-@@ -0,0 +1,824 @@
+@@ -0,0 +1,826 @@
 +/* peimage.c - load EFI PE binaries (for Secure Boot support) */
 +
 +// SPDX-License-Identifier: GPL-3.0+
@@ -129,6 +130,8 @@ index 0000000..d3a5e31
 +  GRUB_PE32_MACHINE_RISCV32,
 +#elif defined(__riscv) && __riscv_xlen == 64
 +  GRUB_PE32_MACHINE_RISCV64,
++#elif defined(__loongarch__) && __loongarch_grlen == 64
++  GRUB_PE32_MACHINE_LOONGARCH64,
 +#endif
 +};
 +
