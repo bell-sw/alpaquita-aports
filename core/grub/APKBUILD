@@ -5,8 +5,9 @@ pkgname=grub
 # NOTE: After upgrading or applying a fix, please rebuild the following aport:
 # - grub-efi-signed
 pkgver=2.12
-pkgrel=9
-_deb_peimage_ver="2.12-7"
+pkgrel=10
+_deb_ver="2.12-7"
+_deb_peimage_ver="$_deb_ver"
 pkgdesc="Multiboot boot loader"
 url="https://www.gnu.org/software/grub/"
 arch="all !s390x"
@@ -56,13 +57,109 @@ source="https://ftp.gnu.org/gnu/grub/grub-$pkgver.tar.xz
 	Fix-grub-mkconfig-detection-of-xen.patch
 
 	0100-fs-xfs-Handle-non-continuous-data-blocks-in-director.patch
+	0101-kern-acpi-Fix-out-of-bounds-access-in-grub_acpi_xsdt.patch
 
 	secure-boot/efi-use-peimage-shim.patch
 	secure-boot/loader-framework.patch
 	secure-boot/revert-efi-fallback-to-legacy.patch
+
+	cve-2025-jan/0001-misc-Implement-grub_strlcpy.patch
+	cve-2025-jan/0002-fs-ufs-Fix-a-heap-OOB-write.patch
+	cve-2025-jan/0003-fs-hfs-Fix-stack-OOB-write-with-grub_strcpy.patch
+	cve-2025-jan/0004-fs-tar-Initialize-name-in-grub_cpio_find_file.patch
+	cve-2025-jan/0005-fs-tar-Integer-overflow-leads-to-heap-OOB-write.patch
+	cve-2025-jan/0006-fs-f2fs-Set-a-grub_errno-if-mount-fails.patch
+	cve-2025-jan/0007-fs-hfsplus-Set-a-grub_errno-if-mount-fails.patch
+	cve-2025-jan/0008-fs-iso9660-Set-a-grub_errno-if-mount-fails.patch
+	cve-2025-jan/0009-fs-iso9660-Fix-invalid-free.patch
+	cve-2025-jan/0010-fs-jfs-Fix-OOB-read-in-jfs_getent.patch
+	cve-2025-jan/0011-fs-jfs-Fix-OOB-read-caused-by-invalid-dir-slot-index.patch
+	cve-2025-jan/0012-fs-jfs-Use-full-40-bits-offset-and-address-for-a-dat.patch
+	cve-2025-jan/0013-fs-jfs-Inconsistent-signed-unsigned-types-usage-in-r.patch
+	cve-2025-jan/0014-fs-ext2-Fix-out-of-bounds-read-for-inline-extents.patch
+	cve-2025-jan/0015-fs-xfs-Fix-out-of-bounds-read.patch
+	cve-2025-jan/0016-fs-xfs-Ensuring-failing-to-mount-sets-a-grub_errno.patch
+	cve-2025-jan/0017-kern-file-Ensure-file-data-is-set.patch
+	cve-2025-jan/0018-kern-file-Implement-filesystem-reference-counting.patch
+	cve-2025-jan/0019-disk-loopback-Reference-tracking-for-the-loopback.patch
+	cve-2025-jan/0020-kern-disk-Limit-recursion-depth.patch
+	cve-2025-jan/0021-kern-partition-Limit-recursion-in-part_iterate.patch
+	cve-2025-jan/0022-script-execute-Limit-the-recursion-depth.patch
+	cve-2025-jan/0023-net-Unregister-net_default_ip-and-net_default_mac-va.patch
+	cve-2025-jan/0024-net-Remove-variables-hooks-when-interface-is-unregis.patch
+	cve-2025-jan/0025-net-Fix-OOB-write-in-grub_net_search_config_file.patch
+	cve-2025-jan/0026-net-tftp-Fix-stack-buffer-overflow-in-tftp_open.patch
+	cve-2025-jan/0027-video-readers-jpeg-Do-not-permit-duplicate-SOF0-mark.patch
+	cve-2025-jan/0028-kern-dl-Fix-for-an-integer-overflow-in-grub_dl_ref.patch
+	cve-2025-jan/0029-kern-dl-Check-for-the-SHF_INFO_LINK-flag-in-grub_dl_.patch
+	cve-2025-jan/0030-commands-extcmd-Missing-check-for-failed-allocation.patch
+	cve-2025-jan/0031-commands-ls-Fix-NULL-dereference.patch
+	cve-2025-jan/0032-commands-pgp-Unregister-the-check_signatures-hooks-o.patch
+	cve-2025-jan/0033-normal-Remove-variables-hooks-on-module-unload.patch
+	cve-2025-jan/0034-gettext-Remove-variables-hooks-on-module-unload.patch
+	cve-2025-jan/0035-gettext-Integer-overflow-leads-to-heap-OOB-write-or-.patch
+	cve-2025-jan/0036-gettext-Integer-overflow-leads-to-heap-OOB-write.patch
+	cve-2025-jan/0037-commands-read-Fix-an-integer-overflow-when-supplying.patch
+	cve-2025-jan/0038-commands-test-Stack-overflow-due-to-unlimited-recurs.patch
+	cve-2025-jan/0039-commands-minicmd-Block-the-dump-command-in-lockdown-.patch
+	cve-2025-jan/0040-commands-memrw-Disable-memory-reading-in-lockdown-mo.patch
+	cve-2025-jan/0041-commands-hexdump-Disable-memory-reading-in-lockdown-.patch
+	cve-2025-jan/0042-fs-bfs-Disable-under-lockdown.patch
+	cve-2025-jan/0043-fs-Disable-many-filesystems-under-lockdown.patch
+	cve-2025-jan/0044-disk-Use-safe-math-macros-to-prevent-overflows.patch
+	cve-2025-jan/0045-disk-Prevent-overflows-when-allocating-memory-for-ar.patch
+	cve-2025-jan/0046-disk-Check-if-returned-pointer-for-allocated-memory-.patch
+	cve-2025-jan/0047-disk-ieee1275-ofdisk-Call-grub_ieee1275_close-when-g.patch
+	cve-2025-jan/0048-fs-Use-safe-math-macros-to-prevent-overflows.patch
+	cve-2025-jan/0049-fs-Prevent-overflows-when-allocating-memory-for-arra.patch
+	cve-2025-jan/0050-fs-Prevent-overflows-when-assigning-returned-values-.patch
+	cve-2025-jan/0051-fs-zfs-Use-safe-math-macros-to-prevent-overflows.patch
+	cve-2025-jan/0052-fs-zfs-Prevent-overflows-when-allocating-memory-for-.patch
+	cve-2025-jan/0053-fs-zfs-Check-if-returned-pointer-for-allocated-memor.patch
+	cve-2025-jan/0054-fs-zfs-Add-missing-NULL-check-after-grub_strdup-call.patch
+	cve-2025-jan/0055-net-Use-safe-math-macros-to-prevent-overflows.patch
+	cve-2025-jan/0056-net-Prevent-overflows-when-allocating-memory-for-arr.patch
+	cve-2025-jan/0057-net-Check-if-returned-pointer-for-allocated-memory-i.patch
+	cve-2025-jan/0058-fs-sfs-Check-if-allocated-memory-is-NULL.patch
+	cve-2025-jan/0059-script-execute-Fix-potential-underflow-and-NULL-dere.patch
+	cve-2025-jan/0060-osdep-unix-getroot-Fix-potential-underflow.patch
+	cve-2025-jan/0061-misc-Ensure-consistent-overflow-error-messages.patch
+	cve-2025-jan/0062-bus-usb-ehci-Define-GRUB_EHCI_TOGGLE-as-grub_uint32_.patch
+	cve-2025-jan/0063-normal-menu-Use-safe-math-to-avoid-an-integer-overfl.patch
+	cve-2025-jan/0064-kern-partition-Add-sanity-check-after-grub_strtoul-c.patch
+	cve-2025-jan/0065-kern-misc-Add-sanity-check-after-grub_strtoul-call.patch
+	cve-2025-jan/0066-loader-i386-linux-Cast-left-shift-to-grub_uint32_t.patch
+	cve-2025-jan/0067-loader-i386-bsd-Use-safe-math-to-avoid-underflow.patch
+	cve-2025-jan/0068-fs-ext2-Rework-out-of-bounds-read-for-inline-and-ext.patch
+	cve-2025-jan/0069-fs-xfs-Fix-grub_xfs_iterate_dir-return-value-in-case.patch
+	cve-2025-jan/0070-fs-xfs-Propagate-incorrect-inode-error-from-grub_xfs.patch
+	cve-2025-jan/0071-fs-xfs-Handle-root-inode-read-failure-in-grub_xfs_mo.patch
 	"
 
 # secfixes:
+#   2.12-r10:
+#     - CVE-2025-1125
+#     - CVE-2025-1118
+#     - CVE-2025-0690
+#     - CVE-2025-0689
+#     - CVE-2025-0686
+#     - CVE-2025-0685
+#     - CVE-2025-0684
+#     - CVE-2025-0678
+#     - CVE-2025-0677
+#     - CVE-2025-0624
+#     - CVE-2025-0622
+#     - CVE-2024-56737
+#     - CVE-2024-45783
+#     - CVE-2024-45782
+#     - CVE-2024-45781
+#     - CVE-2024-45780
+#     - CVE-2024-45779
+#     - CVE-2024-45778
+#     - CVE-2024-45777
+#     - CVE-2024-45776
+#     - CVE-2024-45775
+#     - CVE-2024-45774
 #   2.06-r18:
 #     - CVE-2023-4693
 #     - CVE-2023-4692
@@ -94,6 +191,8 @@ source="https://ftp.gnu.org/gnu/grub/grub-$pkgver.tar.xz
 #     - CVE-2020-27779
 #     - CVE-2021-20225
 #     - CVE-2021-20233
+#   0:
+#     - CVE-2024-2312
 
 prepare() {
 	default_prepare
@@ -283,6 +382,7 @@ efi() {
 	sed -e "s,@PKGVER@,$pkgver,g" -e "s,@PKGREL@,$pkgrel," \
 		-e "s,@DISTRO@,$VENDOR_DISTRO,g" -e "s,@DISTRO_NAME@,$VENDOR_DISTRO_NAME,g" \
 		-e "s,@SUPPORT_URL@,$VENDOR_BUG_REPORT_URL,g" \
+		-e "s,@DEB_VER@,$_deb_ver,g" \
 		-e "s,@DEB_PEIMAGE_VER@,$_deb_peimage_ver,g" \
 		< "$srcdir"/sbat.distro.csv > "$builddir"/sbat.distro.csv
 
@@ -364,7 +464,7 @@ sha512sums="
 761c060a4c3da9c0e810b0ea967e3ebc66baa4ddd682a503ae3d30a83707626bccaf49359304a16b3a26fc4435fe6bea1ee90be910c84de3c2b5485a31a15be3  grub-2.12.tar.xz
 85b3c56670fb0aaaf831cc6d7ca45faeb68b844cb17cfd6f9b51c2473f0b153cfa7b26ff8bf00a88b2ed3e0ae69a1e8f735256e6cecc91e959169606e2abf887  update-grub
 4e7394e0fff6772c89683039ccf81099ebbfe4f498e6df408977a1488fd59389b6e19afdbf0860ec271e2b2aea0df7216243dcc8235d1ca3af0e7f4d0a9d60a4  grub-xen-host_grub.cfg
-f145c6cf9f1e7a8c9ee07be75f8984406899e75eb2d2eccbb654f559b3b361b35557563bfdc2434f2a52429b797f57696e532f7d53ac96dd9d68f3f91d1d98b5  sbat.distro.csv
+c28a52ec082b1698b097deaa2d950820b6354ab2388ea9131f41f592747629887ee6ac74e00b690aaab417a5b979ac0f4579a3cade87bce857109f8336a54fa0  sbat.distro.csv
 d45f416f7308f338cd187909207cd8329dcb21e22ab0573ae932110c3e108e4bafe6411ae22b5f87809bea39544660dcb03e3fea2c1c33492cd230fa6d3b2760  0001-Fix-grub-mkconfig-detection-of-linux-edge-virt.patch
 e1612f34d14644b30a63d9dc18a0eaf9617ef9f4aa6787c386e6304e15b4573f5149758936cac1ceffdb4e39f6a83e7e7c01a7ef3ed2f7bc974971ae0e2c644c  0002-ensure-grub-mkconfig-ignores-.apk-new-files.patch
 d8606bc2fc6b34e683fdba8b2a131b7d5bede907556c141a30be1d7475a65bf5e2266d577f7a0f0da91646f8605c74d083858c100d2285375474249e53c14fd4  0003-prevent-harmless-LVM-warnings-from-grub-probe.patch
@@ -373,7 +473,79 @@ d8606bc2fc6b34e683fdba8b2a131b7d5bede907556c141a30be1d7475a65bf5e2266d577f7a0f0d
 c0bea923acc6affd32e78a58685e847f24e26c501b5bbabee99cc6e25c5668263e61f0bf508a6741bd75fef891ca3229f9d746ef254c72d2cb8dca7c18f92f54  0007-uefi-firmware-remove-fsetup-check.patch
 e3bbd225e67fc86bbd204f220fd47ec57ecd983cd5b7128b81ea138f5513f793230c556e1b702c99e2e903063c3e33ecd15cf923f6f22e3da980f830f3c0925d  Fix-grub-mkconfig-detection-of-xen.patch
 2fa7d09419ce8179c961e939306c3de006e2d9088f75c572ae68002206b68e9acf9c4e332a378e30a7f8691ecb0c3fdc7834692950d5f1d6320209b340e6dce5  0100-fs-xfs-Handle-non-continuous-data-blocks-in-director.patch
+cf511ada61284d688ab1e6b6614a89fb335394398b5b31d80a0592660244974e235bc5db449393dd3d63689e60a7e7af48ab9d587151c7e814e5ee153a062135  0101-kern-acpi-Fix-out-of-bounds-access-in-grub_acpi_xsdt.patch
 5f7191b63a33ac1501494419c1bf4036e7380fa762668559ed259a11711c66149d6ac97301587cd4f334aaa4674bcd1c19ebdc56ad38eefd783a53cdcb58975f  efi-use-peimage-shim.patch
 aba93e2473a5144bdd0b6d03fb840f40448b5054505a560ef3e92e91b9191007b390702bc75a1fd422ac75fecb57d44a51c4425a77f2ab760d8b214427c4f8e1  loader-framework.patch
 a9603574d881980d78ee2441a549cb06c4b8c65b9bb3d9ccc19760bb9c87b15cb33bf2728a46a2b1a7f524ca002a1a488610db3c77e05a9c57b7e8c438817fd8  revert-efi-fallback-to-legacy.patch
+db9ffcc3f58f89f62150422fdf1228c4832cb09c40d832c605addcbf894ad3edd5279d8167b3640a876ec34c8f0d53e3e21844a1c782ca472755ca5fd139cf53  0001-misc-Implement-grub_strlcpy.patch
+67f7967277ba4dffea4160d9a5ded28f3f2af9aaedcf6947cc32d507401611d131e19d43b74de101952adb536cacd8edd2fa07c63978e1f5a021197638981b0c  0002-fs-ufs-Fix-a-heap-OOB-write.patch
+24036c5ca5596d255001b707dedf858190161cdb36f69cc7d8aed89c44a5827aa52b6ffae7fa91fd4e841eb943406bf6e90b21d20d5aeb8a80b519b0678babec  0003-fs-hfs-Fix-stack-OOB-write-with-grub_strcpy.patch
+7d2e88d65441b5f1b575b988bf9d1796836452199632f97d053e219c3a50753e5c7132953f20f26ae331d3fc9011ed97768f322aa5685b7beb27e618bc0f50b2  0004-fs-tar-Initialize-name-in-grub_cpio_find_file.patch
+1e0ca2992389a0b4ef0fcf18337e61a36f2d8d334c45d615663045ac1a37b146b1ee1bf15377ec19f34f33667b8fc4df3d4e43bb749c89409656956703da2382  0005-fs-tar-Integer-overflow-leads-to-heap-OOB-write.patch
+40e8a02e4e4c208787c2318dfd59e079a701f976c3e08218e41265151dfe7f90680e006ddcf7a3bb3fc97e3814b4c4bf950f78918b9bcc6f2b1919389a4d0f4b  0006-fs-f2fs-Set-a-grub_errno-if-mount-fails.patch
+9fd3635f5358e440e9bb6fa6b2da2d35e16b0ea3ef44575e8cbd9c976cd602c7d1e3e44ec73e7a93c261859ad3c70c21c77d965c930ff47de0fab1bd2f3447db  0007-fs-hfsplus-Set-a-grub_errno-if-mount-fails.patch
+e60f2edc841ade85e3daca4d1cd5a07dd71562ca1946d08f83a863da50a735c70d23b162e41d75cc7f25a764979d19ab5100bb049001f91963368f091ab429cc  0008-fs-iso9660-Set-a-grub_errno-if-mount-fails.patch
+d8c0066fe65db36e00ff11463622c57f2b87da8883e5badf0408e806b159b1e1ef0f879bee92d5d4db1c079defc6f0666ac1baabfaa403b4508d7c81811e1910  0009-fs-iso9660-Fix-invalid-free.patch
+23e110d2400d19237135de952bff9006453d49399f9503fc35fb7d7cd4c38b85f133d24ea78318c2671f45ee4ff3410d3392efafc29e65e401385ab89e4d7395  0010-fs-jfs-Fix-OOB-read-in-jfs_getent.patch
+50c66d70da5fadc72259487e51a3b303d1cb04e4915b022669bc2b8e68de053bc86f505cfd22db0600ae03e84612c7cc6d82d9f8627fde753fec64371c9e2ab5  0011-fs-jfs-Fix-OOB-read-caused-by-invalid-dir-slot-index.patch
+3d2d0591984a35ea2de14d4b19efed72b3f392cce152c1be156a6a435377b3069ec3e66f9cfe89626823d024fc9aec8bc6fa4cf519f4527105fe065aed49cda2  0012-fs-jfs-Use-full-40-bits-offset-and-address-for-a-dat.patch
+16df4de84c15e7bc141d2e166e5f2e2e61cbc92cc5d1eda175c816398f083dc9c866c4eeac642ede762cbfe5d0923c398c70fcc15de96df13aef358184a17a8c  0013-fs-jfs-Inconsistent-signed-unsigned-types-usage-in-r.patch
+95c7068ea782f6e222a8f7b51702e1cfd12f37ac35c83437715ccdd1eee284f0ecb06307517a482b8bbcf56ef075693f22762dd985eb7800e8d3965e24618c70  0014-fs-ext2-Fix-out-of-bounds-read-for-inline-extents.patch
+0cb6d14b7863fd2aa5c4c6ac96245d86b961825bc6027cd5198263ed5c1ea354fdde775ee2e71c78abdd14613c884da311682f50d4aec60719d3624d312cf3a9  0015-fs-xfs-Fix-out-of-bounds-read.patch
+3d6360289440efd5aeb6c0b07780cdf8cf2a83af4598a6c580b0a5894e3c568855ebcbb55d4984aa19af38d866830ab2682fc04c922cd6d27aad766fdc93e795  0016-fs-xfs-Ensuring-failing-to-mount-sets-a-grub_errno.patch
+d7dc83c8155792724659d3e8c022258d3179b08c03e6fc147cb12c60d5f2b8cc3b2fa9ffd5b2917bc40ec1c6ddbbfb3c586d95f81a97bfa711074117f5deb3e4  0017-kern-file-Ensure-file-data-is-set.patch
+480664f8eb3a5a72bea3b126338b1186d4691efee1ac7c47d09292cc7fd0638c4b6d5d8120399413c1c01e658a064d2a7c7955eef6f0bf7e106bf747946641bb  0018-kern-file-Implement-filesystem-reference-counting.patch
+7bf1ffe19647e0d7009b805fc7a3c0cf1f44bd77c54fd5385cc07bc69301e9c30dd0ae48f2cbdd61e2db69882416fa4fe3e09c72fe258921f3e017d7603b81ac  0019-disk-loopback-Reference-tracking-for-the-loopback.patch
+67a9fce10671083e7ce7ef82a6d1d324a235a982316355058bc8bfe915170d0ad767c871cc3e979bc3ee4d7ff525534f88c84e85af9a1da1efd2020c8874d4c5  0020-kern-disk-Limit-recursion-depth.patch
+42ea5717bd856100525116a3abb26b9e05504783656f701b149c67c1fbc87cec1a1657f3b8c52f0cbfe25d005761280e5f86ec41bbaa6c5942be7a9864d6ca02  0021-kern-partition-Limit-recursion-in-part_iterate.patch
+fdc6a8d413e6d07525eb6a54129bdabe092a300dcacd47a38399da4802b99655d93f2af4474f6290adf66edd9f9480a09561ef113470b85ce84d375679ba8549  0022-script-execute-Limit-the-recursion-depth.patch
+506facffe040f8126a19ddbaccd257cf9338fbba953029bb0ad52e94578f644b88e7237f2960a65e194c42214164e20a1efd1a3b05e124b1c4804fdaa98280cc  0023-net-Unregister-net_default_ip-and-net_default_mac-va.patch
+f3d18a6a58b0a692a862f16b280479253d9f017e83cedc1486703a2bd4ad7a7a5dae889f7deb05a634e201062a64f1985267795f78504cb83e749ff046f11591  0024-net-Remove-variables-hooks-when-interface-is-unregis.patch
+38c0b261a465c8bb62e039f9878627183f4d96f5e96db3f33965bedff6304d31561e839da5efa4be7f5a74d4c6d4d212ede51963ff35480db6cfe9fd93eaaca4  0025-net-Fix-OOB-write-in-grub_net_search_config_file.patch
+619c00ee9e580a2ef4ea2a7a3997bfedac946b94001d6206831a7aa383ba950672e44f46d34ae820d8f0efb720e84fc237c267ad5215ca10355b89813dd762d5  0026-net-tftp-Fix-stack-buffer-overflow-in-tftp_open.patch
+3a871506513199c78bb672ef5a283407c064209b738d855f1d6dbfca8d861d83bfdba0e1b016c66a1b258cc3a7ecd78f2c6a14705439924db07c6934536da77f  0027-video-readers-jpeg-Do-not-permit-duplicate-SOF0-mark.patch
+72041e53410b5390aa70386108d8e92e93289ddf758a3f7c8f12266d7f869ed00eece13700425676745ccc46912bccb8ce0f24ac892bc2fc20076bf57c0e1b35  0028-kern-dl-Fix-for-an-integer-overflow-in-grub_dl_ref.patch
+c1b565adb8f8d77e7ab1ac026b54d4fe96d355653703773451b97d8f6ca022d1b802de7232eed73c6db676bc8df4a12256ad678d9835e07c04471f3b4c80f15c  0029-kern-dl-Check-for-the-SHF_INFO_LINK-flag-in-grub_dl_.patch
+189aa7e617d505bfacb6243022368e486e2c5a7167803bd7906b06667e74611a842c42f4b853a78da4f721f7329378760c15c3c1a915fdc9a391429a32a5886c  0030-commands-extcmd-Missing-check-for-failed-allocation.patch
+e84ebdbfbcab84f5fc443a4b238dfe016dc6a8c46470c13ace97ce1d3294916e67973f3307ad13dd0e31ef147df6e0d23b691a667dc4a820d87f0e085eeab9ba  0031-commands-ls-Fix-NULL-dereference.patch
+786749ebe5c1e56cfaa5270c646453587fc7ac1ed7334a06ff3ddd15eacca6b3ed5e1037c1c0499d9ef4e9203208a4120726cb6919185ffd2ed8cb73d51c232f  0032-commands-pgp-Unregister-the-check_signatures-hooks-o.patch
+d3b745c34b742fa1254df3accf222b3b6c7de0bc9c18a1b615833a741c070671db4625896f58249102170a9aaf821a023131cac000f3f944532b4ed51d1e06d9  0033-normal-Remove-variables-hooks-on-module-unload.patch
+5a118dfe0f2f5c8dc6857ff6773f192c3a36d1d7a34211d0ea195cdb7c420de5393113113df488e76d0d5318b72cadf7f74c903238db1125b7a11bcd5689bae3  0034-gettext-Remove-variables-hooks-on-module-unload.patch
+10e329a08837f462a481d0aaf0ddffb2b24add51a7de341ccd57f767c446a70eec5eabf8098ffb87fac306ddda8962a2e1920237e6c90ed5a78b39c53c867e81  0035-gettext-Integer-overflow-leads-to-heap-OOB-write-or-.patch
+088b764b0f90510b5da6b429a16629cefd17a0e6909abba7c9dd69f50c7b0cb39e68f5ddac047df69169d03a3a1020dcd3a742d121188da14bab0307e4546950  0036-gettext-Integer-overflow-leads-to-heap-OOB-write.patch
+11cb8c3d0c6e5e2666c1fa7d70b506d5b926a61e33a41e0bf1f85044a2fb91f889541ed8b57f33b388d58166952b73db371edbe6af875538d3f935ae046e7d3c  0037-commands-read-Fix-an-integer-overflow-when-supplying.patch
+13af2913cb29ac8f3f26b1b31a82af7d85bd2914da6b3a6e8e30973790ae20242b7ccb54db5f53838d52805dfa04434f0ab888dc3b7d48fe4c60aecf0bb7498b  0038-commands-test-Stack-overflow-due-to-unlimited-recurs.patch
+bcd88f249dae3ac5d754cbfe94472cd4fb4e5c34add34220683825f8aba9c8befc4787f4588b58db1b20d376fc30c30d9b08aa4dec460232825dfcacc0a6f538  0039-commands-minicmd-Block-the-dump-command-in-lockdown-.patch
+a5977a45cc32695d2ef22c1b1655f82a5a1f8f17585e278d9d5320f67b8b16204e30625d8727f0ec7f3a97ce2adf98d66b04b0726e92db00bd6f2a21d1323e2f  0040-commands-memrw-Disable-memory-reading-in-lockdown-mo.patch
+c8655be043f7555333bdb390c3ef985e66958354f7fddab65924e53704b2595b642269ab5068d715a02cfb74847d2ef6230ccc979d897b6b6e83e19282fca8f7  0041-commands-hexdump-Disable-memory-reading-in-lockdown-.patch
+e8c9b7c98e98cd7d9b744d9e126d9ab9fce65c949f06d1a1fa8837ec9627ea072320a9c7ae671ba9dda5eb6f54ef7b78fe616f3b3680a95ea7970db0d2d53536  0042-fs-bfs-Disable-under-lockdown.patch
+381dcde55a55f01cfae09f4f8ad3069aa4f3eeccb193b3070652b8fe8af3aa9e4d9e814cac50f7ebe5da8cf0e06123fada66a84546e0a4f63ac77d85fb50bea7  0043-fs-Disable-many-filesystems-under-lockdown.patch
+c7953983d8a8690464c9aee9e4c76187b07fc83d8cf75f00ce372021a3c81520cb308a68e3dab54e3bd5893eca3d62794e4dcfa9955c38180e0f9477057fe084  0044-disk-Use-safe-math-macros-to-prevent-overflows.patch
+333f145df36136c0634c4c934682e32eb3d8ee337f3927afb1e32f46852d8787599901dc3b8fb2629e386cb3f35bacb90e78eea6621104dab6b4260aef8429ba  0045-disk-Prevent-overflows-when-allocating-memory-for-ar.patch
+010c0c3ca00ae7e835bcb9964cd455f5be245ad1d6018e9cf07a9bc6db7c66ef302e4c841efd148e9c60df11c3a5960bde7609f6340421ab85077aa9d9a0f373  0046-disk-Check-if-returned-pointer-for-allocated-memory-.patch
+e7e0a5890dd66467866c6b3a7b923a877c4d18ce1d4b0b03ff76ff5f8028281091a53c15fa30c5100f8bcb81e6480e4583e21c82e7c9947153cc1b71889097a9  0047-disk-ieee1275-ofdisk-Call-grub_ieee1275_close-when-g.patch
+ee48cfeb6c0865d17179d7fe80ab9dff97bc333f4467ac9a7f3eb969d366f5118664acc8ac13f6e411cb2330e28bd6454da9c5866d5ad700bc9ee000c1a9dd49  0048-fs-Use-safe-math-macros-to-prevent-overflows.patch
+2317d5837f956b025629229eb4162b1ec08fe070343332fcb97f202d3fdbc8a83c037449585997b1548173dd0e815068512afabf1397136b6bd981651a05a819  0049-fs-Prevent-overflows-when-allocating-memory-for-arra.patch
+feedc952056517f0b3b6f06de4c4734fe2f8c7c49d808049d0a5578c7e75955f4b6fda55c6caaf85cabd4476c24bada11f70d202dddb31a3ee473daa634d9ba2  0050-fs-Prevent-overflows-when-assigning-returned-values-.patch
+c13d8e4ebab4d0c64531706be8a040eb03a212e2b85594f35f5551c68b33bdb764d437adca82dfc5567e9d0b06a7567af2756b977f41dfc27d60f7f2778f98be  0051-fs-zfs-Use-safe-math-macros-to-prevent-overflows.patch
+770b49b7fd910bc39ebbb97597e3ba62d954c84f6548a53bbde34a46e1131ded252a0b4980ce1ae39ba7640d0deea585a075710f5f176ef692b70fdc69874b85  0052-fs-zfs-Prevent-overflows-when-allocating-memory-for-.patch
+bd9d69c2219ff8931f074e4ea7a7c19e824cbba3563e28ed9e5177d2317bd653990ef149200f652d35f6599b0f0e82c35b2d99eab4a936cf6a58443235512cd8  0053-fs-zfs-Check-if-returned-pointer-for-allocated-memor.patch
+f343b34abf5c2537ac54e397abc27d2d5a24d53e99d670c62cb88af8057a0dc42a8c5070c1c2ead6ac9198854f16b25da6b9d254c8b6f792b96d78ae5de2f13f  0054-fs-zfs-Add-missing-NULL-check-after-grub_strdup-call.patch
+ef0fe01147fc745106d3813c13913b5327ad05a11a489133a763a0fd21372119f01a2fc6670967db50bf8e0e88107b66b877d0d48be51361518ed216ddf52238  0055-net-Use-safe-math-macros-to-prevent-overflows.patch
+8292c974d711f9f503d3ca605ebeaab2cfdb824d65495fda9b24886b100df107c37e729e6118e7442e9c440f267f5d44572dc4962ad20c8861871e474898adc8  0056-net-Prevent-overflows-when-allocating-memory-for-arr.patch
+e312528059b010c7fa3d6c4acadc072b514c4e685c6f10da3aa184b291898ffebcf9b103ebe510099963534999b9cd7ed1e608ec3e07b52147438ccf88b41e96  0057-net-Check-if-returned-pointer-for-allocated-memory-i.patch
+9fd71bbde901192210570893395b489a82f77050359f59d6e9113b7fdb1171b8a73bde7043626849e588bfa92981c183f0b8d2f5b0067aacbd7d87874f370ed8  0058-fs-sfs-Check-if-allocated-memory-is-NULL.patch
+059d64235d5065034efef0031a0102ffee97b9893afe812e8a99ccbf3f13c019883f8dc487e95f043df56577c7d85718ed45b7ac00e0c31f331d3740811fee06  0059-script-execute-Fix-potential-underflow-and-NULL-dere.patch
+cf97acf6102fb846f208575f89b3a53ac8207247d6a1afd7d3d6e8fa15652bca741ba29d68271657e596fab45e7a8cc9f4eff2ab67da9724b15003c834513594  0060-osdep-unix-getroot-Fix-potential-underflow.patch
+b567626c265b7dc80d838cff68ee8a5b24d6632b380e7b6431c95f6fa17ecae35d21fc9f43ec5a426a699bd20386df40183db2a5b239470c41f6ca4ef7c9b752  0061-misc-Ensure-consistent-overflow-error-messages.patch
+1242df2412da4b9f72d301c54f3c21c6b0829a2be6db2e7acc1f2144bbd2b862d59ee373e6e6d673bd6c4cd8b6c23e035e25f53964039a9e645abbc9433d21f1  0062-bus-usb-ehci-Define-GRUB_EHCI_TOGGLE-as-grub_uint32_.patch
+a0330d95a7d69deaec6431f552bae21c7face90e68ab87fd46e655731308b97b40aa1a8272fa46b5210d9070c1637ea6d9deb705f2ab2ae317b0d4a6d0984438  0063-normal-menu-Use-safe-math-to-avoid-an-integer-overfl.patch
+daf29e959e1f5eeb74140b4582e1da74430f695295c7f9846e4796e92792d20e433a1f63b41542ea9d0fa18c9e87c613fddc527db6f0a83f4d85e0e760d2e8f5  0064-kern-partition-Add-sanity-check-after-grub_strtoul-c.patch
+17727215c6184cb3398e3bda3f481104da0944f6fcff18f1dc369268ce79f9051b8e5d70231afdbae967644f06f8c27e3a3c1f78d27e3d68ca5928392cd481cb  0065-kern-misc-Add-sanity-check-after-grub_strtoul-call.patch
+c37ac801c24df4182407283913e202b6494face6093ad841b66ad0369dc994c026f036c18398d38be54ae6c89de8a444c83ff2a43e93356ca718d70d24ae5ef6  0066-loader-i386-linux-Cast-left-shift-to-grub_uint32_t.patch
+59f8ccde381ef829f8e0b3e8669f86bae3b3fc9f3f0d73d82baa23434a4d1443fca6b058b9bc338c3bc536cb5852173991fbee9829197d57055dab14a9b7cd31  0067-loader-i386-bsd-Use-safe-math-to-avoid-underflow.patch
+1b301d72c9a09125023fce36a25e6931197cd4561b4ea4a475f58cbe76044fb40ab3317bac3c8cb3a7a39dff01f92a58399788d82123e36d5f0cb3487a252e3e  0068-fs-ext2-Rework-out-of-bounds-read-for-inline-and-ext.patch
+cb57ce5d2d77bd4d0517fca92a7bfd030103f20ccc780c30d7d6b22fe6c0c226f925bb89e5b39cd6fe4dacaf76fba5dfc827a56e7ca5f90764870a978026f031  0069-fs-xfs-Fix-grub_xfs_iterate_dir-return-value-in-case.patch
+1ac41c5177be38ba3d378cfc9e7e60db75fbb82f65c57892bb2033554fe4e76309fd52d2e314aab40f64a62c65dccd047eaca5611cfd10290381eb5330547529  0070-fs-xfs-Propagate-incorrect-inode-error-from-grub_xfs.patch
+c453f90a882d2692699aed3480d2b6bdd85e7dacb6f847b1c405cf7c6ac38b3b0dc1121dbcdd416c751b6e0dd7304daee1482b6dd6f1a8e2882e2cd49db87b57  0071-fs-xfs-Handle-root-inode-read-failure-in-grub_xfs_mo.patch
 "
