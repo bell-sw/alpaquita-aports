@@ -4,7 +4,7 @@
 pkgname=openssh
 pkgver=10.0_p1
 _myver=${pkgver%_*}${pkgver#*_}
-pkgrel=5
+pkgrel=6
 pkgdesc="OpenBSD SSH implementation"
 url="https://www.openssh.com/portable.html"
 arch="all"
@@ -24,7 +24,7 @@ makedepends_host="
 # build bootstrap sshd without libedit, linux-pam and krb5
 if [ -z "$BOOTSTRAP" ] && [ -z "$APORTS_BOOTSTRAP" ]; then
 	makedepends_host="$makedepends_host libedit-dev linux-pam-dev krb5-dev libfido2-dev
-		utmps-dev utmps-static"
+		musl:utmps-dev musl:utmps-static"
 	subpackages="$pkgname-client-krb5:_client_krb5
 		$pkgname-server-pam:_server_with_flavor
 		$pkgname-server-krb5:_server_with_flavor
@@ -50,7 +50,7 @@ subpackages="$pkgname-dbg
 source="https://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-$_myver.tar.gz
 	fix-utmp.patch
 	disable-forwarding-by-default.patch
-	${BOOTSTRAP:+musl:}avoid-redefined-warnings-when-building-with-utmps.patch
+   musl:avoid-redefined-warnings-when-building-with-utmps.patch
 	default-internal-sftp.patch
 	include-config-dir.patch
 	sshd-flavor.patch
@@ -101,7 +101,7 @@ _do_configure() {
 	fi
 
 	local _extra_cflags="" _extra_libs=""
-	if [ -z "$BOOTSTRAP" ] && [ -z "$APORTS_BOOTSTRAP" ]; then
+	if [ -z "$BOOTSTRAP" ] && [ -z "$APORTS_BOOTSTRAP" ] && [ "$CLIBC" = 'musl' ]; then
 		_extra_cflags="$(pkg-config --cflags --static utmps)"
 		_extra_libs="-Wl,--push-state,-Bstatic $(pkg-config --libs --static utmps) -Wl,--pop-state"
 	fi
