@@ -3,12 +3,12 @@
 
 pkgname=coreutils
 pkgver=9.7
-pkgrel=0
+pkgrel=1
 pkgdesc="GNU core utilities"
 url="https://www.gnu.org/software/coreutils/"
 arch="all"
 license="GPL-3.0-or-later"
-makedepends="acl-dev attr-dev utmps-dev perl openssl-dev"
+makedepends="acl-dev attr-dev musl:utmps-dev perl openssl-dev"
 subpackages="$pkgname-doc $pkgname-env $pkgname-fmt $pkgname-sha512sum:_sha512sum"
 install="$pkgname.post-deinstall"
 source="https://ftp.gnu.org/gnu/coreutils/coreutils-$pkgver.tar.xz
@@ -27,8 +27,13 @@ build() {
 	# broken on 64 bit. Avoid using it.
 	# https://lists.gnu.org/archive/html/bug-coreutils/2024-08/msg00021.html
 	[ "$CLIBC" = "musl" ] && export fu_cv_sys_stat_statvfs=n
-	CFLAGS="$CFLAGS -I/usr/include/utmps -flto=auto" \
-	LIBS="-lutmps -lskarnet" \
+
+	export CFLAGS="$CFLAGS -flto=auto"
+	if [ "$CLIBC" = "musl" ]; then
+		export CFLAGS="$CFLAGS -I/usr/include/utmps"
+		export LIBS="-lutmps -lskarnet"
+	fi
+
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
