@@ -4,7 +4,7 @@
 
 pkgname=busybox
 pkgver=1.37.0
-pkgrel=18
+pkgrel=19
 pkgdesc="Modular toolbox of common UNIX utilities"
 url="https://busybox.net/"
 arch="all"
@@ -19,7 +19,7 @@ makedepends_host="
 	openssl-dev>3
 	"
 # Only build with utmps support if we are not bootstraping.
-[ -z "$BOOTSTRAP" ] && makedepends_host="$makedepends_host utmps-dev utmps-static"
+[ -z "$BOOTSTRAP" ] && makedepends_host="$makedepends_host musl:utmps-dev musl:utmps-static"
 makedepends="$makedepends_build $makedepends_host"
 checkdepends="zip"
 install="$pkgname.post-install $pkgname.post-upgrade
@@ -53,7 +53,7 @@ source="https://busybox.net/downloads/busybox-$pkgver.tar.bz2
 	0001-wget-add-header-Accept.patch
 	0002-adduser-default-to-sbin-nologin-as-shell-for-system-.patch
 	0003-ash-add-built-in-BB_ASH_VERSION-variable.patch
-	0004-Avoid-redefined-warnings-when-buiding-with-utmps.patch
+   musl:0004-Avoid-redefined-warnings-when-buiding-with-utmps.patch
 	0005-libbb-sockaddr2str-ensure-only-printable-characters-.patch
 	0008-pgrep-add-support-for-matching-against-UID-and-RUID.patch
 	0009-properly-fix-wget-https-support.patch
@@ -165,7 +165,7 @@ prepare() {
 
 build() {
 	local _extra_cflags= _extra_libs=
-	if [ -z "$BOOTSTRAP" ] ; then
+	if [ -z "$BOOTSTRAP" ] && [ "$CLIBC" = 'musl' ]; then
 		_extra_cflags="$(pkg-config --cflags --static utmps)"
 		_extra_libs="-Wl,--push-state,-Bstatic $(pkg-config --libs --static utmps) -Wl,--pop-state"
 	fi
@@ -210,7 +210,7 @@ build() {
 
 check() {
 	local _extra_cflags= _extra_libs=
-	if [ -z "$BOOTSTRAP" ] ; then
+	if [ -z "$BOOTSTRAP" ] && [ "$CLIBC" = 'musl' ]; then
 		_extra_cflags="$(pkg-config --cflags --static utmps)"
 		_extra_libs="-Wl,--push-state,-Bstatic $(pkg-config --libs --static utmps) -Wl,--pop-state"
 	fi
