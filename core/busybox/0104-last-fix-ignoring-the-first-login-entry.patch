@@ -1,0 +1,25 @@
+From df17b857292c27600ddfe11c9bbc1901681baf22 Mon Sep 17 00:00:00 2001
+From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
+Date: Wed, 14 May 2025 14:26:51 +0300
+Subject: [PATCH] last: fix ignoring the first login entry
+
+---
+ util-linux/last.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/util-linux/last.c b/util-linux/last.c
+index 7530d013d..aafd01bb9 100644
+--- a/util-linux/last.c
++++ b/util-linux/last.c
+@@ -157,7 +157,7 @@ int last_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
+ 			ut.ut_user, ut.ut_line, ut.ut_host, ctime(&t_tmp) + 4);
+  next:
+ 		pos -= sizeof(ut);
+-		if (pos <= 0)
++		if (pos < 0)
+ 			break; /* done. */
+ 		xlseek(file, pos, SEEK_SET);
+ 	}
+-- 
+2.49.0
+
