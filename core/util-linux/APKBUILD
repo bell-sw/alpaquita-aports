@@ -2,7 +2,7 @@
 
 pkgname=util-linux
 pkgver=2.41
-pkgrel=3
+pkgrel=4
 pkgdesc="Linux utilities"
 url="https://git.kernel.org/cgit/utils/util-linux/util-linux.git"
 arch="all"
@@ -59,8 +59,8 @@ if [ -z "$BOOTSTRAP" ] && [ -z "$APORTS_BOOTSTRAP" ] || echo "$NO_BOOTSTRAP" | g
 		linux-pam-dev
 		python3-dev
 		libeconf-dev
-		utmps-dev
-		utmps-static
+	   musl:utmps-dev
+	   musl:utmps-static
 		"
 	subpackages="$subpackages
 		$pkgname-login
@@ -84,7 +84,7 @@ case $pkgver in
 	*.*) _v=$pkgver;;
 esac
 source="https://www.kernel.org/pub/linux/utils/util-linux/v$_v/util-linux-$pkgver.tar.xz
-	utmps.patch
+   musl:utmps.patch
 	ttydefaults.h
 	rfkill.confd
 	rfkill.initd
@@ -137,10 +137,13 @@ build() {
 		# 20 kiB in total for util-linux-*, versus 196 kiB (libskarnet.so).
 		# TODO: Find a better way (libutmps.so w/o dependency on libskarnet.so)?
 		# also throw in lto when not bootstrapping
-		export CFLAGS="$CFLAGS -ffat-lto-objects -flto=auto $(pkg-config --cflags --static utmps)"
-		# Prepend each linker flag with '-Wl,', otherwise libtool will
-		# mangle the order of linker options.
-		export LDFLAGS="$LDFLAGS -Wl,--push-state,-Bstatic $(pkg-config --libs --static utmps | sed 's/-/-Wl,-/g') -Wl,--pop-state"
+		export CFLAGS="$CFLAGS -ffat-lto-objects -flto=auto"
+		if [ "$CLIBC" = "musl" ]; then
+			export CFLAGS="$CFLAGS $(pkg-config --cflags --static utmps)"
+			# Prepend each linker flag with '-Wl,', otherwise
+			# libtool will mangle the order of linker options.
+			export LDFLAGS="$LDFLAGS -Wl,--push-state,-Bstatic $(pkg-config --libs --static utmps | sed 's/-/-Wl,-/g') -Wl,--pop-state"
+		fi
 	fi
 
 	# --disable-chfn-chsh - chfn and chsh are provided by shadow package
