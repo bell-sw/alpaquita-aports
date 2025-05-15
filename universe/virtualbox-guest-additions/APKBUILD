@@ -1,13 +1,13 @@
 pkgname=virtualbox-guest-additions
 pkgver=7.0.22
-pkgrel=0
+pkgrel=1
 pkgdesc="VirtualBox Addtions userland components"
 arch="x86 x86_64"
 url='https://virtualbox.org/'
 license="GPL custom"
 install="$pkgname.pre-install"
 makedepends="sed kbuild lvm2-dev yasm nasm zlib-dev openssl-dev>3 curl-dev
-	libxslt libxrandr-dev libxt-dev libxmu-dev linux-pam-dev utmps-dev"
+	libxslt libxrandr-dev libxt-dev libxmu-dev linux-pam-dev musl:utmps-dev"
 subpackages="$pkgname-x11 $pkgname-openrc $pkgname-udev"
 source="https://download.virtualbox.org/virtualbox/$pkgver/VirtualBox-$pkgver.tar.bz2
 	futimens.patch
@@ -22,7 +22,7 @@ source="https://download.virtualbox.org/virtualbox/$pkgver/VirtualBox-$pkgver.ta
 	60-vbox-guest.rules
 	VBoxClient-all
 	vboxclient.desktop
-	utmps.patch
+   musl:utmps.patch
 	"
 
 builddir="$srcdir"/VirtualBox-$pkgver
