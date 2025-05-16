@@ -141,7 +141,7 @@ build() {
 			export CFLAGS="$CFLAGS $(pkg-config --cflags --static libutmps)"
 			# Prepend each linker flag with '-Wl,', otherwise
 			# libtool will mangle the order of linker options.
-			export LDFLAGS="$LDFLAGS -Wl,--push-state,-Bstatic $(pkg-config --libs --static libutmps | sed 's/-/-Wl,-/g') -Wl,--pop-state"
+			export LDFLAGS="$LDFLAGS -Wl,--push-state,-Bstatic $(printf " -Wl,%s" $(pkg-config --libs --static libutmps)) -Wl,--pop-state"
 		fi
 	fi
 
