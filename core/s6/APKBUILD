@@ -1,0 +1,52 @@
+# Description:
+
+pkgname=s6
+pkgver=2.11.1.2
+pkgrel=0
+pkgdesc="skarnet.org's small & secure supervision software suite."
+url="https://skarnet.org/software/$pkgname/"
+arch="all"
+license="ISC"
+makedepends="skalibs-dev>=2.12 execline-dev"
+depends="s6-ipcserver"
+options="!check"
+subpackages="$pkgname-ipcserver $pkgname-static $pkgname-dev $pkgname-doc $pkgname-openrc"
+source="https://skarnet.org/software/s6/s6-$pkgver.tar.gz s6-svscanboot s6.initd"
+install="s6.pre-install s6.pre-upgrade"
+triggers="s6.trigger=/run/service"
+
+_ipcserver_binaries="bin/s6-ipcserver bin/s6-ipcserver-socketbinder bin/s6-ipcserverd bin/s6-applyuidgid"
+
+build() {
+	./configure \
+		--enable-shared \
+		--enable-static \
+		--disable-allstatic \
+		--libdir=/usr/lib \
+		--libexecdir="/usr/lib/$pkgname" \
+		--with-dynlib=/usr/lib
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -D "$srcdir/s6-svscanboot" "$pkgdir/lib/s6/s6-svscanboot"
+	install -D "$srcdir/s6.initd" "$pkgdir/etc/init.d/s6"
+}
+
+doc() {
+	default_doc
+	mkdir -p "$subpkgdir/usr/share/doc"
+	cp -a "$builddir/doc" "$subpkgdir/usr/share/doc/$pkgname"
+}
+
+ipcserver() {
+	depends=""
+	amove $_ipcserver_binaries
+}
+
+sha512sums="
+31feb2b1704d9561aff9fccdcb284e13f4ceb0f530214db8a393bdc10267801fbe1fc30b4271ad9bdf189dc52e2844f3db40f8f3e9cd438ac12415a51661f17d  s6-2.11.1.2.tar.gz
+bcb503c64fe4644b8f33775e94f03f08e422854247d14c9ff85f5d593b37fb2373fadf373da4226a1e2f4eba17a99fdcd40acb3645f8533f2f3e1a55c984f053  s6-svscanboot
+2c377161c7dcb762b666845e45e1e1193d1f64881289906437f835b89147d7c4b7dffd206036e4d9468fb141dd8dc341c6603d69963e34981f3fb16ce29a7614  s6.initd
+"

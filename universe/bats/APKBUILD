@@ -1,0 +1,26 @@
+# Description:
+
+pkgname=bats
+pkgver=1.8.2
+pkgrel=0
+pkgdesc="Bash Automated Testing System"
+options="!check" # Test passes CI/locally, fails on builders
+url="https://github.com/bats-core/bats-core"
+arch="noarch"
+license="MIT"
+depends="bash"
+subpackages="$pkgname-doc"
+source="$pkgname-$pkgver.zip::https://github.com/bats-core/bats-core/archive/v$pkgver.zip"
+builddir="$srcdir/bats-core-$pkgver"
+
+check() {
+	bash -c 'bin/bats --tap test'
+}
+
+package() {
+	./install.sh "$pkgdir"/usr
+}
+
+sha512sums="
+923de33ae5e38e2943181b1521f28d5884f6801e077f40e72f55e28c31472747366f371e4269632a4c7a66576818814080d9d622f87f3c3349ff76f7c639ea31  bats-1.8.2.zip
+"

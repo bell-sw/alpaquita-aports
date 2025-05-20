@@ -1,0 +1,27 @@
+pkgname=rpcsvc-proto
+pkgver=1.4.3
+pkgrel=0
+pkgdesc="rpcsvc protocol definitions from glibc"
+url="https://github.com/thkukuk/rpcsvc-proto"
+arch="all"
+license="BSD-3-Clause"
+makedepends="musl:musl-libintl"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://github.com/thkukuk/rpcsvc-proto/releases/download/v$pkgver/rpcsvc-proto-$pkgver.tar.xz"
+
+build() {
+	./configure --prefix=/usr
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+e46ba9ccdd6c520128bf3a154db90742f288a4d593b094a630141cdc5aeb834ffebf9b0eb6d5d0aad9faef3c445c75e2355cbc3e1382b50d29f4d2799441c6e9  rpcsvc-proto-1.4.3.tar.xz
+"

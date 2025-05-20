@@ -1,0 +1,57 @@
+diff --git a/criu/cr-restore.c b/criu/cr-restore.c
+index 82ca85d05..ff8ccb494 100644
+--- a/criu/cr-restore.c
++++ b/criu/cr-restore.c
+@@ -3164,7 +3164,15 @@ static void prep_libc_rseq_info(struct rst_rseq_param *rseq)
+ 	}
+ 
+ 	rseq->rseq_abi_pointer = encode_pointer(__criu_thread_pointer() + __rseq_offset);
++	/*
++	 * Current glibc reports the feature/active size in
++	 * __rseq_size, not the size passed to the kernel.
++	 * This could be 20, but older kernels expect 32 for
++	 * the size argument even if only 20 bytes are used.
++	 */
+ 	rseq->rseq_abi_size = __rseq_size;
++	if (rseq->rseq_abi_size < 32)
++		rseq->rseq_abi_size = 32;
+ 	rseq->signature = RSEQ_SIG;
+ }
+ 
+diff --git a/test/zdtm/static/rseq00.c b/test/zdtm/static/rseq00.c
+index 471ad6a43..7add7801e 100644
+--- a/test/zdtm/static/rseq00.c
++++ b/test/zdtm/static/rseq00.c
+@@ -46,12 +46,15 @@ static inline void *__criu_thread_pointer(void)
+ static inline void unregister_glibc_rseq(void)
+ {
+ 	struct rseq *rseq = (struct rseq *)((char *)__criu_thread_pointer() + __rseq_offset);
++	unsigned int size = __rseq_size;
+ 
+ 	/* hack: mark glibc rseq structure as failed to register */
+ 	rseq->cpu_id = RSEQ_CPU_ID_REGISTRATION_FAILED;
+ 
+ 	/* unregister rseq */
+-	syscall(__NR_rseq, (void *)rseq, __rseq_size, 1, RSEQ_SIG);
++	if (__rseq_size < 32)
++		size = 32;
++	syscall(__NR_rseq, (void *)rseq, size, 1, RSEQ_SIG);
+ }
+ #else
+ static inline void unregister_glibc_rseq(void)
+diff --git a/test/zdtm/transition/rseq01.c b/test/zdtm/transition/rseq01.c
+index b6d470785..de4355845 100644
+--- a/test/zdtm/transition/rseq01.c
++++ b/test/zdtm/transition/rseq01.c
+@@ -33,7 +33,10 @@ static inline void *thread_pointer(void)
+ static inline void unregister_old_rseq(void)
+ {
+ 	/* unregister rseq */
+-	syscall(__NR_rseq, (void *)((char *)thread_pointer() + __rseq_offset), __rseq_size, 1, RSEQ_SIG);
++	unsigned int size = __rseq_size;
++	if (__rseq_size < 32)
++		size = 32;
++	syscall(__NR_rseq, (void *)((char *)thread_pointer() + __rseq_offset), size, 1, RSEQ_SIG);
+ }
+ #else
+ static inline void unregister_old_rseq(void)

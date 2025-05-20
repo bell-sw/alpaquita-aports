@@ -1,0 +1,38 @@
+pkgname=py3-pycodestyle
+_pkgname=pycodestyle
+pkgver=2.9.0
+pkgrel=1
+pkgdesc="Check your Python code against some of the style conventions in PEP 8"
+url="https://pypi.python.org/pypi/pycodestyle/"
+arch="noarch"
+license="MIT"
+depends="python3"
+makedepends="py3-setuptools"
+source="$pkgname-$pkgver.tar.gz::https://github.com/PyCQA/$_pkgname/archive/$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces="py-pycodestyle" # Backwards compatibility
+provides="py-pycodestyle=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	# test commands from tox.ini:
+	python3 -m pycodestyle --statistics pycodestyle.py
+	python3 -m pycodestyle --max-doc-length=72 --testsuite testsuite
+	python3 -m pycodestyle --max-doc-length=72 --doctest
+	python3 -m unittest discover testsuite -vv
+}
+
+package() {
+	mkdir -p "$pkgdir"/usr/bin
+	ln -s pycodestyle "$pkgdir"/usr/bin/pycodestyle-3
+
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+1550dfb353ecbe2e01c06f2865c7fb56c03f422a5fb31fdca468fb3d651122915bed3a36dce88a81ce585a32015cc158953d0e453bac9a0a4193096aa7c6a809  py3-pycodestyle-2.9.0.tar.gz
+"

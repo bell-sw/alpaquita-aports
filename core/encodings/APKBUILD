@@ -1,0 +1,29 @@
+# Description: encodings package enables text conversion from/to Unicode.
+
+pkgname=encodings
+pkgver=1.0.6
+pkgrel=0
+pkgdesc="X.org font encoding files"
+url="http://xorg.freedesktop.org/"
+arch="noarch"
+license="custom"
+options="!check"  # No test suite.
+makedepends="mkfontscale util-macros"
+source="https://www.x.org/releases/individual/font/encodings-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--with-encodingsdir=/usr/share/fonts/encodings
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+2d52486996939401121bc858ba23031f70eef857760db8da4c84f083e981868e4bc7a8c2ab6d59274a0cf95f592a0dbfad47bce6c9299bb45d115b48abc39134  encodings-1.0.6.tar.xz
+"

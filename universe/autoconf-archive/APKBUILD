@@ -1,0 +1,32 @@
+# Description:
+
+pkgname=autoconf-archive
+pkgver=2022.09.03
+pkgrel=0
+pkgdesc="Collection of re-usable GNU Autoconf macros"
+url="https://www.gnu.org/software/autoconf-archive"
+arch="noarch"
+license="GPL-3.0-or-later"
+depends="autoconf"
+subpackages="$pkgname-doc"
+options="!check" # no tests
+source="https://ftp.gnu.org/gnu/autoconf-archive/autoconf-archive-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+157b5b6a979d5ec5bfab6ddf34422da620fec1e95f4c901821abbb7361544af77747b4a449029b84750d75679d6130a591e98da8772de2c121ecdea163f0340b  autoconf-archive-2022.09.03.tar.xz
+"

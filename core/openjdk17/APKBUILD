@@ -1,0 +1,463 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME is a build of OpenJDK verified by the OpenJDK
+# Technology Compatibility Kit test suite to be compliant with the Java SE
+# specifications.
+
+: ${BUILD_FROM_SOURCE:=0}
+
+_java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_java_ver=17.0.15+10
+_java_rel_date=2025-04-15
+_java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 17"
+
+pkgname=${_java_pkg_name}17
+pkgver=${_java_ver/+/_p}
+pkgrel=1
+pkgdesc="$_java_name"
+url="$VENDOR_URL"
+license="GPL-2.0 WITH Classpath-Exception-2.0"
+arch="aarch64 x86_64"
+options="!strip ldpath-recursive !tracedeps !annobin"
+annocheck_skip="libsyslookup.so"
+depends="$pkgname-doc=$pkgver-r$pkgrel $pkgname-jdk=$pkgver-r$pkgrel"
+
+# NB: openjdk17-bootstrap is added to makedepends separately, only if
+# not bootstrapping the first package from prebuilt binaries
+makedepends="
+	alsa-lib-dev
+	automake
+	autoconf
+	bash
+	ca-certificates
+	coreutils
+	cups-dev
+	file
+	findutils
+	fontconfig-dev
+	freetype-dev
+	gawk
+	gettext
+	grep
+	libx11-dev
+	libxext-dev
+	libxi-dev
+	libxrandr-dev
+	libxrender-dev
+	libxt-dev
+	libxtst-dev
+	linux-headers
+	sed
+	zip
+	zlib-dev
+	"
+
+subpackages="
+	$pkgname-dbg:_dbg
+	$pkgname-jmods:_jmods:noarch
+	$pkgname-demos:_demos:noarch
+	$pkgname-src:_src:noarch
+	$pkgname-jre-doc:_jre_doc:noarch
+	$pkgname-doc:_doc:noarch
+	$pkgname-libs-static:_libs_static
+	$pkgname-jre-cds:_jre_cds
+	$pkgname-jre-no-deps:_jre_no_deps
+	$pkgname-jre:_jre
+	$pkgname-jdk-no-deps:_jdk_no_deps
+	$pkgname-jdk:_jdk
+	"
+
+provides="
+	openjdk17=$pkgver-r$pkgrel
+	openjdk
+"
+
+if [ "$BUILD_FROM_SOURCE" -eq 0 ]; then
+	case "$CARCH:$CLIBC" in
+		x86_64:glibc )
+			JDK_BIN="
+			jdk-17.0.15+10_linux-x64_bin-static-libs-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-x86_64/jdk-17.0.15+10_linux-x64_bin-static-libs.tar.gz
+			jdk-17.0.15+10_linux-x64_bin-symbols-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-x86_64/jdk-17.0.15+10_linux-x64_bin-symbols.tar.gz
+			jdk-17.0.15+10_linux-x64_bin-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-x86_64/jdk-17.0.15+10_linux-x64_bin.tar.gz
+			jdk-17.0.15+10_linux-x64_bin-tests-demos-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-x86_64/jdk-17.0.15+10_linux-x64_bin-tests-demos.tar.gz
+			jdk-17.0.15+10_linux-x64_bin-tests-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-x86_64/jdk-17.0.15+10_linux-x64_bin-tests.tar.gz
+			jdk-17.0.15+10_linux-x64_doc-api-spec-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-x86_64/jdk-17.0.15+10_linux-x64_doc-api-spec.tar.gz
+			jre-17.0.15+10_linux-x64_bin-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-x86_64/jre-17.0.15+10_linux-x64_bin.tar.gz
+"
+			JDK_SHA="
+dba30d96ee39ad1d705c0c29652a94077adb4bc25f057e7880fb290a4b6c170acdfc0a1056f3a9175df9196f54660cb20414261976663c0da9bf11d0621fb662  jdk-17.0.15+10_linux-x64_bin-static-libs-r1.tar.gz
+615dc8a1b2244fdec833f53102ed520296e4dae6bcf78b25a4e85eeccf6692e1f8be4c0a08ac8eab2a02f3abe49a908da0e48af96d4517faab71e2e6181ad73c  jdk-17.0.15+10_linux-x64_bin-symbols-r1.tar.gz
+971587963397ccba1b4947b312e2b7fb80d1bd7240b7418e05b94194abf600e274d2b3b3cc86977ca4b389ceb65706a5ee9797168e5aeaf63d55094732251c98  jdk-17.0.15+10_linux-x64_bin-r1.tar.gz
+03b647f6344f0cc0d24807b4b797327ed2fbf538e38f1228bc4a68f0d1dfd1f1fe92966795e0113c6ff9123424db0ad57509ea35bc8f403055133f08ced724e8  jdk-17.0.15+10_linux-x64_bin-tests-demos-r1.tar.gz
+2540b110569fc3a65a3780fd468074bc6138947dbcd72fed5cdaedb71bb66c0c5836699f1b5fa83cf21f09ded62a052b0612443af1504bc75bc24f6b4bef1b13  jdk-17.0.15+10_linux-x64_bin-tests-r1.tar.gz
+bc8cad48c8728881f483e971871736fb5d4b5c1a216184226f22fd8506eca53971fb224527a6f23174630495d47d811c7783f3f84a26e82dd89c1a366f05b9bf  jdk-17.0.15+10_linux-x64_doc-api-spec-r1.tar.gz
+5e2d64afae313c1a928af429fc763e9f6314bc464d533c2fa118059d346bb46c6be41e7638ef92f8f45c52b020a64d1d46f2f9838a1bb0b9472237cd865170fd  jre-17.0.15+10_linux-x64_bin-r1.tar.gz
+"
+		;;
+		x86_64:musl )
+			JDK_BIN="
+			jdk-17.0.15+10_linux-x64-musl_bin-static-libs-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-x86_64/jdk-17.0.15+10_linux-x64-musl_bin-static-libs.tar.gz
+			jdk-17.0.15+10_linux-x64-musl_bin-symbols-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-x86_64/jdk-17.0.15+10_linux-x64-musl_bin-symbols.tar.gz
+			jdk-17.0.15+10_linux-x64-musl_bin-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-x86_64/jdk-17.0.15+10_linux-x64-musl_bin.tar.gz
+			jdk-17.0.15+10_linux-x64-musl_bin-tests-demos-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-x86_64/jdk-17.0.15+10_linux-x64-musl_bin-tests-demos.tar.gz
+			jdk-17.0.15+10_linux-x64-musl_bin-tests-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-x86_64/jdk-17.0.15+10_linux-x64-musl_bin-tests.tar.gz
+			jdk-17.0.15+10_linux-x64-musl_doc-api-spec-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-x86_64/jdk-17.0.15+10_linux-x64-musl_doc-api-spec.tar.gz
+			jre-17.0.15+10_linux-x64-musl_bin-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-x86_64/jre-17.0.15+10_linux-x64-musl_bin.tar.gz
+"
+			JDK_SHA="
+9db33456d4d33950502dca252c7ff7075db45032ee4d29b044252358d9b38112114aac905e5b786f125bf0e5126e655c5f0d11e10adfe67eac85167148e6b75d  jdk-17.0.15+10_linux-x64-musl_bin-static-libs-r1.tar.gz
+58d494b0c0c8f63d1ff671645a82f3a2f53b4a8ce9632904a60ade0b714edec7d3ed7f28cef968e7590248948cb86337333b1f7f51982bf6bbaa41f2749593c1  jdk-17.0.15+10_linux-x64-musl_bin-symbols-r1.tar.gz
+764a1ec0acfe1883a88b1dc5e479489ec0630e6a0adfc123f65af71fcb035810484d6798850d1b182357126862f57683c68c3548f1f5ca687e848ba7f1885f6f  jdk-17.0.15+10_linux-x64-musl_bin-r1.tar.gz
+86b7b67646dc5dbcefaaf793dcd492b74192ca0e71dba8a5eab4bb7128ac2ea2e290e3bbec8a96a1c797ef433d0b191ddd8f5a19097413e8aaefd50bb21e639f  jdk-17.0.15+10_linux-x64-musl_bin-tests-demos-r1.tar.gz
+90cb193875b267b17bc4cc1243585733a080d2e50fd61c8dfe6b9a5a45ae4642159c6661c14671fe58a4319007ea2f30f557db473788829d711ca543203814f0  jdk-17.0.15+10_linux-x64-musl_bin-tests-r1.tar.gz
+fdacb4c534c79595c318912cc7b2d4f0d3cbc4a5019984f4d49d7ebd5afdb2370fe582f92e43052665566d0681d9c8adbb93be39a86d8738a5d07179b4d8da68  jdk-17.0.15+10_linux-x64-musl_doc-api-spec-r1.tar.gz
+b8edcdac213cb646caaae78cdd38321145106d3a0884b9e1c16903da5b7f1340dd91fc3ff9ec04e89fbf9fb8150d983bb1e8c2aa3a48326e657eb5cc82bff6bd  jre-17.0.15+10_linux-x64-musl_bin-r1.tar.gz
+"
+		;;
+		aarch64:glibc )
+			JDK_BIN="
+			jdk-17.0.15+10_linux-aarch64_bin-static-libs-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-aarch64/jdk-17.0.15+10_linux-aarch64_bin-static-libs.tar.gz
+			jdk-17.0.15+10_linux-aarch64_bin-symbols-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-aarch64/jdk-17.0.15+10_linux-aarch64_bin-symbols.tar.gz
+			jdk-17.0.15+10_linux-aarch64_bin-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-aarch64/jdk-17.0.15+10_linux-aarch64_bin.tar.gz
+			jdk-17.0.15+10_linux-aarch64_bin-tests-demos-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-aarch64/jdk-17.0.15+10_linux-aarch64_bin-tests-demos.tar.gz
+			jdk-17.0.15+10_linux-aarch64_bin-tests-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-aarch64/jdk-17.0.15+10_linux-aarch64_bin-tests.tar.gz
+			jdk-17.0.15+10_linux-aarch64_doc-api-spec-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-aarch64/jdk-17.0.15+10_linux-aarch64_doc-api-spec.tar.gz
+			jre-17.0.15+10_linux-aarch64_bin-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-aarch64/jre-17.0.15+10_linux-aarch64_bin.tar.gz
+"
+			JDK_SHA="
+a13c58bab0f6a2705bee4b1f7dbee8f7912303be879b79872a30c5c0fe911fb898237a8f982eaa57307724fdfd632611d0a5354b0d4b8cf09f7010ebe35c5370  jdk-17.0.15+10_linux-aarch64_bin-static-libs-r1.tar.gz
+61ac094bad4a5252431f5105a144182d3087eb9bbd8b3553bd604085b912ae506f386a67bc534e9efd46fcf27199d98d1962db1f9038dd09d1d46f279bc4c102  jdk-17.0.15+10_linux-aarch64_bin-symbols-r1.tar.gz
+c217e135cb03efe67baa7b8f7006bca55b2f2a0dc67047954565e2c72753139223a382cbd18c1a26987815765791665829ece059d37d6f6c45e1532065b8beda  jdk-17.0.15+10_linux-aarch64_bin-r1.tar.gz
+b2eba0fcc5a10bb61bc822acca3b519676aa8d9800d69881e86639713befae9d10ea6dbd90736550deb37cf0151798e8047ed3f74691d546d4d394a87c250216  jdk-17.0.15+10_linux-aarch64_bin-tests-demos-r1.tar.gz
+d3f88d89db793eaed85dee5a30af8bdb42f552d2c7747c89262d967996dd2a094c922625a749f2c36d5e5af7acf4231f1060ae7c4bc9fc200590164bb8a0e879  jdk-17.0.15+10_linux-aarch64_bin-tests-r1.tar.gz
+48021bb157fee76bf980b75c6392a8f29eaf320abb58381d8c41e42b0a889300fe03d2aab7a984a2b7ea1514a26171b513bf9fc5944d96c82c00f180246b2cbd  jdk-17.0.15+10_linux-aarch64_doc-api-spec-r1.tar.gz
+90421aeb71496ea30ea592a05d8280a19bf4aaf005720ef1559e6e217316c838f1d847236c857ed19461498e3144a56a3287592c2e1cb0f8ce9f3611e9ad0010  jre-17.0.15+10_linux-aarch64_bin-r1.tar.gz
+"
+		;;
+		aarch64:musl )
+			JDK_BIN="
+			jdk-17.0.15+10_linux-aarch64-musl_bin-static-libs-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-aarch64/jdk-17.0.15+10_linux-aarch64-musl_bin-static-libs.tar.gz
+			jdk-17.0.15+10_linux-aarch64-musl_bin-symbols-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-aarch64/jdk-17.0.15+10_linux-aarch64-musl_bin-symbols.tar.gz
+			jdk-17.0.15+10_linux-aarch64-musl_bin-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-aarch64/jdk-17.0.15+10_linux-aarch64-musl_bin.tar.gz
+			jdk-17.0.15+10_linux-aarch64-musl_bin-tests-demos-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-aarch64/jdk-17.0.15+10_linux-aarch64-musl_bin-tests-demos.tar.gz
+			jdk-17.0.15+10_linux-aarch64-musl_bin-tests-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-aarch64/jdk-17.0.15+10_linux-aarch64-musl_bin-tests.tar.gz
+			jdk-17.0.15+10_linux-aarch64-musl_doc-api-spec-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-aarch64/jdk-17.0.15+10_linux-aarch64-musl_doc-api-spec.tar.gz
+			jre-17.0.15+10_linux-aarch64-musl_bin-r1.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-aarch64/jre-17.0.15+10_linux-aarch64-musl_bin.tar.gz
+"
+			JDK_SHA="
+b9219ae908856cea5f0769d4934c9549754ddfab3eca56a40aa39c1949b7d42fad676aff6069d2a162d8d97d4c8847a6a6a3520567d117a44e36433a1985af6b  jdk-17.0.15+10_linux-aarch64-musl_bin-static-libs-r1.tar.gz
+5c7d0d139c7db6fc266d5bd2bfa1104a2164c3a83715dd148bef25a9ee0eb52a08926ef0ff44a810dc22d26ef38142d5ed52c098793e5c5a41b6005d65f30b23  jdk-17.0.15+10_linux-aarch64-musl_bin-symbols-r1.tar.gz
+de171b0a8e6e7e73bba6b433f5cc3e43d75e4f0ecce3133692a83f64d18e7ea3fbc2498b225a30467a7fc8a1500dd3b67ca48174587b88418b99e039cc4bfe1c  jdk-17.0.15+10_linux-aarch64-musl_bin-r1.tar.gz
+9996e856b96fd6577499d7ea8a357eeb27cd595d01f02859e9fd9f161b455c99b94e10cecfeefa829edfcb8b0ecde51ec73d5537bcb35eb6f3a995f923933084  jdk-17.0.15+10_linux-aarch64-musl_bin-tests-demos-r1.tar.gz
+a0d92d645963940e3088f68d3b0ffb013be8936dc63afb7ac12e3fa0d58530e5398e1017db7a97ad9e9f41bbbd5ed85a8f3df14d5b134c820e8798de23a410e6  jdk-17.0.15+10_linux-aarch64-musl_bin-tests-r1.tar.gz
+128a17c2626e155c81e1f3747aa706eb2d2584759711f06411aa8bc20d853ff25da96c8ace448758ca269c26c0538a5664636ba390275cd06d433946ea2e8ef1  jdk-17.0.15+10_linux-aarch64-musl_doc-api-spec-r1.tar.gz
+d29b7c8285deeac745a945afea4216d25034768374bddab4c966016dd00ef07c614578ab3d9a093b95a7831ed6dd53fb3acfdee7c9a9f320043335ecb2e7f06d  jre-17.0.15+10_linux-aarch64-musl_bin-r1.tar.gz
+"
+		;;
+	esac
+else
+	case "$CARCH:$CLIBC" in
+		x86_64:glibc)
+			JDK_BIN="
+			src-linux-alpaquita-x86_64-17.0.15+10-r1-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-x86_64/src.tar.gz
+"
+			JDK_SHA="
+431552b737566395ef5ca941597ae0532ff1937f96d6f334bdd284c44d318dae863978277e39a5324910a3f17d86cc5fb3db8732632c27ac5df9dec3b03c5040  src-linux-alpaquita-x86_64-17.0.15+10-r1-lite.tar.gz
+"
+		;;
+		x86_64:musl)
+			JDK_BIN="
+			src-linux-alpaquita-musl-x86_64-17.0.15+10-r1-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-x86_64/src.tar.gz
+"
+			JDK_SHA="
+f78d7335665a4e76695f6930e914c3e9e8e7da5ff7a58b0dfd60dbbad41ea8b27daff0eb5fb1c0576fca03aa33b7e7b5ccfcf7fb3bd9241fc138462312f842ef  src-linux-alpaquita-musl-x86_64-17.0.15+10-r1-lite.tar.gz
+"
+		;;
+		aarch64:glibc)
+			JDK_BIN="
+			src-linux-alpaquita-aarch64-17.0.15+10-r1-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-aarch64/src.tar.gz
+"
+			JDK_SHA="
+913a5521d2d70a3f13995a657c89816a610c4d7b06db8c85c62dce7393752f82410bd35896d0b332a36b89bbae2a2dac558a38f6f153afa6f6b93ef2815a700c  src-linux-alpaquita-aarch64-17.0.15+10-r1-lite.tar.gz
+"
+		;;
+		aarch64:musl)
+			JDK_BIN="
+			src-linux-alpaquita-musl-aarch64-17.0.15+10-r1-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/17.0.15+10-r1/linux-alpaquita-musl-aarch64/src.tar.gz
+"
+			JDK_SHA="
+06b8bbf02737ab599e2685edc0d2fd6b586a61f060ce67c065fc6e2c69f6f1af86f5fbf8714ba2310d2b4f848b3a6d1e56121a9093b7520716deed7e25d0aa30  src-linux-alpaquita-musl-aarch64-17.0.15+10-r1-lite.tar.gz
+"
+		;;
+	esac
+
+fi
+
+source="
+	$JDK_BIN
+	HelloJava.java
+"
+
+builddir="$srcdir/jdk-${_java_ver%+*}"
+sonameprefix="$pkgname:"
+
+_java_home=/usr/lib/jvm/"$pkgname"
+ldpath="$_java_home/lib"
+
+_jre_tools="
+	java
+	keytool
+	rmiregistry
+	"
+
+if [ "$BUILD_FROM_SOURCE" -ne 0 ]; then
+	# To build from sources - build with openjdk17-bootstrap, provided by a
+	# previous version of this package
+	makedepends="$makedepends
+		openjdk17-bootstrap
+		"
+fi
+
+unpack() {
+	mkdir -p "$builddir"
+	if [ "${BUILD_FROM_SOURCE}" -eq 0 ]; then
+
+		mkdir -p "$builddir"/build/linux-${CARCH}-release/images/jdk
+		mkdir -p "$builddir"/build/linux-${CARCH}-release/bundles/
+		# Copy all tar.gz to expected location for processing
+		for f in $srcdir/*.tar.[xg]z; do
+			cp "$f" "$builddir"/build/linux-${CARCH}-release/bundles/
+		done
+		tar xf "$builddir"/build/linux-${CARCH}-release/bundles/jdk-*_bin-r1.tar.gz -C "$builddir"/build/linux-${CARCH}-release/images/jdk --strip-component 1
+	else
+		default_unpack
+	fi
+}
+
+prepare() {
+	default_prepare
+	if [ "${BUILD_FROM_SOURCE}" -ne 0 ]; then
+		update_config_sub
+	fi
+}
+
+build() {
+
+	[ "${BUILD_FROM_SOURCE}" -eq 0 ] && return 0
+
+	if [ -z "$JOBS" ]; then
+		export JOBS=$(printf '%s\n' "$MAKEFLAGS" | sed -n -e 's/.*-j\([0-9]\+\).*/\1/p')
+	fi
+
+	local _cflags="${CFLAGS/-O? /}"
+	local _boot_jdk
+	_boot_jdk="$(echo /usr/lib/jvm/java-17-* | awk '{ print $1 }')"
+
+	[ "$CLIBC" = 'musl' ] && _cflags="$_cflags -D_LARGEFILE64_SOURCE"
+
+	CFLAGS='' CXXFLAGS='' LDFLAGS=''
+	bash ./configure \
+		--with-jvm-variants='server,client,minimal' \
+		--with-jvm-features=shenandoahgc,zgc \
+		--with-version-string=${_java_ver%+*} \
+		--with-version-build=${_java_ver#*+} \
+		--with-version-date=${_java_rel_date} \
+		--with-version-opt=LTS \
+		--with-vendor-name="$VENDOR_NAME" \
+		--with-vendor-url="$VENDOR_URL" \
+		--with-vendor-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-vendor-vm-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-extra-cflags="$_cflags" \
+		--with-extra-cxxflags="$_cflags" \
+		--with-extra-ldflags=$LDFLAGS \
+		--disable-warnings-as-errors \
+		--with-zlib=system \
+		--with-boot-jdk="$_boot_jdk"
+
+	# The output (stdout and stderr) from the latest build is
+	# always stored in $BUILD/build.log.  The previous build log
+	# is stored as build.log.old.  This means that it is not
+	# necessary to redirect the build output yourself if you want
+	# to process it.
+
+	# You can increase the verbosity of the log file, by the LOG
+	# control variable to make.  If you want to see the command
+	# lines used in compilations, use LOG=cmdlines.  To increase
+	# the general verbosity, use LOG=info, LOG=debug or LOG=trace.
+	# Both of these can be combined with cmdlines, e.g.
+	# LOG=info,cmdlines.  The debug log level will show most shell
+	# commands executed by make, and trace will show all.  Beware
+	# that both these log levels will produce a massive build log!
+	local verbose
+	#verbose="LOG=cmdlines" # uncomment and change if/as necessary
+
+	MAKEFLAGS='' make $verbose product-bundles static-libs-bundles
+}
+
+check() {
+	_jdkdir="$builddir"/build/linux-*-release/images/jdk
+
+	$_jdkdir/bin/javac "$startdir"/HelloJava.java -d "$builddir"
+	$_jdkdir/bin/java -cp "$builddir" HelloJava
+}
+
+package() {
+	mkdir -p "$pkgdir/$_java_home"
+	tar -C "$pkgdir/$_java_home" -xf build/linux-*-release/bundles/jdk*_bin-r1.tar.gz --no-same-owner --strip-components=1
+}
+
+_jre_cds() {
+	pkgdesc="$_java_name (JRE Class Data Sharing archives)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	provides="openjdk17-jre-cds=$pkgver-r$pkgrel"
+
+	rm -f "$pkgdir/$_java_home/lib/server"/*.jsa
+	"$pkgdir/$_java_home/bin/java" -server -XX:+UseCompressedOops -Xshare:dump
+	"$pkgdir/$_java_home/bin/java" -server -XX:-UseCompressedOops -Xshare:dump
+
+	mkdir -p "$subpkgdir/$_java_home/lib/server"
+	mv "$pkgdir/$_java_home/lib/server"/*.jsa "$subpkgdir/$_java_home/lib/server"
+}
+
+_jre_no_deps() {
+	pkgdesc="$_java_name (JRE without dependencies)"
+	depends="java-common zlib"
+	provides="
+		java-jre-no-deps
+		java17-jre-no-deps
+		openjdk17-jre-no-deps=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/lib" "$subpkgdir/$_java_home/"
+
+	mkdir -p "$subpkgdir/$_java_home/bin"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/bin/$f" "$subpkgdir/$_java_home/bin/$f"
+	done
+
+	for f in legal conf release; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/$f"
+	done
+
+	cp "$subpkgdir/$_java_home/legal/java.base/LICENSE" "$subpkgdir/$_java_home/"
+	cat <<- EOF >"$subpkgdir/$_java_home/readme.txt"
+		BellSoft Liberica is a build of OpenJDK that is verified to be compliant with the Java SE
+		specification using OpenJDK Technology Compatibility Kit test suite.
+
+		To check BellSoft Liberica details and updates, please visit https://bell-sw.com/liberica.
+	EOF
+	ln -sf . "$subpkgdir/$_java_home/jre"
+	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-17-${pkgname%*17}
+}
+
+_jre() {
+	pkgdesc="$_java_name (JRE)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel fontconfig ttf-dejavu-core freetype"
+	provides="
+		java-jre
+		java17-jre
+		openjdk17-jre=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir"
+}
+
+
+_jre_doc() {
+	pkgdesc="$_java_name (JRE Documentation)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="openjdk17-jre-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/man/man1"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/man/man1/$f".* "$subpkgdir/$_java_home/man/man1/"
+	done
+}
+
+_jdk_no_deps() {
+	pkgdesc="$_java_name (JDK without dependencies)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	provides="
+		java-jdk-no-deps
+		java17-jdk-no-deps
+		openjdk17-jdk-no-deps=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	for f in bin include; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+}
+
+_jdk() {
+	pkgdesc="$_java_name (JDK)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel $pkgname-jdk-no-deps=$pkgver-r$pkgrel"
+	provides="
+		java-jdk
+		java17-jdk
+		$pkgname-bootstrap=$pkgver-r$pkgrel
+		openjdk17-bootstrap=$pkgver-r$pkgrel
+		openjdk17-jdk=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir"
+}
+
+_jmods() {
+	pkgdesc="$_java_name (Java Modules)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk17-jmods=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/jmods" "$subpkgdir/$_java_home/"
+}
+
+_doc() {
+	pkgdesc="$_java_name (Documentation)"
+	depends="$pkgname-jre-doc=$pkgver-r$pkgrel"
+	provides="openjdk17-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/man" "$subpkgdir/$_java_home/"
+}
+
+_demos() {
+	pkgdesc="$_java_name (Demos)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk17-demos=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	tar -C "$subpkgdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-tests-demos-r1.tar.gz --no-same-owner --strip-components=1
+}
+
+_src() {
+	pkgdesc="$_java_name (Sources)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk17-src=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/src.zip" "$subpkgdir/$_java_home/lib/"
+}
+
+_dbg() {
+	pkgdesc="$_java_name (Debug Info)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk17-dbg=$pkgver-r$pkgrel"
+
+	local debugdir="$subpkgdir/usr/lib/debug"
+	mkdir -p "$debugdir/$_java_home"
+	tar -C "$debugdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-symbols-r1.tar.gz --no-same-owner --strip-components=1
+}
+
+_libs_static() {
+	pkgdesc="$_java_name (Static Libraries)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk17-libs-static=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	tar -C "$subpkgdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-static-libs-r1.tar.gz --no-same-owner --strip-components=1
+}
+
+sha512sums="
+508cc8511fecee2288f41dc009834d444785ddd4129acfabefeae03ab75a26088bc7e8a60548dac58c6d18865d994e5ad8fa340cac20ba3cc838434dc7cbbcde  HelloJava.java
+$JDK_SHA
+"

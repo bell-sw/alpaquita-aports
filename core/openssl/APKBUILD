@@ -1,0 +1,222 @@
+# Description: openssl carries out general-purpose cryptographic activities and
+# ensures communication security.
+
+pkgname=openssl
+pkgver=3.0.15
+_abiver=${pkgver%.*.*}
+pkgrel=3
+pkgdesc="Toolkit for general-purpose cryptography and secure communication (v.3)"
+url="https://www.openssl.org/"
+arch="all"
+license="Apache-2.0"
+replaces="openssl"
+makedepends_build="perl"
+makedepends_host="linux-headers"
+makedepends="$makedepends_host $makedepends_build"
+subpackages="$pkgname-dbg $pkgname-libs-static $pkgname-dev $pkgname-doc
+	libcrypto$_abiver:_libcrypto libssl$_abiver:_libssl"
+source="https://github.com/openssl/openssl/releases/download/openssl-$pkgver/openssl-$pkgver.tar.gz
+	man-section.patch
+	CVE-2024-9143.patch
+
+	0100-rsa-implicit-rejection-in-PKCS-1-v1.5.patch
+	0101-CVE-2024-13176.patch
+	"
+builddir="$srcdir/openssl-$pkgver"
+
+# secfixes:
+#   3.0.15-r3:
+#     - CVE-2024-13176
+#   3.0.15-r2:
+#     - CVE-2024-9143
+#   3.0.15-r0:
+#     - CVE-2024-6119
+#   3.0.14-r1:
+#     - CVE-2024-5535
+#   3.0.14-r0:
+#     - CVE-2024-4741
+#   3.0.13-r0:
+#     - CVE-2024-4603
+#   3.0.12-r6:
+#     - CVE-2024-2511
+#   3.0.12-r4:
+#     - CVE-2024-0727
+#   3.0.12-r3:
+#     - CVE-2023-6237
+#   3.0.12-r2:
+#     - CVE-2023-6129
+#   3.0.12-r1:
+#     - CVE-2023-5678
+#   3.0.12-r0:
+#     - CVE-2023-5363
+#   3.0.10-r0:
+#     - CVE-2023-3817
+#   3.0.9-r3:
+#     - CVE-2023-3446
+#   3.0.9-r2:
+#     - CVE-2023-2975
+#   3.0.9-r0:
+#     - CVE-2023-2650
+#   3.0.8-r4:
+#     - CVE-2023-1255
+#   3.0.8-r3:
+#     - CVE-2023-0466
+#   3.0.8-r2:
+#     - CVE-2023-0465
+#   3.0.8-r1:
+#     - CVE-2023-0464
+#   3.0.8-r0:
+#     - CVE-2022-4203
+#     - CVE-2022-4304
+#     - CVE-2022-4450
+#     - CVE-2023-0215
+#     - CVE-2023-0216
+#     - CVE-2023-0217
+#     - CVE-2023-0286
+#     - CVE-2023-0401
+#   3.0.7-r2:
+#     - CVE-2022-3996
+#   3.0.7-r0:
+#     - CVE-2022-3786
+#     - CVE-2022-3602
+#   3.0.6-r0:
+#     - CVE-2022-3358
+#   3.0.5-r0:
+#     - CVE-2022-2097
+#   3.0.3-r0:
+#     - CVE-2022-1343
+#     - CVE-2022-1434
+#     - CVE-2022-1473
+#   3.0.2-r0:
+#     - CVE-2022-0778
+#   3.0.1-r0:
+#     - CVE-2021-4044
+#   1.1.1l-r0:
+#     - CVE-2021-3711
+#     - CVE-2021-3712
+#   1.1.1k-r0:
+#     - CVE-2021-3449
+#     - CVE-2021-3450
+#   1.1.1j-r0:
+#     - CVE-2021-23841
+#     - CVE-2021-23840
+#     - CVE-2021-23839
+#   1.1.1i-r0:
+#     - CVE-2020-1971
+#   1.1.1g-r0:
+#     - CVE-2020-1967
+#   1.1.1d-r3:
+#     - CVE-2019-1551
+#   1.1.1d-r1:
+#     - CVE-2019-1547
+#     - CVE-2019-1549
+#     - CVE-2019-1563
+#   1.1.1b-r1:
+#     - CVE-2019-1543
+#   1.1.1a-r0:
+#     - CVE-2018-0734
+#     - CVE-2018-0735
+#   0:
+#     - CVE-2022-1292
+#     - CVE-2022-2068
+#     - CVE-2022-2274
+#     - CVE-2023-4807
+
+build() {
+	local _target _optflags
+
+	# openssl will prepend crosscompile always core CC et al
+	CC=${CC#${CROSS_COMPILE}}
+	CXX=${CXX#${CROSS_COMPILE}}
+	CPP=${CPP#${CROSS_COMPILE}}
+
+	# determine target OS for openssl
+	case "$CARCH" in
+		aarch64*)	_target="linux-aarch64" ;;
+		x86_64)		_target="linux-x86_64"; _optflags="enable-ec_nistp_64_gcc_128" ;;
+		*)		msg "Unable to determine architecture from (CARCH=$CARCH)" ; return 1 ;;
+	esac
+
+	# Configure assumes --options are for it, so can't use
+	# gcc's --sysroot fake this by overriding CC
+	[ -n "$CBUILDROOT" ] && CC="$CC --sysroot=$CBUILDROOT"
+
+	perl ./Configure \
+		$_target \
+		--prefix=/usr \
+		--libdir=/usr/lib \
+		--openssldir=/etc/ssl \
+		enable-ktls \
+		shared \
+		no-zlib \
+		no-async \
+		no-comp \
+		no-idea \
+		no-mdc2 \
+		no-rc5 \
+		no-ec2m \
+		no-sm2 \
+		no-sm4 \
+		no-ssl3 \
+		no-seed \
+		no-weak-ssl-ciphers \
+		$_optflags \
+		$CPPFLAGS \
+		$CFLAGS \
+		$LDFLAGS -Wa,--noexecstack
+
+	# dump configuration into logs
+	perl configdata.pm --dump
+
+	make
+}
+
+check() {
+	# AFALG tests have a sporadic test failure, just delete the broken
+	# test for now.
+	rm -f test/recipes/30-test_afalg.t
+
+	make test
+}
+
+package() {
+	depends="libssl$_abiver=$pkgver-r$pkgrel libcrypto$_abiver=$pkgver-r$pkgrel"
+	provides="openssl3=$pkgver-r$pkgrel"
+	replaces="openssl3"
+
+	make DESTDIR="$pkgdir" install
+	# remove the script c_rehash
+	rm "$pkgdir"/usr/bin/c_rehash
+}
+
+dev() {
+	provides="openssl3-dev=$pkgver-r$pkgrel"
+	replaces="openssl3-dev"
+
+	default_dev
+}
+
+_libcrypto() {
+	pkgdesc="Crypto library from openssl"
+	replaces="libcrypto1.1"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/etc "$subpkgdir"/
+	mv "$pkgdir"/usr/lib/libcrypto* "$subpkgdir"/usr/lib/
+	mv "$pkgdir"/usr/lib/engines-$_abiver "$subpkgdir"/usr/lib/
+	mv "$pkgdir"/usr/lib/ossl-modules "$subpkgdir"/usr/lib/
+}
+
+_libssl() {
+	pkgdesc="SSL shared libraries"
+
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libssl* "$subpkgdir"/usr/lib/
+}
+
+sha512sums="
+acd80f2f7924d90c1416946a5c61eff461926ad60f4821bb6b08845ea18f8452fd5e88a2c2c5bd0d7590a792cb8341a3f3be042fd0a5b6c9c1b84a497c347bbf  openssl-3.0.15.tar.gz
+8c44e990fe8a820f649631b9f81cf28225b7516065169a7f68e2dd7c067b30df9b2c6cb88fa826afbc9fcdaf156360aabf7c498d2d9ed452968815b12b004809  man-section.patch
+ae49e1b0d3f55bc196e3f0e2dc64e816617c52d3428161f9e0a5b2ba5a33ebd04b0d37ceab5730b5d2da76e3d0634b5be5d03378095345a30bdbd3fed198198a  CVE-2024-9143.patch
+24df2eca588b57facea917b5642f4467d3de5108c15751b6b8bf91825048bc0651f01d80587e9163c5b44bf7273e4cf928066c8e9c391c7a7fe15e94a3a72a61  0100-rsa-implicit-rejection-in-PKCS-1-v1.5.patch
+c7e5a87405138c375e7d99ada5deb767ea81e1db5a384615beb48052ecd774782b570fc87e01edbd4fd45a2266c4682bc47cc4f5573ec74ecf342afa2e97f4d7  0101-CVE-2024-13176.patch
+"

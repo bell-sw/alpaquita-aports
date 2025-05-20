@@ -1,0 +1,223 @@
+pkgname=docker
+pkgver=20.10.24
+_cli_commit=297e1284d3bd092e9bc96076c3ddc4bb33f8c7ab	# https://github.com/docker/cli/commits/v$pkgver
+_moby_commit=5d6db842238e3c4f5f9fb9ad70ea46b35227d084   # https://github.com/moby/moby/commits/v$pkgver
+pkgrel=11
+pkgdesc="Pack, ship and run any application as a lightweight container"
+url="https://www.docker.io/"
+arch="all"
+license="Apache-2.0"
+depends="docker-engine docker-cli"
+_engine_deps="ca-certificates containerd iptables ip6tables tini-static"
+makedepends="go go-md2man btrfs-progs-dev bash linux-headers coreutils lvm2-dev libtool libseccomp-dev
+	$_engine_deps"
+install="$pkgname.pre-install"
+
+# from https://github.com/moby/moby:	grep libnetwork vendor.conf
+_libnetwork_commit=c5aa85f9b25f0acaec8591ced679cb9fb5b9e32c
+# from https://github.com/docker/cli:	grep cobra vendor.conf
+_cobra_ver="1.1.1"
+
+# secfixes:
+#   20.10.24-r8:
+#     - CVE-2024-41110
+#   20.10.24-r0:
+#     - CVE-2023-28840
+#     - CVE-2023-28841
+#     - CVE-2023-28842
+#   20.10.20-r0:
+#     - CVE-2022-39253
+#   20.10.18-r0:
+#     - CVE-2022-36109
+#   20.10.16-r0:
+#     - CVE-2022-29526
+#   20.10.14-r0:
+#     - CVE-2022-24769
+#   20.10.11-r0:
+#     - CVE-2021-41190
+#   20.10.9-r0:
+#     - CVE-2021-41089
+#     - CVE-2021-41091
+#     - CVE-2021-41092
+#   20.10.3-r0:
+#     - CVE-2021-21285
+#     - CVE-2021-21284
+#   19.03.14-r0:
+#     - CVE-2020-15257
+#   19.03.11-r0:
+#     - CVE-2020-13401
+#   19.03.1-r0:
+#     - CVE-2019-14271
+#   18.09.8-r0:
+#     - CVE-2019-13509
+#   18.09.7-r0:
+#     - CVE-2018-15664
+
+subpackages="
+	$pkgname-engine:engine
+	$pkgname-openrc:engine_openrc:noarch
+	$pkgname-cli:cli
+	$pkgname-doc:cli_doc:noarch
+	$pkgname-bash-completion:cli_bashcomp:noarch
+	$pkgname-fish-completion:cli_fishcomp:noarch
+	$pkgname-zsh-completion:cli_zshcomp:noarch
+	"
+
+source="
+	cli-$pkgver.tar.gz::https://github.com/docker/cli/archive/v$pkgver.tar.gz
+	moby-$pkgver.tar.gz::https://github.com/moby/moby/archive/v$pkgver.tar.gz
+	libnetwork-$_libnetwork_commit.tar.gz::https://github.com/docker/libnetwork/archive/$_libnetwork_commit.tar.gz
+	cobra-$_cobra_ver.tar.gz::https://github.com/spf13/cobra/archive/v$_cobra_ver.tar.gz
+	docker.initd
+	docker.confd
+
+	0100-CVE-2024-41110.patch
+	"
+
+builddir="$srcdir"
+_cli_builddir="$srcdir/cli-$pkgver"
+_moby_builddir="$srcdir/moby-$pkgver"
+_libnetwork_builddir="$srcdir/libnetwork-$_libnetwork_commit"
+
+_buildtags="seccomp"
+
+export GO111MODULE=off # go1.16 defaults to on
+export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
+
+build() {
+	export AUTO_GOPATH=1
+	export GITCOMMIT=$_cli_commit		# for cli
+	export DOCKER_GITCOMMIT=$_moby_commit	# for moby
+	export DOCKER_BUILDTAGS=$_buildtags
+	export DISABLE_WARN_OUTSIDE_CONTAINER=1
+	unset CC # prevent possible ccache issues
+
+	case "$CARCH" in
+		armv7) export GOARM=7;;
+	esac
+
+	# libnetwork (docker-proxy)
+	msg "building docker-proxy"
+	cd "$_libnetwork_builddir"
+	mkdir -p src/github.com/docker/
+	ln -sf "$_libnetwork_builddir" src/github.com/docker/libnetwork
+	GOPATH="$PWD" go build -v -ldflags="-linkmode=external" -o docker-proxy github.com/docker/libnetwork/cmd/proxy
+
+	# engine (moby)
+	msg "building engine"
+	cd "$_moby_builddir"
+	mkdir -p src/github.com/docker/
+	ln -sf "$_moby_builddir" src/github.com/docker/docker
+	GOPATH="$PWD" VERSION="$pkgver" hack/make.sh dynbinary
+
+	# Required for building man-pages
+	export GOPATH="$_cli_builddir"
+	export GOBIN="$GOPATH/bin"
+	export PATH="$GOBIN:$PATH"
+	# go-md2man package installs go-md2man, but this looks for md2man
+	if ! command -v md2man >/dev/null 2>&1; then
+		mkdir -p /tmp/bin
+		ln -sf /usr/bin/go-md2man /tmp/bin/md2man
+		export PATH="/tmp/bin:$PATH"
+	fi
+
+	# cli
+	msg "building cli"
+	cd "$_cli_builddir"
+	mkdir -p "$GOPATH"/src/github.com/docker/
+	ln -sf "$_cli_builddir" "$GOPATH"/src/github.com/docker/cli
+	LDFLAGS="" make VERSION="$pkgver" dynbinary
+
+	# docker man
+	msg "building docker man pages"
+	mkdir -p "$GOPATH"/src/github.com/spf13/
+	ln -sf "$srcdir/cobra-$_cobra_ver" "$GOPATH"/src/github.com/spf13/cobra
+	make manpages
+}
+
+# docker itself is a meta package
+package() {
+	mkdir -p "$pkgdir"
+}
+
+engine() {
+	pkgdesc="Docker Engine (dockerd)"
+	depends="$_engine_deps"
+
+	install -Dm755 "$_moby_builddir"/bundles/dynbinary-daemon/dockerd \
+		"$subpkgdir"/usr/bin/dockerd
+
+	install -Dm755 "$_libnetwork_builddir"/docker-proxy \
+		"$subpkgdir"/usr/bin/docker-proxy
+
+	# symlink externally provided tini-static binary
+	ln -sf /sbin/tini-static "$subpkgdir"/usr/bin/docker-init
+}
+
+engine_openrc() {
+	pkgdesc="OpenRC init scripts for Docker"
+	depends=""
+	install_if="openrc $pkgname-engine=$pkgver-r$pkgrel"
+
+	install -Dm755 "$srcdir"/docker.initd "$subpkgdir"/etc/init.d/docker
+	install -Dm644 "$srcdir"/docker.confd "$subpkgdir"/etc/conf.d/docker
+}
+
+cli() {
+	pkgdesc="Docker CLI"
+	depends="ca-certificates"
+
+	# 'build/docker' is a symlink to 'docker-linux-$arch' e.g. 'docker-linux-amd64'
+	install -Dm755 "$_cli_builddir"/build/docker \
+		"$subpkgdir"/usr/bin/docker
+}
+
+cli_doc() {
+	pkgdesc="Documentation for Docker"
+	depends=""
+	install_if="docs $pkgname-cli=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir"/usr/share/man/man1
+	gzip -9 "$_cli_builddir"/man/man1/*
+	install -Dm644 "$_cli_builddir"/man/man1/* \
+		"$subpkgdir"/usr/share/man/man1
+}
+
+cli_bashcomp() {
+	pkgdesc="Bash completion for Docker"
+	depends=""
+	install_if="bash-completion $pkgname-cli=$pkgver-r$pkgrel"
+
+	install -Dm644 "$_cli_builddir"/contrib/completion/bash/$pkgname \
+		"$subpkgdir"/usr/share/bash-completion/completions/$pkgname
+}
+
+cli_fishcomp() {
+	pkgdesc="Fish shell completion for Docker"
+	depends=""
+	install_if="fish $pkgname-cli=$pkgver-r$pkgrel"
+
+	install -Dm644 "$_cli_builddir"/contrib/completion/fish/$pkgname.fish \
+		"$subpkgdir"/usr/share/fish/completions/$pkgname.fish
+}
+
+cli_zshcomp() {
+	pkgdesc="Zsh completion for Docker"
+	depends=""
+	install_if="zsh $pkgname-cli=$pkgver-r$pkgrel"
+
+	install -Dm644 "$_cli_builddir"/contrib/completion/zsh/_$pkgname \
+		"$subpkgdir"/usr/share/zsh/site-functions/_$pkgname
+}
+
+sha512sums="
+5996c24070986e18c0530d0db1a9b4a2c0188c1d22b4c0d99161b2f69bb9cecd4221b628afc0db3078d17918a6e312c6b6ca63f889e634006d4e04c677257a27  cli-20.10.24.tar.gz
+2e82d8048fbf53e3d8ac87eb155d2e321378ca9c9ee038d13bb1b510db31df0f9951db51df81bad28a64c25285e21f8e541b4ce58a68af81fa66d5c07dd3f4d3  moby-20.10.24.tar.gz
+0a64cd98bf70195c34ac97a944f932e33a3df56c1e3ac28b89c62e87c3fec8243ce06c226d073e9d4fa8bf5752ddfc6dc1b4bf89a7a483c3725bf80df6a89441  libnetwork-c5aa85f9b25f0acaec8591ced679cb9fb5b9e32c.tar.gz
+a27debc5c971f468e672826659e5c46946187e2307dded8c496084b9fabc5602e68bdfdc08f444f42d6f82f0f2704d01a0c4bde3e5fbe674c7cb14309f0a3328  cobra-1.1.1.tar.gz
+cbe105d7078874cfe0c74a1aa8aa0ea4e08285b3ae857b7eb4d6247ca51e70cf8ad51d923c22f2eae13191f89f4adc28ac55c4c13201abf5d705a14e86f55f54  docker.initd
+f25523f43376ccef71a49618e556e0a16db3acad29eb09fe86c4e572562bdea0bc1eabab00159278835ad9d7c007f2cd10b2ed31f7213b0d9074582dc80a976f  docker.confd
+531f38bf08c2ade3ea51f6cb92bc36be85af800e7a0cdf0ef1f7914985f8611036e4e320d44d2b03656d52cf001edfe9ccb6e28b19c65584301556737c4b9115  0100-CVE-2024-41110.patch
+"

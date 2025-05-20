@@ -1,0 +1,41 @@
+pkgname=perl-socket
+_pkgreal=Socket
+pkgver=2.036
+pkgrel=0
+pkgdesc="networking constants and support functions"
+url="https://metacpan.org/release/Socket/"
+arch="all"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+makedepends="perl-dev"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/P/PE/PEVANS/$_pkgreal-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+prepare() {
+	default_prepare
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+}
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+doc() {
+	default_doc
+	replaces="perl-doc"
+}
+
+sha512sums="
+959c74f1486c1de3796f705b4dde268041dacb00c498eab02e8c00e44c74564462e37910528f4ff1fe3cb4cf1a85eff63e5c764228bc97ce7d8e1bacfda1b29e  Socket-2.036.tar.gz
+"

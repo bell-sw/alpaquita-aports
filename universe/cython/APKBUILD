@@ -1,0 +1,39 @@
+# Description:
+
+pkgname=cython
+pkgver=0.29.32
+pkgrel=1
+pkgdesc="Cython is an optimising static compiler for both the Python & the extended Cython programming languages."
+url="https://cython.org/"
+arch="all"
+license="Apache-2.0"
+makedepends="py3-setuptools python3-dev"
+depends="python3"
+subpackages="cython-doc"
+source="cython-$pkgver.tar.gz::https://github.com/cython/cython/archive/$pkgver.tar.gz"
+
+case "$CARCH" in
+arm*)
+	# hang forever
+	options="$options !check"
+	;;
+esac
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 runtests.py -j${JOBS:-$(nproc)}
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+
+	install -Dm 644 LICENSE.txt "$pkgdir/usr/share/licenses/cython/license"
+	install -Dm 644 README.rst "$pkgdir/usr/share/doc/cython/readme.rst"
+}
+
+sha512sums="
+55462792fa70d8edf60aa470627ab494918d7297fd7d282a7a54da76ee5a180233108404a1c8f3d79f6408f19b6e4f46b36e59fd47c38ede24f061f374437b6f  cython-0.29.32.tar.gz
+"

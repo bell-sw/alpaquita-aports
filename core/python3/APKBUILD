@@ -1,0 +1,273 @@
+# Description: Python is a clear and powerful object-oriented programming
+# language, comparable to Perl, Ruby, Scheme, or Java.
+
+pkgname=python3
+# the python3-tkinter's pkgver needs to be synchronized with this.
+pkgver=3.11.12
+_basever="${pkgver%.*}"
+pkgrel=0
+pkgdesc="Python programming language"
+url="https://www.python.org/"
+arch="all"
+license="PSF-2.0"
+subpackages="
+	$pkgname-dbg
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-tests::noarch
+	$pkgname-gdbm
+	"
+# since 3.11.9, pyexpat exposes the reparse deferral API in expat >= 2.6.0
+depends="libexpat>=2.6.3"
+makedepends="
+	!gettext-dev
+	bluez-headers
+	bzip2-dev
+	expat-dev
+	gdbm-dev
+	libffi-dev
+	linux-headers
+	mpdecimal-dev
+	musl:musl-libintl
+	ncurses-dev
+	openssl-dev
+	readline-dev
+	sqlite-dev
+	tcl-dev
+	xz-dev
+	zlib-dev
+	"
+# The '.diff' extension is for x86_64 specific patches so abuild won't apply
+# them automatically.
+source="https://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz
+	musl:musl-find_library.patch
+
+	0100-skip-test_url_host_with-test-cases.patch
+	0101-AVX2-and-AVX512-support.diff
+	0102-Force-config-to-always-be-shared.patch
+	0103-Unset-BASH_XTRACEFD-in-tests.patch
+	"
+options="net" # Required for tests
+builddir="$srcdir/Python-$pkgver"
+
+# secfixes:
+#   3.11.11-r1:
+#     - CVE-2025-0938
+#   3.11.11-r0:
+#     - CVE-2024-9287
+#   3.11.10-r0:
+#     - CVE-2015-2104
+#     - CVE-2024-4032
+#     - CVE-2024-6232
+#     - CVE-2024-6923
+#     - CVE-2024-7592
+#   3.11.8-r3:
+#     - CVE-2024-8088
+#   3.11.6-r1:
+#     - CVE-2023-27043
+#   3.11.5-r0:
+#     - CVE-2023-40217
+#   3.11.1-r0:
+#     - CVE-2022-45061
+#   3.10.5-r0:
+#     - CVE-2015-20107
+#   3.9.5-r0:
+#     - CVE-2021-29921
+#   3.9.4-r0:
+#     - CVE-2021-3426
+#   3.8.8-r0:
+#     - CVE-2021-23336
+#   3.8.7-r2:
+#     - CVE-2021-3177
+#   3.8.5-r0:
+#     - CVE-2019-20907
+#   3.8.4-r0:
+#     - CVE-2020-14422
+#   3.8.2-r0:
+#     - CVE-2020-8315
+#     - CVE-2020-8492
+#   3.7.5-r0:
+#     - CVE-2019-16056
+#     - CVE-2019-16935
+#   3.6.8-r1:
+#     - CVE-2019-5010
+
+# was briefly present, and is in 3.16
+provides="pythonispython3=$pkgver-r$pkgrel"
+
+prepare() {
+	default_prepare
+
+	# force system libs
+	rm -r Modules/expat \
+		Modules/_ctypes/darwin* \
+		Modules/_ctypes/libffi*
+
+	if [ "$CARCH" = 'x86_64' ]; then
+		local i
+		for i in $source; do
+			[ "${i%.diff}" = "$i" ] && continue
+			msg "$i"
+			patch -p1 -i "$srcdir/$i"
+		done
+	fi
+}
+
+build() {
+	# set thread stack size to 2MB so we don't segfault before we hit
+	# sys.getrecursionlimit()
+	# note: raised from 1 as we ran into some stack limit on x86_64 too
+	# sometimes, but not recursion
+	local stacksize=0x200000
+	local bootstrap_configure=
+
+	# -Os overwrites --enable-optimizations
+	export CFLAGS_NODIST="${CFLAGS/-Os/} -DTHREAD_STACK_SIZE=$stacksize"
+	export CPPFLAGS_NODIST="${CPPFLAGS/-Os/}"
+	export CXXFLAGS_NODIST="${CXXFLAGS/-Os/}"
+	export LDFLAGS_NODIST=''
+
+	# we set them via NODIST to not propagate them and duplicate them to modules
+	unset LDFLAGS CFLAGS CXXFLAGS CPPFLAGS
+
+	# In case of bootstrapping, we may use glibc that's cross-compiled and
+	# therefore doesn't provide any locales.  Lack of locales causes a
+	# segfault during readline initialization.
+	[ -n "$BOOTSTRAP" ] && [ "$CLIBC" = 'glibc' ] \
+		&& bootstrap_configure="--without-readline"
+
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		$bootstrap_configure \
+		--prefix=/usr \
+		--enable-ipv6 \
+		--enable-loadable-sqlite-extensions \
+		--enable-optimizations \
+		--enable-shared \
+		--with-lto \
+		--with-pymalloc \
+		--with-computed-gotos \
+		--with-dbmliborder=gdbm:ndbm \
+		--with-system-expat \
+		--with-system-ffi \
+		--with-system-libmpdec \
+		--without-ensurepip
+
+	make
+}
+
+check() {
+	# test that we reach recursionlimit before we segfault
+	cat > test-stacksize.py <<-EOF
+	import threading
+	import sys
+
+	def fun(i):
+	  try:
+	    fun(i+1)
+	  except:
+	    sys.exit(0)
+
+	t = threading.Thread(target=fun, args=[1])
+	t.start()
+EOF
+	LD_LIBRARY_PATH=$PWD ./python test-stacksize.py
+
+	local fail
+
+	case "$CLIBC" in
+	musl)
+		# musl related
+		fail="test__locale test_locale test_strptime test_re"	# various musl locale deficiencies
+		fail="$fail test_c_locale_coercion"
+		fail="$fail test_datetime"				# hangs if 'tzdata' installed
+		fail="$fail test_os"					# fpathconf, ttyname errno values
+		fail="$fail test_posix"					# sched_[gs]etscheduler not impl
+		fail="$fail test_shutil"				# lchmod, requires real unzip
+		;;
+	glibc)
+		# glibc related
+		fail="$fail test_curses"				# OverflowError: mktime argument out of range
+		fail="$fail test_email"					# _curses.error: inswstr() returned ERR
+		;;
+	esac
+
+	# FIXME: failures needing investigation
+	fail="$fail test_faulthandler test_gdb"			# hangs(?)
+	fail="$fail test_tokenize test_tools"			# SLOW (~60s)
+	fail="$fail test_capi"					# test.test_capi.EmbeddingTests
+	fail="$fail test_threadsignals"				# test_{,r}lock_acquire_interruption
+	fail="$fail test_time"					# strftime/strptime %Z related
+	fail="$fail test_cmath test_math"			# hang(?) on x86
+	fail="$fail test_hash test_plistlib"			# fail on armhf
+	fail="$fail test_ctypes"				# fail on aarch64 (ctypes.test.test_win32.Structures)
+	fail="$fail test_cmd_line_script"			# fails on x86_64
+	fail="$fail test_multiprocessing_main_handling"		# fails on x86_64
+	fail="$fail test_runpy"					# fails on x86_64
+	fail="$fail test_threading"				# hangs on all arches (except x86_64?)
+	fail="$fail test_selectors"				# AssertionError: 'Python' not found in '' (python3.9)
+	fail="$fail test_nntplib"
+	fail="$fail test_asyncio"				# hangs; routinely problematic (e.g. bpo-39101, bpo-41891, bpo-42183)
+	fail="$fail test_distutils"				# tests a deprecated module, fails with py3-docutils installed
+	fail="$fail test_httplib"				# sporadically fails with ssl.SSLError
+
+	# kernel related
+	fail="$fail test_fcntl"					# wants DNOTIFY, we don't have it
+
+	# tests that fail in CI for some reason, investigation is needed
+	case "$CARCH" in
+		aarch64) fail="$fail test_generators test_pdb test_regrtest test_signal";;
+	esac
+
+	make quicktest TESTOPTS="-j${JOBS:-$(nproc)} --exclude $fail"
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" EXTRA_CFLAGS="$CFLAGS" install maninstall
+	install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+
+	# those are provided by python3-tkinter
+	rm -r "$pkgdir"/usr/bin/idle* "$pkgdir"/usr/lib/python*/idlelib \
+		"$pkgdir"/usr/lib/python*/tkinter
+
+	ln -s python3 "$pkgdir"/usr/bin/python
+	ln -s python3-config "$pkgdir"/usr/bin/python-config
+}
+
+dev() {
+	default_dev
+
+	# pyconfig.h is needed runtime so we move it back
+	mkdir -p "$pkgdir"/usr/include/python$_basever
+	mv "$subpkgdir"/usr/include/python$_basever/pyconfig.h \
+		"$pkgdir"/usr/include/python$_basever/
+}
+
+tests() {
+	pkgdesc="The test modules from the main python package"
+
+	cd "$pkgdir"/usr/lib/python$_basever
+	local i; for i in */test */tests; do
+		mkdir -p "$subpkgdir"/usr/lib/python$_basever/"$i"
+		mv "$i"/* "$subpkgdir"/usr/lib/python$_basever/"$i"
+		rm -rf "$i"
+	done
+
+	amove usr/lib/python$_basever/test
+}
+
+gdbm() {
+	pkgdesc="Python backend for GNU gdbm"
+
+	amove usr/lib/python3*/lib-dynload/_gdbm.cpython*
+}
+
+sha512sums="
+5c95900de73cd187f5d7a89a05314ef85f4d680308d0d5fff5e6ada81f8ecf030018bef0f1a819d007e8b6d01b52e50395572c2d1a56d2c164492e13a69a9926  Python-3.11.12.tar.xz
+ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e960c4889568d25753b9e4a1494834fea48291b33f07000ec2  musl-find_library.patch
+563dc931e442a2b1a0837cc37b445768e3b76e33e4b6c5a3821428a46f3bb4512bc6f5a0160573b2567a2f20c0da27c19d5aa39a1bbaada8f409c1d3d83db7ad  0100-skip-test_url_host_with-test-cases.patch
+24d774c1aaff858fa36706e925a1e1a2d8d01a0ba738673d82ffae08c15a8557a27502bae5a48552d113118b3924fdfc9c3ded94a68ab879afd4263b6c2fe9d3  0101-AVX2-and-AVX512-support.diff
+1252eb743e780003897d658a6cc08e13acfec6cfb7bd1b650bda7420c23dd11a3269eda0e0c37f6685e0a0bc5a14aa31478aaff8f45ff38cab78e2afb5e658f2  0102-Force-config-to-always-be-shared.patch
+c9d607055f2147b19da871324c9cb67974e37dda871e776674c5e02be89683ae47af6a6da66a91cdd1bcb6759a5d4eef3fee7682554c1844156ef065f2505a45  0103-Unset-BASH_XTRACEFD-in-tests.patch
+"

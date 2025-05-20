@@ -1,0 +1,69 @@
+pkgname=logrotate
+pkgver=3.20.1
+pkgrel=3
+pkgdesc="Tool to rotate logfiles"
+url="https://github.com/logrotate/logrotate"
+arch="all"
+license="GPL-2.0-or-later"
+install="$pkgname.post-upgrade"
+makedepends="popt-dev autoconf automake acl-dev libtool"
+checkdepends="coreutils"
+subpackages="$pkgname-doc $pkgname-openrc $pkgname-syslog"
+source="https://github.com/logrotate/logrotate/releases/download/$pkgver/logrotate-$pkgver.tar.xz
+	logrotate.cron
+	logrotate.conf
+	logrotate.confd
+	syslog"
+
+# secfixes:
+#   3.20.1-r0:
+#     - CVE-2022-1348
+
+prepare() {
+	default_prepare
+
+	./autogen.sh
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--with-acl
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	install -dm755 "$pkgdir"/etc/logrotate.d/
+	install -Dm644 ../logrotate.conf \
+		"$pkgdir"/etc/logrotate.conf
+
+	install -Dm755 "$srcdir"/logrotate.cron \
+		"$pkgdir"/etc/periodic/daily/logrotate
+	install -Dm644 "$srcdir"/logrotate.confd  \
+		"$pkgdir"/etc/conf.d/logrotate
+}
+
+syslog() {
+	pkgdesc="Rotation for the main syslog file"
+	depends=$pkgname
+	install -D -m 644 syslog "$subpkgdir"/etc/logrotate.d/syslog
+}
+
+sha512sums="
+a9ed5796ab254f511d0029a8f29ef7557f62e12e3ea9af24e30b5b9f348b1c1a16df26d44314b78299916fb3b5000b9cd9eed7cee2cee8df11cfd8e40c79b092  logrotate-3.20.1.tar.xz
+f4d708594fb2b240cfc2928f38a180d27c2cecb9867e048dc29a32c0147244db4d2f6d92e7bff27e1f2623537587db87b2f8fc9bb988f98eff0c98f79f5a5bf2  logrotate.cron
+e91c1648a088410d1f5ad16d05b67e316977be5cc0cbbb21a4e1fda2267415fb7945553aa4b4a4701d658fd6bfe35e3d9a304e0cf2a9c7f1be5a5753c3dbc7cb  logrotate.conf
+be9f0043b594d26b4f64e07a2188d19c3c43af75ef726305e4d98f744fc16cee9f280227116858e2f5b781c0a7b58e0209d7e9ab1285dfa7ba55a9dfda700229  logrotate.confd
+db8792e407635ea272a1caab2d25d59b3180443057ec2b624fdd7f115cb904afb192690eb1c88b1fb25712189fc4e44cebd77bc5236abdc323c5c526841dccf7  syslog
+"

@@ -1,0 +1,78 @@
+# Description: CMake is an open-source, cross-platform family of tools designed
+# to build, test and package software. CMake is used to control the software
+# compilation process using simple platform and compiler independent
+# configuration files, and generate native makefiles and workspaces that can be
+# used in the compiler environment of your choice. The suite of CMake tools were
+# created by Kitware in response to the need for a powerful, cross-platform
+# build environment for open-source projects such as ITK and VTK.
+
+pkgname=cmake
+pkgver=3.24.4
+pkgrel=0
+pkgdesc="Cross-platform make system"
+url="https://www.cmake.org/"
+arch="all"
+license="BSD-3-Clause"
+makedepends="
+	bzip2-dev
+	curl-dev
+	expat-dev
+	libarchive-dev
+	libuv-dev
+	linux-headers
+	ncurses-dev
+	py3-sphinx
+	rhash-dev
+	samurai
+	xz-dev
+	zlib-dev
+	"
+checkdepends="file"
+case "$CLIBC" in
+musl)
+	checkdepends="$checkdepends musl-utils"
+esac
+subpackages="
+	$pkgname-doc
+	$pkgname-bash-completion
+	"
+case $pkgver in
+*.*.*.*) _v=v${pkgver%.*.*};;
+*.*.*) _v=v${pkgver%.*};;
+esac
+source="https://www.cmake.org/files/$_v/cmake-$pkgver.tar.gz
+	0100-GNUInstallDirs-don-t-use-lib64.patch
+	"
+options="!check"
+
+build() {
+	# jsoncpp needs cmake to build so to avoid recursive build
+	# dependency, we use the bundled version of jsoncpp.
+	# Do NOT remove --no-system-jsoncpp unless you consulted
+	# maintainer
+
+	./bootstrap \
+		--prefix=/usr \
+		--mandir=/share/man \
+		--datadir=/share/$pkgname \
+		--docdir=/share/doc/$pkgname \
+		--sphinx-man \
+		--system-libs \
+		--no-system-jsoncpp \
+		--generator=Ninja \
+		--parallel="${JOBS:-2}"
+	ninja
+}
+
+check() {
+	CTEST_OUTPUT_ON_FAILURE=TRUE bin/ctest
+}
+
+package() {
+	DESTDIR="$pkgdir" ninja install
+}
+
+sha512sums="
+a83c8630a777e351d529cf274f3cc3d040cb167d2d27234060774849447a27c40b0a723f1d30e8d381da8cef0efb30b6735879de5fa59b60788029cb484b089a  cmake-3.24.4.tar.gz
+3d32f077c4fe77e2dec14498ce223cf3fffd071d0f87cba626fa9a92e3381c5591a44a132e16bc3900f3a7a449c8749893ad160ea3204c81012a28fc548f6081  0100-GNUInstallDirs-don-t-use-lib64.patch
+"

@@ -1,0 +1,37 @@
+pkgname=perl-test-warn
+_pkgreal=Test-Warn
+pkgver=0.37
+pkgrel=0
+pkgdesc="Perl extension to test methods for warnings"
+url="https://metacpan.org/release/Test-Warn"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-sub-uplevel"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/B/BI/BIGJ/Test-Warn-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+prepare() {
+	default_prepare
+
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+}
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+908f3c5c68463ab72f70759032116465f4f63519dd5112666dd6ddcfd5e52163fd433d9eb459dafd721d85c64464549476c6e0bfcfff56d27cf44689fadfce67  Test-Warn-0.37.tar.gz
+"

@@ -1,0 +1,72 @@
+# Description: Reads a variety of formats, including tar, pax, cpio, zip, xar,
+# lha, ar, cab, mtree, rar, and ISO images.
+
+pkgname=libarchive
+pkgver=3.7.9
+pkgrel=0
+pkgdesc="Multi-format archive and compression library"
+url="https://libarchive.org/"
+arch="all"
+license="BSD-2-Clause AND BSD-3-Clause AND Public-Domain"
+makedepends="
+	acl-dev
+	attr-dev
+	bsd-compat-headers
+	bzip2-dev
+	expat-dev
+	lz4-dev
+	openssl-dev
+	xz-dev
+	zlib-dev
+	zstd-dev
+	"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-tools"
+source="https://libarchive.org/downloads/libarchive-$pkgver.tar.xz"
+options="!check"
+
+# secfixes:
+#   3.7.9-r0:
+#     - CVE-2024-57970
+#     - CVE-2025-1632
+#     - CVE-2025-25724
+#   3.7.5-r0:
+#     - CVE-2024-20696
+#   3.7.4-r0:
+#     - CVE-2024-26256
+#   3.6.1-r2:
+#     - CVE-2022-36227
+#   3.6.1-r0:
+#     - CVE-2022-26280
+#   3.6.0-r0:
+#     - CVE-2021-36976
+#   3.4.2-r0:
+#     - CVE-2020-19221
+#     - CVE-2020-9308
+#   3.4.0-r0:
+#     - CVE-2019-18408
+#   3.3.2-r1:
+#     - CVE-2017-14166
+
+build() {
+	CFLAGS="$CFLAGS -ffat-lto-objects -flto=auto" \
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--without-xml2
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+tools() {
+	pkgdesc="libarchive tools bsdtar and bsdcpio"
+
+	amove usr/bin
+}
+
+sha512sums="
+d8918445e2536eb29c2d6a6c8cd3671a8525be1619009a2e7c3a9c2a821b51939172dfccc25bfd62fec2a17fb01796b4f522b0ba72b31e3de9b9658c44c46345  libarchive-3.7.9.tar.xz
+"

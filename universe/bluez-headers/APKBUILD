@@ -1,0 +1,34 @@
+pkgname=bluez-headers
+pkgver=5.66
+pkgrel=0
+pkgdesc="Bluez development headers"
+url="http://www.bluez.org/"
+arch="noarch"
+license="GPL-2.0-or-later"
+depends="!bluez-dev"
+source="https://www.kernel.org/pub/linux/bluetooth/bluez-$pkgver.tar.xz"
+builddir="$srcdir/bluez-$pkgver"
+options="!check" # just headers
+
+package() {
+	local headers="
+		bluetooth
+		bnep
+		cmtp
+		hci
+		hci_lib
+		hidp
+		l2cap
+		rfcomm
+		sco
+		sdp
+		sdp_lib
+		"
+	for header in $headers; do
+		install -Dm644 ./lib/$header.h -t "$pkgdir"/usr/include/bluetooth
+	done
+}
+
+sha512sums="
+ed0994932687eacf27207867366671b323671f5d5199daf36ea5eff8f254f2bc99ef989ef7df9883b35c06f2af60452be8bad0a06109428a4717cf2b247b4865  bluez-5.66.tar.xz
+"

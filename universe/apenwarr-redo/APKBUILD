@@ -1,0 +1,50 @@
+pkgname=apenwarr-redo
+pkgver=0.42d
+pkgrel=0
+pkgdesc="Smaller, easier, more powerful, and more reliable than make"
+url="https://redo.readthedocs.io/en/latest/"
+arch="noarch"
+license="Apache-2.0"
+depends="python3"
+makedepends="perl py3-beautifulsoup4 py3-markdown"
+checkdepends="cpio"
+subpackages="$pkgname-bash-completion $pkgname-doc"
+source="https://github.com/apenwarr/redo/archive/redo-$pkgver.tar.gz
+	fix-env-python.patch
+	"
+provides="redo"
+provider_priority=50
+
+builddir="$srcdir/redo-redo-$pkgver"
+
+build() {
+	./do build
+	find docs -name 'redo*.md' | sed 's/md$/1/' | xargs bin/redo
+}
+
+check() {
+	# Causes issues with the test suite
+	unset ARCH CC CPPFLAGS CFLAGS CXX CXXFLAGS LDFLAGS
+	./do test
+}
+
+package() {
+	DESTDIR="$pkgdir" PREFIX="/usr" ./do install
+	install -Dm644 contrib/bash_completion.d/redo \
+		"$pkgdir"/usr/share/bash-completion/completions/redo.sh
+	install -Dm644 docs/*.1 \
+		"$pkgdir"/usr/share/man/man1/
+}
+
+cleanup_srcdir() {
+	# Test suite changes some files to read-only, resulting in errors on
+	# cleanup.
+	[ -e "$srcdir" ] && chmod -R a+w "$srcdir"
+
+	default_cleanup_srcdir
+}
+
+sha512sums="
+2749a1a1046f8edd63c4b4e2b0f4d95988dfcf8c776b264007914e583fc21ff51447be34ffc2c136c343ace8c38147d6a43c0c0dd01a681b6283a38d5d8f3fb7  redo-0.42d.tar.gz
+7d8be0b94999c54d6d1d47300189c4979294cf3d9ddd30f2f3c95b12f16e7dc180ad7c518bcf1dd91f3ddace8e769880ac30bf659f4c9973872cb75bc15d89c7  fix-env-python.patch
+"

@@ -1,0 +1,93 @@
+# Description: gnutils implements the TLS, SSL, and DTLS protocol. It is aimed
+# at establishing secure communications back-end.
+
+pkgname=gnutls
+pkgver=3.7.11
+pkgrel=0
+pkgdesc="The GNU TLS library"
+url="https://www.gnutls.org/"
+arch="all"
+license="LGPL-2.1-or-later"
+checkdepends="diffutils datefudge"
+makedepends="nettle-dev zlib-dev libkcapi-dev libtasn1-dev linux-headers p11-kit-dev libunistring-dev texinfo"
+subpackages="$pkgname-dbg $pkgname-doc $pkgname-dev $pkgname-utils $pkgname-c++:xx"
+_v=${pkgver%.*}
+case $pkgver in
+*.*.*.*) _v=${_v%.*};;
+esac
+source="https://www.gnupg.org/ftp/gcrypt/gnutls/v$_v/gnutls-$pkgver.tar.xz
+	musl:skip-crq.patch
+	musl:tests-certtool.patch
+	"
+
+# Upstream Tracker: https://gnutls.org/security-new.html
+# secfixes:
+#   3.7.11-r0:
+#     - CVE-2024-28834
+#     - CVE-2024-28835
+#   3.7.8-r4:
+#     - CVE-2023-5981
+#     - CVE-2024-0553
+#     - CVE-2024-0567
+#   3.7.8-r3:
+#     - CVE-2023-0361
+#   3.7.7-r0:
+#     - CVE-2022-2509 GNUTLS-SA-2022-07-07
+#   3.7.1-r0:
+#     - CVE-2021-20231 GNUTLS-SA-2021-03-10
+#     - CVE-2021-20232 GNUTLS-SA-2021-03-10
+#   3.6.15-r0:
+#     - CVE-2020-24659 GNUTLS-SA-2020-09-04
+#   3.6.14-r0:
+#     - CVE-2020-13777 GNUTLS-SA-2020-06-03
+#   3.6.13-r0:
+#     - CVE-2020-11501 GNUTLS-SA-2020-03-31
+#   3.6.7-r0:
+#     - CVE-2019-3836
+#     - CVE-2019-3829
+#   3.5.13-r0:
+#     - CVE-2017-7507
+
+build() {
+	LIBS="-lgmp" ./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--enable-ktls \
+		--disable-openssl-compatibility \
+		--disable-rpath \
+		--disable-static \
+		--disable-guile \
+		--disable-valgrind-tests
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	DESTDIR="$pkgdir" make -C "$builddir" install
+}
+
+utils() {
+	license="GPL-3.0-or-later"
+	pkgdesc="Command line tools for TLS protocol"
+	mkdir -p "$subpkgdir"/usr/
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+}
+
+xx() {
+	pkgdesc="The C++ interface to GnuTLS"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/lib*xx.so.* "$subpkgdir"/usr/lib/
+}
+
+sha512sums="
+a663c27c276a817d0623369f041f8a7892ff898f62f689de264322aec103c8cb9307e2b43ceb5af590dfa105fd938e7509d0738ff33f0a8f71d7406fd4813964  gnutls-3.7.11.tar.xz
+69b014782ec157c96b39d09dc3ce25443710b6430c3e4420329afbc141dde21a16a9e310c625039babb839c8b231f8cfe9b640eeef2a7b98b3e9fe51a5a379b0  skip-crq.patch
+2006876dd33559a9ee4abe73e7cedc6867c4f480befdfd5fe9e3eca327e291c3cdb12385156c2ba5ab9496dec870b15178249e015363397f1d979ef785906366  tests-certtool.patch
+"

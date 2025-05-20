@@ -1,0 +1,54 @@
+pkgname=libbsd
+pkgver=0.11.7
+pkgrel=0
+pkgdesc="BSD functions not implemented by all libcs"
+url="https://libbsd.freedesktop.org/"
+arch="all"
+license="BSD-3-Clause"
+case "$CLIBC" in
+musl) depends="musl" ;;
+esac
+depends_dev="bsd-compat-headers linux-headers libmd-dev libbsd=$pkgver-r$pkgrel" # libbsd.so is a GNU ld script and not symlink
+makedepends_build="autoconf automake libtool"
+makedepends_host="$depends_dev"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
+source="https://libbsd.freedesktop.org/releases/libbsd-$pkgver.tar.xz"
+
+# secfixes:
+#   0.10.0-r0:
+#     - CVE-2019-20367
+
+prepare() {
+	default_prepare
+
+	./autogen
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+dev() {
+	default_dev
+	amove usr/lib/libbsd.so
+}
+
+sha512sums="
+51fda4724f41dd8a4628afd58c21236a7588d9045e337e06eeabf83805a9aaaa53705441ca901ad11f1c65f18e881523bdc97721a7d3d6a5cced27f2450d09a2  libbsd-0.11.7.tar.xz
+"

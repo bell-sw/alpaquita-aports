@@ -1,0 +1,46 @@
+pkgname=libnfs
+pkgver=5.0.2
+pkgrel=0
+pkgdesc="Client library for accessing NFS shares"
+url="https://github.com/sahlberg/libnfs"
+arch="all"
+options="!check"  # No test suite.
+license="LGPL-2.1-or-later"
+makedepends="autoconf automake m4 libtool"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-tools"
+source="https://github.com/sahlberg/libnfs/archive/libnfs-$pkgver.tar.gz
+	fix-includes.patch"
+
+builddir="$srcdir"/libnfs-libnfs-$pkgver
+
+prepare() {
+	default_prepare
+	./bootstrap
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -f "$pkgdir"/usr/lib/*.a
+}
+
+tools() {
+	pkgdesc="$pkgdesc (tools)"
+	amove usr/bin
+}
+
+sha512sums="
+6dcf4ea8a01b35beb53694625d20fbebd858a88725c2742671878ad6fe7877999f93d262fb58a435b00c283c3e6fb6fa7222d04bb4540bf674b7ce196e9424f5  libnfs-5.0.2.tar.gz
+99fb4a2d782201d151aede2018cd543496f67ef9bedccb9e6705add0b76f5d6942d3fa9852a05f4ed9956a6a341aaa85efe5b98dde858434dcefb357e72ef4a3  fix-includes.patch
+"

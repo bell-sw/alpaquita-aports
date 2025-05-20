@@ -1,0 +1,250 @@
+# Description: glibc is a backward compatible and highly performant
+# C library. The package includes core libraries with essential APIs
+# for the GNU and Linux systems.
+
+pkgname=glibc
+pkgver=2.37.0
+pkgrel=17
+_glibcver=${pkgver%.*}
+_patch_ver="glibc-2.37-143-ga3d7865b09"
+pkgdesc="GNU C Library"
+url="https://www.gnu.org/software/libc"
+arch="x86_64 aarch64"
+license="GPL-2.0 LGPL-2.0"
+depends_dev="linux-headers"
+makedepends="bison perl python3 texinfo gawk grep sed coreutils"
+source="
+	https://ftp.gnu.org/gnu/libc/glibc-$_glibcver.tar.xz
+	${VENDOR_URL/\/\//\/\/packages.}${VENDOR_DISTRO}/distfiles/${_patch_ver}.patch.xz
+	1000-delocalize-sh-scripts.patch
+	ld.so.conf
+	locale.gen.in
+	locale-gen
+	ldconfig.trigger.c
+"
+builddir="$srcdir/glibc-$_glibcver"
+options="!libc_musl lib64 ldpath-recursive !check !annobin"
+[ "$BOOTSTRAP" != "nolibc" ] && triggers="$pkgname-utils.trigger=/usr/lib:/usr/lib64:/usr/local/lib"
+subpackages="
+	$pkgname-dbg
+	$pkgname-nscd
+	$pkgname-utils
+	$pkgname-locales::noarch
+	$pkgname-doc
+	$pkgname-dev
+"
+
+# secfixes:
+#   2.37.0-r17:
+#     - CVE-2025-0395
+#   2.37.0-r13:
+#     - CVE-2024-33599
+#     - CVE-2024-33600
+#     - CVE-2024-33601
+#     - CVE-2024-33602
+#   2.37.0-r11:
+#     - CVE-2024-2961
+#   2.37.0-r10:
+#     - CVE-2023-6246
+#     - CVE-2023-6779
+#     - CVE-2023-6780
+#   2.37.0-r6:
+#     - CVE-2023-4911
+#   2.37.0-r5:
+#     - CVE-2023-5156
+#   2.37.0-r4:
+#     - CVE-2023-4806
+#   2.37.0-r3:
+#     - CVE-2023-4527
+#   2.37.0-r0:
+#     - CVE-2023-25139
+
+_build()
+{
+	local isa="$1"
+	local extra_cflags=""
+	local build_path="glibc-build"
+	local bootstrap_configure
+
+	if [ -n "$isa" ]; then
+		build_path="${build_path}-${isa}"
+		extra_cflags="-march=${isa}"
+	fi
+
+	mkdir $build_path
+	cd $build_path
+
+	echo "rootsbindir=/usr/sbin" >> configparms
+
+	case "$BOOTSTRAP" in
+	# for linux headers
+	nolibc)	bootstrap_configure="--with-headers=$CBUILDROOT/usr/include" ;;
+	*)	bootstrap_configure="" ;;
+	esac
+
+	CFLAGS="-O3 -pipe -g $extra_cflags"
+	CPPFLAGS="$CFLAGS"
+	LDFLAGS="-Wl,--as-needed,-O2,--sort-common"
+	../configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--libdir=/usr/lib \
+		--enable-add-ons \
+		--enable-bind-now \
+		--enable-cet \
+		--enable-kernel=3.10 \
+		--enable-lock-elision \
+		--enable-stack-protector=strong \
+		--enable-stackguard-randomization \
+		--enable-static-pie \
+		--disable-profile \
+		--disable-timezone-tools \
+		--disable-werror \
+		--with-bugurl="$VENDOR_BUG_REPORT_URL" \
+		--with-pkgversion="$VENDOR_DISTRO_NAME Linux" \
+		$bootstrap_configure \
+		libc_cv_slibdir=/usr/lib
+	make
+	cd ..
+}
+
+build() {
+	[ "$BOOTSTRAP" != "nolibc" ] && ${CC:-${CROSS_COMPILE}gcc} ${CPPFLAGS} ${CFLAGS} \
+		${LDFLAGS} "$srcdir"/ldconfig.trigger.c -o ldconfig.trigger
+
+	_build
+
+	if [ "$CARCH" = 'x86_64' ]; then
+		_build x86-64-v3
+	fi
+}
+
+check() {
+	cd glibc-build
+	make check
+}
+
+_install_hwcaps()
+{
+	local isa="$1"
+	local i hwpath="${subpkgdir:-$pkgdir}/usr/lib/glibc-hwcaps/$isa"
+
+	mkdir -p "$hwpath"
+
+	for i in libc.so.6 math/libm.so.6; do
+		cp -L $builddir/glibc-build-$isa/$i "$hwpath"/
+	done
+}
+
+package() {
+	local ld_linux
+
+	case "$CARCH" in
+	aarch64)	ld_linux=ld-linux-aarch64.so.1 ;;
+	x86_64)		ld_linux=ld-linux-x86-64.so.2 ;;
+	esac
+
+	[ "$BOOTSTRAP" != "nolibc" ] \
+		&& install -D -m755 ldconfig.trigger $pkgdir/usr/sbin/ldconfig.trigger
+
+	cd glibc-build
+
+	install -dm755 "$pkgdir"/etc
+	install -dm755 "$pkgdir"/usr/lib64
+
+	make DESTDIR="$pkgdir" install
+
+	rm -rf "$pkgdir"/var/db
+
+	install -m644 "$srcdir"/ld.so.conf "$pkgdir"/etc/ld.so.conf
+
+	install -m644 ../posix/gai.conf "$pkgdir"/etc/gai.conf
+
+	ln -sf ../lib/$ld_linux "$pkgdir"/usr/lib64/
+	ln -sf usr/lib "$pkgdir"/lib
+	ln -sf usr/lib64 "$pkgdir"/lib64
+	ln -sf usr/sbin $pkgdir/sbin
+
+	if [ "$CBUILD" = "$CHOST" ]; then
+		mkdir -p "$pkgdir"/usr/lib/locale
+
+		local l
+		for l in C en_US; do
+			msg "Generating $l.utf8 locale"
+			I18NPATH="$pkgdir"/usr/share/i18n \
+			"$pkgdir"/usr/lib/$ld_linux --library-path "$pkgdir"/usr/lib \
+				"$pkgdir"/usr/bin/localedef --prefix "$pkgdir" --no-archive \
+				--input $l --charmap UTF-8 $l.utf8
+		done
+	fi
+
+	if [ "$CARCH" = 'x86_64' ]; then
+		_install_hwcaps x86-64-v3
+	fi
+}
+
+locales() {
+	depends="$pkgname-utils=$pkgver-r$pkgrel"
+	pkgdesc="$pkgdesc (locales)"
+
+	install -dm755 "$subpkgdir"/etc
+
+	amove usr/share/locale
+	amove usr/share/i18n
+
+	mkdir "$subpkgdir"/usr/sbin
+	install -m755 "$srcdir"/locale-gen "$subpkgdir"/usr/sbin/
+	install -m644 "$srcdir"/locale.gen.in "$subpkgdir"/etc/locale.gen
+
+	sed -e '1,3d' -e 's|/| |g' -e 's|\\| |g' -e 's|^|# |g' \
+		"$builddir"/localedata/SUPPORTED >> "$subpkgdir"/etc/locale.gen
+
+	grep -Ev "^(#|SUPPORTED-LOCALES)" "$builddir"/localedata/SUPPORTED | \
+		tr -d '\\' | tr '/' ' ' > "$subpkgdir"/usr/share/i18n/SUPPORTED
+}
+
+nscd() {
+	depends="$pkgname-utils=$pkgver-r$pkgrel"
+	pkgdesc="$pkgdesc (name service cache daemon)"
+
+	install -dm755 "$subpkgdir"/usr/bin
+	install -dm755 "$subpkgdir"/etc
+	install -dm755 "$subpkgdir"/var/db/nscd
+
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/sbin/nscd "$subpkgdir"/usr/bin
+
+	install -m644 "$builddir"/nscd/nscd.conf "$pkgdir"/etc/nscd.conf
+}
+
+utils() {
+	pkgdesc="$pkgdesc (various programs)"
+	depends=""
+
+	amove usr/bin
+	ln -sf usr/bin $subpkgdir/bin
+}
+
+dev() {
+	default_dev
+
+	amove usr/lib/libc.so
+
+	# the libm.so linker script seems to be specific only to x86_64
+	if [ "$CARCH" = 'x86_64' ]; then
+		amove usr/lib/libm.so
+	fi
+
+	${CROSS_COMPILE}strip --strip-debug "$subpkgdir"/lib/*crt*.o
+}
+
+sha512sums="
+4fc5932f206bb1b8b54828a28af1a681616b838bbab60c81c82155f3629cbfe1301d271af65511ed917f4c6949a025429221fe6035753282f15346919f15b90c  glibc-2.37.tar.xz
+fff53814be0753d0b3b2e75e41d741922e82dbc5aa267ab020f1a42ab63ea8ce562c0a207368b429e9e8e4e32ad3a87cee2d4fa4d0118d7f6ac8a58db5882801  glibc-2.37-143-ga3d7865b09.patch.xz
+2e6dbe2373c1b0e61413a23832f15a4a891aa3769afdff052ca5885f306c1ecc2ccd86f5c6fd5a91325809c59f7e39bb99e0afe1844eddf6c1fe22bf33cce657  1000-delocalize-sh-scripts.patch
+73bfefd8a1366f3bc7bbfd3f34b599b49f48278f783eb2837a414eb914ac3ae9995fe4e9fec58b9d1da1eb6ed36ccc889257ffc54031f1731e041dc18e096e6f  ld.so.conf
+47a686c2fda0f32a1e9e975f723ed96ab8125619541cf8711fa80d94428862be77c46d06f5ff17f6a978eb22c9f86929ee9bf79888e6f824beeb023f78512151  locale.gen.in
+14dd69e1eb42b3dc3e67eaf96938fe2bc9895b14e820b2a53a9a6f540a5224b2797d28585473bf4c6b1cd398c2e08d8571113db93a6ba7474e04c0b699104629  locale-gen
+519f6d7fd227b2ceeda345bd2ca48146d961655fbff6a3d709d7726f64eef2ceedf55943b1e71b802b79309ef4dfe9b99251a5073a1c9169db3ac6a788b244d5  ldconfig.trigger.c
+"

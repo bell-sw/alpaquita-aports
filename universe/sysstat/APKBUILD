@@ -1,0 +1,37 @@
+pkgname=sysstat
+# !!! 12.6.x are stable versions !!!
+pkgver=12.6.2
+pkgrel=2
+pkgdesc="Performance monitoring tools"
+url="http://pagesperso-orange.fr/sebastien.godard/"
+arch="all"
+license="GPL-2.0-or-later"
+makedepends="linux-headers"
+subpackages="$pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/sysstat/sysstat/archive/v$pkgver.tar.gz
+	0100-CVE-2023-33204.patch
+	"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--disable-compress-manpg \
+		--disable-nls \
+		sa_lib_dir='/usr/lib'
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+}
+
+sha512sums="
+376047de55598c6f671b999203809219a40206a9c58499399681af9ebe6048dd4da96c8ef5827d75cc369a7b69c3f1aadef1a5e8deec318a12b230d61f09fc08  sysstat-12.6.2.tar.gz
+bafa4b29044eddee86d3b090735420310c4a063ec96b82ee3a0d0eedb9b96cd0550dba078316122360859991fbb47594ba9f6044f903e688bd2b53ac15b3b6f3  0100-CVE-2023-33204.patch
+"

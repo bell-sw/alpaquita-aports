@@ -1,0 +1,448 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME is a build of OpenJDK verified by the OpenJDK
+# Technology Compatibility Kit test suite to be compliant with the Java SE
+# specifications.
+
+: ${BUILD_FROM_SOURCE:=0}
+
+_java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_java_uver=452
+_java_bnum=11
+
+_java_ver=8u452+11
+_java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 8"
+
+pkgname=${_java_pkg_name}8
+pkgver=${_java_ver/+/_p}
+pkgver=${pkgver/u/.}
+pkgrel=0
+pkgdesc="$_java_name"
+url="$VENDOR_URL"
+license="GPL-2.0 WITH Classpath-Exception-2.0"
+arch="aarch64 x86_64"
+options="!strip !tracedeps ldpath-recursive !annobin"
+annocheck_skip="libwaiters.so"
+depends="
+	$pkgname-doc=$pkgver-r$pkgrel
+	$pkgname-jdk=$pkgver-r$pkgrel
+	"
+
+# NB: openjdk8-bootstrap is added to makedepends separately, only if
+# not bootstrapping the first package from prebuilt binaries
+makedepends="
+	alsa-lib-dev
+	autoconf
+	automake
+	bash
+	ca-certificates
+	coreutils
+	cups-dev
+	file
+	findutils
+	fontconfig-dev
+	freetype-dev
+	gawk
+	gettext
+	libx11-dev
+	libxext-dev
+	libxi-dev
+	libxrender-dev
+	libxt-dev
+	libxtst-dev
+	linux-headers
+	sed
+	zip
+	zlib-dev
+	"
+
+subpackages="
+	$pkgname-dbg:_dbg
+	$pkgname-demos:_demos
+	$pkgname-src:_src:noarch
+	$pkgname-jre-doc:_jre_doc:noarch
+	$pkgname-doc:_doc:noarch
+	$pkgname-jre-no-deps:_jre_no_deps
+	$pkgname-jre:_jre
+	$pkgname-jdk-no-deps:_jdk_no_deps
+	$pkgname-jdk:_jdk
+	"
+
+builddir="$srcdir/jdk-${_java_ver%+*}"
+sonameprefix="$pkgname:"
+
+provides="
+	$pkgname-lite=$pkgver-r$pkgrel
+	openjdk8=$pkgver-r$pkgrel
+	openjdk8-lite=$pkgver-r$pkgrel
+	openjdk
+"
+
+_java_home="/usr/lib/jvm/$pkgname"
+_images_dir="$builddir/build/linux-$CARCH-release/images"
+_jre_tools="
+	appletviewer
+	java
+	keytool
+	orbd
+	pack200
+	policytool
+	rmid
+	rmiregistry
+	tnameserv
+	unpack200
+	"
+
+if [ "$BUILD_FROM_SOURCE" -eq 0 ]; then
+	case "$CARCH:$CLIBC" in
+		x86_64:glibc )
+			JDK_BIN="
+			j2sdk-image-symbols-linux-alpaquita-x86_64-8u452+11.zip::https://download.bell-sw.com/linux-alpaquita/java-sources/java/8u452+11/linux-alpaquita-x86_64/j2sdk-image-symbols.zip
+			j2sdk-image-linux-alpaquita-x86_64-8u452+11.zip::https://download.bell-sw.com/linux-alpaquita/java-sources/java/8u452+11/linux-alpaquita-x86_64/j2sdk-image.zip
+"
+			JDK_SHA="
+6c1e5fd16068387f95e0064d977808d9fd1ee378efc0c74055de95cafdc9aabfb0b8c01fdb38890186b98662e3e184b472b8e008b3da267061fa16da4c83e69e  j2sdk-image-symbols-linux-alpaquita-x86_64-8u452+11.zip
+addf1734640e9b0b28693856108ac33e7c027390ad31ef0a4a33ec1571b9db5180594758ceac15ea9b5db40b5658bd56797930d6773eab516d67ba7dc86d1cab  j2sdk-image-linux-alpaquita-x86_64-8u452+11.zip
+"
+		;;
+		x86_64:musl )
+			JDK_BIN="
+			j2sdk-image-symbols-linux-alpaquita-musl-x86_64-8u452+11.zip::https://download.bell-sw.com/linux-alpaquita/java-sources/java/8u452+11/linux-alpaquita-musl-x86_64/j2sdk-image-symbols.zip
+			j2sdk-image-linux-alpaquita-musl-x86_64-8u452+11.zip::https://download.bell-sw.com/linux-alpaquita/java-sources/java/8u452+11/linux-alpaquita-musl-x86_64/j2sdk-image.zip
+"
+			JDK_SHA="
+78b2f3216954f0e448761fd03a06688224e63272ad11a3fb001429b1f533f0c995b47542d39ccc2799bb9c916cad3e6fe78461e085a060dfb4db92e3e6935696  j2sdk-image-symbols-linux-alpaquita-musl-x86_64-8u452+11.zip
+cc85b32e02307a1db6d594d19e6191d7bcf24fa5ec34141e383a5758b0de893a831ed803e54b55c9d6e1912d8caec0c7db41002d1ae78bf68dbc1ba2e2bbb0a6  j2sdk-image-linux-alpaquita-musl-x86_64-8u452+11.zip
+"
+		;;
+		aarch64:glibc )
+			JDK_BIN="
+			j2sdk-image-symbols-linux-alpaquita-aarch64-8u452+11.zip::https://download.bell-sw.com/linux-alpaquita/java-sources/java/8u452+11/linux-alpaquita-aarch64/j2sdk-image-symbols.zip
+			j2sdk-image-linux-alpaquita-aarch64-8u452+11.zip::https://download.bell-sw.com/linux-alpaquita/java-sources/java/8u452+11/linux-alpaquita-aarch64/j2sdk-image.zip
+"
+			JDK_SHA="
+1b6deb2022297679408a5d6b36dff647bc218ed01d8e32151ec71855ecfee9b838d6a6f479e8ef9329b364d8a13b41d5c748731315226088895690efea4b7b77  j2sdk-image-symbols-linux-alpaquita-aarch64-8u452+11.zip
+16fab768534c98a19fb8a347dc945f2ba070b6b06a910ecf8cabde271af653070375378667d2ca832c57b9d45006922375f3d494810ea3c09d7bb1007f4c2041  j2sdk-image-linux-alpaquita-aarch64-8u452+11.zip
+"
+		;;
+		aarch64:musl )
+			JDK_BIN="
+			j2sdk-image-symbols-linux-alpaquita-musl-aarch64-8u452+11.zip::https://download.bell-sw.com/linux-alpaquita/java-sources/java/8u452+11/linux-alpaquita-musl-aarch64/j2sdk-image-symbols.zip
+			j2sdk-image-linux-alpaquita-musl-aarch64-8u452+11.zip::https://download.bell-sw.com/linux-alpaquita/java-sources/java/8u452+11/linux-alpaquita-musl-aarch64/j2sdk-image.zip
+"
+			JDK_SHA="
+575325c7c0e1005ecbd5f05e7c56a5d43d9f9724381befefc0cc4273044cba9da28b0da630b49dfe29e2ffb7fcf7861b624ce9059b800f817be41ee2ddeaa72c  j2sdk-image-symbols-linux-alpaquita-musl-aarch64-8u452+11.zip
+95488e15d5ebf997467e630454c1aaa829162943c9143569335facd7c7cd1e55db73c3f588c5522d039138e69395e5513a29730d7daa3f0622d4c44b5a1fac4b  j2sdk-image-linux-alpaquita-musl-aarch64-8u452+11.zip
+"
+		;;
+	esac
+else
+	case "$CARCH:$CLIBC" in
+		x86_64:glibc)
+			JDK_BIN="
+			src-linux-alpaquita-x86_64-8u452+11.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/8u452+11/linux-alpaquita-x86_64/src.tar.gz
+"
+			JDK_SHA="
+a2b8c26098e2ab154704995cbb579321883c1937a00d7810c6bfd662fd5ed2bfd11bb4c4d4aff27230eeab9cb75fe2354bb948aac537fbd7ec5f021faaac42a7  src-linux-alpaquita-x86_64-8u452+11.tar.gz
+"
+		;;
+		x86_64:musl)
+			JDK_BIN="
+			src-linux-alpaquita-musl-x86_64-8u452+11.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/8u452+11/linux-alpaquita-musl-x86_64/src.tar.gz
+"
+			JDK_SHA="
+8521cc2afc16a7594bc45ab15eb8aac20204bd925f398e858bf5615eea7141600e695e253779a336a7d4248424d563f4339e1fef647abeb4ee30772228ad1a58  src-linux-alpaquita-musl-x86_64-8u452+11.tar.gz
+"
+		;;
+		aarch64:glibc)
+			JDK_BIN="
+			src-linux-alpaquita-aarch64-8u452+11.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/8u452+11/linux-alpaquita-aarch64/src.tar.gz
+"
+			JDK_SHA="
+3a39ca96cb53875fbd39a5dc0bad754295c3be92877f249a9ec37c822c464672544616ed07d66d117f77e7a8becf0930e6beb3b68d13812074ff1d820c2c5565  src-linux-alpaquita-aarch64-8u452+11.tar.gz
+"
+		;;
+		aarch64:musl)
+			JDK_BIN="
+			src-linux-alpaquita-musl-aarch64-8u452+11.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/8u452+11/linux-alpaquita-musl-aarch64/src.tar.gz
+"
+			JDK_SHA="
+f83534050a06b2a1cc10bbf5982bdc42c7b576394580700c27e0b45b41b968ea701a93c5f3e344cf5d00ace33e429c1ebf8d8931a1885630f6b36498e6fd2ce3  src-linux-alpaquita-musl-aarch64-8u452+11.tar.gz
+"
+		;;
+	esac
+
+fi
+
+source="
+	$JDK_BIN
+	HelloJava.java
+"
+
+case $CARCH in
+x86_64) _jarch=amd64 ;;
+*) _jarch=$CARCH ;;
+esac
+
+ldpath="$_java_home/jre/lib"
+
+if [ "$BUILD_FROM_SOURCE" -ne 0 ]; then
+	# To build from sources - build with openjdk8-bootstrap, provided by a
+	# previous version of this package
+	makedepends="$makedepends
+		openjdk8-bootstrap>=8u333
+		"
+fi
+
+unpack() {
+	mkdir -p "$builddir"
+	if [ "${BUILD_FROM_SOURCE}" -eq 0 ]; then
+
+		mkdir -p "$builddir"/build/linux-${CARCH}-release/images/
+		mkdir -p "$builddir"/build/linux-${CARCH}-release/bundles/
+		# Copy all tar.gz to expected location for processing
+		for f in $srcdir/*.zip; do
+			cp "$f" "$builddir"/build/linux-${CARCH}-release/bundles/
+		done
+		unzip -q "$builddir"/build/linux-${CARCH}-release/bundles/j2sdk-image-symbols-*-8u452+11.zip -d "$builddir"/build/linux-${CARCH}-release/images/j2sdk-image
+		rm "$builddir"/build/linux-${CARCH}-release/bundles/j2sdk-image-symbols-*-8u452+11.zip
+		unzip -q "$builddir"/build/linux-${CARCH}-release/bundles/j2sdk-image-*-8u452+11.zip -d "$builddir"/build/linux-${CARCH}-release/images/j2sdk-image
+	else
+	    default_unpack
+	fi
+}
+
+prepare() {
+	default_prepare
+	if [ "${BUILD_FROM_SOURCE}" -ne 0 ]; then
+		update_config_sub
+	fi
+}
+
+build() {
+
+	[ "${BUILD_FROM_SOURCE}" -eq 0 ] && return 0
+
+	if [ -z "$JOBS" ]; then
+		export JOBS=$(printf '%s\n' "$MAKEFLAGS" | sed -n -e 's/.*-j\([0-9]\+\).*/\1/p')
+	fi
+
+	# Force using 1 job since this seems to help us work around the
+	# following build error:
+	#
+	# 	Exception in thread "main" java.lang.ClassFormatError: Truncated class file
+	JOBS=1
+
+	local _cflags="${CFLAGS/-O? /}"
+	local _boot_jdk
+	if [ ! "$BOOTSTRAP" ]; then
+		_boot_jdk="$(echo /usr/lib/jvm/java-8-* | awk '{ print $1 }')"
+	else
+		_boot_jdk="$(echo "$srcdir"/jdk8u*)" # there can be only one
+	fi
+
+	[ "$CLIBC" = 'musl' ] && _cflags="$_cflags -D_LARGEFILE64_SOURCE"
+
+	CFLAGS='' CXXFLAGS='' LDFLAGS=''
+	bash ./configure \
+		--with-jvm-variants='server' \
+		--enable-jfr \
+		--with-update-version=$_java_uver \
+		--with-build-number=b0$_java_bnum \
+		--with-milestone=fcs \
+		--with-vendor-name="$VENDOR_NAME" \
+		--with-vendor-url="$VENDOR_URL" \
+		--with-vendor-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-vendor-vm-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-extra-cflags="$_cflags -Wformat-overflow=0 -Wno-error=nonnull" \
+		--with-extra-ldflags="-static-libstdc++ -static-libgcc" \
+		--with-native-debug-symbols=external \
+		--with-boot-jdk="$_boot_jdk"
+
+	# Q: I want to see the output of the commands that make runs,
+	#    like in the old build.  How do I do that?
+	#
+	# A: You specify the `LOG` variable to make.  There are
+	#    several log levels:
+	#
+	# warn  -- Default and very quiet.
+	# info  -- Shows more progress information than warn.
+	# debug -- Echos all command lines and prints all macro calls
+	#            for compilation definitions.
+	# trace -- Echos all $(shell) command lines as well.
+	local verbose
+	#verbose="LOG=debug" # uncomment and change if/as necessary
+
+	MAKEFLAGS='' make $verbose images
+}
+
+
+check() {
+	_jdkdir="$_images_dir"/j2sdk-image
+
+	$_jdkdir/bin/javac "$startdir"/HelloJava.java -d "$builddir"
+	$_jdkdir/bin/java -cp "$builddir" HelloJava
+}
+
+package() {
+	mkdir -p "$pkgdir/$_java_home"
+	cp -aR $_images_dir/j2sdk-image/* "$pkgdir/$_java_home/"
+}
+
+_demos() {
+	pkgdesc="$_java_name (Demos)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="
+		$pkgname-lite-demos=$pkgver-r$pkgrel
+		openjdk8-demos=$pkgver-r$pkgrel
+		openjdk8-lite-demos=$pkgver-r$pkgrel
+	"
+	mkdir -p "$subpkgdir/$_java_home"
+	local f
+	for f in demo sample; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+}
+
+_src() {
+	pkgdesc="$_java_name (Sources)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="
+		$pkgname-lite-src=$pkgver-r$pkgrel
+		openjdk8-src=$pkgver-r$pkgrel
+		openjdk8-lite-src=$pkgver-r$pkgrel
+	"
+	mkdir -p "$subpkgdir/$_java_home/"
+	mv "$pkgdir/$_java_home/src.zip" "$subpkgdir/$_java_home/"
+}
+
+_jre_doc() {
+	pkgdesc="$_java_name (JRE Documentation)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="
+		$pkgname-lite-jre-doc=$pkgver-r$pkgrel
+		openjdk8-jre-doc=$pkgver-r$pkgrel
+		openjdk8-lite-jre-doc=$pkgver-r$pkgrel
+	"
+	mkdir -p "$subpkgdir/$_java_home/man/man1"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/man/man1/$f".* "$subpkgdir/$_java_home/man/man1/"
+	done
+	mkdir -p "$subpkgdir/$_java_home/man/ja_JP.UTF-8/man1"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/man/ja_JP.UTF-8/man1/$f".* "$subpkgdir/$_java_home/man/ja_JP.UTF-8/man1/"
+		cp -a "$pkgdir/$_java_home/man/ja" "$subpkgdir/$_java_home/man/"
+	done
+}
+
+_doc() {
+	pkgdesc="$_java_name (Documentation)"
+	depends="$pkgname-jre-doc=$pkgver-r$pkgrel"
+	provides="
+		$pkgname-lite-doc=$pkgver-r$pkgrel
+		openjdk8-doc=$pkgver-r$pkgrel
+		openjdk8-lite-doc=$pkgver-r$pkgrel
+	"
+	mkdir -p "$subpkgdir/$_java_home/"
+	mv "$pkgdir/$_java_home/man" "$subpkgdir/$_java_home/"
+}
+
+_jre_no_deps() {
+	pkgdesc="$_java_name (JRE without dependencies)"
+	depends="java-common"
+	provides="
+		java-jre-no-deps
+		java8-jre-no-deps
+		$pkgname-lite-jre-no-deps=$pkgver-r$pkgrel
+		openjdk8-jre-no-deps=$pkgver-r$pkgrel
+		openjdk8-lite-jre-no-deps=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home/bin"
+	local f
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/bin/$f" "$subpkgdir/$_java_home/bin/"
+	done
+
+	for f in ASSEMBLY_EXCEPTION LICENSE THIRD_PARTY_README release; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/$_jarch" "$subpkgdir/$_java_home/lib/"
+
+	mv "$pkgdir/$_java_home/jre" "$subpkgdir/$_java_home/"
+	cat <<- EOF >"$subpkgdir/$_java_home/readme.txt"
+		BellSoft Liberica is a build of OpenJDK that is verified to be compliant with the Java SE
+		specification using OpenJDK Technology Compatibility Kit test suite.
+
+		To check BellSoft Liberica details and updates, please visit https://bell-sw.com/liberica.
+	EOF
+	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-8-${pkgname%*8}
+	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-1.8-${pkgname%*8}
+}
+
+_jre() {
+	pkgdesc="$_java_name (JRE)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel fontconfig ttf-dejavu-core freetype"
+	provides="
+		java-jre
+		java8-jre
+		$pkgname-lite-jre=$pkgver-r$pkgrel
+		openjdk8-jre=$pkgver-r$pkgrel
+		openjdk8-lite-jre=$pkgver-r$pkgrel
+	"
+	mkdir -p "$subpkgdir"
+}
+
+_jdk_no_deps() {
+	pkgdesc="$_java_name (JDK without dependencies)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	provides="
+		java-jdk-no-deps
+		java8-jdk-no-deps
+		$pkgname-lite-jdk-no-deps=$pkgver-r$pkgrel
+		openjdk8-jdk-no-deps=$pkgver-r$pkgrel
+		openjdk8-lite-jdk-no-deps=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home/$pkgname"
+	for f in bin include lib; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+}
+
+_jdk() {
+	pkgdesc="$_java_name (JDK)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel $pkgname-jdk-no-deps=$pkgver-r$pkgrel"
+	provides="
+		java-jdk
+		java8-jdk
+		$pkgname-bootstrap=$pkgver-r$pkgrel
+		openjdk8-bootstrap=$pkgver-r$pkgrel
+		$pkgname-lite-jdk=$pkgver-r$pkgrel
+		openjdk8-jdk=$pkgver-r$pkgrel
+		openjdk8-lite-jdk=$pkgver-r$pkgrel
+	"
+	mkdir -p "$subpkgdir"
+}
+
+_dbg() {
+	pkgdesc="$_java_name (Debug Info)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="
+		$pkgname-lite-dbg=$pkgver-r$pkgrel
+		openjdk8-dbg=$pkgver-r$pkgrel
+		openjdk8-lite-dbg=$pkgver-r$pkgrel
+	"
+
+	local debugdir="$subpkgdir/usr/lib/debug"
+	for f in $(find "$pkgdir/$_java_home" -type f -name '*.debuginfo'); do
+		target=${f/$pkgdir/$debugdir}
+		mkdir -p ${target%/*}
+		mv $f $target
+	done
+}
+
+sha512sums="
+508cc8511fecee2288f41dc009834d444785ddd4129acfabefeae03ab75a26088bc7e8a60548dac58c6d18865d994e5ad8fa340cac20ba3cc838434dc7cbbcde  HelloJava.java
+$JDK_SHA
+"

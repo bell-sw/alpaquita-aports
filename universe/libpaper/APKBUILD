@@ -1,0 +1,35 @@
+pkgname=libpaper
+pkgver=2.0.4
+pkgrel=0
+pkgdesc="Library for handling paper characteristics"
+url="https://github.com/rrthomas/libpaper/"
+arch="all"
+license="GPL-2.0-only"
+makedepends="help2man"
+checkdepends="bash"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://github.com/rrthomas/libpaper/releases/download/v$pkgver/libpaper-$pkgver.tar.gz"
+options="!check" # really broken
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--disable-static
+	make
+}
+
+check() {
+	cd tests
+	./run-test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+d603a807c8fdc57b704cdfdc90bedf05c54c8a7b67e8cf52f26298c22a6cee5291fcadc6e67d28b00cf9d68f4890a394e56c8e91f0b97c8edfac4662fe4dc8f0  libpaper-2.0.4.tar.gz
+"

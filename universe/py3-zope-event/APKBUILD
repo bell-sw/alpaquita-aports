@@ -1,0 +1,31 @@
+pkgname=py3-zope-event
+pkgver=4.5.0
+pkgrel=1
+pkgdesc="Event publishing / dispatch, used by Zope Component Architecture"
+url="https://github.com/zopefoundation/zope.event"
+arch="noarch"
+license="ZPL-2.1"
+depends="py3-setuptools"
+# checkdepends="py3-zope-testrunner" # Is in upper repo
+source="zope.event-$pkgver.tar.gz::https://github.com/zopefoundation/zope.event/archive/$pkgver.tar.gz"
+builddir="$srcdir"/zope.event-$pkgver
+
+replaces="py-zope-event" # Backwards compatibility
+provides="py-zope-event=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+
+sha512sums="
+2414a283988dc646e48153e389688b8eec4db528f7ac9ff45f982ce42295d390985825ac0f9db566fc5600fe4c96a8297a9c5718a16abc6d1831c72ee42c163d  zope.event-4.5.0.tar.gz
+"

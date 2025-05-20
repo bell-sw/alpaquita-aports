@@ -1,0 +1,26 @@
+From 97509ac620cdf02b4670abf8619e7b403f504d29 Mon Sep 17 00:00:00 2001
+From: psykose <alice@ayaya.dev>
+Date: Thu, 28 Jul 2022 00:19:09 +0000
+Subject: [PATCH] abuild: unpack .tar.zst
+
+---
+ abuild.in | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/abuild.in b/abuild.in
+index 849d938..091871e 100755
+--- a/abuild.in
++++ b/abuild.in
+@@ -535,6 +535,9 @@ default_unpack() {
+ 					threads_opt="--threads=0"
+ 				fi
+ 				unxz $threads_opt -c "$s" | tar -C "$srcdir" -x || return 1;;
++			*.tar.zst)
++				msg "Unpacking $s..."
++				tar -C "$srcdir" --zstd -xf "$s" || return 1;;
+ 			*.zip)
+ 				msg "Unpacking $s..."
+ 				unzip -n -q "$s" -d "$srcdir" || return 1;;
+-- 
+2.46.2
+

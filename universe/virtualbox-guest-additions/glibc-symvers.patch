@@ -1,0 +1,30 @@
+--- VirtualBox-7.0.0.orig/include/iprt/linux/symvers.h
++++ VirtualBox-7.0.0/include/iprt/linux/symvers.h
+@@ -49,12 +49,14 @@
+ /* Use versions of glibc symbols which are available in 32-bit EL3 or
+  * 64-bit EL4.  Currently only those symbols needed by the Additions,
+  * though this could probably be extended to work for host builds too. */
++#if defined(__GLIBC__)
+ #if defined(RT_ARCH_AMD64)
+ __asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
+ __asm__(".symver posix_spawn,posix_spawn@GLIBC_2.2.5");
+ #else  /* RT_ARCH_X86 */
+ __asm__(".symver posix_spawn,posix_spawn@GLIBC_2.2");
+ #endif
++#endif
+ 
+ /* Do not use *_chk functions */
+ #undef _FORTIFY_SOURCE
+@@ -77,10 +79,12 @@
+ #ifdef fnctl
+ # undef fcntl
+ #endif
++#if defined(__GLIBC__)
+ #if defined(RT_ARCH_AMD64)
+ __asm__(".symver fcntl64,fcntl@GLIBC_2.2.5");
+ #else
+ __asm__(".symver fcntl64,fcntl@GLIBC_2.0");
++#endif
+ #endif
+ 
+ /* Do not use ISO C99 scanf which has a glibc 2.7 dependency. */

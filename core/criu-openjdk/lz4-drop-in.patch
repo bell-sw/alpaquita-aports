@@ -1,0 +1,36 @@
+We provide a drop-in copy of lz4, don't let the makefile do the git
+submodule song and dance.
+
+Kludge around the careless original rule that lumps both targets
+together.  Don't run two instances of the same make command in one
+directory, that doesn't work too well with parallel make.  Split the
+original rule into two and introduce a dependency to enforce
+serialization.
+
+While here, quote $PATH in submake invocation.  Under WSL the PATH
+will contain whitespace in the components inherited from the Windows
+side ("Program Files").
+
+
+--- a/Makefile
++++ /Makefile
+@@ -246,10 +246,15 @@
+ # LZ4 library
+ #
+ LZ4_OBJS = lz4/lib/liblz4.a criu/liblz4io.a
+-$(LZ4_OBJS) :
+-	git submodule init
+-	git submodule update
+-	$(Q) env -i PATH=$$PATH make CC=$(CC) CFLAGS="$(CFLAGS)" -C lz4 lib lz4
++# XXX: hack alert: don't run two instances of the same make command in
++# one directory, that doesn't work too well with parallel make.  split
++# the original rule into two and introduce a dependency to enforce
++# serialization.
++lz4/lib/liblz4.a:
++	$(Q) env -i PATH="$$PATH" make CC=$(CC) CFLAGS="$(CFLAGS)" V="$(V)" -C lz4 lib
++
++criu/liblz4io.a: lz4/lib/liblz4.a
++	$(Q) env -i PATH="$$PATH" make CC=$(CC) CFLAGS="$(CFLAGS)" V="$(V)" -C lz4 lz4
+ 	$(Q) $(AR) rcs criu/liblz4io.a lz4/programs/lz4io.o
+ 
+ criu-deps += $(LZ4_OBJS)

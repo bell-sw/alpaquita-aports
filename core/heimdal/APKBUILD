@@ -1,0 +1,149 @@
+# Description: heimdal implements ASN.1/DER, PKIX, and Kerberos.
+
+pkgname=heimdal
+pkgver=7.8.0
+_ver=${pkgver/_rc/rc}
+pkgrel=1
+pkgdesc="Kerberos 5 and security software"
+arch="all"
+url="https://github.com/heimdal/"
+license="BSD-3-Clause"
+depends="krb5-conf"
+depends_dev="openssl-dev>3 e2fsprogs-dev"
+makedepends="$depends_dev autoconf automake bash gawk libtool
+	ncurses-dev perl readline-dev sqlite-dev texinfo perl-json python3 gdbm-dev"
+options="suid !check" #FIXME: FAIL: test_nist
+subpackages="$pkgname-doc $pkgname-dev $pkgname-libs $pkgname-su $pkgname-openrc"
+source="https://github.com/heimdal/heimdal/releases/download/heimdal-$pkgver/heimdal-$pkgver.tar.gz
+	heimdal-kadmind.initd
+	heimdal-kdc.initd
+	heimdal-kpasswdd.initd
+
+	005_all_heimdal-suid_fix.patch
+	heimdal_missing-include.patch
+	CVE-2018-16860.patch
+	CVE-2022-45142.patch
+	silence-include-headers-redirect-warnings.patch
+	"
+
+# secfixes:
+#   7.8.0-r1:
+#     - CVE-2022-45142
+#   7.7.1-r0:
+#     - CVE-2019-14870
+#     - CVE-2021-3671
+#     - CVE-2021-44758
+#     - CVE-2022-3437
+#     - CVE-2022-41916
+#     - CVE-2022-42898
+#     - CVE-2022-44640
+#   7.5.3-r4:
+#     - CVE-2018-16860
+#   7.4.0-r2:
+#     - CVE-2017-17439
+#   7.4.0-r0:
+#     - CVE-2017-11103
+
+prepare() {
+	[ -e /usr/lib/libasn1.so ] && echo "## remove old heimdal pkg first ##" && return 1
+
+	default_prepare
+
+	sh ./autogen.sh
+}
+
+build() {
+	export LDFLAGS="$LDFLAGS -Wl,--as-needed"
+
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--enable-shared=yes \
+		--without-x \
+		--without-berkeley-db \
+		--with-readline-lib=/usr/lib \
+		--with-readline-include=/usr/include/readline \
+		--with-sqlite3=/usr \
+		--without-openssl \
+		--with-db-type-preference=
+
+	# make sure we use system version
+	rm -r lib/sqlite lib/com_err
+
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" exec_prefix=/usr sysconfdir=/etc \
+	mandir=/usr/share/man infodir=/usr/share/info datadir=/var/lib/heimdal \
+	localstatedir=/var/lib/heimdal libexecdir=/usr/sbin install
+
+
+	install -m755 -D "$srcdir"/heimdal-kadmind.initd \
+		"$pkgdir"/etc/init.d/heimdal-kadmind
+	install -m755 -D "$srcdir"/heimdal-kdc.initd \
+		"$pkgdir"/etc/init.d/heimdal-kdc
+	install -m755 -D "$srcdir"/heimdal-kpasswdd.initd \
+		"$pkgdir"/etc/init.d/heimdal-kpasswdd
+
+	for i in 1 3 5 8; do
+		rm -rf "$pkgdir"/usr/share/man/cat$i
+	done
+
+	# Remove conflicts
+	# e2fsprogs
+	rm -f "$pkgdir"/usr/bin/compile_et \
+		"$pkgdir"/usr/share/man/man1/compile_et.1
+
+	# Compress info pages
+	for page in heimdal hx509; do
+		gzip -9 "$pkgdir"/usr/share/info/$page.info
+	done
+
+	# Install the license
+	install -d "$pkgdir"/usr/share/licenses/$pkgname
+	install -D -m644 "$srcdir"/$pkgname-$_ver/LICENSE \
+		"$pkgdir"/usr/share/licenses/$pkgname/
+}
+
+libs() {
+	pkgdesc="Heimdal libraries"
+	replaces="heimdal"
+	depends="krb5-conf"
+	mkdir -p "$subpkgdir"/usr/bin "$subpkgdir"/usr/sbin
+	mv "$pkgdir"/usr/lib "$subpkgdir"/usr/
+	mv "$pkgdir"/usr/bin/string2key \
+		"$pkgdir"/usr/bin/verify_krb5_conf \
+		"$subpkgdir"/usr/bin/
+	mv "$pkgdir"/usr/sbin/kdigest \
+		"$pkgdir"/usr/sbin/digest-service \
+		"$subpkgdir"/usr/sbin/
+
+}
+
+su() {
+	# splitting into subpkg in order to avoid conflict
+	# with shadow-login and util-linux-login
+	pkgdesc="Heimdal su binary with Kerberos support"
+	replaces="shadow"
+	replaces_priority=100
+	mkdir -p "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/bin/su "$subpkgdir"/usr/bin
+}
+
+sha512sums="
+0167345aca77d65b7a1113874eee5b65ec6e1fec1f196d57e571265409fa35ef95a673a4fd4aafbb0ab5fb5b246b97412353a68d6613a8aff6393a9f1e72999e  heimdal-7.8.0.tar.gz
+0ae0fec4bdb3907d9e82e788e12ef185dd00e6db4c17f55758da5600fedd72ed1118b6b492d039f91cc54d54bf2f79f624ea38a68067e424b737b128494a4bbd  heimdal-kadmind.initd
+4dca69bb1c1c6dfce8c0fc1da84855e4549be478ab09511fa5143ee61d1609fed7f3303179bc1e499b0f20445e04c41eda132dd1c5f72e2fea4fcf60a35ad2a9  heimdal-kdc.initd
+abee8390632fa775e74900d09e5c72b02fe4f9616b43cc8d0a76175486ed6d4707fb3ce4d06ceb09b0e8d1384e037c3cff6525e11def0122c35c32eebd0d196f  heimdal-kpasswdd.initd
+2a6b20588a86a9ea3c35209b96ef2da0b39bc3112aec1505e69a60efc9ffb9ddc1d0dbdfaf864142e9d2f81da3d2653de56d6ffa01871c20fde17e4642625c56  005_all_heimdal-suid_fix.patch
+e89efdc942c512363aac1d9797c6bf622324e9200e282bc5ed680300b9e1b39a4ea20f059cdac8f22f972eb0af0e625fd41f267ebcafcfec0aaa81192aff79c1  heimdal_missing-include.patch
+36738795eb3478b55790bf1927f85a421b13b6b47dcc273daeb6630c39a4e1c1258148fa0e9f004ae59a9ac89caf54cb25efedb417e852e42a2c32d02e43fd56  CVE-2018-16860.patch
+3205ce659c755b1a9e3bca3a3088cf241550fb2343fe46bee4370623b1ea2845395bcf7682a8c472d067067fbf8b3a8ea8809e8d3e6d5f62e05dcd680ba7230b  CVE-2022-45142.patch
+5d507a4312bbc59f2b67cb441d0880eaa060e3fdd166b7b8cf9b967d404722a1672e10cc8daedc46a786b8cbbb78de0bc2585d1d4d5b985da16c18f60c87d54f  silence-include-headers-redirect-warnings.patch
+"

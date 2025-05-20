@@ -1,0 +1,65 @@
+pkgname=libseccomp
+pkgver=2.5.4
+pkgrel=1
+pkgdesc="interface to the Linux Kernel's syscall filtering mechanism"
+url="https://github.com/seccomp/libseccomp"
+arch="all"
+license="LGPL-2.1-or-later"
+depends_dev="linux-headers"
+makedepends="$depends_dev gperf cython python3 python3-dev"
+checkdepends="bash"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc py3-$pkgname:py3"
+source="https://github.com/seccomp/libseccomp/releases/download/v$pkgver/libseccomp-$pkgver.tar.gz
+	remove-redefinition-prctl.patch
+	"
+
+case "$CARCH" in
+	mips*) options="$options !check";;
+esac
+
+# secfixes:
+#   2.4.0-r0:
+#     - CVE-2019-9893
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--enable-python \
+		--enable-static \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	# commit be65b26b67099be2b2b4890d736dbd1ad15adf36 adapted to new kernel 5.x syscalls
+	# as long as we are at 4.19 kernel, we need this change
+	case "$CARCH" in
+		ppc64le|s390x) rm -f tests/36-sim-ipc_syscalls.tests \
+			             tests/37-sim-ipc_syscalls_be.tests;;
+	esac
+	# fix python shebang
+	sed -i -e 's@cmd /usr/bin/env python @cmd /usr/bin/env python3 @' tests/regression
+	sed -i -e 's@^#!/usr/bin/env python$@#!/usr/bin/env python3@' tests/*.py
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+py3() {
+	pkgdesc="Python 3 bindings for $pkgname"
+	depends="$depends $pkgname python3"
+
+	amove usr/lib/python3*
+}
+
+sha512sums="
+92650bd7d1d48b383f402a536b97a017fd0f6ad1234daf4b938d01c92e8d134a01d2f2dd45fd9e2d025d7556bd1386ec360402145a87f20580c85949d62cea0e  libseccomp-2.5.4.tar.gz
+f2c31dcafdc9a1ad78e32e76b75e1c1603071eaa3f979e1f2483b879a34ad07e0a4ef3642196a695415cdf81e1ed2bf325175872fb4e203ef9d0e668c287493f  remove-redefinition-prctl.patch
+"

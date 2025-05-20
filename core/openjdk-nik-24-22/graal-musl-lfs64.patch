@@ -1,0 +1,53 @@
+--- a/graal/sulong/projects/com.oracle.truffle.llvm.libraries.native/CMakeLists.txt
++++ b/graal/sulong/projects/com.oracle.truffle.llvm.libraries.native/CMakeLists.txt
+@@ -50,6 +50,7 @@
+         src/posix.c
+         src/stat.c
+     )
++    target_compile_definitions(sulong-native PRIVATE _LARGEFILE64_SOURCE)
+ endif()
+ 
+ target_include_directories(sulong-native PRIVATE ${TRUFFLE_NFI_NATIVE_INCLUDE})
+--- a/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/headers/linux/LinuxStat.java
++++ b/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/headers/linux/LinuxStat.java
+@@ -68,9 +68,9 @@
+ 
+     public static class NoTransitions {
+         @CFunction(transition = NO_TRANSITION)
+-        public static native int fstat64(int fd, stat64 buf);
++        public static native int fstat(int fd, stat64 buf);	// was: 64
+ 
+         @CFunction(transition = NO_TRANSITION)
+-        public static native int lstat64(@CConst CCharPointer path, stat64 buf);
++        public static native int lstat(@CConst CCharPointer path, stat64 buf);	// was: 64
+     }
+ }
+--- a/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/PosixStat.java
++++ b/graal/substratevm/src/com.oracle.svm.core.posix/src/com/oracle/svm/core/posix/PosixStat.java
+@@ -86,7 +86,7 @@ public final class PosixStat {
+         long size = -1;
+         if (Platform.includedIn(Platform.LINUX.class)) {
+             LinuxStat.stat64 stat = UnsafeStackValue.get(LinuxStat.stat64.class);
+-            if (LinuxStat.NoTransitions.fstat64(fd, stat) == 0) {
++            if (LinuxStat.NoTransitions.fstat(fd, stat) == 0) {
+                 size = stat.st_size();
+             }
+         } else if (Platform.includedIn(Platform.DARWIN.class)) {
+@@ -170,7 +170,7 @@ public final class PosixStat {
+         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+         public static int fstat(int fd, stat buf) {
+             if (Platform.includedIn(Platform.LINUX.class)) {
+-                return LinuxStat.NoTransitions.fstat64(fd, (LinuxStat.stat64) buf);
++                return LinuxStat.NoTransitions.fstat(fd, (LinuxStat.stat64) buf);
+             } else if (Platform.includedIn(Platform.DARWIN.class)) {
+                 return DarwinStat.NoTransitions.fstat(fd, (DarwinStat.stat) buf);
+             } else {
+@@ -181,7 +181,7 @@ public final class PosixStat {
+         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+         public static int lstat(CCharPointer path, stat buf) {
+             if (Platform.includedIn(Platform.LINUX.class)) {
+-                return LinuxStat.NoTransitions.lstat64(path, (LinuxStat.stat64) buf);
++                return LinuxStat.NoTransitions.lstat(path, (LinuxStat.stat64) buf);
+             } else if (Platform.includedIn(Platform.DARWIN.class)) {
+                 return DarwinStat.NoTransitions.lstat(path, (DarwinStat.stat) buf);
+             } else {

@@ -1,0 +1,34 @@
+pkgname=perl-test-fatal
+_pkgreal=Test-Fatal
+pkgver=0.016
+pkgrel=3
+pkgdesc="incredibly simple helpers for testing code with exceptions"
+url="https://metacpan.org/release/Test-Fatal/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-try-tiny"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/R/RJ/RJBS/$_pkgreal-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+prepare() {
+	default_prepare
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+}
+
+build() {
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+395d56cfc62fa5888458ec124710b5333f4c7396653e2755a69b08c738ca3d7503e8e413a10c8a55042fba15e90fa5331bb0bf9c59d3677c2ae5e710435120b5  Test-Fatal-0.016.tar.gz
+"

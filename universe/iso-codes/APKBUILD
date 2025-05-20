@@ -1,0 +1,34 @@
+
+# Description: Provides lists of various ISO standards (e.g. country, language, language scripts, 
+# and currency names) in one place, rather than repeated in many programs throughout the system.
+
+pkgname=iso-codes
+pkgver=4.12.0
+pkgrel=0
+pkgdesc="ISO codes and their translations"
+url="https://salsa.debian.org/iso-codes-team/iso-codes"
+arch="noarch"
+license="LGPL-2.1-or-later"
+subpackages="$pkgname-lang $pkgname-dev"
+makedepends="python3 gettext"
+source="https://deb.debian.org/debian/pool/main/i/iso-codes/iso-codes_$pkgver.orig.tar.xz"
+
+build() {
+	./configure \
+		--host=$CHOST \
+		--build=$CBUILD \
+		--prefix=/usr
+	make
+}
+
+check() {
+	make -C "$builddir" check
+}
+
+package() {
+	make DESTDIR="$pkgdir" pkgconfigdir=/usr/lib/pkgconfig install
+}
+
+sha512sums="
+ffdb68d36962d6ef8cd3927f1831f0f883c3a7ec479fd88cae4e14e401d2a5af14f04f410df600c00f2df6a873b82b26de74b8d6134f6f235861c3154b1e88df  iso-codes_4.12.0.orig.tar.xz
+"

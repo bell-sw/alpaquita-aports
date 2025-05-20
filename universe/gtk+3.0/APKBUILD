@@ -1,0 +1,134 @@
+pkgname=gtk+3.0
+pkgver=3.24.43
+pkgrel=0
+pkgdesc="The GTK+ Toolkit (v3)"
+url="https://www.gtk.org/"
+install="$pkgname.post-deinstall"
+triggers="$pkgname.trigger=/usr/lib/gtk-3.0/immodules:/usr/lib/gtk-3.0/*/immodules gtk-update-icon-cache.trigger=/usr/share/icons/*"
+arch="all"
+license="LGPL-2.1-or-later"
+options="!check" # checkdepends in community
+subpackages="
+	$pkgname-dbg
+	$pkgname-demo
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-lang
+	gtk-update-icon-cache:icon_cache
+	"
+depends="shared-mime-info gtk-update-icon-cache"
+depends_dev="
+	gdk-pixbuf-dev
+	glib-dev
+	libepoxy-dev
+	libxext-dev
+	libxi-dev
+	libxinerama-dev
+	libxkbcommon-dev
+	wayland-libs-client
+	wayland-libs-cursor
+	wayland-protocols
+	"
+_icon_cache_depends="hicolor-icon-theme"
+makedepends="
+	$depends_dev
+	$_icon_cache_depends
+	at-spi2-core-dev
+	cairo-dev
+	cups-dev
+	expat-dev
+	fontconfig-dev
+	gettext-dev
+	gobject-introspection-dev
+	hicolor-icon-theme
+	iso-codes-dev
+	libice-dev
+	libx11-dev
+	libxcomposite-dev
+	libxcursor-dev
+	libxdamage-dev
+	libxfixes-dev
+	libxrandr-dev
+	meson
+	pango-dev
+	tiff-dev
+	wayland-dev
+	zlib-dev
+	"
+checkdepends="
+	ibus
+	xvfb-run
+	"
+source="https://download.gnome.org/sources/gtk+/${pkgver%.*}/gtk+-$pkgver.tar.xz
+	5628.patch
+	"
+builddir="$srcdir/gtk+-$pkgver"
+
+build() {
+	CFLAGS="$CFLAGS -O2" \
+	CXXFLAGS="$CXXFLAGS -O2" \
+	abuild-meson \
+		-Db_lto=true \
+		-Dman=true \
+		-Dgtk_doc=false \
+		-Dbroadway_backend=true \
+		-Dtests="$(want_check && echo true || echo false)" \
+		output
+	meson compile -C output
+}
+
+check() {
+	xvfb-run -a meson test --no-rebuild --print-errorlogs -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+dev() {
+	default_dev
+
+	amove usr/bin/gtk-builder-tool \
+		usr/bin/gtk-encode-symbolic-svg \
+		usr/bin/gtk-query-settings
+}
+
+doc() {
+	default_doc
+	# gtk-update-icon-cache
+	replaces="gtk+2.0-doc"
+}
+
+demo() {
+	pkgdesc="$pkgdesc (demonstration application)"
+	amove usr/bin/gtk3-demo \
+		usr/bin/gtk3-demo-application \
+		usr/bin/gtk3-icon-browser \
+		usr/bin/gtk3-widget-factory \
+		usr/share/gtk-3.0/gtkbuilder.rng \
+		usr/share/glib-2.0/schemas/org.gtk.Demo.gschema.xml \
+		usr/share/applications/gtk3-demo.desktop \
+		usr/share/applications/gtk3-icon-browser.desktop \
+		usr/share/applications/gtk3-widget-factory.desktop \
+		usr/share/icons
+}
+
+lang() {
+	default_lang
+
+	amove usr/share/gtk-3.0/emoji
+}
+
+icon_cache() {
+	depends="$_icon_cache_depends"
+	replaces="gtk4.0" # gtk4-update-icon-cache
+
+	# provide gtk4 symlink too
+	amove usr/bin/gtk-update-icon-cache
+	ln -s gtk-update-icon-cache "$subpkgdir"/usr/bin/gtk4-update-icon-cache
+}
+
+sha512sums="
+2f208a353d94fa504088ab080006cb097de721ec934b69b5719af0f4c8c72d2aa9a68b47239feca1622ec67c7389be87023729ee6ad3580a87777f2bf9ed5375  gtk+-3.24.43.tar.xz
+b592559177c60e627940b8894aace41b058fe738d47ebb8bccdb4c9c35dd1750e1db7e153a6e5db61d2d4e95ddefd712fd734a1bbc4230a79c889f8adac96e1f  5628.patch
+"

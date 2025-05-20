@@ -1,0 +1,27 @@
+From 4bc2502cd8cc33058452907ae459309a1feaf113 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Mon, 28 Mar 2022 15:25:39 +0300
+Subject: [PATCH] busybox/libbb: install to /usr/[s]bin
+
+---
+ libbb/appletlib.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libbb/appletlib.c b/libbb/appletlib.c
+index 841b3b873..f04c1eb15 100644
+--- a/libbb/appletlib.c
++++ b/libbb/appletlib.c
+@@ -653,8 +653,8 @@ static const char usr_bin [] ALIGN1 = "/usr/bin/";
+ static const char usr_sbin[] ALIGN1 = "/usr/sbin/";
+ static const char *const install_dir[] ALIGN_PTR = {
+ 	&usr_bin [8], /* "/" */
+-	&usr_bin [4], /* "/bin/" */
+-	&usr_sbin[4]  /* "/sbin/" */
++	&usr_bin [0], /* "/usr/bin/" */
++	&usr_sbin[0]  /* "/usr/sbin/" */
+ #  if !ENABLE_INSTALL_NO_USR
+ 	,usr_bin
+ 	,usr_sbin
+-- 
+2.25.1
+

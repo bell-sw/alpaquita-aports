@@ -1,0 +1,86 @@
+# Description: apk-tools provides instruments to work with packages:
+# install, upgrade, or delete them.
+
+pkgname=apk-tools
+pkgver=2.12.14
+pkgrel=0
+pkgdesc="APK Package Manager (Derivative from Alpine Package Keeper)"
+arch="all"
+url="https://gitlab.alpinelinux.org/alpine/apk-tools"
+license="GPL-2.0-only"
+subpackages="$pkgname-dbg $pkgname-dev $pkgname-doc $pkgname-zsh-completion"
+makedepends_build="openssl>3 lua5.3 lua5.3-lzlib scdoc"
+makedepends_host="zlib-dev openssl-dev>3 linux-headers"
+makedepends="$makedepends_build $makedepends_host"
+_lua="no"
+if [ "$CBUILD" = "$CHOST" ]; then
+	_lua="lua5.3"
+	subpackages="$subpackages $_lua-apk:luaapk"
+	makedepends="$makedepends $_lua-dev"
+
+	# ca-certificates-bundle needed for https certificate validation
+	depends="$depends ca-certificates-bundle"
+fi
+source="https://gitlab.alpinelinux.org/alpine/$pkgname/-/archive/v$pkgver/$pkgname-v$pkgver.tar.gz
+	_apk
+	0100-Get-rid-of-separation-of-sbin-lib-and-their-usr-coun.patch
+	0101-add-alternative-packages-support.patch
+	0102-commit-make-the-installing-of-alternative-packages-s.patch
+	0103-alternative-packages-tests.patch
+	0104-solver-clean-db-when-removing-alternative-pkg.patch
+	0105-support-gradual-downgrade-with-apk-add.patch
+	0106-apk-search-sorted-output.patch
+	0107-reset-sigpipe-handler-to-default-when-running-script.patch
+	0108-retry-fetch-on-http-timeout-errors.patch
+	"
+builddir="$srcdir/$pkgname-v$pkgver"
+
+# secfixes:
+#   2.12.6-r0:
+#     - CVE-2021-36159
+#   2.12.5-r0:
+#     - CVE-2021-30139
+
+prepare() {
+	default_prepare
+	sed -i -e 's:-Werror::' Make.rules
+	echo "FULL_VERSION=$pkgver-r$pkgrel" > config.mk
+}
+
+build() {
+	make LUA="$_lua"
+}
+
+check() {
+	make check LUA="$_lua"
+}
+
+package() {
+	make DESTDIR="$pkgdir" LUA="$_lua" install
+	install -d "$pkgdir"/var/lib/apk \
+		"$pkgdir"/lib/apk/exec \
+		"$pkgdir"/etc/apk/keys \
+		"$pkgdir"/etc/apk/protected_paths.d
+
+		install -Dm644 "$srcdir"/_apk "$pkgdir"/usr/share/zsh/site-functions/_apk
+		rm -r "$pkgdir"/usr/share/doc
+}
+
+luaapk() {
+	pkgshortdesc="Lua module for apk-tools"
+	amove usr/lib/lua
+}
+
+sha512sums="
+7c6251b6f4c1f69291897350030e59c86384d9d0acffbf6ea4b51fddc5695089f4043463cc0996968589bafb9382de9cf372cc557098aa388085914b70113cee  apk-tools-v2.12.14.tar.gz
+7870676720f5007eee9482786e02246f8e3474afb90e76c9c83aebe914747a8e007b5d2eed6441933f4922024b3f0664db270f21981ad6c2db877a110b0cd79e  _apk
+fdac6061cce872e407770b7be3a51185e04ea04dae8a46790f2746f323fd12fbec533b8059efee8c70967b41cbe34bf2f9c135d2d802f05b3da45e384ff1f821  0100-Get-rid-of-separation-of-sbin-lib-and-their-usr-coun.patch
+0b2fc41d590c0449e7a5a12be975fba402ea26a2e7665aa3ddc54e06a9bab61e5ff552a89fe811ff96ca25bf88a50245ba0ee09578004f53bbb88156a35cfa58  0101-add-alternative-packages-support.patch
+2a19e5b846dfca71c8268b47ca0ecb85e2b99fb9910b34641b36f5ef385972c5927aebe92255eb789d4ffa3966e62025ef7e80c0b8c4f4acc250a38104175b80  0102-commit-make-the-installing-of-alternative-packages-s.patch
+086857379fda11db34e5e7dc63b32d56953bd29c99fcee89359f5766782f61782c3001d133fa9a53a4d071fc2781870f80878f0e10c0931e40f96a57519107b6  0103-alternative-packages-tests.patch
+400a25a29b77bfa3fa941b69a651eabc96c9fb3bcdaa0d183aba5f1004688e375e127510de21da5400a4c10ecdfc3ec342601200d95aef988c016388c0f4ae83  0104-solver-clean-db-when-removing-alternative-pkg.patch
+d5f4b3fc9b36a742b7615af9dddef67fc2cafb0a9910aa57f111618928f9c4524074cd0ccdb092f2125338ee568a83224e7b0c87178807bad4f38c2b3e9ebf1e  0105-support-gradual-downgrade-with-apk-add.patch
+4bf953f679efc46f9f5252b1a522bfcd45f341b69ee826d87adf4c93ecaa6330fddfe03901f681eb6fee34e5bf72b6189d564f8bbdb7bac715864895cdd6e873  0106-apk-search-sorted-output.patch
+5348bf16ed0a66b057dab35932434337e8f0ecef03ffd19b2b7b92bf16f6b5cf5d2e943835cdc1bc10a114310ab82683c1c6c87f33024621785c76141216108f  0107-reset-sigpipe-handler-to-default-when-running-script.patch
+bce0be7b760ad6503e4be12fa5b56b92bc4c85b57485c60e8ded975fbb91f7c04dbd9f10698d23f9a3d7937b4e1a36b1d96522915847f7147b4652eaaa8711f7  0108-retry-fetch-on-http-timeout-errors.patch
+"

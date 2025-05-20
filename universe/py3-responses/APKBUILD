@@ -1,0 +1,43 @@
+pkgname=py3-responses
+pkgver=0.22.0
+pkgrel=1
+pkgdesc="Utility library for mocking out the requests Python library"
+url="https://pypi.python.org/pypi/responses/"
+arch="noarch"
+license="Apache-2.0"
+depends="
+	py3-requests
+	py3-toml
+	py3-urllib3
+	"
+makedepends="py3-setuptools"
+checkdepends="
+	py3-flake8
+	py3-pytest
+	py3-pytest-cov
+	py3-pytest-localserver
+	py3-werkzeug
+	"
+source="https://github.com/getsentry/responses/archive/$pkgver/responses-$pkgver.tar.gz"
+builddir="$srcdir/responses-$pkgver"
+
+replaces=py-responses # Backwards compatibility
+provides=py-responses=$pkgver-r$pkgrel # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	pytest \
+		--ignore responses/tests/test_responses.py \
+		--ignore responses/tests/test_recorder.py
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+361e59e02df36fac0fb0ba2a070b730e485ec94fe90490c271e4ac86fae7954a551bf2486714d95c91e9d0b011f06a9d10b0d6408fd4d03234e1224cca1e9d0e  responses-0.22.0.tar.gz
+"

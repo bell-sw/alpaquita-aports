@@ -1,0 +1,26 @@
+# Description: build-base enables the installation of build tools and
+# utilities to create the build environment
+
+pkgname=build-base
+pkgver=0.5
+pkgrel=4
+url="$VENDOR_URL"
+pkgdesc="Meta package for build base"
+depends="binutils file gcc g++ make libc-dev musl:fortify-headers patch linux-headers"
+if [ "$CHOST" != "$CTARGET" ]; then
+	pkgname="$pkgname-$CTARGET_ARCH"
+	pkgdesc="$pkgdesc ($CTARGET_ARCH)"
+	depends="binutils-$CTARGET_ARCH gcc-$CTARGET_ARCH g++-$CTARGET_ARCH $depends"
+fi
+arch="noarch"
+license="MIT"
+options="!check"
+
+build() {
+	:
+}
+
+package() {
+	mkdir -p "$pkgdir"
+}
+

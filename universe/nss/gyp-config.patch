@@ -1,0 +1,49 @@
+diff --git a/nss/coreconf/config.gypi b/nss/coreconf/config.gypi
+index 6900f79..9188d53 100644
+--- a/nss/coreconf/config.gypi
++++ b/nss/coreconf/config.gypi
+@@ -35,7 +35,7 @@
+         ['OS=="mac"', {
+           'use_system_sqlite%': 1,
+         },{
+-          'use_system_sqlite%': 0,
++          'use_system_sqlite%': 1,
+         }],
+         ['OS=="mac" or OS=="ios" or OS=="solaris" or OS=="win"', {
+           'cc_use_gnu_ld%': 0,
+@@ -102,8 +102,8 @@
+     'disable_intel_hw_sha%': 0,
+     'disable_tests%': 0,
+     'disable_chachapoly%': 0,
+-    'disable_deprecated_seed%': 0,
+-    'disable_deprecated_rc2%': 0,
++    'disable_deprecated_seed%': 1,
++    'disable_deprecated_rc2%': 1,
+     'disable_dbm%': 1,
+     'disable_libpkix%': 1,
+     'disable_werror%': 0,
+diff --git a/nss/nss.gyp b/nss/nss.gyp
+index 2cf713a..10c9b63 100644
+--- a/nss/nss.gyp
++++ b/nss/nss.gyp
+@@ -210,20 +210,6 @@
+             'cmd/vfychain/vfychain.gyp:vfychain',
+             'cmd/vfyserv/vfyserv.gyp:vfyserv',
+             'cmd/mpitests/mpitests.gyp:mpi_tests',
+-            'gtests/base_gtest/base_gtest.gyp:base_gtest',
+-            'gtests/certhigh_gtest/certhigh_gtest.gyp:certhigh_gtest',
+-            'gtests/cryptohi_gtest/cryptohi_gtest.gyp:cryptohi_gtest',
+-            'gtests/der_gtest/der_gtest.gyp:der_gtest',
+-            'gtests/certdb_gtest/certdb_gtest.gyp:certdb_gtest',
+-            'gtests/freebl_gtest/freebl_gtest.gyp:freebl_gtest',
+-            'gtests/mozpkix_gtest/mozpkix_gtest.gyp:mozpkix_gtest',
+-            'gtests/nss_bogo_shim/nss_bogo_shim.gyp:nss_bogo_shim',
+-            'gtests/pkcs11testmodule/pkcs11testmodule.gyp:pkcs11testmodule',
+-            'gtests/pk11_gtest/pk11_gtest.gyp:pk11_gtest',
+-            'gtests/smime_gtest/smime_gtest.gyp:smime_gtest',
+-            'gtests/softoken_gtest/softoken_gtest.gyp:softoken_gtest',
+-            'gtests/ssl_gtest/ssl_gtest.gyp:ssl_gtest',
+-            'gtests/util_gtest/util_gtest.gyp:util_gtest',
+             'lib/ckfw/builtins/testlib/builtins-testlib.gyp:nssckbi-testlib',
+           ],
+           'conditions': [

@@ -1,0 +1,90 @@
+pkgname=cloud-utils
+pkgver=0.33
+pkgrel=0
+pkgdesc="Utilities for interacting with cloud VM images"
+url="https://launchpad.net/cloud-utils/"
+arch="noarch"
+license="GPL-3.0-or-later"
+depends="
+	bash
+	coreutils
+	e2fsprogs
+	e2fsprogs-extra
+	file
+	gzip
+	qemu-img
+	sfdisk
+	tar
+	util-linux-misc
+	"
+subpackages="
+	$pkgname-doc
+	$pkgname-ec2metadata
+	$pkgname-growpart
+	$pkgname-localds
+	$pkgname-multipart
+	"
+source="cloud-utils-$pkgver.tar.gz::https://github.com/canonical/cloud-utils/archive/refs/tags/$pkgver.tar.gz
+	"
+
+build() {
+	make
+}
+
+check() {
+	# the other tests require root permissions
+	PATH=$PATH:$builddir/bin TMPDIR="$srcdir" ./test/test-growpart-fsimage
+	PATH=$PATH:$builddir/bin TMPDIR="$srcdir" ./test/test-growpart-overprovision
+}
+
+package() {
+	# Delete unnecessary scripts
+	rm bin/ubuntu-cloudimg-query bin/vcs-run
+
+	make DESTDIR="$pkgdir" install
+
+	cp README.md $pkgdir/usr/share/doc/$pkgname/
+}
+
+ec2metadata() {
+	pkgdesc="Retrieve metadata on AWS EC2 (and compatible) VMs"
+	depends="
+		python3
+		py3-urllib3
+		"
+	amove usr/bin/ec2metadata
+}
+
+growpart() {
+	pkgdesc="Grow the size of disk partitions"
+	depends="
+		partx
+		sfdisk
+		"
+	amove usr/bin/growpart
+}
+
+localds() {
+	pkgdesc="create cloud-init configuration disk"
+	depends="
+		bash
+		cdrkit
+		dosfstools
+		mtools
+		qemu-img
+		tar
+		"
+	amove usr/bin/cloud-localds
+}
+
+multipart() {
+	pkgdesc="write files to a MIME multipart document"
+	depends="
+		python3
+		"
+	amove usr/bin/write-mime-multipart
+}
+
+sha512sums="
+1e58e085bde295d4adf8ff219a7f22382fadff798f5398f3e2a62cb0926c740babba76ea6326f6042b46dbdeb12c15d1e080fb9890b10482e31c3acb64014c95  cloud-utils-0.33.tar.gz
+"

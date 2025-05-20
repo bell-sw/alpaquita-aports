@@ -1,0 +1,40 @@
+# Description: console utility for calculation and verification of magnet links
+# and various message digests, including CRC32, CRC32C, MD4, MD5, SHA1, SHA256,
+# SHA512, SHA3, AICH, ED2K, DC++ TTH, BitTorrent BTIH, Tiger, GOST R 34.11-94,
+# GOST R 34.11-2012, RIPEMD-160, HAS-160, EDON-R, and Whirlpool.
+
+pkgname=rhash
+pkgver=1.4.3
+pkgrel=1
+pkgdesc="(RHash) Recursive Hasher"
+url="http://rhash.anz.ru"
+arch="all"
+license="0BSD"
+makedepends="openssl-dev>3"
+subpackages="$pkgname-doc $pkgname-dev $pkgname-libs"
+source="https://downloads.sourceforge.net/rhash/rhash-$pkgver-src.tar.gz"
+builddir="$srcdir/RHash-$pkgver"
+
+build() {
+	# --build and --host are not recognized
+	./configure \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--enable-openssl \
+		--disable-openssl-runtime
+	make
+}
+
+check() {
+	make -C "$builddir" test-shared
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install
+	make DESTDIR="$pkgdir" \
+		install-lib-headers install-lib-shared install-lib-so-link
+}
+
+sha512sums="
+d87ffcde28d8f25cf775c279fed457e52d24523ed9b695629dae694b3c22372247d18f6032f8ce13a0b70fa2953be408982e46659daaa7c4ab227ae89eaed9c7  rhash-1.4.3-src.tar.gz
+"

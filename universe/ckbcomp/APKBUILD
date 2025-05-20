@@ -1,0 +1,23 @@
+# Description:
+
+pkgname=ckbcomp
+pkgver=1.210
+pkgrel=0
+pkgdesc="Compile a XKB keyboard description to a keymap"
+url="https://salsa.debian.org/installer-team/console-setup"
+arch="noarch"
+license="GPL-2.0-or-later"
+depends="perl"
+options="!check"
+subpackages="$pkgname-doc"
+source="https://salsa.debian.org/installer-team/console-setup/-/archive/$pkgver/console-setup-$pkgver.tar.gz"
+builddir="$srcdir"/console-setup-$pkgver
+
+package() {
+	install -D -m755 Keyboard/$pkgname $pkgdir/usr/bin/$pkgname
+	install -D -m644 man/$pkgname.1 $pkgdir/usr/share/man/man1/$pkgname.1
+}
+
+sha512sums="
+8e4e4eab1406870a7894955f5d03a927f2f1a0d288284decd812c8d44204abbec1a6713a203d750c096b778adf6c7dd6aa1e7ed0a58a25f903035a64180b6aa1  console-setup-1.210.tar.gz
+"

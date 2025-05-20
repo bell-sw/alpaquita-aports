@@ -1,0 +1,27 @@
+diff --git a/src/mx/_impl/mx_jardistribution.py b/src/mx/_impl/mx_jardistribution.py
+index 9fbab947..6ee3158c 100644
+--- a/mx/src/mx/_impl/mx_jardistribution.py
++++ b/mx/src/mx/_impl/mx_jardistribution.py
+@@ -1484,12 +1484,16 @@ def _stage_file_impl(src, dst):
+     mx.ensure_dir_exists(dirname(dst))
+ 
+     if not mx.can_symlink():
+-        if exists(dst):
+-            mx.rmtree(dst)
+-        if isdir(src):
+-            shutil.copytree(src, dst)
+-        else:
+-            shutil.copy(src, dst)
++        try :
++            if exists(dst):
++                mx.rmtree(dst)
++            if isdir(src):
++                shutil.copytree(src, dst)
++            else:
++                shutil.copy(src, dst)
++        except Exception:
++            print("Ignore this error")
++            pass
+     else:
+         if exists(dst):
+             if islink(dst):

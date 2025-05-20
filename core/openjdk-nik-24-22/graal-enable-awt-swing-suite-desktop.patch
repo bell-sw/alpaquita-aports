@@ -1,0 +1,49 @@
+diff --git a/graal/substratevm/mx.substratevm/suite.py b/graal/substratevm/mx.substratevm/suite.py
+index 988c62813b6..daef3007d20 100644
+--- a/graal/substratevm/mx.substratevm/suite.py
++++ b/graal/substratevm/mx.substratevm/suite.py
+@@ -276,6 +276,10 @@ suite = {
+                     "jdk.internal.vm",
+                     "jdk.internal.util",
+                 ],
++                "java.desktop": [
++                    "sun.java2d",
++                    "sun.java2d.pipe",
++                ],
+                 "java.management": [
+                     "com.sun.jmx.mbeanserver",
+                     "sun.management",
+@@ -599,6 +603,7 @@ suite = {
+                 "com.oracle.graal.reachability"
+             ],
+             "requires" : [
++                "java.desktop",
+                 "jdk.jfr",
+                 "jdk.management",
+             ],
+@@ -1411,6 +1416,7 @@ suite = {
+                     "com.oracle.svm.hosted.reflect                to jdk.internal.vm.compiler",
+                 ],
+                 "requires": [
++                    "java.desktop",
+                     "java.management",
+                     "jdk.management",
+                 ],
+diff --git a/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/NativeImageGeneratorRunner.java b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/NativeImageGeneratorRunner.java
+index e83d3f3bd31..2517e96c6f1 100644
+--- a/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/NativeImageGeneratorRunner.java
++++ b/graal/substratevm/src/com.oracle.svm.hosted/src/com/oracle/svm/hosted/NativeImageGeneratorRunner.java
+@@ -202,7 +202,12 @@ public class NativeImageGeneratorRunner {
+                         "java.compiler",
+                         "jdk.jfr",
+                         "jdk.zipfs",
+-                        "jdk.management.jfr");
++                        "jdk.management.jfr",
++                        // added for AWT support
++                        "java.desktop",
++                        "java.datatransfer",
++                        "java.prefs"
++        );
+ 
+         Set<String> unexpectedBuilderDependencies = modulesBuilderDependsOn.stream().map(Module::getName).collect(Collectors.toSet());
+         unexpectedBuilderDependencies.removeAll(expectedBuilderDependencies);

@@ -1,0 +1,37 @@
+pkgname=py3-mypy
+pkgver=0.991
+pkgrel=2
+pkgdesc="Optional static typing for Python (PEP484)"
+url="https://mypy-lang.org/"
+arch="noarch"
+license="MIT"
+depends="
+	py3-mypy-extensions
+	py3-typing-extensions
+	"
+makedepends="python3-dev py3-gpep517 py3-setuptools py3-wheel"
+checkdepends="py3-pytest py3-pytest-xdist py3-lxml py3-typed-ast py3-virtualenv"
+source="https://files.pythonhosted.org/packages/source/m/mypy/mypy-$pkgver.tar.gz"
+builddir="$srcdir/mypy-$pkgver"
+options="!check" # they take forever
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir dist \
+		--output-fd 1
+}
+
+check() {
+	python3 -m venv --system-site-packages test-env
+	test-env/bin/python3 -m installer dist/mypy-*.whl
+	test-env/bin/python3 -m pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		dist/mypy-*.whl
+}
+
+sha512sums="
+46a241cf3b092aa44bca52aa63992b0e46b2c722da2e3578b2774d63251232d3c4f9f7ceda1958f9290d098761850683386f27a90051b41919069306cae4e08d  mypy-0.991.tar.gz
+"

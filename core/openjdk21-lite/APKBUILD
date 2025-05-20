@@ -1,0 +1,464 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME is a build of OpenJDK verified by the OpenJDK
+# Technology Compatibility Kit test suite to be compliant with the Java SE
+# specifications.
+
+: ${BUILD_FROM_SOURCE:=0}
+
+_java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_java_ver=21.0.7+9
+_java_rel_date=2025-04-15
+_java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 21 Lite"
+
+pkgname=${_java_pkg_name}21-lite
+pkgver=${_java_ver/+/_p}
+pkgrel=0
+pkgdesc="$_java_name"
+url="$VENDOR_URL"
+license="GPL-2.0 WITH Classpath-Exception-2.0"
+arch="aarch64 x86_64"
+options="!strip ldpath-recursive !tracedeps !annobin"
+annocheck_skip="libsyslookup.so"
+depends="$pkgname-jdk=$pkgver-r$pkgrel"
+
+makedepends="
+	alsa-lib-dev
+	automake
+	autoconf
+	bash
+	ca-certificates
+	coreutils
+	cups-dev
+	file
+	findutils
+	fontconfig-dev
+	freetype-dev
+	gawk
+	gettext
+	grep
+	libx11-dev
+	libxext-dev
+	libxi-dev
+	libxrandr-dev
+	libxrender-dev
+	libxt-dev
+	libxtst-dev
+	linux-headers
+	sed
+	zip
+	zlib-dev
+	openjdk21-bootstrap
+	"
+
+subpackages="
+	$pkgname-dbg:_dbg
+	$pkgname-jmods:_jmods:noarch
+	$pkgname-demos:_demos:noarch
+	$pkgname-src:_src:noarch
+	$pkgname-jre-doc:_jre_doc:noarch
+	$pkgname-doc:_doc:noarch
+	$pkgname-jre-client:_jre_client
+	$pkgname-jre-minimal:_jre_minimal
+	$pkgname-jre-cds:_jre_cds
+	$pkgname-jre-no-deps:_jre_no_deps
+	$pkgname-jre:_jre
+	$pkgname-jdk-no-deps:_jdk_no_deps
+	$pkgname-jdk:_jdk
+	$pkgname-jdk-all:_jdk_all:noarch
+	"
+
+provides="openjdk21-lite=$pkgver-r$pkgrel"
+
+if [ "$BUILD_FROM_SOURCE" -eq 0 ]; then
+	case "$CARCH:$CLIBC" in
+		x86_64:glibc )
+			JDK_BIN="
+			jdk-lite-21.0.7+9_linux-x64_bin-static-libs.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-x86_64-lite/jdk-21.0.7+9_linux-x64_bin-static-libs.tar.gz
+			jdk-lite-21.0.7+9_linux-x64_bin-symbols.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-x86_64-lite/jdk-21.0.7+9_linux-x64_bin-symbols.tar.gz
+			jdk-lite-21.0.7+9_linux-x64_bin.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-x86_64-lite/jdk-21.0.7+9_linux-x64_bin.tar.gz
+			jdk-lite-21.0.7+9_linux-x64_bin-tests-demos.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-x86_64-lite/jdk-21.0.7+9_linux-x64_bin-tests-demos.tar.gz
+			jdk-lite-21.0.7+9_linux-x64_bin-tests.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-x86_64-lite/jdk-21.0.7+9_linux-x64_bin-tests.tar.gz
+			jre-lite-21.0.7+9_linux-x64_bin.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-x86_64-lite/jre-21.0.7+9_linux-x64_bin.tar.gz
+"
+			JDK_SHA="
+d004f46b1479e344f0931da7befc998acf8288326ab87a590db5ba508d04e3c873f4fb623000c1182108a6641c3ca9ffa03939216f485bc9561654f42dce2e2e  jdk-lite-21.0.7+9_linux-x64_bin-static-libs.tar.gz
+78e2bca361439fd39361aedd591462df7b4ba86d5a3e542bee9bedafc301a7db047b2e19e5a244fb23a1b6e60860f124c540b099e14cd3ac19d28f87e646203f  jdk-lite-21.0.7+9_linux-x64_bin-symbols.tar.gz
+70894f09c8a86200518ede0450d8d41e24088dcb95e4a37d154ae4fd67f3143eca7723ba5a44f9f34397769c70c16a2cedcb9f0ff0aeb60a1c5bf45ad3c2dcac  jdk-lite-21.0.7+9_linux-x64_bin.tar.gz
+3b1716c89c5a32befe5c70811f37a344a99fa4818f00ebebb4a2cfeb86cf5824aa2ed8f5f572d060fb09a22ea4dd846e147704d0ce766a28f77cb0a1bed40c7b  jdk-lite-21.0.7+9_linux-x64_bin-tests-demos.tar.gz
+dd109fd26dd79dae8cac5955b2f7b22d67b989e29d75c113f48d8c0e5676a82ce8492a9e600ee5c29ea7bc76f97f0a696c9c31afdb27e8c634898bba2ebe4b32  jdk-lite-21.0.7+9_linux-x64_bin-tests.tar.gz
+cd0b687903586298c6e9846b727ba95785211697b8b1604fa91574efd63688c8981edfb29dd23e072143a235dcfec9d5346fa0b862024d748acce1d0fdb7f1ba  jre-lite-21.0.7+9_linux-x64_bin.tar.gz
+"
+		;;
+		x86_64:musl )
+			JDK_BIN="
+			jdk-lite-21.0.7+9_linux-x64-musl_bin-static-libs.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-x86_64-lite/jdk-21.0.7+9_linux-x64-musl_bin-static-libs.tar.gz
+			jdk-lite-21.0.7+9_linux-x64-musl_bin-symbols.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-x86_64-lite/jdk-21.0.7+9_linux-x64-musl_bin-symbols.tar.gz
+			jdk-lite-21.0.7+9_linux-x64-musl_bin.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-x86_64-lite/jdk-21.0.7+9_linux-x64-musl_bin.tar.gz
+			jdk-lite-21.0.7+9_linux-x64-musl_bin-tests-demos.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-x86_64-lite/jdk-21.0.7+9_linux-x64-musl_bin-tests-demos.tar.gz
+			jdk-lite-21.0.7+9_linux-x64-musl_bin-tests.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-x86_64-lite/jdk-21.0.7+9_linux-x64-musl_bin-tests.tar.gz
+			jre-lite-21.0.7+9_linux-x64-musl_bin.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-x86_64-lite/jre-21.0.7+9_linux-x64-musl_bin.tar.gz
+"
+			JDK_SHA="
+8dd9ce2d711ed39bfc7a109768b09e4d2709ea70095d44748d573007230ad6cd7aa9afcaef568f2723da0f879acd958f6bda394e0ccd0d72f3d8f0f63c21b4dd  jdk-lite-21.0.7+9_linux-x64-musl_bin-static-libs.tar.gz
+51674f261b555891da257925e5bc8d9a37b82f351e4d1cdedcbc75b8382909e6f54a8d047d132492f5b2dff2669a217a92d00bcf21d2a6cac3a6b0616b74915c  jdk-lite-21.0.7+9_linux-x64-musl_bin-symbols.tar.gz
+e234775f12b98929481e41f3be8e7fdd5738d783a8a33a5dc5a7d43c4160590c2fb15806d62d23f11b7ca3264e0bdf53a12bc183c3400cbfabebef836bdfe237  jdk-lite-21.0.7+9_linux-x64-musl_bin.tar.gz
+fd6aeb0a4c4a751e6fa4e95247944316d77a57d5ebb090ef7baf62089ef895f009f7a65765092b76ab65e7d90db4857303b756d996d7ada899d4ec38d0680121  jdk-lite-21.0.7+9_linux-x64-musl_bin-tests-demos.tar.gz
+9cf2fd88284567c3b04e02b9b5e3f339bf69d6b4ee2cd5059920f0986765d5f664d011b61558177c071504f2c817875e733e4052862256b8b8dc13c353ac4ca6  jdk-lite-21.0.7+9_linux-x64-musl_bin-tests.tar.gz
+8d457b0e9a97496ca29465b01d0b286bf5ad17bc8bc243bf2ce4c3b2158b026304ffd41c07088d5c252107a286f6399760c711ec53fb1f8736693276e33e363a  jre-lite-21.0.7+9_linux-x64-musl_bin.tar.gz
+"
+		;;
+		aarch64:glibc )
+			JDK_BIN="
+			jdk-lite-21.0.7+9_linux-aarch64_bin-static-libs.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-aarch64-lite/jdk-21.0.7+9_linux-aarch64_bin-static-libs.tar.gz
+			jdk-lite-21.0.7+9_linux-aarch64_bin-symbols.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-aarch64-lite/jdk-21.0.7+9_linux-aarch64_bin-symbols.tar.gz
+			jdk-lite-21.0.7+9_linux-aarch64_bin.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-aarch64-lite/jdk-21.0.7+9_linux-aarch64_bin.tar.gz
+			jdk-lite-21.0.7+9_linux-aarch64_bin-tests-demos.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-aarch64-lite/jdk-21.0.7+9_linux-aarch64_bin-tests-demos.tar.gz
+			jdk-lite-21.0.7+9_linux-aarch64_bin-tests.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-aarch64-lite/jdk-21.0.7+9_linux-aarch64_bin-tests.tar.gz
+			jre-lite-21.0.7+9_linux-aarch64_bin.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-aarch64-lite/jre-21.0.7+9_linux-aarch64_bin.tar.gz
+"
+			JDK_SHA="
+de4e0929d149469a3c6f5e090448c6c411f894324e30c9468fe1f66082852b4a2363a16dbf9f40b33b2e558ad0e6ab3c7f4d6feb80909ae139ef703c65977a94  jdk-lite-21.0.7+9_linux-aarch64_bin-static-libs.tar.gz
+19ba3f9189609452db3a6e78000f7ef635843b6e5c93083d6890677ef7896b5a44ed199d6d05cd8c88fffd62a74efb18f51ecca079cc5dab26eca406a1d3ac7e  jdk-lite-21.0.7+9_linux-aarch64_bin-symbols.tar.gz
+3d98bd39feb75d9b86aa22333365d9889cf1d7b60d8de98144c97baf9e824f7da951ce1dc7e49cdaf49f5469ba7627574983d42cd62720710717028d3a6ee50f  jdk-lite-21.0.7+9_linux-aarch64_bin.tar.gz
+a4ef11d384ab72ee1d3558170451cda98c347ae39a3e2b6fd10876ecc2bac85eee91caaf095fad24708f97a33dd461fcb099f9a7bc6f0ee693625b391d098843  jdk-lite-21.0.7+9_linux-aarch64_bin-tests-demos.tar.gz
+2817525ca835a795aaf29e992fef3c3dbe655daaa4772303f31e5f7afa12c94cc2691874095b88439b9c1a1c98c9e09ad8f6f82ac89a5d5fa579f480ebabb042  jdk-lite-21.0.7+9_linux-aarch64_bin-tests.tar.gz
+7fcbb32750264ba6680635e0f895150e9b752a75aee65470c725e9960e93768fd1bbe73b16058803bc69adf3734f6eb189407aeee6ee115a6bf47756a4f3df9d  jre-lite-21.0.7+9_linux-aarch64_bin.tar.gz
+"
+		;;
+		aarch64:musl )
+			JDK_BIN="
+			jdk-lite-21.0.7+9_linux-aarch64-musl_bin-static-libs.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-aarch64-lite/jdk-21.0.7+9_linux-aarch64-musl_bin-static-libs.tar.gz
+			jdk-lite-21.0.7+9_linux-aarch64-musl_bin-symbols.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-aarch64-lite/jdk-21.0.7+9_linux-aarch64-musl_bin-symbols.tar.gz
+			jdk-lite-21.0.7+9_linux-aarch64-musl_bin.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-aarch64-lite/jdk-21.0.7+9_linux-aarch64-musl_bin.tar.gz
+			jdk-lite-21.0.7+9_linux-aarch64-musl_bin-tests-demos.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-aarch64-lite/jdk-21.0.7+9_linux-aarch64-musl_bin-tests-demos.tar.gz
+			jdk-lite-21.0.7+9_linux-aarch64-musl_bin-tests.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-aarch64-lite/jdk-21.0.7+9_linux-aarch64-musl_bin-tests.tar.gz
+			jre-lite-21.0.7+9_linux-aarch64-musl_bin.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-aarch64-lite/jre-21.0.7+9_linux-aarch64-musl_bin.tar.gz
+"
+			JDK_SHA="
+17a5232fa14e65c827bdf1dcfa4bc3f88714cdac73f26d75b22953f828af5e73d6951bf5c87d433a1ea2bb41c2d24f0ca6269d46d30bf77b4ce5aec3fa8a3833  jdk-lite-21.0.7+9_linux-aarch64-musl_bin-static-libs.tar.gz
+2641a72d314e48d200d3ff8d3d3e0687023e93f8b0a81f1071062e520abed0357348371877025c3f2f0441cd7a560a500c82ce42471071ad111ec4ff8f4a0424  jdk-lite-21.0.7+9_linux-aarch64-musl_bin-symbols.tar.gz
+bcea6cee7fb45ff7bccc20d29379302f4540afccc725721e33cb48f29c5f303617a9d2d4ae63fcd06aea78f91dd4129ebb3a55d3bdc8c738a47e9c0c31c3b12e  jdk-lite-21.0.7+9_linux-aarch64-musl_bin.tar.gz
+9486d1f34c7e88e83bee39a52349687d80655a8809d025aa38b21c848d21a0e69a25ecdce1fb960fe0012f03d2b775ebc6a96633d880cff4b5fbb85660fcdb12  jdk-lite-21.0.7+9_linux-aarch64-musl_bin-tests-demos.tar.gz
+111cd4a5f7eb0be431c5d2ff244b19d7cce1326b3b7d28bdacabe1a5b82568de2be9d3add68dc4e6c0138f51eff7ddaed6e0307f830a58c0e5aefd8b9d7ffffc  jdk-lite-21.0.7+9_linux-aarch64-musl_bin-tests.tar.gz
+2849d11e7f68bc6fed26184a7d2d43be4d860c7cb354197b221179591c1fe53ea7ba1bbfbd6dc1b109f767e21d8eb051f10e633fde56c685dea0f90f645f5b73  jre-lite-21.0.7+9_linux-aarch64-musl_bin.tar.gz
+"
+		;;
+	esac
+else
+	case "$CARCH:$CLIBC" in
+		x86_64:glibc)
+			JDK_BIN="
+			src-linux-alpaquita-x86_64-lite-21.0.7+9-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-x86_64-lite/src.tar.gz
+"
+			JDK_SHA="
+8792f3acf3524f69cddac517026c1011efd7812bc76e477a1acaecbc9d10e4c096418fb391a46c932bc499b99a85febdec3033dab3acf64ed953fb9f37af4f28  src-linux-alpaquita-x86_64-lite-21.0.7+9-lite.tar.gz
+"
+		;;
+		x86_64:musl)
+			JDK_BIN="
+			src-linux-alpaquita-musl-x86_64-lite-21.0.7+9-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-x86_64-lite/src.tar.gz
+"
+			JDK_SHA="
+98e2f36f0218c47d65099f189f7cdefa834e291defef1c5393431179442429a2550b939824bdb8cfc2f8d1c010512255bb683e417f703cc20802d9330a0a4e2d  src-linux-alpaquita-musl-x86_64-lite-21.0.7+9-lite.tar.gz
+"
+		;;
+		aarch64:glibc)
+			JDK_BIN="
+			src-linux-alpaquita-aarch64-lite-21.0.7+9-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-aarch64-lite/src.tar.gz
+"
+			JDK_SHA="
+b11bc140bcd28feddb65e11fd8b84c79d9929dc1d2b6288fe1d8730ae59ae43c3269b060d8a2bc558752576ea6994c166c20e6b87899fd73e701334862fd83be  src-linux-alpaquita-aarch64-lite-21.0.7+9-lite.tar.gz
+"
+		;;
+		aarch64:musl)
+			JDK_BIN="
+			src-linux-alpaquita-musl-aarch64-lite-21.0.7+9-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+9/linux-alpaquita-musl-aarch64-lite/src.tar.gz
+"
+			JDK_SHA="
+525828373e4a313845ad9c683ee6e1b81b7c58ec5284ba8e085902bc69c5783de11d4e3fd68cf62ce66803ebab0c271de20200ee83e527cc750f92d65e563e58  src-linux-alpaquita-musl-aarch64-lite-21.0.7+9-lite.tar.gz
+"
+		;;
+	esac
+
+fi
+
+source="
+	$JDK_BIN
+	HelloJava.java
+"
+
+builddir="$srcdir/jdk-${_java_ver%+*}"
+sonameprefix="$pkgname:"
+
+_java_home=/usr/lib/jvm/"$pkgname"
+ldpath="$_java_home/lib:$_java_home/lib/jli:$_java_home/lib/server"
+
+_jre_tools="
+	java
+	keytool
+	rmiregistry
+	"
+
+unpack() {
+	mkdir -p "$builddir"
+	if [ "${BUILD_FROM_SOURCE}" -eq 0 ]; then
+
+		mkdir -p "$builddir"/build/linux-${CARCH}-release/images/jdk
+		mkdir -p "$builddir"/build/linux-${CARCH}-release/bundles/
+		# Copy all tar.gz to expected location for processing
+		for f in $srcdir/*.tar.[xg]z; do
+			cp "$f" "$builddir"/build/linux-${CARCH}-release/bundles/
+		done
+		tar xf "$builddir"/build/linux-${CARCH}-release/bundles/jdk-*_bin.tar.gz -C "$builddir"/build/linux-${CARCH}-release/images/jdk --no-same-owner --strip-component 1
+	else
+	    default_unpack
+	fi
+}
+
+prepare() {
+	default_prepare
+	if [ "${BUILD_FROM_SOURCE}" -ne 0 ]; then
+		update_config_sub
+	fi
+}
+
+build() {
+
+	[ "${BUILD_FROM_SOURCE}" -eq 0 ] && return 0
+
+	if [ -z "$JOBS" ]; then
+		export JOBS=$(printf '%s\n' "$MAKEFLAGS" | sed -n -e 's/.*-j\([0-9]\+\).*/\1/p')
+	fi
+
+	local _cflags="-fstack-protector-strong -D_FORTIFY_SOURCE=2"
+	local _boot_jdk=$(echo /usr/lib/jvm/java-21-* | awk '{ print $1 }')
+
+	[ "$CLIBC" = 'musl' ] && _cflags="$_cflags -D_LARGEFILE64_SOURCE"
+	_cflags="$_cflags -fno-asynchronous-unwind-tables" # lite
+
+	CFLAGS='' CXXFLAGS='' LDFLAGS=''
+	bash ./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--target=$CTARGET \
+		--with-jvm-variants='server,client,minimal' \
+		--with-jvm-features=zgc,link-time-opt \
+		--with-version-string=${_java_ver%+*} \
+		--with-version-build=${_java_ver#*+} \
+		--with-version-date=${_java_rel_date} \
+		--with-version-opt=LTS \
+		--with-vendor-name="$VENDOR_NAME" \
+		--with-vendor-url="$VENDOR_URL" \
+		--with-vendor-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-vendor-vm-bug-url="$VENDOR_BUG_REPORT_URL" \
+		--with-extra-cflags="$_cflags" \
+		--with-extra-cxxflags="$_cflags" \
+		--with-extra-ldflags=-fno-asynchronous-unwind-tables \
+		--disable-warnings-as-errors \
+		--enable-linktime-gc \
+		--with-zlib=system \
+		--with-boot-jdk=$_boot_jdk
+	MAKEFLAGS='' make product-bundles
+}
+
+check() {
+	_jdkdir="$builddir"/build/linux-*-release/images/jdk
+
+	$_jdkdir/bin/javac "$startdir"/HelloJava.java -d "$builddir"
+	$_jdkdir/bin/java -cp "$builddir" HelloJava
+}
+
+package() {
+	mkdir srcjdk
+	tar -C srcjdk -xf build/linux-*-release/bundles/jdk*_bin.tar.gz --no-same-owner --strip-components=1
+
+	local _modules=$(srcjdk/bin/java --list-modules | sed "s/@${_java_ver%+*}//" | tr '\n' ',')
+	srcjdk/bin/jlink \
+		--compress 2 \
+		--module-path srcjdk/jmods \
+		--add-modules $_modules \
+		--output "$pkgdir/$_java_home"
+	mv srcjdk/jmods "$pkgdir/$_java_home"
+	mv srcjdk/lib/src.zip "$pkgdir/$_java_home"/lib
+}
+
+_jre_client() {
+	pkgdesc="$_java_name (JRE Client VM)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	install="$pkgname-jre-client.post-install $pkgname-jre-client.post-deinstall"
+	provides="openjdk21-lite-jre-client=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/client" "$subpkgdir/$_java_home/lib"
+}
+
+_jre_minimal() {
+	pkgdesc="$_java_name (JRE Minimal VM)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	install="$pkgname-jre-minimal.post-install $pkgname-jre-minimal.post-deinstall"
+	provides="openjdk21-lite-jre-minimal=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/minimal" "$subpkgdir/$_java_home/lib"
+}
+
+_jre_cds() {
+	pkgdesc="$_java_name (JRE Server VM Class Data Sharing archives)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	provides="openjdk21-lite-jre-cds=$pkgver-r$pkgrel"
+
+	rm -f "$pkgdir/$_java_home/lib/server"/*.jsa
+	"$pkgdir/$_java_home/bin/java" -server -XX:+UseCompressedOops -Xshare:dump
+	"$pkgdir/$_java_home/bin/java" -server -XX:-UseCompressedOops -Xshare:dump
+
+	mkdir -p "$subpkgdir/$_java_home/lib/server"
+	mv "$pkgdir/$_java_home/lib/server"/*.jsa "$subpkgdir/$_java_home/lib/server"
+}
+
+_jre_no_deps() {
+	pkgdesc="$_java_name (JRE Server VM without dependencies)"
+	depends="java-common zlib"
+	provides="
+		java-jre-no-deps
+		java21-jre-no-deps
+		openjdk21-lite-jre-no-deps=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/lib" "$subpkgdir/$_java_home/"
+	echo "-server KNOWN" > "$subpkgdir/$_java_home"/lib/jvm.cfg
+
+	mkdir -p "$subpkgdir/$_java_home/bin"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/bin/$f" "$subpkgdir/$_java_home/bin/$f"
+	done
+
+	for f in legal conf release; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/$f"
+	done
+
+	cp "$subpkgdir/$_java_home/legal/java.base/LICENSE" "$subpkgdir/$_java_home/"
+	cat <<- EOF >"$subpkgdir/$_java_home/readme.txt"
+		BellSoft Liberica is a build of OpenJDK that is verified to be compliant with the Java SE
+		specification using OpenJDK Technology Compatibility Kit test suite.
+
+		To check BellSoft Liberica details and updates, please visit https://bell-sw.com/liberica.
+	EOF
+	ln -sf . "$subpkgdir/$_java_home/jre"
+	ln -s $pkgname "$subpkgdir"/usr/lib/jvm/java-21-${pkgname/21/}
+}
+
+_jre() {
+	pkgdesc="$_java_name (JRE with default Server VM)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel fontconfig ttf-dejavu-core freetype"
+	provides="
+		java-jre
+		java21-jre
+		openjdk21-lite-jre=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir"
+}
+
+_jre_doc() {
+	pkgdesc="$_java_name (JRE Documentation)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel"
+	provides="openjdk21-lite-jre-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/man/man1"
+	for f in $_jre_tools; do
+		mv "$pkgdir/$_java_home/man/man1/$f".* "$subpkgdir/$_java_home/man/man1/"
+	done
+}
+
+_jdk_no_deps() {
+	pkgdesc="$_java_name (JDK without dependencies)"
+	depends="$pkgname-jre-no-deps=$pkgver-r$pkgrel"
+	provides="
+		java-jdk-no-deps
+		java21-jdk-no-deps
+		openjdk21-lite-jdk-no-deps=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	for f in bin include; do
+		mv "$pkgdir/$_java_home/$f" "$subpkgdir/$_java_home/"
+	done
+}
+
+_jdk() {
+	pkgdesc="$_java_name (JDK)"
+	depends="$pkgname-jre=$pkgver-r$pkgrel $pkgname-jdk-no-deps=$pkgver-r$pkgrel"
+	provides="
+		java-jdk
+		java21-jdk
+		openjdk21-lite-jdk=$pkgver-r$pkgrel
+	"
+
+	mkdir -p "$subpkgdir"
+}
+
+_jmods() {
+	pkgdesc="$_java_name (Java Modules)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk21-lite-jmods=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/jmods" "$subpkgdir/$_java_home/"
+}
+
+_doc() {
+	pkgdesc="$_java_name (Documentation)"
+	depends="$pkgname-jre-doc=$pkgver-r$pkgrel"
+	provides="openjdk21-lite-doc=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	mv "$pkgdir/$_java_home/man" "$subpkgdir/$_java_home/"
+}
+
+_demos() {
+	pkgdesc="$_java_name (Demos)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk21-lite-demos=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	tar -C "$subpkgdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-tests-demos.tar.gz --no-same-owner --strip-components=1
+}
+
+_src() {
+	pkgdesc="$_java_name (Sources)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk21-lite-src=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir/$_java_home/lib"
+	mv "$pkgdir/$_java_home/lib/src.zip" "$subpkgdir/$_java_home/lib/"
+}
+
+_dbg() {
+	pkgdesc="$_java_name (Debug Info)"
+	depends="$pkgname-jdk=$pkgver-r$pkgrel"
+	provides="openjdk21-lite-dbg=$pkgver-r$pkgrel"
+
+	local debugdir="$subpkgdir/usr/lib/debug"
+	mkdir -p "$debugdir/$_java_home"
+	tar -C "$debugdir/$_java_home" -xf "$builddir"/build/linux-*-release/bundles/*_bin-symbols.tar.gz --no-same-owner --strip-components=1
+}
+
+_jdk_all() {
+	pkgdesc="$_java_name (JDK all)"
+	depends="binutils 
+		$pkgname=$pkgver-r$pkgrel
+		$pkgname-jre-client=$pkgver-r$pkgrel
+		$pkgname-jre-minimal=$pkgver-r$pkgrel
+		$pkgname-jdk=$pkgver-r$pkgrel
+		$pkgname-jmods=$pkgver-r$pkgrel
+	"
+	provides="openjdk21-lite-jdk-all=$pkgver-r$pkgrel"
+
+	mkdir -p "$subpkgdir"/usr/lib/jvm/"$pkgname"
+}
+
+
+sha512sums="
+508cc8511fecee2288f41dc009834d444785ddd4129acfabefeae03ab75a26088bc7e8a60548dac58c6d18865d994e5ad8fa340cac20ba3cc838434dc7cbbcde  HelloJava.java
+$JDK_SHA
+"

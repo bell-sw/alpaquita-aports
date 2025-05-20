@@ -1,0 +1,44 @@
+pkgname=tmux
+pkgver=3.3a
+pkgrel=0
+pkgdesc="Tool to control multiple terminals from a single terminal"
+url="https://tmux.github.io"
+arch="all"
+license="ISC"
+depends="ncurses-terminfo-base"
+makedepends="autoconf automake libevent-dev ncurses-dev"
+subpackages="$pkgname-doc"
+source="https://github.com/tmux/tmux/releases/download/$pkgver/tmux-$pkgver.tar.gz"
+
+# secfixes:
+#   3.1c-r0:
+#     - CVE-2020-27347
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	install -D -m644 example_tmux.conf \
+		"$pkgdir"/usr/share/doc/$pkgname/examples/$pkgname.conf
+	local file; for file in CHANGES README; do
+		install -m644 "$file" "$pkgdir"/usr/share/doc/$pkgname/
+	done
+}
+
+sha512sums="
+29a846df7d93601c42a22f84f606931dc65da1f70b67d351d0425f77ea3affe3e8218b2940d42cd3dadf3cd1aa95032daad3ecb14fbff0f69939d1beae0498c7  tmux-3.3a.tar.gz
+"

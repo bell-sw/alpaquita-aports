@@ -1,0 +1,28 @@
+pkgname=font-freefont
+pkgver=20120503
+pkgrel=3
+pkgdesc="A set of free high-quality TrueType fonts covering the UCS character set"
+url="https://www.gnu.org/software/freefont/"
+arch="noarch"
+license="GPL-3.0-or-later with exception"
+options="!check" # No test suite.
+depends="fontconfig encodings mkfontscale"
+makedepends="font-util-dev"
+subpackages="$pkgname-doc"
+source="https://ftp.gnu.org/gnu/freefont/freefont-otf-$pkgver.tar.gz"
+builddir="$srcdir/freefont-$pkgver"
+
+# backwards compat (<3.17)
+provides="ttf-freefont=$pkgver-r$pkgrel"
+replaces="ttf-freefont"
+
+package() {
+	install -Dm644 ./*.otf -t "$pkgdir"/usr/share/fonts/freefont/
+	# Licensing terms are also listed in README in pkgver==20120503
+	install -Dm644 README "$pkgdir/usr/share/licenses/$pkgname/README"
+	install -m644 COPYING "$pkgdir"/usr/share/licenses/"$pkgname"/copyright
+}
+
+sha512sums="
+cee9a573b17ccc689b61f0925fb6624d58e3a3369d996e379e70c3a4cd750429d68c14c85fbcab4381101c8f4bf56730ef40e0045fdd79647019db41b4ec74fd  freefont-otf-20120503.tar.gz
+"

@@ -1,0 +1,35 @@
+pkgname=libwps
+pkgver=0.4.14
+pkgrel=0
+pkgdesc="Import filter and tools for Microsoft Works files"
+url="https://sourceforge.net/projects/libwps/"
+arch="all"
+license="MPL-2.0"
+depends_dev="librevenge-dev"
+makedepends="$depends_dev doxygen"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-tools"
+source="https://downloads.sourceforge.net/project/libwps/libwps/libwps-$pkgver/libwps-$pkgver.tar.bz2"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+tools() {
+	amove usr/bin
+}
+
+sha512sums="
+500d59ad461410dc4b11d0fadecd91788266737556cf2e22e8f77061e188b3c86660280c699974150eba39414f99d8728b3f527700236e086dae61d18b2a39ad  libwps-0.4.14.tar.bz2
+"

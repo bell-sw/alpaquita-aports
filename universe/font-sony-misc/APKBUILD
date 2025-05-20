@@ -1,0 +1,37 @@
+pkgname=font-sony-misc
+pkgver=1.0.3
+pkgrel=3
+pkgdesc="X.org Sony misc fonts"
+url="http://xorg.freedesktop.org/"
+arch="noarch"
+license="MIT"
+options="!check"  # Cannot test a font.
+depends="encodings font-alias mkfontscale fontconfig"
+makedepends="font-util-dev bdftopcf"
+source="https://www.x.org/releases/individual/font/$pkgname-$pkgver.tar.bz2"
+
+prepare() {
+	update_config_sub
+	default_prepare
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--with-fontdir=/usr/share/fonts/misc
+	make
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" \
+		MKFONTDIR=: \
+		MKFONTSCALE=: \
+		FCCACHE=: \
+		install
+	mkdir -p "$pkgdir"/usr/share/licenses/"$pkgname"
+	install -m644 COPYING "$pkgdir"/usr/share/licenses/"$pkgname"/copyright
+}
+
+sha512sums="c397b4e5081b2946799d701b8c48fca9fd2d55b8fa1dd96d2b29c5cd9996bb7356ae12671bf3bd964e6313bdc154020ed6377534e59ce53067e955e4b37aee1d  font-sony-misc-1.0.3.tar.bz2"

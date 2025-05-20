@@ -1,0 +1,222 @@
+pkgname=ghostscript
+pkgver=10.01.2
+pkgrel=3
+pkgdesc="Interpreter for the PostScript language and for PDF"
+url="https://ghostscript.com/"
+arch="all"
+license="AGPL-3.0-or-later"
+options="!check"
+makedepends="
+	autoconf
+	automake
+	cups-dev
+	expat-dev
+	freetype-dev
+	gtk+3.0-dev
+	jbig2dec-dev
+	lcms2-dev
+	libjpeg-turbo-dev
+	libpng-dev
+	libtool
+	openjpeg-dev
+	tiff-dev
+	zlib-dev
+	"
+subpackages="$pkgname-dbg $pkgname-doc $pkgname-dev $pkgname-gtk"
+source="https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs${pkgver//./}/ghostscript-$pkgver.tar.gz
+	ghostscript-system-zlib.patch
+	fix-sprintf.patch
+
+	0100-CVE-2023-38559.patch
+	0101-CVE-2023-43115.patch
+	0102-CVE-2023-46751.patch
+
+	0103-CVE-2023-52722.patch
+	0104-CVE-2024-29510.patch
+	0105-CVE-2024-33869-part1.patch
+	0106-CVE-2024-33869-part2.patch
+	0107-CVE-2024-33870.patch
+	0108-CVE-2024-33871.patch
+	0109-CVE-2024-46953.patch
+	0110-CVE-2024-46954.patch
+	0111-CVE-2024-46956.patch
+	0112-CVE-2024-46955.patch
+	0113-CVE-2024-46951.patch
+	0114-CVE-2024-46952.patch
+	"
+
+# secfixes:
+#   10.01.2-r3:
+#     - CVE-2024-46951
+#     - CVE-2024-46952
+#     - CVE-2024-46953
+#     - CVE-2024-46954
+#     - CVE-2024-46955
+#     - CVE-2024-46956
+#   10.01.2-r2:
+#     - CVE-2024-29510
+#     - CVE-2024-33869
+#     - CVE-2024-33870
+#     - CVE-2024-33871
+#     - CVE-2023-52722
+#   10.01.2-r1:
+#     - CVE-2023-38559
+#     - CVE-2023-43115
+#     - CVE-2023-46751
+#   10.0.0-r1:
+#     - CVE-2023-28879
+#   9.54-r1:
+#     - CVE-2021-3781
+#   9.51-r0:
+#     - CVE-2020-16287
+#     - CVE-2020-16288
+#     - CVE-2020-16289
+#     - CVE-2020-16290
+#     - CVE-2020-16291
+#     - CVE-2020-16292
+#     - CVE-2020-16293
+#     - CVE-2020-16294
+#     - CVE-2020-16295
+#     - CVE-2020-16296
+#     - CVE-2020-16297
+#     - CVE-2020-16298
+#     - CVE-2020-16299
+#     - CVE-2020-16300
+#     - CVE-2020-16301
+#     - CVE-2020-16302
+#     - CVE-2020-16303
+#     - CVE-2020-16304
+#     - CVE-2020-16305
+#     - CVE-2020-16306
+#     - CVE-2020-16307
+#     - CVE-2020-16308
+#     - CVE-2020-16309
+#     - CVE-2020-16310
+#     - CVE-2020-17538
+#   9.50-r0:
+#     - CVE-2019-14869
+#   9.27-r4:
+#     - CVE-2019-14817
+#   9.27-r3:
+#     - CVE-2019-14811
+#     - CVE-2019-14812
+#     - CVE-2019-14813
+#   9.27-r2:
+#     - CVE-2019-10216
+#   9.26-r2:
+#     - CVE-2019-3835
+#     - CVE-2019-3838
+#   9.26-r1:
+#     - CVE-2019-6116
+#   9.26-r0:
+#     - CVE-2018-19409
+#     - CVE-2018-19475
+#     - CVE-2018-19476
+#     - CVE-2018-19477
+#   9.25-r1:
+#     - CVE-2018-17961
+#     - CVE-2018-18073
+#     - CVE-2018-18284
+#   9.25-r0:
+#     - CVE-2018-16802
+#   9.24-r0:
+#     - CVE-2018-15908
+#     - CVE-2018-15909
+#     - CVE-2018-15910
+#     - CVE-2018-15911
+#   9.23-r0:
+#     - CVE-2018-10194
+#   9.21-r2:
+#     - CVE-2017-8291
+#   9.21-r3:
+#     - CVE-2017-7207
+#     - CVE-2017-5951
+
+prepare() {
+	default_prepare # apply patches
+
+	# force it to use system-libs
+	rm -r jpeg libpng zlib tiff lcms2mt cups/libs jbig2dec \
+		freetype
+
+	# fix parallel builds
+	sed -i -e 's/ECHO_XE/ECHOGS_XE/g' \
+		-e 's/^\($(GLOBJ)md5.$(OBJ) :.*\)/\1 $(ECHOGS_XE)/' \
+		base/lib.mak
+	aclocal && autoconf --force
+
+	cd $builddir/ijs
+	libtoolize --force && aclocal && autoconf && automake --add-missing
+}
+
+build() {
+	# build ijs
+	cd "$builddir"/ijs
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--enable-shared \
+		--disable-static
+	make
+
+	cd "$builddir"
+
+	# --disable-compile-inits is needed to link with system-zlib
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--docdir=/usr/share/doc/"$pkgname" \
+		--with-system-libtiff \
+		--with-ijs \
+		--with-jbig2dec \
+		--without-libpaper \
+		--without-versioned-path \
+		--enable-gtk \
+		--with-drivers=ALL \
+		--with-fontpath=/usr/share/fonts/Type1:/usr/share/fonts \
+		--disable-compile-inits
+	make so all
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install soinstall
+
+	cd "$builddir"/ijs
+	make -j1 DESTDIR="$pkgdir" install
+	cd ..
+
+	# create empty dir for future fonts
+	mkdir -p "$pkgdir"/usr/share/fonts/Type1
+}
+
+gtk() {
+	pkgdesc="A GTK-enabled PostScript interpreter and renderer"
+
+	amove usr/bin/gsx
+}
+
+sha512sums="
+11887850d440b8bbd8b83b8b58df8c743cf94be8fdbcfbda1a5fce55ce7c6a963d94b41a4ebcf1ba48f64f8af01e76dec789e2711212b1f7a32f98c42d75e0ff  ghostscript-10.01.2.tar.gz
+70721e3a335afa5e21d4e6cf919119010bd4544a03ab8f53f5325c173902221ad9b88c118b4bfeee80b3e1956bcdbaf4c53f64ae7fb81f5ba57dbc956750c482  ghostscript-system-zlib.patch
+beefcf395f7f828e1b81c088022c08a506e218f27535b9de01e0f0edf7979b435316c318fa676771630f6ad16ff1ab059cd68aa128ed97e5a9f2f3fa840200c4  fix-sprintf.patch
+9531f9fa2453436811b1710b59354bd0f4f6f37129f7e92bf34a6d9df74775be059f0bdb9776d207513148c46696cced622a7e6340c660eb8461b36198a18b08  0100-CVE-2023-38559.patch
+7b14651a7b4c4c52e7a718e74749fbc21691de35ea62c8a78560a6012a77b31cc03f26c070c7260aeaeb3d6a7fb5388f5f9107028ed2e7fbedea9b4096b546d1  0101-CVE-2023-43115.patch
+97bff04efa80036aaf0d5ee5cc5cab5d1cf793531e71d19f7b3d39e113ecd7d2e4c5eff1721eb37132e1a20b50867f51b59fbde71e7de8c7bbebc2966ba03514  0102-CVE-2023-46751.patch
+f42785e42369841d85d8ccc0903d3011fb752384ad896aeaf323e5de334ad826627eb9da505b3f1e3f22cac1b2b1b129ab4df48f1cc310270e0be7d1faf5efb8  0103-CVE-2023-52722.patch
+8e831b102a9d7996db8d928bd48dc43929555e8c2d85ed42f12c06b42af3cc0854b9cc4538dcaf5dde52b2b11686e639e3fd359efd3d8737aa151270ca35ad2a  0104-CVE-2024-29510.patch
+e2090fe1237ec1dfb4a04f70f6f693ffe38bc1456bf73e5b974d38a5070f0bbe50b66925c1eb6e5022c8143f4462e4523bb4f251417faff61082cb6102a9392a  0105-CVE-2024-33869-part1.patch
+08f4258f71f1fa1b579e09f0cedcbb2c107a554b65575edbc38ba707cb9d2d0fb4b07e4c31d58e2d51ee56822acdf474eb39529b39ecb1cd4edb4a32a9b8b25b  0106-CVE-2024-33869-part2.patch
+456bbe0d1e3f0c3fc3ae1bd6a2a93aab7c65aa190836fb1ef3fb5b5d2790f24d8393c5a07793c9778845a3255e7abbb4ec04f89155e3bbfeb9d21b02ea9f9443  0107-CVE-2024-33870.patch
+f248a3bad3d3871d099b9fdce7b9ffba5850388e13ebd360a3092dcdc70d78c157971f7b18a690bd63fc46333acc36dc131ebfebf17c38526afcdb838ac0a84e  0108-CVE-2024-33871.patch
+f8d14887925408aa852939db71f495d08fa6d21fc3b2c41f28fa7c36970a3d06176f012e9c7debb567c26661743bc5e9279c4384d0afadd1f7fbf557888cbdc0  0109-CVE-2024-46953.patch
+35bf3b654e6e572642640f35052d0ddfcf0bed492059b3e6468e09e9d8abc32045b36d4d6bf0e2a8d8fc193f2645d860cd058f0d793d045c64a7bfdc81e4ad34  0110-CVE-2024-46954.patch
+ad74204b123935ca57851f46829b0a8e8133d6199588ea7639c1057c19b3f293c31b887497ee0734ad412e5c79ca294421a59c204601a27498d610a6c5421a95  0111-CVE-2024-46956.patch
+fd06681da02b0491ab0d908ee659f1e29a7f7ec347ff5ffb9097d4e47d9f5d72751b84576e526cd0af0697667cf3b6a8caab436569fd0046cc76aed76cc792f3  0112-CVE-2024-46955.patch
+916502bb6a6520817cb7afd4f44ad9af1bbbec0d1137d5a7a6a9cafcfc58dcdce5cdcbc7268b569cb2026023c34cd6d240c4911c7daf015e42210e5af7c47214  0113-CVE-2024-46951.patch
+e1a6265cf0e1c7716e0bcbb9b8231b40a3a2860c397e74b0012d21fec56a2114a95956e258042c9a7b999a1ed018a969ed96f6a451d371cc3983f55ffd7f3786  0114-CVE-2024-46952.patch
+"

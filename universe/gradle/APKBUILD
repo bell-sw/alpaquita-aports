@@ -1,0 +1,61 @@
+pkgname=gradle
+pkgver=7.6.3
+pkgrel=0
+pkgdesc="Build tool with a focus on build automation and support for multi-language development"
+url="https://gradle.org/"
+arch="noarch !mips64 !riscv64"
+options="!check"
+license="Apache-2.0"
+source="https://services.gradle.org/distributions/gradle-$pkgver-bin.zip"
+
+# largest supported version in community
+case "$CARCH" in
+ppc64le|s390x|arm*|x86)
+	depends="openjdk8"
+	;;
+*)
+	depends="openjdk17-jdk"
+	;;
+esac
+
+
+# secfixes:
+#   7.6.3-r0:
+#     - CVE-2023-42445
+#     - CVE-2023-44387
+#   7.6.2-r0:
+#     - CVE-2023-35946
+#     - CVE-2023-35947
+#   7.6.1-r0:
+#     - CVE-2023-26053
+#   7.2-r0:
+#     - CVE-2021-32751
+#   6.8.3-r0:
+#     - CVE-2020-11979
+
+package() {
+	local gradlehome="/usr/share/java/$pkgname"
+	local destdir="$pkgdir/$gradlehome"
+
+	install -dm755 "$destdir"/bin
+	rm bin/*.bat
+	install -m755 bin/* "$destdir"/bin
+
+	install -dm755 "$pkgdir"/usr/bin
+	ln -sf $gradlehome/bin/gradle "$pkgdir"/usr/bin/gradle
+
+	install -dm755 "$destdir"/lib
+	install -m644 lib/*.jar "$destdir"/lib
+
+	install -dm755 "$destdir"/lib/plugins
+	install -m644 lib/plugins/*.jar "$destdir"/lib/plugins
+
+	# NOTICE file should be redistributed for derivative works
+	local file; for file in LICENSE NOTICE; do
+		install -m644 -D $file "$pkgdir"/usr/share/licenses/$pkgname/$file
+	done
+}
+
+sha512sums="
+dbedb24cf14447ed2e56b18982af059c432a7d09c3638c032d0cb24a59db06d05928989fb84f901887ecc8330d05068c255196e9aaf83ddfd004551f601a6338  gradle-7.6.3-bin.zip
+"

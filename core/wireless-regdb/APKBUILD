@@ -1,0 +1,25 @@
+# Description: provides a regulatory database, which is used by Linux kernel to
+# comply with regulations during wireless networking.
+
+
+pkgname=wireless-regdb
+pkgver=2022.08.12
+pkgrel=0
+pkgdesc="Linux Regulatory Domain Database"
+url="https://wireless.wiki.kernel.org/en/developers/regulatory/wireless-regdb"
+arch="noarch"
+license="ISC"
+subpackages="$pkgname-doc"
+options="!check"
+source="https://mirrors.edge.kernel.org/pub/software/network/wireless-regdb/wireless-regdb-$pkgver.tar.xz"
+
+package() {
+	install -D -m644 "$builddir"/regulatory.bin "$pkgdir"/usr/lib/crda/regulatory.bin
+	install -D -m644 "$builddir"/regulatory.bin.5 "$pkgdir"/usr/share/man/man5/regulatory.bin.5
+	install -D -m644 "$builddir"/regulatory.db "$pkgdir"/lib/firmware/regulatory.db
+	install -D -m644 "$builddir"/regulatory.db.p7s "$pkgdir"/lib/firmware/regulatory.db.p7s
+}
+
+sha512sums="
+37939229500571a273080c04010e5a131041f345cb817cf0c310de0b162a19e4eb0b90044f80a39dd53d8fef500581969052a9ac536202629e896659ead1cbe7  wireless-regdb-2022.08.12.tar.xz
+"

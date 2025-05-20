@@ -1,0 +1,89 @@
+# Description:
+
+pkgname=py3-setuptools
+_pkgname=${pkgname#py3-}
+pkgver=70.3.0
+pkgrel=0
+pkgdesc="Collection of enhancements to the Python3 distutils"
+options="!check" # Tests require packages out of main/
+url="https://pypi.python.org/pypi/setuptools"
+arch="noarch"
+license="MIT"
+# everything is vendored
+depends="
+	py3-packaging
+	python3
+	"
+# depends="
+# 	py3-appdirs
+# 	py3-more-itertools
+# 	py3-ordered-set
+# 	py3-packaging
+# 	py3-parsing
+# 	python3
+# 	"
+makedepends="py3-setuptools-stage0"
+source="$_pkgname-$pkgver.tar.gz::https://github.com/pypa/$_pkgname/archive/v$pkgver.tar.gz"
+builddir="$srcdir"/$_pkgname-$pkgver
+
+provides="py-setuptools=$pkgver-r$pkgrel" # Backwards compatibility
+replaces="py-setuptools" # Backwards compatiblity
+
+# py3-setuptools needs itself to build, bootstrapped with a lower version
+# in main/py3-setuptools-stage0
+if [ -z "$BOOTSTRAP" ]; then
+	# During bootstrapping py3-setuptools-bootstrap is provided by py3-setuptools-stage0
+	provides="$provides py3-setuptools-bootstrap"
+	provider_priority=100 # highest
+fi
+
+export SETUPTOOLS_INSTALL_WINDOWS_SPECIFIC_FILES=0
+
+# secfixes:
+#   70.3.0-r0:
+#     - CVE-2024-6345
+
+prepare() {
+	default_prepare
+
+	# Unbundle
+	# rm -rf pkg_resources/extern pkg_resources/_vendor \
+	# 	setuptools/extern setuptools/_vendor
+
+	# Upstream devendoring logic is badly broken, see:
+	# https://bugs.archlinux.org/task/58670
+	# https://github.com/pypa/pip/issues/5429
+	# https://github.com/pypa/setuptools/issues/1383
+	# The simplest fix is to simply rewrite import paths to use the canonical
+	# location in the first place
+	# for _module in setuptools pkg_resources '' ; do
+	# 	find . -name \*.py -exec sed -i \
+	# 		-e 's/from '$_module.extern' import/import/' \
+	# 		-e 's/from '$_module.extern'./from /' \
+	# 		-e 's/import '$_module.extern'./import /' \
+	# 		-e "s/__import__('$_module.extern./__import__('/" \
+	# 		{} +
+	# done
+
+	# Fix post-release tag
+	sed -e '/tag_build = .post/d' \
+		-e '/tag_date = 1/d' \
+		-i setup.cfg
+}
+
+build() {
+	python3 setup.py build
+}
+
+package() {
+	local _pyver=$(python3 -c 'import sys; print("{}.{}".format(sys.version_info.major, sys.version_info.minor))')
+	# Otherwise it complains that build/scripts-3.10 cannot be found
+	# no other changes noted
+	mkdir -p "build/scripts-$_pyver"
+
+	python3 setup.py install --root="$pkgdir" --skip-build
+}
+
+sha512sums="
+59d06f544b5e27b1a47d94b6a775118507317b166bef703bd0ad7ec60311ebf78b2c7f906783496f34adea3dfe57553b37cf913456c9b7261e3ed28ae975717b  setuptools-70.3.0.tar.gz
+"

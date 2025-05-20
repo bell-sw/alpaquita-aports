@@ -1,0 +1,35 @@
+# Description:
+
+pkgname=perl-pod-parser
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=Pod-Parser
+pkgver=1.65
+pkgrel=0
+pkgdesc="Modules for parsing/translating POD format documents"
+url="https://metacpan.org/release/Pod-Parser/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/M/MA/MAREKR/Pod-Parser-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+0449ff9fcf8cbb5724d48d27da332a8c281c4412d0aa28464852f1557825070a729df2c620276f141effaeea742a840c8fc391261d8c8165a615cd539bbcce36  Pod-Parser-1.65.tar.gz
+"

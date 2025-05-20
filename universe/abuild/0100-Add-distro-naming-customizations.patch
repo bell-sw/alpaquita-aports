@@ -1,0 +1,65 @@
+From 6f7df0058cc5a2cae95affab44aefb5d66b7fcf2 Mon Sep 17 00:00:00 2001
+From: Stanislav Kholmanskikh <stanislav.kholmanskikh@bell-sw.com>
+Date: Wed, 18 Jan 2023 10:20:25 +0300
+Subject: [PATCH] Add distro naming customizations
+
+---
+ abuild.in       | 2 +-
+ buildlab.in     | 6 +++---
+ functions.sh.in | 2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/abuild.in b/abuild.in
+index d013ab1..a9409bc 100755
+--- a/abuild.in
++++ b/abuild.in
+@@ -2450,7 +2450,7 @@ rootbld() {
+ 		--arch $CBUILD_ARCH \
+ 		--root "$BUILD_ROOT" \
+ 		--cache-dir /etc/apk/cache \
+-		abuild alpine-base build-base git $hostdeps $builddeps \
++		abuild distro-base build-base git $hostdeps $builddeps \
+ 		${USE_CCACHE:+ccache}
+ 
+ 	local bwrap_opts=""
+diff --git a/buildlab.in b/buildlab.in
+index 9c8edc9..a04e381 100644
+--- a/buildlab.in
++++ b/buildlab.in
+@@ -128,7 +128,7 @@ prepare_chroot() {
+ 		ln -s /var/cache/apk "$path"/etc/apk/cache
+ 	fi
+ 
+-	echo "alpine-base" > "$path"/etc/apk/world
++	echo "distro-base" > "$path"/etc/apk/world
+ 	mkdir -p "$path"/lib/apk/db
+ 	mkdir -p "$path"/var/lock
+ 	mkdir -p "$path"/var/cache/apk
+@@ -141,9 +141,9 @@ prepare_chroot() {
+ 
+ 	apk --arch $buildarch --root $path --repositories "$path"/etc/apk/repositories update
+ 
+-	msg "Installing alpine-base..."
++	msg "Installing distro-base..."
+ 
+-	apk --arch $buildarch --root $path --repositories "$path"/etc/apk/repositories add --initdb alpine-base
++	apk --arch $buildarch --root $path --repositories "$path"/etc/apk/repositories add --initdb distro-base
+ 
+ 	msg "Installing abuild..."
+ 
+diff --git a/functions.sh.in b/functions.sh.in
+index 898381e..3306532 100644
+--- a/functions.sh.in
++++ b/functions.sh.in
+@@ -113,7 +113,7 @@ readconfig() {
+ 		if [ -n "$gitbase" ]; then
+ 			case $($GIT remote get-url origin 2>/dev/null || true) in
+ 			# '.git' for SSH URLs, and no suffix for HTTPS URLs
+-			*/aports|*/aports.git) APORTSDIR=$gitbase ;;
++			*/*aports|*/*aports.git) APORTSDIR=$gitbase ;;
+ 			*) APORTSDIR= ;;
+ 			esac
+ 		else
+-- 
+2.39.0
+

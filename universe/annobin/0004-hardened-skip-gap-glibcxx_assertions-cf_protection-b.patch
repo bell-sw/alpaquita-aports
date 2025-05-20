@@ -1,0 +1,82 @@
+From de003862e135cc368163349c1743bc3d91ccf03d Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Fri, 26 Aug 2022 18:28:51 +0300
+Subject: [PATCH] hardened: skip gap, glibcxx_assertions, cf_protection by
+ default
+
+---
+ annocheck/hardened.c  | 12 ++++++++----
+ gcc-plugin/annobin.cc |  2 +-
+ tests/Makefile.in     |  2 +-
+ 3 files changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/annocheck/hardened.c b/annocheck/hardened.c
+index 7aad7ef..139c68a 100644
+--- a/annocheck/hardened.c
++++ b/annocheck/hardened.c
+@@ -56,7 +56,7 @@ typedef struct note_range
+ static bool disabled = false;
+ 
+ /* Can be changed by command line options.  */
+-static bool ignore_gaps = false;
++static bool ignore_gaps = true;
+ static bool fixed_format_messages = false;
+ static bool enable_colour = true;
+ 
+@@ -266,6 +266,10 @@ static enum profile current_profile = PROFILE_NONE;
+   [ TEST_##upper ] = { true, false, false, STATE_UNTESTED, #name, description,	\
+     "https://sourceware.org/annobin/annobin.html/Test-" #name ".html" }
+ 
++#define TESTD(name,upper,description)						\
++  [ TEST_##upper ] = { false, false, false, STATE_UNTESTED, #name, description,	\
++    "https://sourceware.org/annobin/annobin.html/Test-" #name ".html" }
++
+ /* Array of tests to run.  Default to enabling them all.
+    The result field is initialised in the start() function.  */
+ static test tests [TEST_MAX] =
+@@ -274,13 +278,13 @@ static test tests [TEST_MAX] =
+   TEST (bind-now,           BIND_NOW,           "Linked with -Wl,-z,now"),
+   TEST (branch-protection,  BRANCH_PROTECTION,  "Compiled with -mbranch-protection=bti (AArch64 only, gcc 9+ only, Fedora"),
+   TEST (not-branch-protection,  NOT_BRANCH_PROTECTION,  "Compiled without -mbranch-protection=bti (AArch64 only, gcc 9+ only, RHEL-9"),
+-  TEST (cf-protection,      CF_PROTECTION,      "Compiled with -fcf-protection=all (x86 only, gcc 8+ only)"),
++  TESTD(cf-protection,      CF_PROTECTION,      "Compiled with -fcf-protection=all (x86 only, gcc 8+ only)"),
+   TEST (dynamic-segment,    DYNAMIC_SEGMENT,    "There is at most one dynamic segment/section"),
+   TEST (dynamic-tags,       DYNAMIC_TAGS,       "Dynamic tags for BTI (and optionally PAC) present (AArch64 only, Fedora)"),
+   TEST (not-dynamic-tags,   NOT_DYNAMIC_TAGS,   "Dynamic tags for PAC & BTI *not* present (AArch64 only, RHEL-9)"),
+-  TEST (entry,              ENTRY,              "The first instruction is ENDBR (x86 executables only)"),
++  TESTD(entry,              ENTRY,              "The first instruction is ENDBR (x86 executables only)"),
+   TEST (fortify,            FORTIFY,            "Compiled with -D_FORTIFY_SOURCE=2"),
+-  TEST (glibcxx-assertions, GLIBCXX_ASSERTIONS, "Compiled with -D_GLIBCXX_ASSERTIONS"),
++  TESTD(glibcxx-assertions, GLIBCXX_ASSERTIONS, "Compiled with -D_GLIBCXX_ASSERTIONS"),
+   TEST (gnu-relro,          GNU_RELRO,          "The relocations for the GOT are not writable"),
+   TEST (gnu-stack,          GNU_STACK,          "The stack is not executable"),
+   TEST (go-revision,        GO_REVISION,        MIN_GO_REV_STR ("GO compiler revision >= ", MIN_GO_REVISION, " (go only)")),
+diff --git a/gcc-plugin/annobin.cc b/gcc-plugin/annobin.cc
+index 874654c..5fdc8c4 100644
+--- a/gcc-plugin/annobin.cc
++++ b/gcc-plugin/annobin.cc
+@@ -2389,7 +2389,7 @@ annobin_create_global_notes (void * gcc_data, void * user_data)
+ 	    }
+ 	  else
+ 	    {
+-	      annobin_inform (INFORM_ALWAYS, _("Warning: -D_GLIBCXX_ASSERTIONS not defined"));
++	      annobin_inform (INFORM_VERBOSE, _("Warning: -D_GLIBCXX_ASSERTIONS not defined"));
+ 	      warned = true;
+ 	    }
+ 	}
+diff --git a/tests/Makefile.in b/tests/Makefile.in
+index 9c3f20a..3ed5f46 100644
+--- a/tests/Makefile.in
++++ b/tests/Makefile.in
+@@ -475,7 +475,7 @@ target_vendor = @target_vendor@
+ top_build_prefix = @top_build_prefix@
+ top_builddir = @top_builddir@
+ top_srcdir = @top_srcdir@
+-TESTS = abi-test active-checks-test assembler-gap-test atexit-test \
++TESTS = abi-test active-checks-test atexit-test \
+ 	compile-test fortify-test function-sections-test gaps-test \
+ 	glibc-notes-test hardening-fail-test hardening-test \
+ 	instrumentation-test ldconfig-test lto-test missing-notes-test \
+-- 
+2.25.1
+

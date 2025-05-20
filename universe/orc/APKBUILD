@@ -1,0 +1,41 @@
+pkgname=orc
+pkgver=0.4.39
+pkgrel=0
+pkgdesc="Oil Run-time Compiler"
+url="https://gstreamer.freedesktop.org/modules/orc.html"
+arch="all"
+license="BSD-2-Clause"
+depends_dev="$pkgname-compiler=$pkgver-r$pkgrel"
+makedepends="linux-headers meson"
+subpackages="$pkgname-dev $pkgname-compiler"
+source="https://gstreamer.freedesktop.org/src/orc/orc-$pkgver.tar.xz"
+
+# secfixes:
+#   0.4.39-r0:
+#     - CVE-2024-40897
+
+build() {
+	abuild-meson \
+		-Db_lto=true \
+		-Dorc-test=disabled \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild --print-errorlogs -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+compiler() {
+	pkgdesc="Orc compiler"
+
+	amove usr/bin
+}
+
+sha512sums="
+5b2167c9bb5ef4fdd5b1a683e5e7fc94bafa0afe62cb5f30e6fd2de9e80b4727b533029688e2807fc64b60af45f9263a421074bf330fb2f208b48620b0f95fd6  orc-0.4.39.tar.xz
+"

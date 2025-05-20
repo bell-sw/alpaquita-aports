@@ -1,0 +1,29 @@
+pkgname=liburing
+pkgver=2.3
+pkgrel=0
+pkgdesc="Linux kernel io_uring access library"
+url="https://git.kernel.dk/cgit/liburing/"
+arch="all"
+license="LGPL-2.1-or-later"
+makedepends="linux-headers"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://git.kernel.dk/cgit/liburing/snapshot/liburing-$pkgver.tar.gz
+	"
+
+build() {
+	./configure \
+		--prefix=/usr \
+		--mandir=/usr/share/man
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+04d29bd71d2150bbdc68eb937041784676590500cf1d61fb89b25b064c38c899a04ec0b9c06969271b98bc0e677943787844f0c5b7b0a222860a6e3a6fa34ed1  liburing-2.3.tar.gz
+"

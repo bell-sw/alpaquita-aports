@@ -1,0 +1,57 @@
+# Description:
+
+pkgname=libx11
+pkgver=1.8.7
+pkgrel=0
+pkgdesc="X11 client-side library"
+url="http://xorg.freedesktop.org/"
+arch="all"
+license="custom:XFREE86"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
+depends_dev="libxcb-dev xtrans"
+makedepends="$depends_dev xorgproto util-macros xmlto"
+source="https://www.x.org/releases/individual/lib/libX11-$pkgver.tar.xz"
+builddir="$srcdir"/libX11-$pkgver
+
+# secfixes:
+#   1.8.7-r0:
+#     - CVE-2023-43785
+#     - CVE-2023-43786
+#     - CVE-2023-43787
+#   1.8.4-r1:
+#     - CVE-2023-3138
+#   1.7.1-r0:
+#     - CVE-2021-31535
+#   1.6.12-r0:
+#     - CVE-2020-14363
+#   1.6.10-r0:
+#     - CVE-2020-14344
+#   1.6.6-r0:
+#     - CVE-2018-14598
+#     - CVE-2018-14599
+#     - CVE-2018-14600
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--with-xcb
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+}
+
+sha512sums="
+d53bfc18f38d339a6a695b09835b2ae96b323881678bfe7ddca697605e3bdf4102ff49cc3078880a6c55b5977fcdd0aadaf5429086132de3a5bda302f79a2fa6  libX11-1.8.7.tar.xz
+"

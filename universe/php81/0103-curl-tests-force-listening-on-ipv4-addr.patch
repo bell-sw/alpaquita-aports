@@ -1,0 +1,47 @@
+Try to work around this issue in our CI:
+
+  TEST 4743/15877 [ext/curl/tests/bug48203.phpt]
+  ========DIFF========
+       Warning: curl_exec(): CURLOPT_STDERR resource has gone away, resetting to stderr in %s on line %d
+       %A
+  003+ * Host localhost:32997 was resolved.
+  004+ * IPv6: ::1
+  005+ * IPv4: 127.0.0.1
+  006+ *   Trying [::1]:32997...
+  007+ * Connected to localhost (::1) port 32997
+  008+ > GET / HTTP/1.1
+  009+ Host: localhost:32997
+  010+ Accept: */*
+  011+
+  012+ * Request completely sent off
+  013+ * Recv failure: Connection reset by peer
+  014+ * closing connection #0
+  003- Hello World!
+  004- Hello World!%A
+       Ok
+  ========DONE========
+
+But I'm not sure the problem is in IPv6 per se.
+
+--- a/ext/curl/tests/server.inc
++++ b/ext/curl/tests/server.inc
+@@ -4,7 +4,7 @@
+     $php_executable = getenv('TEST_PHP_EXECUTABLE') ?: PHP_BINARY;
+     $doc_root = __DIR__;
+     $router = "responder/get.inc";
+-    $cmd = [$php_executable, '-t', $doc_root, '-n', '-S', 'localhost:0', $router];
++    $cmd = [$php_executable, '-t', $doc_root, '-n', '-S', '127.0.0.1:0', $router];
+     $descriptorspec = array(
+         0 => STDIN,
+         1 => STDOUT,
+--- a/ext/curl/tests/bug79033.phpt
++++ b/ext/curl/tests/bug79033.phpt
+@@ -22,7 +22,7 @@
+ }
+ "
+ string(%d) "POST /get.inc?test=post HTTP/1.1
+-Host: localhost:%d
++Host: 127.0.0.1:%d
+ Accept: */*
+ Content-Length: 0
+ Content-Type: application/x-www-form-urlencoded

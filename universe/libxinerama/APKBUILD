@@ -1,0 +1,30 @@
+pkgname=libxinerama
+pkgver=1.1.5
+pkgrel=0
+pkgdesc="X11 Xinerama extension library"
+url="http://xorg.freedesktop.org/"
+arch="all"
+license="MIT"
+options="!check"  # No test suite.
+subpackages="$pkgname-dev $pkgname-doc"
+makedepends="libx11-dev libxext-dev util-macros xorgproto"
+source="https://www.x.org/releases/individual/lib/libXinerama-$pkgver.tar.xz
+	"
+
+builddir="$srcdir"/libXinerama-$pkgver
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+735b5320de4782005b379e409bf2f976131c17d496b297d33a0e127ca1443034778586b6b25c077b2ad73a4ab34d440d7510475e0041f38202bb40f15fb08ff7  libXinerama-1.1.5.tar.xz
+"

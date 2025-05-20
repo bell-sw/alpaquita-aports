@@ -1,0 +1,28 @@
+pkgname=liblangtag
+pkgver=0.6.7
+pkgrel=0
+pkgdesc="Interface library to access/deal with tags for identifying languages"
+url="https://bitbucket.org/tagoh/liblangtag"
+arch="all"
+license="LGPL-3.0-or-later OR MPL-2.0"
+depends_dev="glib-dev"
+makedepends="$depends_dev gobject-introspection libtool libxml2-dev"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://bitbucket.org/tagoh/liblangtag/downloads/liblangtag-$pkgver.tar.bz2"
+
+build() {
+	./configure --prefix=/usr
+	make
+}
+
+check() {
+	make -k check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+3628728f46865507d8794c1e7286c6ca04fc49f905594ab76db7bd2c8d8f9fac1e33693314d56bca6fdd8f99b8d207e6e6d2f751474832ceb60a4cdbf10fed68  liblangtag-0.6.7.tar.bz2
+"

@@ -1,0 +1,34 @@
+# Description:
+
+pkgname=libxft
+pkgver=2.3.7
+pkgrel=0
+pkgdesc="FreeType-based font drawing library for X"
+url="http://xorg.freedesktop.org/"
+arch="all"
+license="MIT"
+options="!check"  # No test suite.
+subpackages="$pkgname-dev $pkgname-doc"
+depends_dev="zlib-dev"
+makedepends="$depends_dev xorgproto fontconfig-dev freetype-dev libxrender-dev util-macros"
+source="https://www.x.org/releases/individual/lib/libXft-$pkgver.tar.xz"
+
+builddir="$srcdir/libXft-$pkgver"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+}
+
+sha512sums="
+9df29d3c7b88a21952df1015604511e5d79856d721b2a61eb2c5a062a9abccf16318132432a7c86c0ef816bf174ae86842fa67dabbaa0b163dfa56d99022de19  libXft-2.3.7.tar.xz
+"

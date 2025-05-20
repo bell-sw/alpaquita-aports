@@ -1,0 +1,56 @@
+# Description: a suite of ELF tools to aid auditing systems. Contains various
+# ELF related utils for ELF32, ELF64 binaries useful for displaying PaX and
+# security info on a large groups of binary files.
+
+pkgname=pax-utils
+pkgver=1.3.5
+pkgrel=1
+pkgdesc="utils for ELF binaries"
+url="https://wiki.gentoo.org/wiki/Hardened/PaX_Utilities"
+arch="all"
+license="GPL-2.0-only"
+depends="scanelf"
+makedepends_build="meson"
+makedepends_host="linux-headers libcap-dev"
+checkdepends="bash python3 py3-elftools"
+[ -n "$BOOTSTRAP" ] && options="$options !check" # prevent python dependency
+source="https://dev.gentoo.org/~sam/distfiles/app-misc/pax-utils/pax-utils-$pkgver.tar.xz"
+subpackages="scanelf:_scanelf lddtreepax:_lddtreepax:noarch"
+
+build() {
+	abuild-meson \
+		-Dlddtree_implementation=sh \
+		-Duse_seccomp=false \
+		. output
+	meson compile -C output
+}
+
+check() {
+	meson test --print-errorlogs --no-rebuild -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+
+	# Don't conflict with main/lddtree
+	mv "$pkgdir"/usr/bin/lddtree "$pkgdir"/usr/bin/lddtreepax
+}
+
+_scanelf() {
+	depends=""
+	pkgdesc="Scan ELF binaries for stuff"
+	replaces="pax-utils"
+
+	amove usr/bin/scanelf
+}
+
+_lddtreepax() {
+	depends="python3 py3-elftools"
+	pkgdesc="Read and package ELF dependency trees"
+
+	amove usr/bin/lddtreepax
+}
+
+sha512sums="
+f2b1753e15907461cc395abffe033d7f7ab8eb15e296b874e2c9d00507458672347b32d7f2f05d3a8625fc3afbdbf0721543f84e062afce7181a726d967e4836  pax-utils-1.3.5.tar.xz
+"

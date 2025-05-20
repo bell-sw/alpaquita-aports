@@ -1,0 +1,50 @@
+# Description:
+
+pkgname=py3-py
+pkgver=1.11.0
+pkgrel=1
+pkgdesc="Python3 library with cross-python path, ini-parsing, io, code, log facilities"
+url="https://py.readthedocs.io"
+arch="noarch"
+license="MIT"
+depends="python3"
+makedepends="py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/p/py/py-$pkgver.tar.gz
+	0001-remove-setuptools_scm.patch
+	"
+builddir="$srcdir/py-$pkgver"
+
+replaces="py-py" # Backwards compatibility
+provides="py-py=$pkgver-r$pkgrel" # Backwards compatibility
+
+prepare() {
+	default_prepare
+
+	# Split version into semver variables
+	local RE='[^0-9]*\([0-9]*\)[.]\([0-9]*\)[.]\([0-9]*\)\([0-9A-Za-z-]*\)'
+	_major=$(echo "$pkgver" | sed -e "s/$RE/\1/")
+	_minor=$(echo "$pkgver" | sed -e "s/$RE/\2/")
+	_patch=$(echo "$pkgver" | sed -e "s/$RE/\3/")
+
+	echo "version = '$pkgver'" > py/_version.py
+	echo "version_tuple = ($_major, $_minor, $_patch)" >> py/_version.py
+}
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	# python3 setup.py test
+	# TypeError: <module>.__dict__ is not a dictionary
+	PYTHONPATH=build/lib python3 -c 'import py'
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+ce8dd791f9f6dd7e60a6caad32ff5cb816389a0840436efdedf4e0d4b0bfa09f7aea9e7c31d89903c72fe6ef17170a85af480525ba92c458ed73501a0420f2c4  py-1.11.0.tar.gz
+eedb84da521cda62ccca158faaae39f7e5915ec11123d8083a4a5817766e388e4b3ed2ca09c0f91fe2b6f7efd3f0212fd8b73e54097ea444c2c4b7da0151d0e7  0001-remove-setuptools_scm.patch
+"

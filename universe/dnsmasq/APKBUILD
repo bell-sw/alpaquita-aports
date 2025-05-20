@@ -1,0 +1,141 @@
+pkgname=dnsmasq
+pkgver=2.90
+pkgrel=0
+pkgdesc="A lightweight DNS, DHCP, RA, TFTP and PXE server"
+url="https://www.thekelleys.org.uk/dnsmasq/"
+arch="all"
+license="GPL-2.0-only OR GPL-3.0-only"
+depends="$pkgname-common=$pkgver-r$pkgrel"
+makedepends="
+	coreutils
+	dbus-dev
+	linux-headers
+	nettle-dev
+	"
+install="
+	$pkgname.pre-install
+	$pkgname.pre-upgrade
+	$pkgname-dnssec.pre-install
+	$pkgname-dnssec.pre-upgrade
+	$pkgname-dnssec-dbus.pre-install
+	$pkgname-dnssec-dbus.pre-upgrade
+	"
+subpackages="
+	$pkgname-doc
+	$pkgname-dnssec
+	$pkgname-dnssec-dbus
+	$pkgname-openrc
+	$pkgname-common::noarch
+	"
+source="https://www.thekelleys.org.uk/dnsmasq/dnsmasq-$pkgver.tar.xz
+	0000-underflow.patch
+
+	config.h.patch
+	dnsmasq.conf.patch
+	$pkgname.initd
+	$pkgname.confd
+	"
+
+# secfixes:
+#   2.90-r0:
+#     - CVE-2023-50387
+#     - CVE-2023-50868
+#   2.87-r2:
+#     - CVE-2023-28450
+#   2.86-r1:
+#     - CVE-2022-0934
+#   2.85-r0:
+#     - CVE-2021-3448
+#   2.83-r0:
+#     - CVE-2020-25681
+#     - CVE-2020-25682
+#     - CVE-2020-25683
+#     - CVE-2020-25684
+#     - CVE-2020-25685
+#     - CVE-2020-25686
+#     - CVE-2020-25687
+#   2.80-r5:
+#     - CVE-2019-14834
+#   2.79-r0:
+#     - CVE-2017-15107
+#   2.78-r0:
+#     - CVE-2017-13704
+#     - CVE-2017-14491
+#     - CVE-2017-14492
+#     - CVE-2017-14493
+#     - CVE-2017-14494
+#     - CVE-2017-14495
+#     - CVE-2017-14496
+
+build() {
+	make CFLAGS="$CFLAGS" COPTS="-DHAVE_DNSSEC" all
+	mv src/dnsmasq src/dnsmasq~dnssec
+
+	make CFLAGS="$CFLAGS" COPTS="-DHAVE_DNSSEC -DHAVE_DBUS" all
+	mv src/dnsmasq src/dnsmasq~dbus
+
+	make CFLAGS="$CFLAGS" clean all
+}
+
+# dnsmasq doesn't provide any test suite (shame on them!), so just check that
+# the binary isn't totally broken...
+check() {
+	./src/dnsmasq --help >/dev/null
+}
+
+package() {
+	provider_priority=100  # highest (other providers are dnsmasq-dnssec, dnsmasq-dnssec-dbus)
+
+	make PREFIX=/usr DESTDIR="$pkgdir" install
+
+	install -D -m755 "$srcdir"/$pkgname.initd "$pkgdir"/etc/init.d/$pkgname
+	install -D -m644 "$srcdir"/$pkgname.confd "$pkgdir"/etc/conf.d/$pkgname
+}
+
+dnssec() {
+	pkgdesc="$pkgdesc with DNSSEC support"
+	provides="$pkgname=$pkgver-r$pkgrel"
+	provider_priority=20  # middle (other providers are dnsmasq, dnsmasq-dnssec-dbus)
+
+	install -D -m 755 "$builddir"/src/dnsmasq~dnssec "$subpkgdir"/usr/sbin/dnsmasq
+}
+
+dbus() {
+	pkgdesc="$pkgdesc with DNSSEC and D-Bus support"
+	provides="
+		$pkgname=$pkgver-r$pkgrel
+		$pkgname-dbus=$pkgver-r$pkgrel
+		$pkgname-dnssec=$pkgver-r$pkgrel
+		"
+	provider_priority=10  # lowest (other providers are dnsmasq, dnsmasq-dnssec)
+
+	cd "$builddir"
+	install -D -m755 src/dnsmasq~dbus "$subpkgdir"/usr/sbin/dnsmasq
+	install -D -m644 dbus/dnsmasq.conf -t "$subpkgdir"/usr/share/dbus-1/system.d/
+}
+
+common() {
+	pkgdesc="$pkgdesc (common files)"
+	depends=""
+	replaces="$pkgname<2.86-r1 $pkgname-dnssec<2.86-r3"
+
+	install -D -m644 "$builddir"/dnsmasq.conf.example "$subpkgdir"/etc/dnsmasq.conf
+	install -d -m755 "$subpkgdir"/etc/dnsmasq.d
+
+	install -D -m644 "$builddir"/trust-anchors.conf \
+		"$subpkgdir"/usr/share/$pkgname/trust-anchors.conf
+}
+
+openrc() {
+	default_openrc
+	install_if="openrc $pkgname-common=$pkgver-r$pkgrel"
+}
+
+sha512sums="
+e169de1892f935e219b0f49d90107f95cba42b40bca20bd3c973313c2cd4df58b929af6628cd988419051d81c3b4ccf8e9f816274df7d0840e79f5bf49602442  dnsmasq-2.90.tar.xz
+5083bbe7150276d2226ba4b5bab73c513fe7baf4843b85d83d1ab16cb50e2dcc1dbd9ed04a89e2f9ea61796b12ea36206cc49a2574ce75abb37cb46279bd9aeb  0000-underflow.patch
+d0274417019af84911f3f4a850e785797bdc77732fd93504fe21db7317a874d2ab54bf7a211d000a751cdc43e225a30be4c1a315ab2383fc3fcc619e436aed97  config.h.patch
+41679e0e889607896dcf7fdeb179b9b7a79095c9f86aebda131ac09c12e3ef2a94cece0018ab33ea08d3e6f6bbae44379e9d6fb8987fae29e68ecad952ccdd45  dnsmasq.conf.patch
+0af0c794f17fe1248930e03dca22450fa03b5c9974f797de0418ea73d0256526b52a2002b5b3cdfc4b6f104cb251ddf458aa344085d2759d6fc1b781197e2592  dnsmasq.initd
+c6ecec498f07916cd3c5ff183ff2a2ec478cf95ee43c0082d164b548d72b13fc9ba7cfbca9fb50e919e146708b5ce7f3b3a6565b36223c4efe1481172214ad93  dnsmasq.confd
+"

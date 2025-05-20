@@ -1,0 +1,60 @@
+pkgname=ruby-augeas
+_gemname=$pkgname
+pkgver=0.5.0
+pkgrel=10
+pkgdesc="Ruby bindings for Augeas"
+url="https://augeas.net/"
+arch="all"
+license="LGPL-2.1-or-later"
+depends="ruby"
+checkdepends="ruby-test-unit"
+makedepends="augeas-dev ruby-dev ruby-rake"
+subpackages="$pkgname-doc"
+source="https://github.com/hercules-team/ruby-augeas/archive/release-$pkgver/$_gemname-$pkgver.tar.gz"
+builddir="$srcdir/$_gemname-release-$pkgver"
+
+build() {
+	rake gem
+
+	gem install \
+		--local \
+		--install-dir dist \
+		--ignore-dependencies \
+		--document ri \
+		--verbose \
+		pkg/$_gemname-$pkgver.gem
+
+	# Remove duplicated files (sdbm.so is loaded from extensions directory).
+	rm -f dist/gems/$_gemname-*/lib/*.so
+	rm -rf dist/gems/$_gemname-*/ext
+}
+
+check() {
+	GEM_PATH='./dist' rake test
+}
+
+package() {
+	local gemdir="$pkgdir/$(ruby -e 'puts Gem.default_dir')"
+	local geminstdir="$gemdir/gems/$_gemname-$pkgver"
+
+	cd "$builddir"/dist
+
+	mkdir -p "$gemdir"
+	cp -r doc extensions gems specifications "$gemdir"/
+
+	# Remove unnecessary files.
+	find "$gemdir"/extensions/ -name mkmf.log -delete
+
+	cd "$geminstdir"
+	rm -rf COPYING NEWS README.* Rakefile tests
+}
+
+doc() {
+	pkgdesc="$pkgdesc (ri docs)"
+
+	amove "$(ruby -e 'puts Gem.default_dir')"/doc
+}
+
+sha512sums="
+6d1b152214d77bdc32a053627388398dcd01f1d9901f267e50a01edcf6aa64d2480275bdd8f4b13e4de48034af67ed02ba0f5c03cecc155bb528ad96ff1db8f0  ruby-augeas-0.5.0.tar.gz
+"

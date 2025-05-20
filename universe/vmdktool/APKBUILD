@@ -1,0 +1,36 @@
+pkgname=vmdktool
+pkgver=1.4
+pkgrel=0
+pkgdesc="Convert raw filesystems to the VMDK format and vice versa"
+url="http://www.awfulhak.org/vmdktool/"
+arch="all"
+license="BSD-2-Clause"
+subpackages="$pkgname-doc"
+makedepends="zlib-dev"
+options="!check"	# uses raku TAP harness
+source="http://www.awfulhak.org/vmdktool/vmdktool-$pkgver.tar.gz
+	0001-Makefile.patch
+	0002-do-not-use-sys-cdefs.patch
+	0003-man-page-markup.patch
+	"
+
+build() {
+	make vmdktool
+}
+
+# check() {
+#	make test
+# }
+
+package() {
+	mkdir -p "$pkgdir"/usr/bin
+	mkdir -p "$pkgdir"/usr/share/man/man8
+	make install DESTDIR="$pkgdir"
+}
+
+sha512sums="
+0e66c66ee2513081faf9d7cc9f2206ecd58ce6aa9517f42d8da1e1e0e20755b83a62ba4fa415752c92a67dda794b7810f152be05523ad33e9817c69cc6958546  vmdktool-1.4.tar.gz
+b9c36a2595a7a1ca085ffa88b796765a74245a4b16ccfeef8e7f8f4ba5952f2d0434806c5885e397c4ba8ce57fe112bb939e6ed843dbf1ab6be7deb700cbd07d  0001-Makefile.patch
+0e826158473c273d39b97bd7ca61ba0d2f53f2b8b5e62be63b48d82f1d5d55f9061bdf53decac2adaf5d7048b4a96e3c282396ef97d78f6d39008850950b8f02  0002-do-not-use-sys-cdefs.patch
+e6cfd25dbf9150e47c6d91a928eb285d941fee21cb2905a4114312c675cc7beb6e54c2317661498e7d5c072f7440ce8b8af76f40a442b8523b9cf3240f1f0a0b  0003-man-page-markup.patch
+"

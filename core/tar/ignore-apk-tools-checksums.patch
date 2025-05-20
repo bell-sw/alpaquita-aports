@@ -1,0 +1,17 @@
+Make GNU tar ignore the apk-tools header fields
+
+This should problably not be upstreamed
+
+diff --git a/src/xheader.c b/src/xheader.c
+index 1347ce1..89b3a44 100644
+--- a/src/xheader.c
++++ b/src/xheader.c
+@@ -1777,5 +1777,8 @@ struct xhdr_tab const xhdr_tab[] = {
+      they are restored *only once* during extraction later on. */
+   { "SCHILY.xattr", xattr_coder, xattr_decoder, 0, true },
+ 
++  /* Ignore apk-tools headers */
++  { "APK-TOOLS", dummy_coder, dummy_decoder, 0, true },
++
+   { NULL, NULL, NULL, 0, false }
+ };

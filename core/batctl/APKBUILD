@@ -1,0 +1,28 @@
+# Description: batcl is a tool based on B.A.T.M.A.N. (better approach to
+# mobile ad-hoc networking) algorithm. It allows building multi-hop ad-hoc
+# mesh networks.
+
+pkgname=batctl
+pkgver=2022.3
+pkgrel=0
+pkgdesc="B.A.T.M.A.N. network anagement tool"
+url="https://www.open-mesh.org/"
+arch="all"
+license="GPL-2.0-only AND MIT"
+depends_dev="libnl3-dev linux-headers"
+makedepends="$depends_dev"
+subpackages="$pkgname-doc"
+source="https://downloads.open-mesh.org/batman/releases/batman-adv-$pkgver/batctl-$pkgver.tar.gz"
+options="!check" # No test suite.
+
+build() {
+	make PREFIX=/usr
+}
+
+package() {
+	make PREFIX=/usr DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+8768e8166845b2ecebd419de36015c27badb68036d76b06233a935d9fe8ab781cbb6fe6127c2b5fff5cf96b99b56b0e21cca0dd525feb13bbaa5094248385f52  batctl-2022.3.tar.gz
+"

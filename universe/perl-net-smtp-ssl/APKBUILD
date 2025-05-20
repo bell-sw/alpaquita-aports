@@ -1,0 +1,34 @@
+pkgname=perl-net-smtp-ssl
+_pkgreal=Net-SMTP-SSL
+pkgver=1.04
+pkgrel=2
+pkgdesc="SSL support for Net::SMTP"
+url="https://metacpan.org/release/Net-SMTP-SSL/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-io-socket-ssl perl-net-ssleay"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/R/RJ/RJBS/$_pkgreal-$pkgver.tar.gz"
+
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+prepare() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+}
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install || return 1
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="dfbf59e5d895add19f5684c999c941ab56a58be39492a02e5a9bdac47039bf388279eda734c6b0422d228ac14efed899b3572561e6a34cfd9582423252efb509  Net-SMTP-SSL-1.04.tar.gz"

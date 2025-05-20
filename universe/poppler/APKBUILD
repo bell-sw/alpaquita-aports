@@ -1,0 +1,111 @@
+pkgname=poppler
+pkgver=22.11.0
+pkgrel=2
+pkgdesc="PDF rendering library based on xpdf 3.0"
+url="https://poppler.freedesktop.org/"
+arch="all"
+options="!check" # Requires dl of testfiles and only checks qt5 libs
+# temp allow textrels on riscv64
+[ "$CARCH" = "riscv64" ] && options="$options textrels"
+license="GPL-2.0-or-later"
+depends_dev="cairo-dev glib-dev"
+makedepends="
+	$depends_dev
+	cmake
+	fontconfig-dev
+	gobject-introspection-dev
+	lcms2-dev
+	libjpeg-turbo-dev
+	libpng-dev
+	libxml2-dev
+	openjpeg-dev
+	openjpeg-tools
+	samurai
+	tiff-dev
+	zlib-dev
+	"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-glib $pkgname-utils"
+source="https://poppler.freedesktop.org/poppler-$pkgver.tar.xz
+	0100-CVE-2023-34872.patch
+	0101-CVE-2024-6239.patch
+	"
+
+# secfixes:
+#   22.11.0-r2:
+#     - CVE-2024-6239
+#   22.11.0-r1:
+#     - CVE-2023-34872
+#   0.80.0-r0:
+#     - CVE-2019-9959
+#   0.76.0-r0:
+#     - CVE-2020-27778
+
+prepare() {
+	default_prepare
+
+	local _linked_pkg=poppler-qt5
+	local _linked_apkbuild="$startdir"/../../universe/$_linked_pkg/APKBUILD
+	mkdir -p "$builddir"
+	if  [ -f "$_linked_apkbuild" ]; then
+		local _linked_ver=$( . "$_linked_apkbuild"; echo "$pkgver")
+		if [ "$_linked_ver" != "$pkgver" ]; then
+			error "pkgver needs to be identical with $_linked_pkg ($_linked_ver)"
+			return 1
+		fi
+	fi
+}
+
+build() {
+	if [ "$CBUILD" != "$CHOST" ]; then
+		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DENABLE_UNSTABLE_API_ABI_HEADERS=ON \
+		-DBUILD_QT5_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DBUILD_QT6_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DBUILD_GTK_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DBUILD_CPP_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DBUILD_MANUAL_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DENABLE_QT5=OFF \
+		-DENABLE_BOOST=OFF \
+		$CMAKE_CROSSOPTS
+	cmake --build build
+}
+
+check() {
+	cd build
+	CTEST_OUTPUT_ON_FAILURE=TRUE ctest
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+utils() {
+	pkgdesc="Poppler's xpdf-workalike command line utilities"
+
+	amove usr/bin
+}
+
+glib() {
+	pkgdesc="Glib wrapper for poppler"
+	replaces="poppler-gtk"
+
+	amove usr/lib/libpoppler-glib.so.*
+	amove usr/lib/girepository*
+}
+
+_cpp() {
+	pkgdesc="Pure C++ wrapper for poppler"
+
+	amove usr/lib/libpoppler-cpp.so.*
+}
+
+sha512sums="
+a173681782b4f6c4528140ce73d1f4c0ca89a018eab7197d69f1a76ab3e6115c7c03f82e99a8b3e5729c0f75b82896e59b38762ed460dd29b704ab4a03926e7b  poppler-22.11.0.tar.xz
+e5799adc7d9ce9b53822a30bdef535a91365d768f835f1966818cfb46f70d0be2e95f572a59b00733e46bd4886d949cc863f367166a010c74f1fdc1a4763e410  0100-CVE-2023-34872.patch
+173dd2aa7062a99c0017610e19861e54c888b7d8a15e538d20bd2a66ff75b80cde4b5da63d80fb9c8571ea7fc19b10e4e3ab7b72fe725f13a0b338565921740b  0101-CVE-2024-6239.patch
+"

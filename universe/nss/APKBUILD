@@ -1,0 +1,163 @@
+pkgname=nss
+pkgver=3.85
+pkgrel=2
+pkgdesc="Mozilla Network Security Services"
+url="https://developer.mozilla.org/docs/Mozilla/Projects/NSS"
+arch="all"
+license="MPL-2.0"
+depends_dev="nspr-dev"
+makedepends="
+	$depends_dev
+	bash
+	bsd-compat-headers
+	linux-headers
+	gyp
+	perl
+	sqlite-dev
+	zlib-dev
+	"
+subpackages="$pkgname-dev $pkgname-tools"
+source="https://ftp.mozilla.org/pub/security/nss/releases/NSS_${pkgver//./_}_RTM/src/nss-$pkgver.tar.gz
+	CVE-2022-3479.patch
+	gyp-config.patch
+	0100-CVE-2023-5388-blinding_ct.patch
+	nss.pc.in
+	nss-util.pc.in
+	nss-softokn.pc.in
+	nss-config.in
+	"
+
+# secfixes:
+#   3.85-r2:
+#     - CVE-2023-5388
+#   3.85-r1:
+#     - CVE-2022-3479
+#   3.76.1-r0:
+#     - CVE-2022-1097
+#   3.73-r0:
+#     - CVE-2021-43527
+#   3.58-r0:
+#     - CVE-2020-25648
+#   3.55-r0:
+#     - CVE-2020-12400
+#     - CVE-2020-12401
+#     - CVE-2020-12403
+#     - CVE-2020-6829
+#   3.53.1-r0:
+#     - CVE-2020-12402
+#   3.49-r0:
+#     - CVE-2019-17023
+#   3.47.1-r0:
+#     - CVE-2019-11745
+#   3.41-r0:
+#     - CVE-2018-12404
+#   3.39-r0:
+#     - CVE-2018-12384
+
+build() {
+	cd nss
+	./build.sh \
+		--opt \
+		--system-nspr \
+		--system-sqlite \
+		--enable-libpkix
+}
+
+check() {
+	cd nss/tests
+	# other tests are failing for some reason and prompt an interactive password
+	export NSS_TESTS="cipher lowhash libpkix"
+	export NSS_CYCLES=standard
+	HOST=localhost DOMSUF=localdomain bash ./all.sh
+}
+
+package() {
+	replaces="nss-dev libnss"
+
+	NSS_VMAJOR=$(awk '/#define.*NSS_VMAJOR/ {print $3}' nss/lib/nss/nss.h)
+	NSS_VMINOR=$(awk '/#define.*NSS_VMINOR/ {print $3}' nss/lib/nss/nss.h)
+	NSS_VPATCH=$(awk '/#define.*NSS_VPATCH/ {print $3}' nss/lib/nss/nss.h)
+
+	# pkgconfig files
+	mkdir -p "$pkgdir"/usr/lib/pkgconfig
+	local _pc; for _pc in nss.pc nss-util.pc nss-softokn.pc; do
+		sed "$srcdir"/$_pc.in \
+			-e "s,%libdir%,/usr/lib,g" \
+			-e "s,%prefix%,/usr,g" \
+			-e "s,%exec_prefix%,/usr/bin,g" \
+			-e "s,%includedir%,/usr/include/nss,g" \
+			-e "s,%SOFTOKEN_VERSION%,$pkgver,g" \
+			-e "s,%NSPR_VERSION%,$pkgver,g" \
+			-e "s,%NSS_VERSION%,$pkgver,g" \
+			-e "s,%NSSUTIL_VERSION%,$pkgver,g" \
+			> "$pkgdir"/usr/lib/pkgconfig/$_pc
+	done
+	ln -sf nss.pc "$pkgdir"/usr/lib/pkgconfig/mozilla-nss.pc
+	chmod 644 "$pkgdir"/usr/lib/pkgconfig/*.pc
+
+	# nss-config
+	mkdir -p "$pkgdir"/usr/bin
+	sed "$srcdir"/nss-config.in \
+		-e "s,@libdir@,/usr/lib,g" \
+		-e "s,@prefix@,/usr/bin,g" \
+		-e "s,@exec_prefix@,/usr/bin,g" \
+		-e "s,@includedir@,/usr/include/nss,g" \
+		-e "s,@MOD_MAJOR_VERSION@,${NSS_VMAJOR},g" \
+		-e "s,@MOD_MINOR_VERSION@,${NSS_VMINOR},g" \
+		-e "s,@MOD_PATCH_VERSION@,${NSS_VPATCH},g" \
+		> "$pkgdir"/usr/bin/nss-config
+	chmod 755 "$pkgdir"/usr/bin/nss-config
+
+	local minor=${pkgver#*.}
+	minor=${minor%.*}
+	for file in $(find dist/Release/lib -name "*.so"); do
+		install -Dm755 $file \
+			"$pkgdir"/usr/lib/${file##*/}.$minor
+		ln -s ${file##*/}.$minor "$pkgdir"/usr/lib/${file##*/}
+	done
+
+	for file in certutil cmsutil crlutil modutil pk12util shlibsign \
+			signtool signver ssltap; do
+		install -Dm755 dist/Release/bin/$file -t "$pkgdir"/usr/bin/
+	done
+
+	install -Dm644 dist/public/nss/*.h -t "$pkgdir"/usr/include/nss/
+	install -Dm644 dist/private/nss/blapi.h dist/private/nss/alghmac.h -t "$pkgdir"/usr/include/nss/private/
+}
+
+dev() {
+	# we cannot use default_dev because we need the .so symlinks in main package
+	local i
+	pkgdesc="Development files for nss"
+	depends="$pkgname=$pkgver-r$pkgrel $depends_dev"
+
+	amove usr/bin/nss-config
+
+	cd "$pkgdir"
+	for i in usr/include usr/lib/pkgconfig; do
+		if [ -e "$pkgdir/$i" ] || [ -L "$pkgdir/$i" ]; then
+			d="$subpkgdir/${i%/*}"  # dirname $i
+			mkdir -p "$d"
+			mv "$pkgdir/$i" "$d"
+			rmdir "$pkgdir/${i%/*}" 2>/dev/null || true
+		fi
+	done
+}
+
+tools() {
+	pkgdesc="Tools for the Network Security Services"
+	replaces="nss"
+
+	amove usr/bin
+}
+
+sha512sums="
+97cfffa2beed1dba5d31e0c6e450553e5a8c78b427521640adb00c05d9d63cd64dc08388f0dbf96c93efb79f5daf4ba8db8d026b0b43d2e5c865a9b833fc77a1  nss-3.85.tar.gz
+a81b6e8ae722c215cf083b13053d7287af9a3548a212a7856e0dcf930b6148264297db7ef235ef9f9df6ddfcc9a6917cd71c1af32f8c76f0ad1cc5919e733046  CVE-2022-3479.patch
+fba19cc35986dde6e5994ce67ab29fb4417814e12d6ae82c406600832eb8db79a0fdea4fd5eb6c5e77d565bfebb9e154e190796f67c06097ddae1539084243bb  gyp-config.patch
+1892db13078699609d4dec8ace7bba374e09a9634d21fc09364fd5df1cf4b5f7c79c83ac000d52ccbe211aec3d04e0a9dc35b308071c18fdef367b761e689d73  0100-CVE-2023-5388-blinding_ct.patch
+75dbd648a461940647ff373389cc73bc8ec609139cd46c91bcce866af02be6bcbb0524eb3dfb721fbd5b0bc68c20081ed6f7debf6b24317f2a7ba823e8d3c531  nss.pc.in
+0f2efa8563b11da68669d281b4459289a56f5a3a906eb60382126f3adcfe47420cdcedc6ab57727a3afeeffa2bbb4c750b43bef8b5f343a75c968411dfa30e09  nss-util.pc.in
+09c69d4cc39ec9deebc88696a80d0f15eb2d8c94d9daa234a2adfec941b63805eb4ce7f2e1943857b938bddcaee1beac246a0ec627b71563d9f846e6119a4a15  nss-softokn.pc.in
+2971669e128f06a9af40a5ba88218fa7c9eecfeeae8b0cf42e14f31ed12bf6fa4c5ce60289e078f50e2669a9376b56b45d7c29d726a7eac69ebe1d1e22dc710b  nss-config.in
+"

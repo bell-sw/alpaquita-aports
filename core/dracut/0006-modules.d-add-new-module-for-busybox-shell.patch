@@ -1,0 +1,52 @@
+From 8574279c562ed84b385babdd70a08faf0391d7fd Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 11 Jan 2022 12:37:21 +0300
+Subject: [PATCH] modules.d: add new module for busybox shell
+
+By default, busybox is using ash.
+---
+ modules.d/00busybox-sh/module-setup.sh | 32 ++++++++++++++++++++++++++
+ 1 file changed, 32 insertions(+)
+ create mode 100755 modules.d/00busybox-sh/module-setup.sh
+
+diff --git a/modules.d/00busybox-sh/module-setup.sh b/modules.d/00busybox-sh/module-setup.sh
+new file mode 100755
+index 00000000..1847c7ba
+--- /dev/null
++++ b/modules.d/00busybox-sh/module-setup.sh
+@@ -0,0 +1,32 @@
++#!/bin/bash
++# This file is part of dracut.
++# SPDX-License-Identifier: GPL-2.0-or-later
++
++# Prerequisite check(s) for module.
++check() {
++
++    # If the binary(s) requirements are not fulfilled the module can't be installed.
++    require_binaries busybox || return 1
++
++    # Return 255 to only include the module, if another module requires it.
++    return 255
++
++}
++
++# Module dependency requirements.
++depends() {
++
++    # Return 0 to include the dependent module(s) in the initramfs.
++    return 0
++
++}
++
++# Install the required file(s) and directories for the module in the initramfs.
++install() {
++
++    inst /bin/busybox
++
++    # Prefer busybox shell as default shell if no other shell is preferred.
++    [[ -L $initdir/bin/sh ]] || ln -sf busybox "${initdir}/bin/sh"
++
++}
+-- 
+2.25.1
+

@@ -1,0 +1,37 @@
+# Description:
+
+pkgname=py3-parsing
+_pkgname=pyparsing
+pkgver=3.0.9
+pkgrel=1
+pkgdesc="An object-oriented approach to text processing"
+url="https://github.com/pyparsing/pyparsing"
+arch="noarch"
+license="MIT"
+depends="python3"
+makedepends="py3-flit-core py3-gpep517"
+source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz"
+builddir="$srcdir"/$_pkgname-$pkgver
+options="!check" # too low level, and needs unpackaged railroad
+
+replaces="py-parsing" # Backwards compatibility
+provides="py-parsing=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir dist \
+		--output-fd 1
+}
+
+check() {
+	python3 -m unittest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		dist/pyparsing-$pkgver-py3-none-any.whl
+}
+
+sha512sums="
+8877f8733196c757e36e062ddc216153f9cdc51bf43795855a607340bab73fdf4d44745c9f410d151cc4a4d6d0db06133945a4d7d0fee52f3aee521b8095e6b0  pyparsing-3.0.9.tar.gz
+"

@@ -1,0 +1,94 @@
+pkgname=distro-installer
+pkgver=0.8.4
+pkgrel=0
+pkgdesc="$VENDOR_DISTRO_NAME Linux Installer"
+url="$VENDOR_URL"
+arch="noarch"
+license="AGPL-3.0-or-later"
+depends="
+	blkid
+	bonding
+	cryptsetup
+	dosfstools
+	e2fsprogs
+	hwids-pci
+	hwids-usb
+	ifupdown-ng-wifi
+	kmod
+	lsblk
+	lvm2
+	mdadm
+	mdadm-udev
+	parted
+	py3-attrs
+	py3-urwid
+	py3-yaml
+	python3
+	sfdisk
+	tzdata
+	wipefs
+	xfsprogs
+"
+makedepends="py3-setuptools"
+builddir="$srcdir/alpaquita-installer-$pkgver"
+provides="$VENDOR_DISTRO-installer=$pkgver-r$pkgrel"
+subpackages="$pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/bell-sw/alpaquita-installer/archive/refs/tags/v$pkgver.tar.gz
+	info@bell-sw.com-63d8c58b.rsa.pub
+	info@bell-sw.com-63d8c58c.rsa.pub
+	info@bell-sw.com-66390d97.rsa.pub
+	info@bell-sw.com-66390d99.rsa.pub
+	"
+
+build() {
+	local distro_file='alpaquita_installer/app/distro.py'
+	sed -i -E -e "s/^[[:space:]]*(DISTRO)[[:space:]]*=.*/\1='$VENDOR_DISTRO'/" \
+		-e "s/^[[:space:]]*(DISTRO_NAME)[[:space:]]*=.*/\1='$VENDOR_DISTRO_NAME Linux'/" \
+		-e "s,^[[:space:]]*(DISTRO_REPO_BASE_URL)[[:space:]]*=.*,\1='${VENDOR_REPO_BASE_URL%/}'," "$distro_file"
+
+	local apk_keys_glibc=""
+	local apk_keys_musl=""
+	case "$CARCH" in
+	x86_64)
+		apk_keys_glibc="info@bell-sw.com-63d8c58c.rsa.pub"
+		apk_keys_musl="info@bell-sw.com-63d8c58b.rsa.pub"
+		;;
+	aarch64)
+		apk_keys_glibc="info@bell-sw.com-66390d99.rsa.pub"
+		apk_keys_musl="info@bell-sw.com-66390d97.rsa.pub"
+		;;
+	esac
+	local key
+	for key in $apk_keys_glibc; do
+		install -v -D -m 0644 "${srcdir}/${key}" -t alpaquita_installer/keys/glibc/
+	done
+	for key in $apk_keys_musl; do
+		install -v -D -m 0644 "${srcdir}/${key}" -t alpaquita_installer/keys/musl/
+	done
+
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py check
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+
+	mv "$pkgdir/usr/bin/alpaquita-installer" "$pkgdir/usr/bin/$pkgname"
+	ln -s "$pkgname" "$pkgdir/usr/bin/$VENDOR_DISTRO-installer"
+
+	mkdir -p "$pkgdir/usr/share/doc/$pkgname"
+	for _doc in *.md; do
+		install -m 0644 $_doc "$pkgdir/usr/share/doc/$pkgname"
+	done
+}
+
+sha512sums="
+8c5764175adc4a15ef3491aa63f061f52b89c5fb2d698939c2e9f890b035dc68faa6d319bbaaf02b26c8b8474e5f61db2b3e08cf36654b09c15802c1da079d15  distro-installer-0.8.4.tar.gz
+f247dfb9b762b914ad3ff3fbfc07f28e2e9dd57ae2c17727cc3a1def000873e4ea9d60ffc05a3e99072b1cd93b05a427442b7d0588dde4b183bf33f40eb55031  info@bell-sw.com-63d8c58b.rsa.pub
+ce9dabc033886a07bbca8f4ba929236a6dd8e8a56fbc297e1d35ee1c5b32becd47021673969fc5123a62d5b4eb87a96451d6b86eaa10b5ac234e973205fc884a  info@bell-sw.com-63d8c58c.rsa.pub
+15b2d98137c5632aa8e7ad4c2e4f9551a28a92ef185081d861d62c92a8a7b43f7f91e994857977bdc6865fce050185adb16bf35029bf9b383d334ce6396fccb7  info@bell-sw.com-66390d97.rsa.pub
+e23ec8c9d4ee74237a0c59a70f77a61dad871369a2967af72b3e749af7253576b9a677d1b2c99a86719855e6fde83a67afb63613180cb6f04234faec091ad866  info@bell-sw.com-66390d99.rsa.pub
+"

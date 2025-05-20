@@ -1,0 +1,39 @@
+pkgname=sbc
+pkgver=2.0
+pkgrel=0
+pkgdesc="Bluetooth Subband Codec (SBC) library"
+url="http://www.bluez.org/"
+arch="all"
+options="!check"  # No tests.
+license="GPL-2.0-or-later AND LGPL-2.1-or-later"
+depends_dev="libsndfile-dev"
+makedepends="$depends_dev linux-headers"
+subpackages="$pkgname-dev $pkgname-utils"
+source="https://www.kernel.org/pub/linux/bluetooth/sbc-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--disable-static
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+utils() {
+	pkgdesc="$pkgdesc (utilities)"
+
+	amove usr/bin
+}
+
+sha512sums="
+600e86aa492ca1af512ec8e568a08fe526cf2f6eb7306bb0fbdd9a844d03a2a5dedb5f986725aa2c66fe3fe43a7ba45d111e9666eb8912ff3e3a36b948adbc61  sbc-2.0.tar.xz
+"

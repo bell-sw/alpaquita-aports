@@ -1,0 +1,42 @@
+From b10e3d591db21052da2af8db86347acee828b1e2 Mon Sep 17 00:00:00 2001
+From: Kees Cook <keescook@chromium.org>
+Date: Tue, 1 Nov 2022 10:25:07 -0700
+Subject: [PATCH] x86/Kconfig: Enable kernel IBT by default
+
+The kernel IBT defense strongly mitigates the common "first step" of ROP
+attacks, by eliminating arbitrary stack pivots (that appear either at
+the end of a function or in immediate values), which cannot be reached
+if indirect calls must be to marked function entry addresses. IBT is
+also required to be enabled to gain the FineIBT feature when built with
+Kernel Control Flow Integrity.
+
+Additionally, given that this feature is runtime enabled via CPU ID,
+it clearly should be built in by default; it will only be enabled if the
+CPU supports it. The build takes 2 seconds longer, which seems a small
+price to pay for gaining this coverage by default.
+
+Suggested-by: Sami Tolvanen <samitolvanen@google.com>
+Signed-off-by: Kees Cook <keescook@chromium.org>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Link: https://lkml.kernel.org/r/20221101172503.gonna.094-kees@kernel.org
+(cherry picked from commit 4fd5f70ce14da230c6a29648c3d51a48ee0b4bfd)
+---
+ arch/x86/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/Kconfig b/arch/x86/Kconfig
+index 49cea5b81649..508a8a847b5a 100644
+--- a/arch/x86/Kconfig
++++ b/arch/x86/Kconfig
+@@ -1844,7 +1844,7 @@ config CC_HAS_IBT
+ 
+ config X86_KERNEL_IBT
+ 	prompt "Indirect Branch Tracking"
+-	bool
++	def_bool y
+ 	depends on X86_64 && CC_HAS_IBT && HAVE_OBJTOOL
+ 	# https://github.com/llvm/llvm-project/commit/9d7001eba9c4cb311e03cd8cdc231f9e579f2d0f
+ 	depends on !LD_IS_LLD || LLD_VERSION >= 140000
+-- 
+2.25.1
+

@@ -1,0 +1,141 @@
+Patch-Source: https://salsa.debian.org/perl-team/modules/packages/libmodule-scandeps-perl/-/raw/bookworm/debian/patches/replace-eval-constructs.patch?ref_type=heads
+
+From bc57e5072fc7ace1d206246999dd852652939335 Mon Sep 17 00:00:00 2001
+From: rschupp <roderich.schupp@gmail.com>
+Date: Mon, 21 Oct 2024 14:08:01 +0200
+Subject: [PATCH] replace 'eval "..."' constructs
+
+---
+ lib/Module/ScanDeps.pm | 122 ++++++++++++++++++++++++++---------------
+ 1 file changed, 78 insertions(+), 44 deletions(-)
+
+--- a/lib/Module/ScanDeps.pm
++++ b/lib/Module/ScanDeps.pm
+@@ -880,41 +880,26 @@ sub scan_line {
+             # be specified for the "autouse" and "if" pragmas, e.g.
+             #   use autouse Module => qw(func1 func2);
+             #   use autouse "Module", qw(func1);
+-            # To avoid to parse them ourself, we simply try to eval the
+-            # string after the pragma (in a list context). The MODULE
+-            # should be the first ("autouse") or second ("if") element
+-            # of the list.
+             my $module;
+-            {
+-                no strict; no warnings;
+-                if ($pragma eq "autouse") {
+-                    ($module) = eval $args;
+-                }
+-                else {
+-                    # The syntax of the "if" pragma is
+-                    #   use if COND, MODULE => ARGUMENTS
+-                    # The COND may contain undefined functions (i.e. undefined
+-                    # in Module::ScanDeps' context) which would throw an
+-                    # exception. Sneak  "1 || " in front of COND so that
+-                    # COND will not be evaluated. This will work in most
+-                    # cases, but there are operators with lower precedence
+-                    # than "||" which will cause this trick to fail.
+-                    (undef, $module) = eval "1 || $args";
+-                }
+-                # punt if there was a syntax error
+-                return if $@ or !defined $module;
+-            };
+-            $module =~ s{::}{/}g;
+-            $found{"$pragma.pm"}++;
+-            $found{"$module.pm"}++;
++            if ($pragma eq "autouse") {
++                ($module) = _parse_module_list($args);
++            }
++            else {
++                # The syntax of the "if" pragma is
++                #   use if COND, MODULE => ARGUMENTS
++                (undef, $module) = _parse_module_list($args);
++            }
++            $found{_mod2pm($pragma)}++;
++            $found{_mod2pm($module)}++ if $module;
+             next CHUNK;
+         }
+ 
+-        if (my ($how, $libs) = /^(use \s+ lib \s+ | (?:unshift|push) \s+ \@INC \s+ ,) (.+)/x)
++        if (my ($how, $libs) = /^(use \s+ lib \s+ | (?:unshift|push) \s+ \@INC \s*,\s*) (.+)/x)
+         {
+             my $archname = defined($Config{archname}) ? $Config{archname} : '';
+             my $ver = defined($Config{version}) ? $Config{version} : '';
+-            foreach my $dir (do { no strict; no warnings; eval $libs }) {
++            while ((my $dir, $libs) = _parse_libs($libs))
++            {
+                 next unless defined $dir;
+                 my @dirs = $dir;
+                 push @dirs, "$dir/$ver", "$dir/$archname", "$dir/$ver/$archname"
+@@ -932,6 +917,72 @@ sub scan_line {
+     return sort keys %found;
+ }
+ 
++# convert module name to file name
++sub _mod2pm {
++    my $mod = shift;
++    $mod =~ s!::!/!g;
++    return "$mod.pm";
++}
++
++# parse a comma-separated list of module names (as string literals or qw() lists)
++sub _parse_module_list {
++    my $list = shift;
++
++    # split $list on anything that's not a word character or ":"
++    # and ignore "q", "qq" and "qw"
++    return grep { length and !/^:|^q[qw]?$/ } split(/[^\w:]+/, $list);
++}
++
++# incrementally parse a comma separated list library paths:
++# returning a pair: the contents of the first strings literal and the remainder of the string
++# - for "string", 'string', q/string/, qq/string/ also unescape \\ and \<delimiter>)
++# - for qw(foo bar quux) return ("foo", qw(bar quux))
++# - otherwise skip over the first comma and return (undef, "remainder")
++# - return () if the string is exhausted
++# - as a special case, if the string starts with $FindBin::Bin, replace it with our $Bin
++sub _parse_libs {
++    local $_ = shift;
++
++    s/^[\s,]*//;
++    return if $_ eq "";
++
++    if (s/^(['"]) ((?:\\.|.)*?) \1//x) {
++        return (_unescape($1, $2), $_);
++    }
++    if (s/^qq? \s* (\W)//x) {
++        my $opening_delim = $1;
++        (my $closing_delim = $opening_delim) =~ tr:([{<:)]}>:;
++        s/^((?:\\.|.)*?) \Q$closing_delim\E//x;
++        return (_unescape($opening_delim, $1), $_);
++    }
++
++    if (s/^qw \s* (\W)//x) {
++        my $opening_delim = $1;
++        (my $closing_delim = $opening_delim) =~ tr:([{<:)]}>:;
++        s/^((?:\\.|.)*?) \Q$closing_delim\E//x;
++        my $contents = $1;
++        my @list = split(" ", $contents);
++        return (undef, $_) unless @list;
++        my $first = shift @list;
++        return (_unescape($opening_delim, $first),
++                @list ? "qw${opening_delim}@list${closing_delim}$_" : $_);
++    }
++
++    # nothing recognizable in the first list item, skip to the next
++    if (s/^.*? ,//x) {
++        return (undef, $_);
++    }
++    return;     # list exhausted
++}
++
++sub _unescape {
++    my ($delim, $str) = @_;
++    $str =~ s/\\([\\\Q$delim\E])/$1/g;
++    $str =~ s/^\$FindBin::Bin\b/$FindBin::Bin/;
++
++    return $str;
++}
++
+ # short helper for scan_chunk
+ my %LoaderRegexp; # cache
+ sub _build_loader_regexp {

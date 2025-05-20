@@ -1,0 +1,112 @@
+This is to get rid of this annoying error:
+
+  # modprobe sunrpc
+  /sbin/sysctl: unrecognized option: pattern
+  BusyBox v1.35.0 (2024-04-26 13:20:02 UTC) multi-call binary.
+  
+  Usage: sysctl [-enq] { -a | -p [FILE]... | [-w] [KEY[=VALUE]]... }
+  
+  Show/set kernel parameters
+  
+          -e      Don't warn about unknown keys
+          -n      Don't show key names
+          -q      Quiet
+          -a      Show all values
+          -p      Set values from FILEs (default /etc/sysctl.conf)
+          -w      Set values
+
+It brings the following upstream patches as one patch to make changes
+clearer[1][2][3]:
+
+  d8d29f85 Revert "systemd: Apply all sysctl settings when NFS-related modules are loaded"
+  5bab9cbc Revert "modprobe: protect against sysctl errors"
+  89ea2915 Revert "configure: make modprobe.d directory configurable
+
+[1] http://git.linux-nfs.org/?p=steved/nfs-utils.git;a=commitdiff;h=d8d29f85
+[2] http://git.linux-nfs.org/?p=steved/nfs-utils.git;a=commitdiff;h=5bab9cbc
+[3] http://git.linux-nfs.org/?p=steved/nfs-utils.git;a=commitdiff;h=89ea2915
+
+---
+diff --git a/configure.ac b/configure.ac
+index 5d9cbf31..4280cc77 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -71,18 +71,6 @@ AC_ARG_WITH(systemd,
+ 	AM_CONDITIONAL(INSTALL_SYSTEMD, [test "$use_systemd" = 1])
+ 	AC_SUBST(unitdir)
+ 
+-modprobedir=/usr/lib/modprobe.d
+-AC_ARG_WITH(modprobedir,
+-	[AS_HELP_STRING([--with-modprobedir@<:@=modprobe-dir-path@:>@],[install modprobe config files @<:@Default: /usr/lib/modprobe.d@:>@])],
+-	if test "$withval" != "no" ; then
+-		modprobedir=$withval
+-	else
+-		modprobedir=
+-	fi
+-	)
+-	AM_CONDITIONAL(INSTALL_MODPROBEDIR, [test -n "$modprobedir"])
+-	AC_SUBST(modprobedir)
+-
+ AC_ARG_ENABLE(nfsv4,
+ 	[AS_HELP_STRING([--disable-nfsv4],[disable support for NFSv4 @<:@default=no@:>@])],
+ 	enable_nfsv4=$enableval,
+diff --git a/systemd/50-nfs.conf b/systemd/50-nfs.conf
+deleted file mode 100644
+index 19e8ee73..00000000
+--- a/systemd/50-nfs.conf
++++ /dev/null
+@@ -1,16 +0,0 @@
+-# Ensure all NFS systctl settings get applied when modules load
+-
+-# sunrpc module supports "sunrpc.*" sysctls
+-install sunrpc /sbin/modprobe --ignore-install sunrpc $CMDLINE_OPTS && { /sbin/sysctl -q --pattern sunrpc --system; exit 0; }
+-
+-# rpcrdma module supports sunrpc.svc_rdma.*
+-install rpcrdma /sbin/modprobe --ignore-install rpcrdma $CMDLINE_OPTS && { /sbin/sysctl -q --pattern sunrpc.svc_rdma --system; exit 0; }
+-
+-# lockd module supports "fs.nfs.nlm*" and "fs.nfs.nsm*" sysctls
+-install lockd /sbin/modprobe --ignore-install lockd $CMDLINE_OPTS && { /sbin/sysctl -q --pattern fs.nfs.n[sl]m --system; exit 0; }
+-
+-# nfsv4 module supports "fs.nfs.*" sysctls (nfs_callback_tcpport and idmap_cache_timeout)
+-install nfsv4 /sbin/modprobe --ignore-install nfsv4 $CMDLINE_OPTS && { /sbin/sysctl -q --pattern 'fs.nfs.(nfs_callback_tcpport|idmap_cache_timeout)' --system; exit 0; }
+-
+-# nfs module supports "fs.nfs.*" sysctls
+-install nfs /sbin/modprobe --ignore-install nfs $CMDLINE_OPTS && { /sbin/sysctl -q --pattern fs.nfs --system; exit 0; }
+diff --git a/systemd/Makefile.am b/systemd/Makefile.am
+index 7b5ab84b..e7f5d818 100644
+--- a/systemd/Makefile.am
++++ b/systemd/Makefile.am
+@@ -2,8 +2,6 @@
+ 
+ MAINTAINERCLEANFILES = Makefile.in
+ 
+-modprobe_files = 50-nfs.conf
+-
+ unit_files =  \
+     nfs-client.target \
+     rpc_pipefs.target \
+@@ -53,7 +51,7 @@ endif
+ 
+ man5_MANS	= nfs.conf.man
+ man7_MANS	= nfs.systemd.man
+-EXTRA_DIST = $(unit_files) $(modprobe_files) $(man5_MANS) $(man7_MANS)
++EXTRA_DIST = $(unit_files) $(man5_MANS) $(man7_MANS)
+ 
+ generator_dir = $(unitdir)/../system-generators
+ 
+@@ -75,14 +73,8 @@ rpc_pipefs_generator_LDADD = ../support/nfs/libnfs.la
+ 
+ if INSTALL_SYSTEMD
+ genexec_PROGRAMS = nfs-server-generator rpc-pipefs-generator
+-install-data-hook: $(unit_files) $(modprobe_files)
++install-data-hook: $(unit_files)
+ 	mkdir -p $(DESTDIR)/$(unitdir)
+ 	cp $(unit_files) $(DESTDIR)/$(unitdir)
+ 	cp $(rpc_pipefs_mount_file) $(DESTDIR)/$(unitdir)/$(rpc_pipefsmount)
+-else
+-install-data-hook: $(modprobe_files)
+-endif
+-if INSTALL_MODPROBEDIR
+-	mkdir -p $(DESTDIR)$(modprobedir)
+-	cp $(modprobe_files) $(DESTDIR)$(modprobedir)
+ endif

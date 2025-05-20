@@ -1,0 +1,97 @@
+pkgname=gdb
+pkgver=12.1
+pkgrel=3
+pkgdesc="The GNU Debugger"
+url="https://www.gnu.org/software/gdb/"
+arch="all"
+license="GPL-3.0-or-later LGPL-3.0-or-later"
+makedepends="ncurses-dev expat-dev texinfo readline-dev python3-dev
+	zlib-dev autoconf automake libtool linux-headers perl gmp-dev"
+options="!check"
+[ "$CARCH" = "riscv64" ] && options="$options textrels"
+subpackages="$pkgname-dbg $pkgname-doc $pkgname-multiarch"
+source="https://ftp.gnu.org/gnu/gdb/gdb-$pkgver.tar.xz
+	musl:musl-signals.patch
+	fix-arm-segfault.patch
+	fix-invalid-implicit-conversion.patch
+	"
+
+prepare() {
+	default_prepare
+	mkdir -p "$builddir"/vanilla "$builddir"/multiarch
+}
+
+build() {
+	local _config="
+		--build=$CBUILD
+		--host=$CHOST
+		--prefix=/usr
+		--target=$CTARGET
+		--with-build-sysroot=$CBUILDROOT
+		--with-python=/usr/bin/python3
+		--disable-nls
+		--disable-werror
+		--mandir=/usr/share/man
+		--infodir=/usr/share/info"
+
+	export CFLAGS="$CFLAGS -g1"
+	export CXXFLAGS="$CXXFLAGS -g1"
+
+	# use system readline if not cross compiling
+	[ "$CBUILD" = "$CHOST" ] && _config="$_config --with-system-readline"
+
+	# use system zlib if not cross compiling
+	[ "$CBUILD" = "$CHOST" ] && _config="$_config --with-system-zlib"
+
+	# avoid generation of mangled and non-mangled objects on ppc64
+	[ "$CARCH" = ppc64le ] && _config="$_config --enable-build-with-cxx=no"
+
+	cd "$builddir"/vanilla
+	../configure $_config
+	make
+
+	# XXX: As of GDB 12.1, --enable-targets=all is broken on 32-bit targets.
+	#
+	# See: https://sourceware.org/pipermail/gdb-patches/2022-May/189227.html
+	cd "$builddir"/multiarch
+	case "$CARCH" in
+	arm*|x86) ../configure $_config \
+		--disable-sim \
+		--enable-64-bit-bfd \
+		--enable-targets=all ;;
+	*) ../configure $_config --enable-targets=all ;;
+	esac
+	make
+}
+
+package() {
+	cd "$builddir"/vanilla
+	make DESTDIR="$pkgdir" install
+
+	# resolve conflict with binutils-doc
+	rm -f "$pkgdir"/usr/share/info/bfd.info
+	rm -f "$pkgdir"/usr/share/info/ctf-spec.info
+	rm -f "$pkgdir"/usr/share/info/dir
+
+	# those are provided by binutils
+	rm -rf "$pkgdir"/usr/include
+	rm -rf "$pkgdir"/usr/lib
+
+	# install gdb-multiarch here for default dbg() split function to work
+	install -Dm755 "$builddir"/multiarch/gdb/gdb \
+		"$pkgdir"/usr/bin/gdb-multiarch
+}
+
+multiarch() {
+	depends="$pkgname"
+	pkgdesc="The GNU Debugger for all supported architectures"
+
+	amove usr/bin/gdb-multiarch
+}
+
+sha512sums="
+425568d2e84672177d0fb87b1ad7daafdde097648d605e30cf0656970f66adc6a82ca2d83375ea4be583e9683a340e5bfdf5819668ddf66728200141ae50ff2d  gdb-12.1.tar.xz
+58aacc7cdc119eab729a3c5a5521f6a0db41c6a5bc2d09d6e32cbdd071d85dd1a31b5e6559616f8da1237c5b79ad9e04aab485211e957b4d1ca752c0c5ad660b  musl-signals.patch
+81a6014318aaa768715de5c8e6a384a028e76bc9650951220a0e2e4e9fc67617e78ab23a0591cd6fa00d5a9709fbc2fc9c166da3aa19e6545fcc298800781fa9  fix-arm-segfault.patch
+97ee00c68d8df2b04a141d4b0489e339a2d64c2c790d336767dbe28bf1510d596ea46142383ce09043a0bfc47f7d262082287448ded99fefa1f7e2b5ddad3df2  fix-invalid-implicit-conversion.patch
+"

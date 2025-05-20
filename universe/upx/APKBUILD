@@ -1,0 +1,57 @@
+pkgname=upx
+pkgver=4.0.2
+pkgrel=0
+pkgdesc="The Ultimate Packer for eXecutables"
+url="https://upx.github.io"
+# s390x: fails to build
+arch="all !s390x"
+license="GPL-2.0 Public-Domain"
+makedepends="cmake samurai"
+subpackages="$pkgname-doc"
+source="https://github.com/upx/upx/releases/download/v$pkgver/upx-$pkgver-src.tar.xz"
+builddir="$srcdir/$pkgname-$pkgver-src"
+
+# secfixes:
+#   4.0.2-r0:
+#     - CVE-2023-23456
+#     - CVE-2023-23457
+#   4.0.0-r0:
+#     - CVE-2020-24119
+#     - CVE-2020-27796
+#     - CVE-2020-27797
+#     - CVE-2020-27798
+#     - CVE-2020-27799
+#     - CVE-2020-27800
+#     - CVE-2020-27801
+#     - CVE-2020-27802
+#     - CVE-2021-30500
+#     - CVE-2021-30501
+#   3.96-r1:
+#     - CVE-2021-20285
+#   3.96-r0:
+#     - CVE-2018-11243
+#     - CVE-2019-14296
+#     - CVE-2019-20021
+#     - CVE-2019-20053
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DUPX_CONFIG_DISABLE_WERROR=ON \
+		-DUPX_CONFIG_DISABLE_SANITIZE=ON \
+		-DUPX_CONFIG_DISABLE_GITREV=ON
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+0aafbaf97a25e9cd1866d03358f5eceab2c0ba4b2f3acdd58178b41c32af58335b6cb843d83f3398d4ceedc238bfcd95f86a20c38a11d5e4e8af6a28c7e8b82e  upx-4.0.2-src.tar.xz
+"

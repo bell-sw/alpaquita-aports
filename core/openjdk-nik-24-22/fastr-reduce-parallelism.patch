@@ -1,0 +1,15 @@
+diff --git a/mx.fastr/suite.py b/mx.fastr/suite.py
+index bace56ea2d..bd2e573d60 100644
+--- a/fastr/mx.fastr/suite.py
++++ b/fastr/mx.fastr/suite.py
+@@ -450,7 +450,9 @@ suite = {
+         "com.oracle.truffle.r.ffi.impl",
+         "com.oracle.truffle.r.common",
+       ],
+-      "max_jobs" : "8",
++      # This was needed to work around multithreaded 'internal resource' access issues
++      # on Linux and Mac. Can be set to 2 or 3 once those issues are fixed.
++      "max_jobs" : "1",
+       "native" : True,
+       "vpath": True,
+       "workingSets" : "FastR",

@@ -1,0 +1,38 @@
+pkgname=py3-hypothesis
+pkgver=6.58.0
+pkgrel=2
+pkgdesc="Advanced property-based (QuickCheck-like) testing for Python"
+options="!check"
+url="https://hypothesis.works/"
+arch="noarch"
+license="MPL-2.0"
+depends="py3-attrs py3-sortedcontainers"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest py3-coverage py3-tz py3-numpy py3-dateutil py3-pexpect"
+source="py-hypothesis-$pkgver.tar.gz::https://github.com/HypothesisWorks/hypothesis-python/archive/hypothesis-python-$pkgver.tar.gz
+	"
+builddir="$srcdir/hypothesis-hypothesis-python-$pkgver/hypothesis-python"
+
+replaces="py-hypothesis" # Backwards compatibility
+provides="py-hypothesis=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	# In python3 mock is actually unittest.mock
+	sed -e 's/from mock/from unittest.mock/' -i tests/cover/test_regressions.py
+	sed -e 's/from mock/from unittest.mock/' -i tests/cover/test_reflection.py
+
+	rm -rf tests/lark tests/dpcontracts tests/pandas
+	PYTHONPATH="$PWD/build/lib" pytest-3 -v -k "not test_healthcheck_traceback_is_hidden"
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+91f128f333144859331e9a841d47d8414964955e14071a49e3d4504a9c9970e5f737c9036be8f20bdda1e620bb428809301d1008bfbd4b0aaa05757abeb8687d  py-hypothesis-6.58.0.tar.gz
+"

@@ -1,0 +1,33 @@
+pkgname=conmon
+pkgver=2.1.7
+pkgrel=0
+pkgdesc="OCI container runtime monitor"
+url="https://github.com/containers/conmon"
+license="Apache-2.0"
+arch="all"
+makedepends="bash go-md2man glib-dev libseccomp-dev"
+subpackages="$pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/containers/conmon/archive/v$pkgver/conmon-$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+
+	# fix location of go-md2man
+	sed -E "s/(GOMD2MAN =).*/\1 go-md2man/" -i docs/Makefile
+}
+
+build() {
+	make
+}
+
+check() {
+	./bin/conmon --version
+}
+
+package() {
+	make install PREFIX=/usr DESTDIR="$pkgdir"
+}
+
+sha512sums="
+95d394b399a19a62b894cdd03937ab79b81051eea1db461b1bf957ddd7626d6ca4aa108b8319ed8c08adbdf99fd960c5ba29146e8b0673b5c920708912a72973  conmon-2.1.7.tar.gz
+"

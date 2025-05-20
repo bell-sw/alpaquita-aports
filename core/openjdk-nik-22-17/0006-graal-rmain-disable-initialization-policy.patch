@@ -1,0 +1,27 @@
+From a80559fa7fd10a0eb35db6c7affdbb923ca53b9e Mon Sep 17 00:00:00 2001
+From: Denis Kononenko <denis.kononenko@bell-sw.com>
+Date: Mon, 19 Sep 2022 18:32:50 +0000
+Subject: [PATCH] rmain disable initalization policy
+
+---
+ sdk/mx.sdk/mx_sdk_vm_impl.py | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/sdk/mx.sdk/mx_sdk_vm_impl.py b/sdk/mx.sdk/mx_sdk_vm_impl.py
+index 6fe047ac4bc..64511099906 100644
+--- a/graal/sdk/mx.sdk/mx_sdk_vm_impl.py
++++ b/graal/sdk/mx.sdk/mx_sdk_vm_impl.py
+@@ -2201,6 +2201,10 @@ class GraalVmSVMNativeImageBuildTask(GraalVmNativeImageBuildTask):
+             '-H:NumberOfThreads=' + str(self.parallelism),
+             '-H:+BuildOutputPrefix',
+         ]
++
++        if mx.is_darwin() and str(self.subject.native_image_config).endswith("RMain"):
++            build_args += ["-H:-AssertInitializationSpecifiedForAllClasses"]
++
+         if self.subject.native_image_config.is_polyglot:
+             build_args += ["--macro:truffle", "--language:all"]
+         return build_args
+-- 
+2.34.4
+

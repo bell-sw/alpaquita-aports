@@ -1,0 +1,37 @@
+pkgname=xcb-util-wm
+pkgver=0.4.2
+pkgrel=0
+pkgdesc="X C-language Binding - helpers for ICCCM and EWMH"
+url="https://xcb.freedesktop.org/"
+arch="all"
+license="MIT"
+depends_dev="xcb-util-dev"
+makedepends="$depends_dev m4 util-macros"
+checkdepends="check"
+replaces="xcb-util"
+subpackages="$pkgname-dev"
+source="https://xcb.freedesktop.org/dist/xcb-util-wm-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+eab6588e6a47d28a3b25ecd13b5018529419db6b49c74458c093699b60a194933be1e1f6f7799abf03344f7ebc7af88586ff2935938d53644bdd5c763a7fa9b0  xcb-util-wm-0.4.2.tar.xz
+"

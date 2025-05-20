@@ -1,0 +1,83 @@
+# Description:
+
+pkgname=libjpeg-turbo
+pkgver=2.1.4
+pkgrel=0
+pkgdesc="Accelerated baseline JPEG compression and decompression library"
+url="https://libjpeg-turbo.org/"
+arch="all"
+license="BSD-3-Clause AND IJG AND Zlib"
+makedepends="cmake nasm samurai"
+replaces="libjpeg"
+subpackages="$pkgname-static $pkgname-doc $pkgname-dev $pkgname-utils"
+source="https://downloads.sourceforge.net/libjpeg-turbo/libjpeg-turbo-$pkgver.tar.gz"
+
+# secfixes:
+#   2.1.0-r0:
+#     - CVE-2021-20205
+#   2.0.6-r0:
+#     - CVE-2020-35538
+#   2.0.4-r2:
+#     - CVE-2020-13790
+#   2.0.4-r0:
+#     - CVE-2019-2201
+#   2.0.2-r0:
+#     - CVE-2018-20330
+#     - CVE-2018-19664
+#   1.5.3-r3:
+#     - CVE-2018-11813
+#   1.5.3-r2:
+#     - CVE-2018-1152
+
+
+build() {
+	local _floattest=
+	if [ "$CBUILD" != "$CHOST" ]; then
+		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+	case "$CARCH" in
+		ppc64le) export JSIMD_FORCENONE=1;;
+		s390x|riscv64) _floattest="-DFLOATTEST=fp-contract";;
+	esac
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=/usr/lib \
+		-DBUILD_SHARED_LIBS=True \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DWITH_JPEG8=1 \
+		$_floattest \
+		$CMAKE_CROSSOPTS
+	cmake --build build
+}
+
+check() {
+	cd build
+	CTEST_OUTPUT_ON_FAILURE=TRUE ctest
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+	install -d "$pkgdir"/usr/share/licenses/$pkgname
+	ln -s ../../doc/libjpeg-turbo/LICENSE.md "$pkgdir/usr/share/licenses/$pkgname"
+}
+
+utils() {
+	pkgdesc="Utilities for manipulating JPEG images"
+	replaces="jpeg"
+
+	amove usr/bin
+}
+
+doc() {
+	default_doc
+	replaces="jpeg-doc"
+}
+
+dev() {
+	default_dev
+	replaces="jpeg-dev"
+}
+
+sha512sums="
+511f065767c022da06b6c36299686fa44f83441646f7e33b766c6cfab03f91b0e6bfa456962184071dadaed4057ba9a29cba685383f3eb86a4370a1a53731a70  libjpeg-turbo-2.1.4.tar.gz
+"

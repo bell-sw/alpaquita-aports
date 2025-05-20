@@ -1,0 +1,41 @@
+pkgname=libxpm
+pkgver=3.5.17
+pkgrel=0
+pkgdesc="X11 pixmap library"
+url="http://xorg.freedesktop.org/"
+arch="all"
+license="custom:BELL"
+options="!check"  # No test suite.
+subpackages="$pkgname-dev $pkgname-doc"
+makedepends="libxt-dev libxext-dev util-linux-dev util-macros"
+source="https://www.x.org/releases/individual/lib/libXpm-$pkgver.tar.xz"
+builddir="$srcdir"/libXpm-$pkgver
+
+# secfixes:
+#   3.5.17-r0:
+#     - CVE-2023-43788
+#     - CVE-2023-43789
+#   3.5.15-r0:
+#     - CVE-2022-46285
+#     - CVE-2022-44617
+#     - CVE-2022-4883
+
+build() {
+	ac_cv_search_gettext=no \
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--disable-open-zfile
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+}
+
+sha512sums="
+52f9d2664a47a26c1a6ad65d18867de870b66947b0b0d99cca3512756a0aaa6ce2a245c0b49f20b70c3ce48bf04c47c333e8119a147465c277bca727f6ab017e  libXpm-3.5.17.tar.xz
+"

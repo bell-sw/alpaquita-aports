@@ -1,0 +1,111 @@
+pkgname=sdl2
+pkgver=2.26.5
+pkgrel=0
+pkgdesc="development library designed to provide low level access to audio, keyboard, mouse, joystick and graphics"
+url="https://www.libsdl.org"
+arch="all"
+license="Zlib"
+depends_dev="$pkgname directfb-dev mesa-dev"
+makedepends="
+	alsa-lib-dev
+	cmake
+	eudev-dev
+	jack-dev
+	libx11-dev
+	libxcursor-dev
+	libxext-dev
+	libxi-dev
+	libxkbcommon-dev
+	libxrandr-dev
+	libxrender-dev
+	libxscrnsaver-dev
+	libusb-dev
+	pulseaudio-dev
+	samurai
+	sndio-dev
+	wayland-dev
+	wayland-protocols
+	$depends_dev
+	"
+subpackages="$pkgname-dbg $pkgname-doc $pkgname-dev"
+source="https://www.libsdl.org/release/SDL2-$pkgver.tar.gz"
+builddir="$srcdir/SDL2-$pkgver"
+
+# secfixes:
+#   2.0.18-r0:
+#     - CVE-2021-33657
+#   2.0.10-r0:
+#     - CVE-2019-7572
+#     - CVE-2019-7573
+#     - CVE-2019-7574
+#     - CVE-2019-7575
+#     - CVE-2019-7576
+#     - CVE-2019-7578
+#     - CVE-2019-7635
+#     - CVE-2019-7636
+#     - CVE-2019-7637
+#     - CVE-2019-7638
+
+case "$CARCH" in
+s390x)
+	_pipewire=OFF
+	;;
+*)
+	makedepends="$makedepends pipewire-dev"
+	_pipewire=ON
+	;;
+esac
+
+build() {
+	# NOTE: Please do not remove the -DSDL_DIRECTFB=ON flag.
+	# Some apps, used for booting Alpine derivatives, require this to function!
+	if [ "$CBUILD" != "$CHOST" ]; then
+		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+	GIT_DIR=. \
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DBUILD_SHARED_LIBS=True \
+		-DSDL_TEST=ON \
+		-DSDL_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DSDL_ALSA=ON \
+		-DSDL_JACK=ON \
+		-DSDL_CLOCK_GETTIME=ON \
+		-DSDL_ARTS=OFF \
+		-DSDL_ESD=OFF \
+		-DSDL_NAS=OFF \
+		-DSDL_RPATH=OFF \
+		-DSDL_X11=ON \
+		-DSDL_DIRECTFB=ON \
+		-DSDL_WAYLAND=ON \
+		-DSDL_STATIC=ON \
+		-DSDL_SHARED=ON \
+		-DSDL_PIPEWIRE_SHARED=$_pipewire \
+		-DSDL_PULSEAUDIO_SHARED=ON \
+		-DSDL_SNDIO_SHARED=ON \
+		$CMAKE_CROSSOPTS
+	ninja -C build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" ninja -C build install
+}
+
+dev() {
+	default_dev
+
+	# move back dev symlink into main package so things can dlopen it
+	# libSDL2.so -> libSDL2-2.0.so -> libSDL2-2.0.so.version
+	mv "$subpkgdir"/usr/lib/libSDL2.so "$subpkgdir"/usr/lib/libSDL2-2.0.so \
+		"$pkgdir"/usr/lib
+}
+
+sha512sums="
+0f37b443950bc89c3f3add2fc9a9970f42b47e933c106a1d676d1715c520125d5725ffcb9ff85bcf66ac3ff78d9d43d994f9c1935b7c0fd7951e10e251936bcc  SDL2-2.26.5.tar.gz
+"

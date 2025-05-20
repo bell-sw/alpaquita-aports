@@ -1,0 +1,37 @@
+pkgname=py3-automat
+pkgver=22.10.0
+pkgrel=1
+pkgdesc="Self-service finite-state machines for the programmer on the go"
+url="https://automat.readthedocs.io/"
+arch="noarch"
+license="MIT"
+depends="py3-attrs py3-six"
+makedepends="py3-setuptools py3-setuptools_scm py3-wheel"
+checkdepends="py3-pytest py3-pluggy"
+source="$pkgname-$pkgver.tar.gz::https://github.com/glyph/automat/archive/v$pkgver.tar.gz"
+builddir="$srcdir/automat-$pkgver"
+
+replaces="py-automat" # Backwards compatibility
+provides="py-automat=$pkgver-r$pkgrel" # Backwards compatibility
+
+prepare() {
+	default_prepare
+}
+
+build() {
+	export SETUPTOOLS_SCM_PRETEND_VERSION=$pkgver
+	python3 setup.py build
+}
+
+check() {
+	pytest automat/_test
+}
+
+package() {
+	export SETUPTOOLS_SCM_PRETEND_VERSION=$pkgver
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+16caea66a8621b7d50e68e94007085218ec40ae0f57599d5076ed1915d4a2ebabd2da66659ba70acb9c6d30bc354bcd6126f913af0c0a005db305ca0c203481d  py3-automat-22.10.0.tar.gz
+"

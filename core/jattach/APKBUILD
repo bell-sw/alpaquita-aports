@@ -1,0 +1,22 @@
+pkgname=jattach
+pkgver=2.1
+pkgrel=0
+pkgdesc="JVM dynamic attach utility"
+url="https://github.com/apangin/jattach"
+arch="all"
+license="Apache-2.0"
+options="!check" # upstream doesn't have a test suite
+source="$pkgname-$pkgver.tar.gz::https://github.com/apangin/jattach/archive/v$pkgver.tar.gz"
+
+build() {
+	make
+}
+
+package() {
+	mkdir -p "$pkgdir"
+	install -Dm0755 "$builddir/build/$pkgname" "$pkgdir/usr/bin/$pkgname"
+}
+
+sha512sums="
+0846c087a78da953ee6bb7720861122c8e130e04da4625a6313c19cd541009076240141fbf1709b8c5ff1d4c41f5f29645828df8a2064839de8de64cbbca1266  jattach-2.1.tar.gz
+"

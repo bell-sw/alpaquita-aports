@@ -1,0 +1,44 @@
+pkgname=oniguruma
+pkgver=6.9.8
+pkgrel=0
+pkgdesc="a regular expressions library"
+url="https://github.com/kkos/oniguruma"
+arch="all"
+license="BSD-2-Clause"
+makedepends="automake autoconf libtool"
+subpackages="$pkgname-dev"
+source="$pkgname-$pkgver.tar.gz::https://github.com/kkos/oniguruma/archive/v$pkgver.tar.gz"
+
+# secfixes:
+#   6.9.5-r2:
+#     - CVE-2020-26159
+
+prepare() {
+	default_prepare
+	autoreconf -vfi
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--enable-posix-api
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+6f541e8cecf73b029e54d4e11a6ddffe058d6c47674086df5a3921323351032819aca2719d35584648c3bffce6779d976a7513eabd4645362b3af701e59c67ca  oniguruma-6.9.8.tar.gz
+"

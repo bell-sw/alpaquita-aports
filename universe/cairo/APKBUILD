@@ -1,0 +1,89 @@
+# Description:
+
+pkgname=cairo
+pkgver=1.17.6
+pkgrel=4
+pkgdesc="A vector graphics library"
+url="https://cairographics.org/"
+arch="all"
+options="!check"  # Recursive dependency on gtk+2.0 for check.
+license="LGPL-2.0-or-later MPL-1.1"
+depends_dev="
+	$pkgname-tools=$pkgver-r$pkgrel
+	fontconfig-dev
+	freetype-dev
+	libxext-dev
+	libxrender-dev
+	pixman-dev
+	xcb-util-dev
+	"
+makedepends="
+	$depends_dev
+	expat-dev
+	glib-dev
+	gtk-doc
+	libpng-dev
+	meson
+	zlib-dev
+	"
+subpackages="
+	$pkgname-dbg
+	$pkgname-static
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-gobject
+	$pkgname-tools
+	"
+source="https://gitlab.freedesktop.org/cairo/cairo/-/archive/$pkgver/cairo-$pkgver.tar.bz2
+	musl:musl-stacksize.patch
+	fix-type1-subset-indexing.patch
+	0100-CVE-2019-6461.patch
+	"
+
+# secfixes:
+#   1.17.6-r4:
+#     - CVE-2019-6461
+#   1.17.4-r2:
+#     - CVE-2019-6462
+#   1.16.0-r2:
+#     - CVE-2020-35492
+#   1.16.0-r1:
+#     - CVE-2018-19876
+
+build() {
+	abuild-meson \
+		-Db_lto=true \
+		-Ddefault_library=both \
+		-Dgtk_doc=true \
+		-Dtests="$(want_check && echo enabled || echo disabled)" \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild --print-errorlogs -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+gobject() {
+	pkgdesc="$pkgdesc (gobject bindings)"
+
+	amove usr/lib/libcairo-gobject.so.*
+}
+
+tools() {
+	pkgdesc="$pkgdesc (development tools)"
+
+	amove usr/bin
+	amove usr/lib/cairo/libcairo-trace.*
+}
+
+sha512sums="
+1537b34ca49b853f4f60a7ceac0c1b878e7e2874f1ca3a37ab6ccbb704a37872314447016ad07b82312b302bb6df86b71265232a802ccdb9fb8cd18f211ff185  cairo-1.17.6.tar.bz2
+86f26fe41deb5e14f553c999090d1ec1d92a534fa7984112c9a7f1d6c6a8f1b7bb735947e8ec3f26e817f56410efe8cc46c5e682f6a278d49b40a683513740e0  musl-stacksize.patch
+fe9badbffceea378cab893f8a13f76e7c411bba18bab69a768ceda68b05357a94b41bb9f025d05f0ae7d1d324f0cdf98bf5a2c27b35db45f3fc5a70bfa091113  fix-type1-subset-indexing.patch
+77095e8d2ff491b7855ebbf0d7d157e52e5d4955890216522fc233206cf27ada981ad3cc3488fc6d744d6cfcd15783b2d62f003fa462abedefc1e98f907dbcad  0100-CVE-2019-6461.patch
+"

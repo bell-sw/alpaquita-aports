@@ -1,0 +1,39 @@
+pkgname=py3-myst-parser
+pkgver=0.18.1
+pkgrel=1
+pkgdesc="Extended commonmark compliant parser"
+url="https://myst-parser.readthedocs.io/"
+arch="noarch"
+license="MIT"
+depends="
+	py3-docutils
+	py3-jinja2
+	py3-markdown-it-py
+	py3-mdit-py-plugins
+	py3-sphinx
+	py3-typing-extensions
+	py3-yaml
+	python3
+	"
+makedepends="py3-build py3-flit-core py3-installer"
+checkdepends="py3-pytest py3-pytest-benchmark py3-beautifulsoup4"
+source="https://github.com/executablebooks/MyST-Parser/archive/v$pkgver/py3-myst-parser-$pkgver.tar.gz"
+builddir="$srcdir/MyST-Parser-$pkgver"
+options="!check" # TODO
+
+build() {
+	python3 -m build --no-isolation --wheel
+}
+
+check() {
+	PYTHONPATH=build/lib pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		dist/myst_parser-$pkgver-py3-none-any.whl
+}
+
+sha512sums="
+4bc3a89480f175779da4f093aaa99a1516f76ab4107dcf8747b6614f347e91739f8596693f95529d76aedbb0c84b4efde4262517bc445aa7027d51e05e8b48bc  py3-myst-parser-0.18.1.tar.gz
+"

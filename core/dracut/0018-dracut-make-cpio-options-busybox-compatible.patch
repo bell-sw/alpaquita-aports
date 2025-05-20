@@ -1,0 +1,25 @@
+From 78502fea2984abc0ba56291f7016dab0ed1a102a Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Thu, 16 Nov 2023 13:40:35 +0000
+Subject: [PATCH] dracut: make cpio options busybox compatible
+
+---
+ dracut.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dracut.sh b/dracut.sh
+index 1286525e..99b5c547 100755
+--- a/dracut.sh
++++ b/dracut.sh
+@@ -2158,7 +2158,7 @@ if [[ $early_microcode == yes ]]; then
+                 for _ucodedir in "${early_microcode_image_dir[@]}"; do
+                     for _ucodename in "${early_microcode_image_name[@]}"; do
+                         [[ -e "$_ucodedir/$_ucodename" ]] \
+-                            && cpio --extract --file "$_ucodedir/$_ucodename" --quiet \
++                            && cpio -i -F "$_ucodedir/$_ucodename" \
+                                 "kernel/x86/microcode/${ucode_dest[$idx]}"
+                         if [[ -e "$_dest_dir/${ucode_dest[$idx]}" ]]; then
+                             dinfo "*** Using microcode found in '$_ucodedir/$_ucodename' ***"
+-- 
+2.25.1
+

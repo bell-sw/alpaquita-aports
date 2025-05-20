@@ -1,0 +1,25 @@
+From 6797f52733bf5272cff629860edb3d246482290c Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Mon, 12 Sep 2022 16:51:14 +0300
+Subject: [PATCH] add missing -Os optimization
+
+---
+ annocheck/hardened.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/annocheck/hardened.c b/annocheck/hardened.c
+index 1c34051..81e065e 100644
+--- a/annocheck/hardened.c
++++ b/annocheck/hardened.c
+@@ -1798,7 +1798,7 @@ parse_dw_at_producer (annocheck_data * data, Dwarf_Attribute * attr)
+     {
+       if (skip_test (TEST_OPTIMIZATION))
+ 	;
+-      else if (strstr (string, " -O2") || strstr (string, " -O3"))
++      else if (strstr (string, " -Os") || strstr (string, " -O2") || strstr (string, " -O3"))
+ 	pass (data, TEST_OPTIMIZATION, SOURCE_DW_AT_PRODUCER, NULL);
+       else if (strstr (string, " -O0") || strstr (string, " -O1"))
+ 	/* FIXME: This may not be a failure.  GCC needs -O2 or
+-- 
+2.25.1
+

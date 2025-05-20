@@ -1,0 +1,48 @@
+pkgname=socat
+pkgver=1.7.4.4
+pkgrel=0
+pkgdesc="Multipurpose relay for binary protocols"
+# test  58 CHILDDEFAULT: child process default properties... FAILED:
+# ./socat -t 0.1  -u exec:./procan -
+options="!check"
+url="http://www.dest-unreach.org/socat/"
+arch="all"
+license="GPL-2.0-only WITH OpenSSL-Exception"
+makedepends="openssl-dev>3 readline-dev linux-headers"
+checkdepends="bash"
+subpackages="$pkgname-doc"
+source="http://www.dest-unreach.org/socat/download/socat-$pkgver.tar.gz
+	use-linux-headers.patch
+	netdb-internal.patch
+
+	0100-CVE-2024-54661.patch
+	"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+	make
+}
+
+check() {
+	make test
+}
+
+doc() {
+	default_doc
+	mkdir -p "$subpkgdir"/usr/share/socat/
+	install -m644 "$builddir"/EXAMPLES "$builddir"/doc/*.html "$builddir"/doc/*.css "$subpkgdir"/usr/share/"$pkgname"/
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+709fd393642d4249152d75add4d489ea76e6118c9e6740e796f029e8c5ddd4f5c9218d587977fc57ada640f635a996cbbe4055275236a169881bb2be1d3e5df9  socat-1.7.4.4.tar.gz
+2032b6528cb27b69d8fb6a6f64af32fcc1f6e4934bb0d7c8931b38ab7ad5e27f6f4344a6cf49751fa3178cd725f954e195373362f7d5929e587d7f0309346059  use-linux-headers.patch
+22a6e0c2317a9317997c98114daac258ebbcc3d8e58e49a6ebf24781b98967afed47c63807282582fa0909076fe349281f05e4462faacb90e7aabc853903d6e6  netdb-internal.patch
+b6d62a772bb44ad23d99f0eef8a3944dc18ca96cc0fe1b1bdd1d548f8e6ada80e7142d3376223f3c1a60090070253ad4b58f0eb441a2991c450bf3aaf6a53395  0100-CVE-2024-54661.patch
+"

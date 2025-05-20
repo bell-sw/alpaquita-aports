@@ -1,0 +1,41 @@
+pkgname=pciutils
+pkgver=3.9.0
+pkgrel=0
+pkgdesc="PCI bus configuration space access library and tools"
+url="http://mj.ucw.cz/pciutils.html"
+arch="all"
+license="GPL-2.0-only"
+depends="hwdata-pci"
+makedepends="linux-headers"
+options="!check"
+subpackages="$pkgname-doc $pkgname-dev $pkgname-libs"
+source="$pkgname-$pkgver.tar.gz::https://github.com/pciutils/pciutils/archive/refs/tags/v$pkgver.tar.gz
+	pread.patch
+	"
+
+build() {
+	make OPT="$CFLAGS -fPIC" ZLIB=no \
+		SHARED=yes \
+		PREFIX=/usr \
+		SHAREDIR=/usr/share/hwdata \
+		MANDIR=/usr/share/man \
+		all
+}
+
+package() {
+	make PREFIX="$pkgdir"/usr \
+		SHARED=yes \
+		SHAREDIR="$pkgdir"/usr/share/hwdata \
+		MANDIR="$pkgdir"/usr/share/man \
+		install install-lib
+
+	# this is now supplied by the hwids package
+	rm -rf "$pkgdir"/usr/sbin/update-pciids
+	rm -rf "$pkgdir"/usr/share/man/man8/update-pciids.8
+	rm -rf "$pkgdir"/usr/share/hwdata
+}
+
+sha512sums="
+6808f93d28808f26e94438f351626a23936aef4d35faa9cf22de8f11e99963b09007403835839bb6687209e4989e45c1fee836fe6573f20b9d669bbdec4d319b  pciutils-3.9.0.tar.gz
+aa1d3272500180256929b39a5fc4ea38ddb6a9fad090d732832ded9cc396303cf56efc91cfdeb76edbcfefc9a7c8eb058562c3c2b09a9090a59d3e68c27cec62  pread.patch
+"

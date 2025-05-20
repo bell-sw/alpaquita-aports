@@ -1,0 +1,43 @@
+# Description:
+
+pkgname=gobject-introspection
+pkgver=1.74.0
+pkgrel=2
+pkgdesc="Introspection system for GObject-based libraries"
+url="https://wiki.gnome.org/action/show/Projects/GObjectIntrospection"
+arch="all"
+license="LGPL-2.0-or-later AND GPL-2.0-or-later AND MIT"
+depends_dev="python3 cairo-dev libtool"
+makedepends="$depends_dev glib-dev libffi-dev flex bison python3-dev meson"
+subpackages="$pkgname-doc $pkgname-dev"
+replaces="libgirepository"
+checkdepends="sed"
+source="https://download.gnome.org/sources/gobject-introspection/${pkgver%.*}/gobject-introspection-$pkgver.tar.xz
+	musl:musl-time64.patch
+	0100-fix-tests-scanner-test_ccompiler.patch
+	"
+
+build() {
+	abuild-meson -Db_lto=true . output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild --print-errorlogs -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+dev() {
+	amove usr/bin usr/share usr/lib/gobject-introspection
+	default_dev
+	replaces="gobject-introspection"
+}
+
+sha512sums="
+decff5dda0ec5ec0afda4d6bcd3bdadcbf34289002c0d9c0c77ecf8c5d3f15d196b24d8035041545031006acbdfe76af47c42da061c40e200c87f2c74cd301f0  gobject-introspection-1.74.0.tar.xz
+965649f0c50e5d6e424a765685533f4dcc776ade3b917e1d960242edbcb5c52f5c98556a1032b9515173b0c30a076964caeece3431b943029e1e3d2552136e77  musl-time64.patch
+d4c57dbe1e96aefe6153e1336c64acae0edec6c322092392a73cc0cb200d8dff113c08b509405ca85b7b07c1eff71d9d083f433d114c79dc037baac427ebda78  0100-fix-tests-scanner-test_ccompiler.patch
+"

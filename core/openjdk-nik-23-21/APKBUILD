@@ -1,0 +1,551 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME Native Image Kit is a versatile multilingual
+# tool for accelerating your applications, based on GraalVM Open Source.
+
+_java_pkgname=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_pkgname="${_java_pkgname}-nik"
+_nikmajor=23
+_nik_build=1
+# java version and release date required for the build
+_javamajor=21
+_javaver=21.0.7
+RELEASE_DATE=2025-04-15
+
+pkgver=23.1.7
+pkgrel=0
+pkgname=$_pkgname-$_nikmajor-$_javamajor
+
+arch="aarch64 x86_64"
+
+# workaround for building without git
+_hash_truffleruby="bd96fa823c214a04a5586c230e07671fd41bb0de"
+_date_truffleruby=${RELEASE_DATE}
+
+pkgdesc="$VENDOR_JAVA_NAME Native Image Kit $pkgver (Java $_javamajor)"
+url="$VENDOR_URL"
+license="GPL-2.0"
+
+case "$CARCH" in
+	x86_64)  JARCH="amd64" ;;
+	*)  JARCH="$CARCH" ;;
+esac
+
+if [[ ${BUILD_FROM_SOURCE:-0} == 0 ]]; then
+	case "$CARCH:$CLIBC" in
+		x86_64:glibc )
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/antlr4-installable-ce-openjdk21-23.1.7-linux-amd64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/bellsoft-liberica-vm-core-openjdk21-23.1.7-linux-amd64.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/bellsoft-liberica-vm-openjdk21-23.1.7-linux-amd64.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/icu4j-installable-ce-openjdk21-23.1.7-linux-amd64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/js-installable-openjdk21-23.1.7-linux-amd64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/llvm-installable-openjdk21-23.1.7-linux-amd64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/llvm-toolchain-installable-ce-openjdk21-23.1.7-linux-amd64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/native-image-installable-openjdk21-23.1.7-linux-amd64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/native-image-llvm-backend-installable-ce-openjdk21-23.1.7-linux-amd64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/nodejs-installable-openjdk21-23.1.7-linux-amd64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/python-installable-openjdk21-23.1.7-linux-amd64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/regex-installable-ce-openjdk21-23.1.7-linux-amd64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/ruby-installable-openjdk21-23.1.7-linux-amd64.jar.xz
+"
+			NIK_SHA="
+8e7800c4b7e016b34eaf25a6ba52cae4e29d2f274ad0d43dd2e7f74c2104c9dad41683781c7726d0efcc59aeeeb051d7db992ead437dfd59cfa549fbcc1d53da  antlr4-installable-ce-openjdk21-23.1.7-linux-amd64.jar.xz
+f78a47c075f344dab01b2c69e98e07dbac3633989ec3c93acda9406f2b3bc9acc549ccf47ec8c2bb4c7de8c0b526f7acb0f51eb41220fe559f7735467a440854  bellsoft-liberica-vm-core-openjdk21-23.1.7-linux-amd64.tar.gz
+5648cb06bf722f94bc0692c82de8184761c116e6ca3280244e543a56c55544f26652b04ec78f64b5acf4ce1e52e43398c464db3ab7af148f8445c7f3b172e4e7  bellsoft-liberica-vm-openjdk21-23.1.7-linux-amd64.tar.gz
+c60e984216822fbf4215d5cd99e915c0b9399e15ce419e328f78e39e51787eefc314410af27e4d8ad660b08fa35afcdaf4c649792d7ae27293445d161969d26b  icu4j-installable-ce-openjdk21-23.1.7-linux-amd64.jar.xz
+8936e5d23c11419050c8e1e87c701c119dba749a1d379f38d88cafb3078f7a9aaffdc8265e8d9d362681ff169c3ed79bbf978a077475f6d481a5f638acd4fede  js-installable-openjdk21-23.1.7-linux-amd64.jar.xz
+9a81fd8c1b1a4015e238a131ad0a6e7db6dfd17c0d787b93ef7a39d8eff11c5573c87447349a490e06860649c88f76a8e24db0ad427324f6b901a3069318d030  llvm-installable-openjdk21-23.1.7-linux-amd64.jar.xz
+79b86906610d3f52709c524feb4975d2517c11f3738f57e0449a3d57d5f3a82271d1757219a08f0c24c3fdf09cc0fdfc1cd367970073a34c45718a94a32348af  llvm-toolchain-installable-ce-openjdk21-23.1.7-linux-amd64.jar.xz
+b161b92354ffb82e1014e0955a0aa84ea3824891f26537fb6961c729a33ba931f3bebfb8eae17af52b1373d0b2cdd878fa1507eed0227886db5a923a4caac00a  native-image-installable-openjdk21-23.1.7-linux-amd64.jar.xz
+1697e01469943eccdabe939b2556525f1ff9417080f38709a3d1e6b9d83ed9f2c9fe2d84a3397a36a888465a37000f8b346321d49ae5f439c6e6c100c763cf0e  native-image-llvm-backend-installable-ce-openjdk21-23.1.7-linux-amd64.jar.xz
+29d292ccfcba15103db2f77ed14b133065c16a42a6e86454dabd702f7f791276419b35d594d354319806fcc8fccee7a20d765d4ba3cb57be124a7f79e90de19e  nodejs-installable-openjdk21-23.1.7-linux-amd64.jar.xz
+6a9ab1b2d7b1842bf293692f214eb3ff3c22b948f50c76ae0f906f955ced4b1bebd67665308fabf8ad2fd5f11b974b08ed5462c5957d0c4df69d62889c37e351  python-installable-openjdk21-23.1.7-linux-amd64.jar.xz
+adc9fcfa48ebad3d97af2d240dc50c78e61eb27ad4d630b2baad2d91b04980145418ff49b054682d7e71c746c272828127ea734d825170421ddc8a4c66ff9ca2  regex-installable-ce-openjdk21-23.1.7-linux-amd64.jar.xz
+489fa3e1e73fd0d6196a8bdec323082b6bb61ced5d7db83f98b161714c36f93c1adac905bc1abdc45825e84c0d49b385de1def5ca5c6d92c5cc10bff45816e76  ruby-installable-openjdk21-23.1.7-linux-amd64.jar.xz
+"
+		;;
+		x86_64:musl )
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/antlr4-installable-ce-openjdk21-23.1.7-linux-x64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/bellsoft-liberica-vm-core-openjdk21-23.1.7-linux-x64-musl.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/bellsoft-liberica-vm-openjdk21-23.1.7-linux-x64-musl.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/icu4j-installable-ce-openjdk21-23.1.7-linux-x64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/js-installable-openjdk21-23.1.7-linux-x64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/llvm-installable-openjdk21-23.1.7-linux-x64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/llvm-toolchain-installable-ce-openjdk21-23.1.7-linux-x64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/native-image-installable-openjdk21-23.1.7-linux-x64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/native-image-llvm-backend-installable-ce-openjdk21-23.1.7-linux-x64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/nodejs-installable-openjdk21-23.1.7-linux-x64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/python-installable-openjdk21-23.1.7-linux-x64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/regex-installable-ce-openjdk21-23.1.7-linux-x64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/ruby-installable-openjdk21-23.1.7-linux-x64-musl.jar.xz
+"
+			NIK_SHA="
+0bea5dd5af91e7995aa8e7ce8bc9d8e3728eb4d374d9a336b2f7ad95f6b5b00fec0e4fa5d5cbead2448f52037adacea9d12382aa5ad58fbbbfe707915b664375  antlr4-installable-ce-openjdk21-23.1.7-linux-x64-musl.jar.xz
+e02eb8cf2a2b5a9f040c165256c3cae18b57abba15912a64082b89951de18d3d41c04557bcc9eb46ec955db2e6461a99425e8d3301719784c1a9a7657fb618c1  bellsoft-liberica-vm-core-openjdk21-23.1.7-linux-x64-musl.tar.gz
+0355212d637de5ca036034e714239b3b602010ff7b27644aa520214dde462538f40fbd20870814e13ac0f8e51ddab1a0e4eae62dff6373741f2afe5f9d921b28  bellsoft-liberica-vm-openjdk21-23.1.7-linux-x64-musl.tar.gz
+871e24aacf22405d89448a31794d2da5858cfe0ee1b6ad674ffd18d6184e6fec6a4ac46472ccda7072692d66c757f7c85d9488f4720654c1a72ec8143362096f  icu4j-installable-ce-openjdk21-23.1.7-linux-x64-musl.jar.xz
+9197b96a4388516db14920281d5ce448056caa402b06689697a70137241645839c87b55f7f90d0db0839c5fe2bc97165edf05e50162cf15a6f18ac211a180a56  js-installable-openjdk21-23.1.7-linux-x64-musl.jar.xz
+9bc01fa531f15e2e196cebc422a12ed8a20ea2cc212294587c00b396d078a8b6ed140d102114ab28c19305a462ff1aed24866fab642593ca35ef8feb62f4b9a9  llvm-installable-openjdk21-23.1.7-linux-x64-musl.jar.xz
+7e95d82f4ddb8c8c27d7a0217b0e1afa38ac8dcb90faa0da40053e861344b7d123afa31169d4b59c049c2fe6cf1ed9b66993b8af148782f408d73fd7428e224b  llvm-toolchain-installable-ce-openjdk21-23.1.7-linux-x64-musl.jar.xz
+5f795e6f176fa4d03cf8de0a2d61a6602bc3c0e421d2a511de707fe5c1ced7adad34ef6abd235a9c1e6176eebb87159bad822987411994e4ac1fb3139daec884  native-image-installable-openjdk21-23.1.7-linux-x64-musl.jar.xz
+9cf7229b7565c9355ba72f73a5ba613227fad24ec14576113a1326b25e56b14a752c34f11139164736223708bebaf03081b5ff6c81388a52d2bd027ac3be145a  native-image-llvm-backend-installable-ce-openjdk21-23.1.7-linux-x64-musl.jar.xz
+93fb84409cc8797f1c0975e28140464e66244f0ad202530da30bdcece94d8e0eb286d7f84cdbe614749517f00add02c4de79f4266bd831f6aaf860d5019d04ae  nodejs-installable-openjdk21-23.1.7-linux-x64-musl.jar.xz
+b898992810c6de345c9faf75cd7351968b2917c37846724468449a62854f5f5bb56c4b20146303e608608aef866f3050975584661e3c4b336237490efcf9fdf8  python-installable-openjdk21-23.1.7-linux-x64-musl.jar.xz
+b9906f2598c9fcaf1dcfa98e0d7fc25cf76c6f9180da67d9c2f287c223fc36922664e046f199bc96239e0f37fd549ffb6546dc6ed5825710836a58bb07937500  regex-installable-ce-openjdk21-23.1.7-linux-x64-musl.jar.xz
+1c13347ae8cf77d24f215a25cc08be60e14c3ddc79f17525c3f68dae10d2e2c45c422ee8619b944100c075cf845b6b94c5f847537065dda16e9b69b6401c83f4  ruby-installable-openjdk21-23.1.7-linux-x64-musl.jar.xz
+"
+		;;
+		aarch64:glibc )
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/antlr4-installable-ce-openjdk21-23.1.7-linux-aarch64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/bellsoft-liberica-vm-core-openjdk21-23.1.7-linux-aarch64.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/bellsoft-liberica-vm-openjdk21-23.1.7-linux-aarch64.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/icu4j-installable-ce-openjdk21-23.1.7-linux-aarch64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/js-installable-openjdk21-23.1.7-linux-aarch64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/llvm-installable-openjdk21-23.1.7-linux-aarch64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/llvm-toolchain-installable-ce-openjdk21-23.1.7-linux-aarch64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/native-image-installable-openjdk21-23.1.7-linux-aarch64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/native-image-llvm-backend-installable-ce-openjdk21-23.1.7-linux-aarch64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/nodejs-installable-openjdk21-23.1.7-linux-aarch64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/python-installable-openjdk21-23.1.7-linux-aarch64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/regex-installable-ce-openjdk21-23.1.7-linux-aarch64.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/ruby-installable-openjdk21-23.1.7-linux-aarch64.jar.xz
+"
+			NIK_SHA="
+d5ba54fcd354bc635380da45c1aaf1771084447e615e6a6c57135e8c30708f0cad6946b760285a48a60c57fa2747d55611b8cacc88abedbaba3846fef5da3922  antlr4-installable-ce-openjdk21-23.1.7-linux-aarch64.jar.xz
+3b15a835a1eb265d34ee948904dfeb42d6e3cb7d510702cd90ed81f16889ae8cd80d2c52df88f1b3e1df04a324ab40986bc9e3a49f831980584655520b36900a  bellsoft-liberica-vm-core-openjdk21-23.1.7-linux-aarch64.tar.gz
+a69624ad53035c5852af4df35d6257db2aa4a77e392f1812e713bbae5cbc18affa91d643a5f6c91e619fd1da9a6152ecfcbcfcb6f55adeaf502d5c9bc820a7d9  bellsoft-liberica-vm-openjdk21-23.1.7-linux-aarch64.tar.gz
+98933f19ff8f4a77d85cc08c65c4dc3e58f379d663bbf9367b5115ed2f32cc247c1073fb4c282b17b5ee42d5c2b06716371c93a8abac7f07a467dbf357b17afb  icu4j-installable-ce-openjdk21-23.1.7-linux-aarch64.jar.xz
+5449830db3815d64039e9d285437f35c8b7d3e1e1dab22cb253d8d1edcc45dee98b4a6a177030efc5b005aa04048eb9b1235d81aa8891eec767b2e94dc8843fd  js-installable-openjdk21-23.1.7-linux-aarch64.jar.xz
+b9da6b4aed0559ae1ac5272f3ace87083c5b57ad968b770e400e713b8a168e28c77c54cf942d4a6cec8e4350cae0e2503f1a5d50da31248ec9b135fe920d9a8d  llvm-installable-openjdk21-23.1.7-linux-aarch64.jar.xz
+914215457e18458bd89dc6cd0769aefe5974fce79879a38d3fbf0d77123f2db6af7c222af786b5d5ce86d8b50758ee9583f6689a2fdf1ff9f281bb949a088531  llvm-toolchain-installable-ce-openjdk21-23.1.7-linux-aarch64.jar.xz
+f3a8c1363674f553cfe83ceaa502d90849122bcbba3bb0afe6a822bae117e6da9b224f7a5bbf9849bceb2e04e54a32c8eca32424b01fb8c56f09a2104e673f93  native-image-installable-openjdk21-23.1.7-linux-aarch64.jar.xz
+914b7eb3783d59fbf1e3d7ec1de4aab65ec5cbecf35eba3c30fe62a1796ad68401378721771ef8da265ac1950ae708b33fd3b98c432992182da710fa89dc83b9  native-image-llvm-backend-installable-ce-openjdk21-23.1.7-linux-aarch64.jar.xz
+4abcc3a76d644302eb83c0d8a2320748056de7f64edd4e4aadc1f4b3121f8841752c143d2638d66655652aaf811af8e555856242d9931bc3a4a97ec4f0045273  nodejs-installable-openjdk21-23.1.7-linux-aarch64.jar.xz
+944e3ae3f02d10a60c317ee8195816e3371bafe786849ac89a19a5d283d1042cbf76f3418664a32f2693fc84e39a020af10fa912eb4a1e1e816344abaca46ac2  python-installable-openjdk21-23.1.7-linux-aarch64.jar.xz
+74153f831fca2afe4dfa8c187d1c1ed3bacce422995fad9f9e175eb3195588f3d2ffbaeded0845943e6c7c5b311cfc17c2cbb5f8b23ab1581f0353cbf79d2156  regex-installable-ce-openjdk21-23.1.7-linux-aarch64.jar.xz
+b349cf0959344e7c470c49bba9e206c8f260fdb9f067f22a969d9a1e2ba300377762f40f22121aa0c1391000170cdecad0a20d54d7d2de2e9ad99bdf01aaa887  ruby-installable-openjdk21-23.1.7-linux-aarch64.jar.xz
+"
+		;;
+		aarch64:musl )
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/antlr4-installable-ce-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/bellsoft-liberica-vm-core-openjdk21-23.1.7-linux-aarch64-musl.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/bellsoft-liberica-vm-openjdk21-23.1.7-linux-aarch64-musl.tar.gz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/icu4j-installable-ce-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/js-installable-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/llvm-installable-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/llvm-toolchain-installable-ce-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/native-image-installable-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/native-image-llvm-backend-installable-ce-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/nodejs-installable-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/python-installable-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/regex-installable-ce-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/ruby-installable-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+"
+			NIK_SHA="
+64d9002042bc0e7650d29fcf703f0c815f53b23dd735e20289f47cdbef9921875bd6518905cb69d20d6bf3d6c8a6cfea9ac1e07c7f9c889d97fd374e375c2798  antlr4-installable-ce-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+400a97ea732d6c44cee6ca9488f27cab313aeef07f1d7ca8516e613758dfa6e245e58a36b5db06693177d006ed58007121baa19267dabf1410dc23f499285d7d  bellsoft-liberica-vm-core-openjdk21-23.1.7-linux-aarch64-musl.tar.gz
+c6f3ec6f78bc9746698b5406031457e13724aeeab0cba333dbee4186576014ce757287dcab4f247cd369c749d74f57a46870963efce273694464c452d64cd9ab  bellsoft-liberica-vm-openjdk21-23.1.7-linux-aarch64-musl.tar.gz
+a55d84d2422a78b27754989a5f3cbf9d185d1542a7e2514d48d1f26778891960ce7e051f15b86c78f6fcca84e63258b64cfef27fe143badcdf0f761d916d3106  icu4j-installable-ce-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+e6e878895a34ebf9f6910f734db2aaa00b6940cbb63d6260f01fb567a70d00a966424f09c5967e0534002586c500764861a3412a037417492ede7475c2422c34  js-installable-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+6998a08735df8a84ae0ff2be66dcbbd67434f30ba9161e6db2ce8a9987ca7ba5e9ab8c22674f89da4398229a656f73f0fe96d2992746bacb3abdea6624eef1c6  llvm-installable-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+7609f7480b510cab7c0b5ccb30c0605c90042d085df5dd532fc4cb3f1f5ea483b440fc5c8d5e21a1329a2b6c8ebd04cf35903e256132f57a77b4154fdf530009  llvm-toolchain-installable-ce-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+71581161fddf38f228abf22b6865443be02ddc90da34c47cad7f1d4ead53a886c805dc12d57d8f44a65baddc9036a56a2fb24a62a5158cda3f5aba37caab85d1  native-image-installable-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+5706c1d603adb370571eb93ce4439c1d721781ec0c446098e732ddc88592269c93a424b279fd1ba0c7d62d31f0f24f05237f1f9a4014ca6f46c9edaed9549d83  native-image-llvm-backend-installable-ce-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+8eea05bdefc88534a1a86da166c1f33b5480a160fc0a66d6338a62baf4c9ae2cef7ac9311d51532082925462eee5a705835ddb48dd066ad2077867e3fd9ee1bf  nodejs-installable-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+655267a2639ac3ab48410446fc0e30cb48356cc6b89d5616f71197ee33e8506de8713ce576b79e088f6260116f75d84b17e7e28c116fe597f9c6c955c1e146cb  python-installable-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+ea2fb1a5d251c0fbf42b490cbacdea1fbcc01357c1695cf5f6db24d86a1a267312ed775e88831c1e63c24575352ded511c7fbc26c3a970b4d7ea66ef2af0fbf5  regex-installable-ce-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+d62ca5595fe25db7fb108be8afd62934344d681b9d321e07af55afe649a9dbc88fb57e1998856e9ed3b5641b7f14214055ab413961f66d6e3f6bcf49a8ede116  ruby-installable-openjdk21-23.1.7-linux-aarch64-musl.jar.xz
+"
+		;;
+	esac
+else
+	case "$CARCH:$CLIBC" in
+		x86_64:glibc)
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-x86_64/src-graal-23.1.7-linux-alpaquita-x86_64.tar.xz
+"
+			NIK_SHA="
+04cf64a4a7b5af6a9608eb28cbce3bd12d3c832b7b081777f91e10d37760b0338f5e91554127247ea8ba7b2cef6d2d228c8b4662700086d804f2f60b383cff8e  src-graal-23.1.7-linux-alpaquita-x86_64.tar.xz
+"
+		;;
+		x86_64:musl)
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-x86_64/src-graal-23.1.7-linux-alpaquita-musl-x86_64.tar.xz
+"
+			NIK_SHA="
+d58521a0306bad6f7ca2d6a9bb70336483a6f2858020dcc92cbcb6386637c9279d33d960e55e1d559939aa77094d32f8b41c66c205b116095a97b0266138f7f4  src-graal-23.1.7-linux-alpaquita-musl-x86_64.tar.xz
+"
+		;;
+		aarch64:glibc)
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-aarch64/src-graal-23.1.7-linux-alpaquita-aarch64.tar.xz
+"
+			NIK_SHA="
+6d2e1b1372f42bf0efc9c21d850fc35d1773581aedf2f33937ef93b515a28d56817dba6e92d414f49f70ae86a10121b985f8912ab99edb9adde0938a02e410f1  src-graal-23.1.7-linux-alpaquita-aarch64.tar.xz
+"
+		;;
+		aarch64:musl)
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/23.1.7+1-21.0.7+9/linux-alpaquita-musl-aarch64/src-graal-23.1.7-linux-alpaquita-musl-aarch64.tar.xz
+"
+			NIK_SHA="
+94407746ba8a5804a5557b78f807857bb6619d48ed219ac110cef3eacd2027660cd85aa48fce2e963cf41a714e6cc9f3bdf40e52eb6d79f40c754500cc813e14  src-graal-23.1.7-linux-alpaquita-musl-aarch64.tar.xz
+"
+		;;
+	esac
+fi
+
+depends="
+	$pkgname-core=$pkgver-r$pkgrel
+	$pkgname-native-image=$pkgver-r$pkgrel
+	"
+
+makedepends="
+	openjdk$_javamajor>=$_javaver
+	openjdk$_javamajor-jmods>=$_javaver
+	openjdk$_javamajor-libs-static>=$_javaver
+	openjdk$_javamajor-src>=$_javaver
+
+	bash
+	bzip2-dev
+	cmake
+	coreutils
+	curl-dev
+	diffutils
+	ed
+	gfortran
+	git
+	grep
+	linux-headers
+	patch
+	pcre-dev
+	pcre2-dev
+	perl
+	python3
+	py3-setuptools
+	readline-dev
+	samurai
+	sed
+	unzip
+	xz
+	xz-dev
+	yaml-dev
+	z3-dev
+	zlib-static
+	"
+
+options="!annobin !strip !check !tracedeps textrels ldpath-recursive"
+
+subpackages="
+	$pkgname-core:_core
+	$pkgname-native-image:_native_image
+	$pkgname-llvm-core:_llvm_core
+	$pkgname-llvm-toolchain:_llvm_toolchain
+	$pkgname-icu4j:_icu4j
+	$pkgname-regex:_regex
+	$pkgname-js:_js
+	$pkgname-nodejs:_nodejs
+	$pkgname-python:_python
+	$pkgname-ruby:_ruby
+	"
+
+provides="openjdk-nik-$_nikmajor-$_javamajor=$pkgver-r$pkgrel"
+
+source="
+	$NIK_BIN
+"
+
+builddir="$srcdir"/$_pkgname-$pkgver
+_java_home="/usr/lib/jvm/$pkgname"
+ldpath="$_java_home/lib:$java_home/languages/python/lib-graalpython/lib"
+sonameprefix="$pkgname:"
+
+unpack() {
+	default_unpack
+
+	mkdir -p "$builddir"
+
+	if [[ ${BUILD_FROM_SOURCE:-0} == 0 ]]; then
+		ls -al
+		mv bellsoft-liberica-vm-core-openjdk21-23.1.7 $builddir/nik-core
+	else
+		# rename the directories to their basenames, dropping git refs
+		mv graal            "$builddir"/graal
+		mv graaljs          "$builddir"/graaljs
+		mv graalpython      "$builddir"/graalpython
+		mv truffleruby      "$builddir"/truffleruby
+		mv fastr            "$builddir"/fastr
+		mv mx               "$builddir"/mx
+	fi
+}
+
+prepare() {
+	default_prepare
+	if [[ ${BUILD_FROM_SOURCE:-0} == 0 ]]; then
+		ls -al
+	else
+		for p in graal graaljs graalpython truffleruby fastr mx ; do
+			touch $p/.mx_vcs_root
+		done
+	fi
+}
+
+
+build() {
+
+	if [[ ${BUILD_FROM_SOURCE:-0} == 0 ]]; then
+		ls -al
+	else
+
+		# define vars for correct `native-image -version` string, see graal-vendor-properties.patch
+		export VENDOR=${VENDOR_JAVA_NAME}
+		export VERSION=${pkgver}
+		export NIK_BUILD=${_nik_build}
+
+		export CFLAGS=
+		export CXXFLAGS=
+		export MX_PYTHON=python3
+		export PATH=$(pwd)/mx:$PATH
+		export JAVA_HOME=/usr/lib/jvm/$_java_pkgname$_javamajor
+		export MX_CACHE_DIR=$SRCDEST/mx.cache
+		export MX_NO_VCS=true
+
+		cd graal/vm
+		export DYNAMIC_IMPORTS=/substratevm
+		export COMPONENTS=svm,nfi,gvm,poly
+		export FORCE_BASH_LAUNCHERS=polyglot
+		export SKIP_LIBRARIES=polyglot
+		export SULONG_BOOTSTRAP_TOOLCHAIN_NO_HOME=/usr
+
+		mx -V build
+		mx graalvm-show
+		mkdir ../../nik-core
+		cp -aR $(mx graalvm-home)/* ../../nik-core/
+
+		export TRUFFLERUBY_COMMIT_SHA="$_hash_truffleruby" # XXX
+		export TRUFFLERUBY_COMMIT_DATE="$_date_truffleruby"
+		export FASTR_RELEASE=true
+		export FASTR_NO_RECOMMENDED=true
+		export FASTR_BUNDLE_DEPENDENCIES=
+		export FASTR_CAPTURE_DEPENDENCIES=
+		export DYNAMIC_IMPORTS=/substratevm,/tools,/sulong,/graal-js,graal-nodejs,truffleruby,graalpython
+		unset COMPONENTS=
+		export DISABLE_INSTALLABLES=false
+		export EXCLUDE_COMPONENTS=nju,nic,dis,pbm,llmulrl,lg,pbm,gwa
+		export FORCE_BASH_LAUNCHERS=polyglot,polybench,truffleruby
+		export SKIP_LIBRARIES=polyglot
+
+		mx graalvm-show
+		mx -V --max-cpus=4 build
+	fi
+}
+
+package() {
+	mkdir -p "$pkgdir/$_java_home"
+}
+
+
+_provide_openjdk_alias() {
+	# provides="openjdk-nik-$_nikmajor-$_javamajor-...=$pkgver-r$pkgrel"
+	provides="openjdk-${subpkgname#$_java_pkgname-}=$pkgver-r$pkgrel"
+}
+
+
+_core() {
+	pkgdesc="$pkgname (Core)"
+	depends="java-common"
+	_provide_openjdk_alias
+
+	provides="
+		$provides
+		java-jre-no-deps
+		java-jdk-no-deps
+		java21-jre-no-deps
+		java21-jdk-no-deps
+		"
+
+	mkdir -p "$subpkgdir/$_java_home"
+	cp -aR "$builddir"/nik-core/* "$subpkgdir/$_java_home/"
+}
+
+
+# We map installable gu components to subpackages.  Each subpackage
+# corresponds to an installable jar, with gu meta bits removed.  This
+# function returns (prints) the name of installable's jar file.
+_installable() {
+	local name="$1"
+
+	# The asterisk in the jar name is either "ce" or "svm"
+	# depending on the component, but don't be obsessive about it
+	# and let the wildcard pick it up.
+
+	if [[ ${BUILD_FROM_SOURCE:-0} == 0 ]]; then
+		set -- "$builddir"/../"$name"-installable-*openjdk$_javamajor*.jar
+	else
+		set -- "$builddir"/graal/sdk/mxbuild/linux-$JARCH/dists/"$name"-installable-*-java$_javamajor.jar
+	fi
+	echo "$1"
+}
+
+
+_make_symlinks() {
+	local component="$1"
+	local src dst dstdir
+
+	# The "symlinks" files don't necessarily have the final
+	# newline and that makes busybox "read" confused, so it
+	# ignores the last line.  awk takes care of this, and since we
+	# use it anyway to fix the newline problem, we might as well
+	# use it to split symlinks lines into words.
+	awk -e '{ print $1, $3 }'    \
+		"$component"/META-INF/symlinks  \
+	| while read dst src; do
+		dstdir="$(dirname "$dst")"
+		[ -d "$component/$dstdir" ] || mkdir -p "$component/$dstdir"
+		ln -s "$src" "$component/$dst"
+	done
+}
+
+
+_fixup_installable() {
+	local component="$1"
+
+	_make_symlinks "$component"
+
+	# In theory we should also apply META-INF/permissions here,
+	# but on Unix they are mostly correct except for the
+	# permissions of the meta bits that we are going to delete as
+	# the last step anyway.
+
+	rm    "$component"/lib/installer/components/*
+	rmdir "$component"/lib/installer/components
+	rmdir "$component"/lib/installer
+
+	# native-image doesn't have `languages` subdir,
+	# but all languages, obviously, do.
+	local release="$(echo "$component"/languages/*/release)"
+	test -f "$release" && chmod a+r "$release"
+
+	rm -rf "$component"/META-INF
+}
+
+
+_make_subpkg() {
+	_provide_openjdk_alias
+
+	local base="$1"            # component name
+	local installable="$(_installable "$base")" # its jar file
+
+	mkdir -p "$subpkgdir/$_java_home"
+	cd "$subpkgdir/$_java_home"
+	xz -d -f $installable.xz
+	cd -
+
+	unzip -d "$subpkgdir/$_java_home" -qo "$installable"
+
+	_fixup_installable "$subpkgdir/$_java_home"
+}
+
+
+#
+# APK subpackages for GU installable components
+#
+
+_native_image() {
+	pkgdesc="$pkgname (Native Image)"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		gcc libc-dev zlib-dev linux-headers
+		"
+	_make_subpkg native-image
+}
+
+
+_llvm_core() {
+	pkgdesc="$pkgname (LLVM Runtime Core)"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		"
+	_make_subpkg llvm
+}
+
+
+_llvm_toolchain() {
+	pkgdesc="$pkgname (LLVM.org toolchain)"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		"
+	_make_subpkg llvm-toolchain
+}
+
+
+_icu4j() {
+	pkgdesc="$pkgname (ICU4J)"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		"
+	_make_subpkg icu4j
+}
+
+
+_regex() {
+	pkgdesc="$pkgname (TRegex)"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		$pkgname-icu4j=$pkgver-r$pkgrel
+		"
+	_make_subpkg regex
+}
+
+
+_js() {
+	pkgdesc="$pkgname (Graal.js)"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		$pkgname-icu4j=$pkgver-r$pkgrel
+		$pkgname-regex=$pkgver-r$pkgrel
+		"
+	_make_subpkg js
+}
+
+
+_nodejs() {
+	pkgdesc="$pkgname (Graal.nodejs)"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		$pkgname-js=$pkgver-r$pkgrel
+		"
+	_make_subpkg nodejs
+}
+
+
+_python() {
+	pkgdesc="$pkgname (Graal.python)"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		$pkgname-llvm-core=$pkgver-r$pkgrel
+		$pkgname-llvm-toolchain=$pkgver-r$pkgrel
+		$pkgname-icu4j=$pkgver-r$pkgrel
+		$pkgname-regex=$pkgver-r$pkgrel
+		"
+	_make_subpkg python
+}
+
+
+_ruby() {
+	pkgdesc="$pkgname (Graal.ruby)"
+	depends="
+		$pkgname-core=$pkgver-r$pkgrel
+		$pkgname-llvm-core=$pkgver-r$pkgrel
+		$pkgname-llvm-toolchain=$pkgver-r$pkgrel
+		$pkgname-regex=$pkgver-r$pkgrel
+		"
+	_make_subpkg ruby
+}
+
+
+sha512sums="
+$NIK_SHA
+"

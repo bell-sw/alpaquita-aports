@@ -1,0 +1,64 @@
+pkgname=mimalloc-secure
+pkgver=1.9.3
+pkgrel=0
+pkgdesc="mimalloc is a general purpose allocator with guard pages, encrypted free lists"
+url="https://github.com/microsoft/mimalloc"
+arch="all"
+license="MIT"
+makedepends_build="cmake"
+subpackages="$pkgname-dbg $pkgname-static $pkgname-dev $pkgname-global"
+source="$pkgname-$pkgver.tar.gz::https://github.com/microsoft/mimalloc/archive/refs/tags/v$pkgver.tar.gz
+	musl:../mimalloc/0001-fix-musl-build-with-linux-prctl.h.patch
+	../mimalloc/malloc.sh
+	"
+builddir="$srcdir/mimalloc-$pkgver"
+_so_ver=${pkgver%%.*}
+
+build() {
+	cmake . \
+		-DCMAKE_INSTALL_PREFIX="$pkgdir/usr" \
+		-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON \
+		-DMI_SECURE=ON
+
+	make
+}
+
+package() {
+	make install
+
+	mkdir -p "$pkgdir"/usr/bin/
+	cat > "$pkgdir"/usr/bin/mimalloc-secure.sh << EOF
+#!/bin/sh
+
+LD_PRELOAD=/lib/libmimalloc-secure.so.$_so_ver
+export LD_PRELOAD
+exec "\$@"
+EOF
+	chmod 0755 "$pkgdir"/usr/bin/mimalloc-secure.sh
+}
+
+check() {
+	make test
+}
+
+dev() {
+	default_dev
+	replaces="mimalloc-dev"
+}
+
+global() {
+	install="$pkgname-global.post-install"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	provides="malloc-global=1"
+	provider_priority=10
+	alternative=1
+
+	install -D -m 755 "$srcdir"/malloc.sh "$subpkgdir"/etc/profile.d/mimalloc-secure.sh
+	sed -i "s,@LIB_NAME@,libmimalloc-secure.so.$_so_ver,g" "$subpkgdir"/etc/profile.d/mimalloc-secure.sh
+}
+
+sha512sums="
+d4a4aaaedf842582e5e6e8091d2d81ceeb29f3dfc9bf0a44e33a9f96c11f01a81dfaf8913d0b48dbf439ac595e37dee61b61cc70a89425347c0fe06bf1548dad  mimalloc-secure-1.9.3.tar.gz
+9de56641fb9008ae361c80fb6aae995683ac602d5b8306fd77926558e2cc1cb8c8899a53ce1aab932bd63b50515616a36faf04fd35f590b22689e57b3bbd26d9  0001-fix-musl-build-with-linux-prctl.h.patch
+237d11c69c74402a78d0fb67914144653e5215170bb8047726d35d895b6edab603189d611b2b24cf783cc93fe5f6a25bae28f659d20d44054d182faeb07bbf7c  malloc.sh
+"

@@ -1,0 +1,22 @@
+diff --git a/graal-nodejs/deps/v8/src/graal/graal_isolate.cc b/graal-nodejs/deps/v8/src/graal/graal_isolate.cc
+index 083cd631fe..ecfef07758 100644
+--- a/graaljs/graal-nodejs/deps/v8/src/graal/graal_isolate.cc
++++ b/graaljs/graal-nodejs/deps/v8/src/graal/graal_isolate.cc
+@@ -234,7 +234,7 @@ bool file_exists(std::string const& path) {
+ }
+ 
+ bool is_directory(std::string const& path) {
+-#ifdef __cpp_lib_filesystem
++#if defined(__cpp_lib_filesystem) && (! defined(__APPLE__) || defined(__arm64__))
+     return std::filesystem::is_directory(path);
+ #else
+     struct stat st;
+@@ -255,7 +255,7 @@ std::string expand_class_or_module_path(std::string const& modules_dir, bool inc
+             sep = path_separator;
+         }
+         if (include_jars) {
+-#ifdef __cpp_lib_filesystem
++#if defined(__cpp_lib_filesystem) && (! defined(__APPLE__) || defined(__arm64__))
+             for (auto const& entry : std::filesystem::directory_iterator(modules_dir)) {
+                 if (entry.path().extension().string() == ".jar") {
+                     module_path.append(sep);

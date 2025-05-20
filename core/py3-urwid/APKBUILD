@@ -1,0 +1,48 @@
+pkgname=py3-urwid
+_pyname=urwid
+pkgver=2.2.3
+pkgrel=0
+pkgdesc="A console user interface library for Python3"
+url="https://urwid.org/"
+arch="all"
+license="LGPL-2.1-only"
+makedepends="
+	python3-dev
+	py3-gpep517
+	py3-setuptools_scm
+	py3-wheel
+	"
+checkdepends="
+	py3-pytest-cov
+	py3-twisted
+	"
+source="https://files.pythonhosted.org/packages/source/u/$_pyname/$_pyname-$pkgver.tar.gz"
+builddir="$srcdir"/$_pyname-$pkgver
+
+replaces="py-urwid" # Backwards compatibility
+provides="py-urwid=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/*.whl
+	.testenv/bin/python3 -m pytest \
+		--ignore urwid/event_loop/tornado_loop.py \
+		--ignore urwid/event_loop/trio_loop.py \
+		--ignore urwid/event_loop/zmq_loop.py \
+		--ignore urwid/event_loop/glib_loop.py
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+}
+
+sha512sums="
+48588d0c819b229bdaaa70bec3a279c3bf232b8520d95e1f45a83bea927244634e91fd47cc161647c2d8155e523543549bc5ed2ccb5eac29843e12515e5dfd22  urwid-2.2.3.tar.gz
+"

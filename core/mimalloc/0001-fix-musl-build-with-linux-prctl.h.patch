@@ -1,0 +1,47 @@
+From ddec5a0c528a9b9be5a107de4954804809f78272 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Fri, 4 Apr 2025 11:39:38 +0000
+Subject: [PATCH] fix musl build with linux/prctl.h
+
+musl libc's sys/prctl.h lacks PR_SET_VMA but has conflicting
+definitions with linux/prctl.h, causing struct redefinition
+errors during build:
+
+    In file included from /ws/workspace/aq-build-pkg/aports/core/mimalloc/src/mimalloc-2.2.3/src/prim/unix/prim.c:36,
+                     from /ws/workspace/aq-build-pkg/aports/core/mimalloc/src/mimalloc-2.2.3/src/prim/prim.c:25:
+    /usr/include/sys/prctl.h:88:8: error: redefinition of 'struct prctl_mm_map'
+       88 | struct prctl_mm_map {
+          |        ^~~~~~~~~~~~
+    In file included from /ws/workspace/aq-build-pkg/aports/core/mimalloc/src/mimalloc-2.2.3/src/prim/unix/prim.c:34:
+    /usr/include/linux/prctl.h:134:8: note: originally defined here
+      134 | struct prctl_mm_map {
+          |        ^~~~~~~~~~~~
+
+Manually define PR_SET_VMA as a temporary workaround until musl's
+headers are updated.
+---
+ src/prim/unix/prim.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/prim/unix/prim.c b/src/prim/unix/prim.c
+index 32004fe4..1dbf9ce0 100644
+--- a/src/prim/unix/prim.c
++++ b/src/prim/unix/prim.c
+@@ -31,10 +31,13 @@ terms of the MIT license. A copy of the license can be found in the file
+ 
+ #if defined(__linux__)
+   #include <features.h>
+-  #include <linux/prctl.h>  // PR_SET_VMA
+   //#if defined(MI_NO_THP)
+   #include <sys/prctl.h>    // THP disable
+   //#endif
++# ifndef PR_SET_VMA
++#   define PR_SET_VMA		0x53564d41
++#   define PR_SET_VMA_ANON_NAME		0
++# endif
+   #if defined(__GLIBC__)
+   #include <linux/mman.h>   // linux mmap flags
+   #else
+-- 
+2.25.1
+

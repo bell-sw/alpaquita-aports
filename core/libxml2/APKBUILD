@@ -1,0 +1,125 @@
+# Description: This providesan extensive API for parsing XML data files.
+
+pkgname=libxml2
+pkgver=2.10.4
+pkgrel=3
+pkgdesc="GNOME XML parsing library"
+url="http://www.xmlsoft.org/"
+arch="all"
+license="MIT"
+depends_dev="zlib-dev xz-dev $pkgname-utils=$pkgver-r$pkgrel"
+checkdepends="perl tar"
+makedepends_host="$depends_dev"
+subpackages="$pkgname-dbg $pkgname-doc $pkgname-static $pkgname-dev $pkgname-utils"
+if [ -z "$BOOTSTRAP" ]; then
+	makedepends_build="$makedepends_build python3-dev"
+	subpackages="$subpackages py3-$pkgname:_py3"
+	_py_configure="--with-python=/usr/bin/python3"
+else
+	_py_configure="--with-python=no"
+fi
+source="https://download.gnome.org/sources/libxml2/${pkgver%.*}/libxml2-$pkgver.tar.xz
+	libxml2-2.9.8-python3-unicode-errors.patch
+
+	0100-CVE-2024-25062.patch
+	0101-CVE-2024-56171.patch
+	0102-CVE-2025-24928.patch
+	0103-CVE-2025-27113.patch
+	"
+
+# secfixes:
+#   2.10.4-r3:
+#     - CVE-2025-27113
+#   2.10.4-r2:
+#     - CVE-2024-56171
+#     - CVE-2025-24928
+#   2.10.4-r1:
+#     - CVE-2024-25062
+#   2.10.4-r0:
+#     - CVE-2023-28484
+#     - CVE-2023-29469
+#   2.10.3-r0:
+#     - CVE-2022-40303
+#     - CVE-2022-40304
+#   2.10.0-r0:
+#     - CVE-2022-2309
+#   2.9.14-r0:
+#     - CVE-2022-29824
+#   2.9.13-r0:
+#     - CVE-2022-23308
+#   2.9.11-r0:
+#     - CVE-2016-3709
+#     - CVE-2021-3517
+#     - CVE-2021-3518
+#     - CVE-2021-3537
+#     - CVE-2021-3541
+#   2.9.10-r5:
+#     - CVE-2020-24977
+#   2.9.10-r4:
+#     - CVE-2019-20388
+#   2.9.8-r3:
+#     - CVE-2020-7595
+#   2.9.8-r1:
+#     - CVE-2018-9251
+#     - CVE-2018-14404
+#     - CVE-2018-14567
+#   2.9.4-r4:
+#     - CVE-2017-5969
+#   2.9.4-r2:
+#     - CVE-2016-9318
+#   2.9.4-r1:
+#     - CVE-2016-5131
+
+prepare() {
+	default_prepare
+
+	# We don't build libxml2 with icu.
+	rm test/icu_parse_test.xml
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--enable-static \
+		--with-lzma \
+		--with-zlib \
+		$_py_configure
+	make
+}
+
+check() {
+	rm -f test/ebcdic_566012.xml
+	make runtests
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install
+}
+
+_py3() {
+	depends="python3"
+	pkgdesc="$pkgname python3 bindings"
+
+	amove usr/lib/python3*
+}
+
+utils() {
+	pkgdesc="XML utilities"
+	replaces="libxml2"
+
+	amove usr/bin
+}
+
+sha512sums="
+792c1dceb098cd353a7eca4c46d31cce6310b2553d97fd3918cf0b94d93b2480759202036511bde36c24166236bd4616f57e79959eea9afe3f60614bdfe13094  libxml2-2.10.4.tar.xz
+a205c97fa1488fb8907cfa08b5f82e2055c80b86213dc3cc5c4b526fe6aa786bcc4e4eeb226c44635a1d021307b39e3940f706c42fb60e9e3e9b490a84164df7  libxml2-2.9.8-python3-unicode-errors.patch
+faabd7a07b3173447b646d1ecd4af90b8e3c5e934c8a84c098bb4af27e3385a5e8123bfa4198f27d8bc6a39e714f68ed37bc25da38c6c66f98d1b5cf134bc5e8  0100-CVE-2024-25062.patch
+97dd3a89b51efa9802f56d2f99f61a2f741c79c6753e774dbba39472e59dc7e1f8ef81f708e8c3f2c20a78b9e89fdb34380a9a4b7e5f0efce92b6dadc4226763  0101-CVE-2024-56171.patch
+3aab93bf2c2b9d0fe710f5a9979c3b9156e06319ec7c112a76600613f85d3bef67c7729b27da56abfe757ba27d86305e98ca634d84dd93c44aad7ae7a173b1cd  0102-CVE-2025-24928.patch
+467ecef2391c11e708ca96a43c6a5b6656155275cef6ea2460ed55533d3622b11a0011de1899f3a051fafd55997d5df6ef6e927b67e0e6df5562d7fb67ea49e3  0103-CVE-2025-27113.patch
+"

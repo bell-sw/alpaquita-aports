@@ -1,0 +1,82 @@
+pkgname='arj'
+pkgver='3.10.22'
+pkgrel=0
+pkgdesc='archiver for .arj files'
+url='https://arj.sourceforge.net/'
+arch='all'
+license='GPL-2.0-or-later'
+options='!check' # tests performed as part of build
+makedepends='autoconf automake'
+subpackages="${pkgname}-doc"
+source="https://arj.sourceforge.net/files/${pkgname}-${pkgver}.tar.gz
+	001_arches_align.patch
+	002_no_remove_static_const.patch
+	003_64_bit_clean.patch
+	004_parallel_build.patch
+	005_use_system_strnlen.patch
+	006_use_safe_strcpy.patch
+	hurd_no_fcntl_getlk.patch
+	security_format.patch
+	doc_refer_robert_k_jung.patch
+	gnu_build_fix.patch
+	gnu_build_flags.patch
+	gnu_build_strip.patch
+	gnu_build_pie.patch
+	self_integrity_64bit.patch
+	security-afl.patch
+	security-traversal-dir.patch
+	security-traversal-symlink.patch
+	out-of-bounds-read.patch
+	remove_build_date.patch
+	fix-time_t-usage.patch
+	gnu_build_fix_autoreconf.patch
+	fix-implicit-func.patch
+	"
+
+build() {
+	export CFLAGS="$CFLAGS -D_GNU_SOURCE=1"
+
+	cd gnu
+	autoreconf -fisv
+
+	./configure \
+	            --build="${CBUILD}" \
+	            --host="${CHOST}" \
+	            --mandir='/usr/share/man' \
+	            --prefix='/usr' \
+	            --sysconfdir='/etc' \
+	            ;
+	make -j1 -C ..
+}
+
+package() {
+	make DESTDIR="${pkgdir}" install
+
+	find "${pkgdir}" -name 'arj-register*' -delete
+}
+
+sha512sums="
+4730dfdbab4f8095396c337578ed69bdaae52955ad468db50b52af8ad2846ecd6cfc05eb3ac0d03838c1c32ea60126f14a22b93e8181c06b9546456f3937ff76  arj-3.10.22.tar.gz
+54db3bc573fa66e965162a78b3ac8e8197fa286d44c72f09ab07995519afbe387a40b7cd9cbb70f3fcdc8534c55595a2eb793e07f039a08e72f9af53c745bc8d  001_arches_align.patch
+7526979b80752bce43a293d28e5ba46d76ce2d3193c1a5f867cb72b4f31368862677ba827d474ed85c008e27b4b48b9d7c2b9018a6485a0074d820b3c899a416  002_no_remove_static_const.patch
+b2d0953b91e69467617d84e58f77707bd0c40df62fb029d2dabb017a456c9c875a312a87822c3e10706a0678c705a510cb8dc025c2fc8e713e7ceabd22a7cf98  003_64_bit_clean.patch
+9ef081adbc0c27bffcd4a3333891fac4d1f11d3ac883cf4181546d75156082660fa64e616c475686eefddf63dbc5d52c0ccad45247cd605ac8cab1c84a665468  004_parallel_build.patch
+b01777a7446b8ad0ea11ae301a8a73df9a79155d9cc5fd3c7cdc121cafdf305e8c27b1922b5673a17fce7f7504adbee203fd98c183d36637d953e23e91f892f0  005_use_system_strnlen.patch
+3ad0a988068eb04ee003a63924109a74a472c30520071be0a94d70dcc2320c4e55a0815f0374bb70d77f55e8e63b054518c60f8a1286d3f4d1ffcfa0320939c3  006_use_safe_strcpy.patch
+a6bd4b35c1b359c065eece12af6e4a5902641c12fa5cf98ef21cc7de9b3dff943af751300a99acae6c194cce4e21456f8f258f085293c14e24a1b535da3a924f  hurd_no_fcntl_getlk.patch
+01d3bf8fe8e8ff69e6e1f4137c2d894bf938d27aed5c909864c6aa223518cfcaa9262f7149af73d746e867d397d2c734ca9e9aae3ec26c4f7acd004edd0438e8  security_format.patch
+d408fb7e92d0fe6138da786fcb5a33b2ddf362e5e280d9db28b27586d73126a747a6bd3abc29792694dd2c3ccbaa45217788b3891bd9be693cd0332b9500ff95  doc_refer_robert_k_jung.patch
+00263f1906e4b4895eedb30671eeda84ecaa83ad8e8e2d6b8b810b622818132488af47b828802e3f1de848e86eb0bf7e86845154a3c8153769004d4043af7258  gnu_build_fix.patch
+f0a44fa6d7c2c0a495b926e45cc381e5efc97fafc028b9ca5db56adc65886f9e0f36adff5051f0a3607fb8966732e0d63bddfae61aff74165e90b87bf56a6931  gnu_build_flags.patch
+9a0b9ec98facfa435b8f5f7b99bdee381fc591a91703dd860e2171cb21ec1e4846be40aa3533511f1edc8f55ae5e8de81a9c697b1209f7e8368ecae7fd0a7f9a  gnu_build_strip.patch
+316daba4be0fb8780783aaaa26ae0da756277929719d9bc6bc9224414ddee22a291c302832206db26e5de35c4d735fc045d16fa44f836f1364d34be4ad7772eb  gnu_build_pie.patch
+d7eb99c45d841bb958715d8cb6e7abd25bef9f7ecc13a18be93dfb7e8cdedd92f3b14b4184fa347dd7ff5e052e271329b0da1b0e466c11e153b0e59a5576e13c  self_integrity_64bit.patch
+1acabf5fdbdc48c88ef4ecfdacd116f0d64315fb51fa08f36ba8a02c0e05bb79f82b82ac09039e8027d651d115275ff4f0d72302657730fa91eb0cbaecf15e08  security-afl.patch
+d7c23ebacf19df5b49a18ec259aa12cf7671105c609098fe344400639cb851fe5df769c3cf64922d86998d717b7ab9b42f831aeedd1dc0763080cf8d34c523c5  security-traversal-dir.patch
+ee548448eb46921fa60a57f7c701b434768a32450fea01d4117d37744aa060f66ab78e4db405cd86288a28badae9afbfd8cd339d9a3c198946d7fa5386c90ffa  security-traversal-symlink.patch
+fdf69b73d8504d20b1dcf9da07e1b52dfbcd6bb65c25bd5b5fb0c38e0c7b5a63bc974c9afc8610a54cf7c298eda98c00af8684477f39e91d1196d13192e0fa00  out-of-bounds-read.patch
+b9aae76fe795578f4dd8f34952a1b2b4fc713b012850f3024c7b25a9c2c5b85787d84d1a673cb1d289fbe7192bceb985414e582869ed62db41e0fe3d3e6b9402  remove_build_date.patch
+4cea924e2ad8b28df2fa5e3465345d51fc55fe4c1edfc4122e5fed5c0b38044331d3e38f0ed361584287d73e5b1bce768cb4b92c1e067ab812baa36cb732f762  fix-time_t-usage.patch
+634bf427c94f28422b4731cc06ce4d594035f4016e94a78028c53dec598b894c96509f0bddd9008f7f69b741d837771813a9cfc9f935973a6cb4c7d51584041b  gnu_build_fix_autoreconf.patch
+607020cc70fa46128ea28db17671ea341e4ef20bcdb289e0c66c73441e004280745349782edef591ff78f4c52ea7103e2df988dc8c1a2b2e535c64c4bd01938f  fix-implicit-func.patch
+"

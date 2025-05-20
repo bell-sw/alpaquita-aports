@@ -1,0 +1,443 @@
+
+# Description: busybox unifies numerous UNIX utilities into one executable.
+# These utilities are similar to GNU ones, but optimized for size.
+
+pkgname=busybox
+pkgver=1.35.0
+pkgrel=33
+pkgdesc="Modular toolbox of common UNIX utilities"
+url="https://busybox.net/"
+arch="all"
+license="GPL-2.0-only"
+depends="glibc:glibc-utils"
+makedepends_build="perl"
+makedepends_host="linux-headers openssl-dev>3"
+# Only build with utmps support if we are not bootstraping.
+# skalibs-static is needed for utmps-static
+[ -z "$BOOTSTRAP" ] && makedepends_host="$makedepends_host utmps-dev utmps-static skalibs-static"
+makedepends="$makedepends_build $makedepends_host"
+checkdepends="zip"
+install="$pkgname.post-install $pkgname.post-upgrade
+	$pkgname-extras.post-install $pkgname-extras.pre-deinstall"
+subpackages="
+	$pkgname-static
+	$pkgname-doc
+	$pkgname-suid
+	ssl_client
+	$pkgname-ifupdown
+	$pkgname-binsh
+	$pkgname-openrc
+	$pkgname-extras
+	$pkgname-extras-openrc:extras_openrc
+	"
+options="suid net"
+replaces="busybox-initscripts" # move of default.script
+triggers="busybox.trigger=/usr/bin:/usr/sbin:/lib/modules/*"
+
+_openrc_files="acpid.initd
+	crond.confd crond.initd
+	klogd.confd klogd.initd
+        ntpd.confd ntpd.initd
+	rdate.confd rdate.initd
+	syslog.confd syslog.initd
+	loadkmap.confd loadkmap.initd
+        watchdog.confd watchdog.initd"
+_extras_openrc_files="dnsd.initd httpd.initd inetd.initd udhcpd.initd"
+
+source="https://busybox.net/downloads/busybox-$pkgver.tar.bz2
+	0001-adduser-default-to-sbin-nologin-as-shell-for-system-.patch
+	0001-properly-fix-wget-https-support.patch
+	0001-modutils-check-ELF-header-before-calling-finit_module.patch
+	0002-fsck-resolve-LABEL-.-UUID-.-spec-to-device.patch
+	0003-ash-exec-busybox.static.patch
+	0005-udhcpc-set-default-discover-retries-to-5.patch
+	0006-ping-make-ping-work-without-root-privileges.patch
+	0007-fbsplash-support-console-switching.patch
+	0008-fbsplash-support-image-and-bar-alignment-and-positio.patch
+	0009-depmod-support-generating-kmod-binary-index-files.patch
+	0010-Add-flag-for-not-following-symlinks-when-recursing.patch
+	0012-udhcpc-Don-t-background-if-n-is-given.patch
+	0013-ash-fix-unsafe-use-of-mempcpy.patch
+	0014-ash-fix-use-after-free-in-bash-pattern-substitution.patch
+	0015-ed-don-t-use-memcpy-with-overlapping-memory-regions.patch
+	0016-ash-don-t-read-past-end-of-var-in-subvareval-for-bas.patch
+	0017-ash-Fix-use-after-free-on-idx-variable.patch
+	0018-ash-fix-ifs-cleanup-on-error-paths.patch
+	0019-awk.c-fix-CVE-2023-42366-bug-15874.patch
+
+	0001-ash-add-built-in-BB_ASH_VERSION-variable.patch
+
+	0001-pgrep-add-support-for-matching-against-UID-and-RUID.patch
+
+	0001-avoid-redefined-warnings-when-building-with-utmps.patch
+	test-fix-tarball-creation.patch
+	test-timezone-workaround.patch
+
+	0001-libbb-sockaddr2str-ensure-only-printable-characters-.patch
+	0002-nslookup-sanitize-all-printed-strings-with-printable.patch
+	0001-modinfo-add-k-option-for-kernel-version.patch
+	CVE-2022-30065.patch
+	0101-init-don-t-reset-init-s-tty-settings-for-every-runac.patch
+	0102-busybox-libbb-install-to-usr-s-bin.patch
+	0103-init-re-exec-init-before-shutdown-reboot.patch
+	0104-umount-Implement-O-option-to-unmount-by-mount-option.patch
+
+	0001-awk-fix-use-after-free-CVE-2023-42363.patch
+	0002-awk-fix-precedence-of-relative-to.patch
+	0003-awk-fix-ternary-operator-and-precedence-of.patch
+
+	acpid.logrotate
+	busyboxconfig
+	busyboxconfig-extras
+	bbsuid.c
+	dad.if-up
+	ssl_client.c
+	default.script
+	$_openrc_files
+	$_extras_openrc_files
+"
+
+# secfixes:
+#   1.35.0-r33:
+#     - CVE-2023-42363
+#     - CVE-2023-42364
+#     - CVE-2023-42365
+#   1.35.0-r31:
+#     - CVE-2023-42366
+#   1.35.0-r15:
+#     - CVE-2022-30065
+#   1.35.0-r7:
+#     - ALPINE-13661
+#     - CVE-2022-28391
+#   1.34.0-r0:
+#     - CVE-2021-42374
+#     - CVE-2021-42375
+#     - CVE-2021-42378
+#     - CVE-2021-42379
+#     - CVE-2021-42380
+#     - CVE-2021-42381
+#     - CVE-2021-42382
+#     - CVE-2021-42383
+#     - CVE-2021-42384
+#     - CVE-2021-42385
+#     - CVE-2021-42386
+#   1.33.0-r5:
+#     - CVE-2021-28831
+#   1.30.1-r2:
+#     - CVE-2019-5747
+#   1.29.3-r10:
+#     - CVE-2018-20679
+#   1.28.3-r2:
+#     - CVE-2018-1000500
+#   1.27.2-r4:
+#     - CVE-2017-16544
+#     - CVE-2017-15873
+#     - CVE-2017-15874
+#   0:
+#     - CVE-2021-42373
+#     - CVE-2021-42376
+#     - CVE-2021-42377
+
+
+_staticdir="$srcdir"/build-static
+_dyndir="$srcdir"/build-dynamic
+_dyndir_extras="$srcdir"/build-dynamic-extras
+_config="$srcdir"/busyboxconfig
+_config_extras="$srcdir"/busyboxconfig-extras
+
+prepare() {
+	# remove SGID if set as it confuses the busybox testsuite
+	chmod -R g-s "$builddir"
+	default_prepare
+
+	mkdir -p "$_staticdir" "$_dyndir" "$_dyndir_extras"
+}
+
+build() {
+	local _extra_cflags= _extra_libs= _extra_libs_static=
+	if [ -z "$BOOTSTRAP" ] ; then
+		_extra_cflags="$(pkg-config --cflags --static utmps)"
+		_extra_libs_static="$(pkg-config --libs --static utmps)"
+
+		# In Alpine, utmps and skalibs static libraries are installed
+		# to /usr/lib whereas their shared libraries are installed to
+		# /lib.  Although, shared libraries have a higher priority when
+		# linking, the linker searches the path /usr/lib first.  It
+		# lets a dynamic busybox be linked with libutmps and libskarnet
+		# statically.
+		#
+		# In our Linux distro, /lib is a symbolic link to /usr/lib.
+		# That means static and shared libraries are in the same
+		# directory.  So if we want to link a dynamic busybox
+		# statically with those libraries, we have to clearly specify
+		# that.
+		_extra_libs="-Wl,-Bstatic $_extra_libs_static -Wl,-Bdynamic"
+	fi
+
+	# build bbsuid
+	msg "Building bbsuid"
+	${CC:-${CROSS_COMPILE}gcc} ${CPPFLAGS} ${CFLAGS} \
+		${LDFLAGS} "$srcdir"/bbsuid.c -o "$_dyndir"/bbsuid
+
+	msg "Building ssl_client"
+	# shellcheck disable=SC2046  # Allow wordsplitting for pkg-config
+	${CC:-${CROSS_COMPILE}gcc} ${CPPFLAGS} ${CFLAGS} $(pkg-config --cflags libcrypto libssl) \
+		"$srcdir"/ssl_client.c -o "$_dyndir"/ssl_client ${LDFLAGS} $(pkg-config --libs libcrypto libssl)
+
+	# build dynamic
+	cd "$_dyndir"
+	msg "Building dynamic busybox"
+	echo "COPIED CONFIG to $(pwd)/.config"
+	cp "$_config" .config
+	[ "$CLIBC" = musl ] && sed -i \
+		-e "s/CONFIG_EXTRA_COMPAT=y/CONFIG_EXTRA_COMPAT=n/" \
+		.config
+	make -C "$builddir" O="$PWD" silentoldconfig
+	make CONFIG_EXTRA_CFLAGS="$_extra_cflags" CONFIG_EXTRA_LDLIBS="$_extra_libs"
+
+	# build dynamic (extras)
+	cd "$_dyndir_extras"
+	msg "Building dynamic busybox-extras"
+	cp "$_config_extras" .config
+	[ "$CLIBC" = musl ] && sed -i \
+		-e "s/CONFIG_EXTRA_COMPAT=y/CONFIG_EXTRA_COMPAT=n/" \
+		.config
+	make -C "$builddir" O="$PWD" silentoldconfig
+	make CONFIG_EXTRA_CFLAGS="$_extra_cflags" CONFIG_EXTRA_LDLIBS="$_extra_libs"
+
+	# build static
+	cd "$_staticdir"
+	msg "Building static busybox"
+	# enable internal ssl_client for static build
+	sed -e "s/.*CONFIG_PIE.*/\# CONFIG_PIE is not set/" \
+		-e "s/.*CONFIG_STATIC\([A-Z_]*\).*/CONFIG_STATIC\1=y/" \
+		-e "s/.*CONFIG_SSL_CLIENT.*/CONFIG_SSL_CLIENT=y/" \
+		"$_config" > .config
+	# musl does not support GNU regex
+	[ "$CLIBC" = musl ] && sed -i \
+		-e "s/CONFIG_EXTRA_COMPAT=y/CONFIG_EXTRA_COMPAT=n/" \
+		.config
+	make -C "$builddir" O="$PWD" silentoldconfig
+	make CONFIG_EXTRA_CFLAGS="$_extra_cflags" CONFIG_EXTRA_LDLIBS="$_extra_libs_static"
+	mv busybox busybox.static
+}
+
+check() {
+	local _extra_cflags= _extra_libs= _extra_libs_static=
+	if [ -z "$BOOTSTRAP" ] ; then
+		_extra_cflags="$(pkg-config --cflags --static utmps)"
+		_extra_libs_static="$(pkg-config --libs --static utmps)"
+		_extra_libs="-Wl,-Bstatic $_extra_libs_static -Wl,-Bdynamic"
+	fi
+
+	# Set VERBOSE to see expected outcome of each test (runtest -v flag).
+	# Set DEBUG to enable command trace (see testsuite/testing.sh).
+
+	cd "$_dyndir"
+	SKIP_KNOWN_BUGS=1 make -C "$builddir" O="$PWD" V=1 check CONFIG_EXTRA_CFLAGS="$_extra_cflags" CONFIG_EXTRA_LDLIBS="$_extra_libs"
+
+	cd "$_dyndir_extras"
+	SKIP_KNOWN_BUGS=1 make -C "$builddir" O="$PWD" V=1 check CONFIG_EXTRA_CFLAGS="$_extra_cflags" CONFIG_EXTRA_LDLIBS="$_extra_libs"
+}
+
+package() {
+	local file
+	mkdir -p "$pkgdir"/usr/sbin "$pkgdir"/usr/bin "$pkgdir"/tmp \
+		"$pkgdir"/var/cache/misc \
+		"$pkgdir"/usr/share/man/man1 \
+		"$pkgdir"/etc/conf.d "$pkgdir"/etc/init.d
+	chmod 1777 "$pkgdir"/tmp
+	cd "$srcdir"
+	for file in *.confd ; do
+		install -D -m 0644 ${file} "$pkgdir"/etc/conf.d/${file%%\.confd}
+	done
+	for file in *.initd ; do
+		install -D -m 0755 ${file} "$pkgdir"/etc/init.d/${file%%\.initd}
+	done
+
+	cd "$_dyndir"
+	install -m755 busybox "$pkgdir"/usr/bin/busybox
+	install -m 644 docs/busybox.1 "$pkgdir"/usr/share/man/man1/busybox.1
+
+	#ifupdown needs those dirs to be present
+	mkdir -p \
+		"$pkgdir"/etc/network/if-down.d \
+		"$pkgdir"/etc/network/if-post-down.d \
+		"$pkgdir"/etc/network/if-post-up.d \
+		"$pkgdir"/etc/network/if-pre-down.d \
+		"$pkgdir"/etc/network/if-pre-up.d \
+		"$pkgdir"/etc/network/if-up.d
+	install -m775 "$srcdir"/dad.if-up "$pkgdir"/etc/network/if-up.d/dad
+
+	install -Dm644 "$srcdir"/acpid.logrotate \
+		"$pkgdir/etc/logrotate.d/acpid"
+
+	mkdir -p "$pkgdir"/var/lib/udhcpd
+	install -Dm644 "$builddir"/examples/udhcp/udhcpd.conf \
+		"$pkgdir"/etc/udhcpd.conf
+	cat >"$pkgdir"/etc/securetty <<EOF
+console
+tty1
+tty2
+tty3
+tty4
+tty5
+tty6
+tty7
+tty8
+tty9
+tty10
+tty11
+hvc0
+ttyS0
+ttyS1
+ttyAMA0
+ttyAMA1
+EOF
+
+	# script for udhcpc
+	install -Dm755 "$srcdir"/default.script \
+		"$pkgdir"/usr/share/udhcpc/default.script
+
+}
+
+extras() {
+	pkgdesc="Additional binaries of Busybox"
+	depends="$pkgname"
+	install -Dm755 "$_dyndir_extras"/busybox "$subpkgdir"/usr/bin/busybox-extras
+}
+
+suid() {
+	pkgdesc="suid binaries of Busybox"
+	depends="$pkgname"
+
+	cd "$_dyndir"
+	mkdir -p "$subpkgdir"/usr/bin
+	install -m4111 bbsuid "$subpkgdir"/usr/bin/bbsuid
+}
+
+static() {
+	pkgdesc="Statically linked Busybox"
+	mkdir -p "$subpkgdir"/usr/bin
+	install -m755 "$_staticdir"/busybox.static \
+		"$subpkgdir"/usr/bin/busybox.static
+}
+
+ssl_client() {
+	pkgdesc="EXternal ssl_client for busybox wget"
+	local _sslver=$(pkg-config --modversion libssl)
+	# automatically pull in if both busybox and libssl is installed
+	install_if="$pkgname=$pkgver-r$pkgrel libssl${_sslver%%.*}"
+	mkdir -p "$subpkgdir"/usr/bin
+	install -m755 "$_dyndir"/ssl_client \
+		"$subpkgdir"/usr/bin/ssl_client
+}
+
+ifupdown() {
+	pkgdesc="placeholder package for busybox ifupdown"
+	provides="ifupdown-any"
+	provider_priority=200
+	mkdir -p "$subpkgdir"
+}
+
+binsh() {
+	pkgdesc="busybox ash /bin/sh"
+	provides="/bin/sh"
+	provider_priority=100
+
+	mkdir -p "$subpkgdir"/usr/bin
+
+	ln -s /usr/bin/busybox "$subpkgdir"/usr/bin/sh
+}
+
+_helper_openrc() {
+	local file
+	for file ; do
+		if test ${file%%\.confd} != ${file} ; then
+			amove "etc/conf.d/${file%%\.confd}"
+		elif test ${file%%\.initd} != ${file} ; then
+			amove "etc/init.d/${file%%\.initd}"
+		fi
+	done
+}
+
+openrc() {
+	depends="openrc>=0.24.1-r6"
+	replaces="openntpd busybox-initscripts acpid-openrc"
+	_helper_openrc $_openrc_files
+	# poweroff script for acpid
+	mkdir -p "$subpkgdir"/etc/acpi/PWRF
+	{ echo '#!/bin/sh' ; echo poweroff ; } > "$subpkgdir"/etc/acpi/PWRF/00000080
+        chmod 0755 "$subpkgdir"/etc/acpi/PWRF/00000080
+}
+
+extras_openrc() {
+	depends="openrc>=0.24.1-r6 busybox-extras"
+	replaces="busybox-initscripts"
+	_helper_openrc $_extras_openrc_files
+}
+
+sha512sums="
+62b2e718b6669271380445ed6db249618d777a4e8d5e6d879fa39ffee43887b6a2e93ceef874c615c565ad492deb772b03a19b7475c403202741579fb151e16a  busybox-1.35.0.tar.bz2
+a2787a3ecaf6746dadef62166e8ee6ecaa166147e5ad8b917c5838536057c875bab5f9cf40c3e05eba74d575484ac662929ac3799d58432d3a99ac46f364f302  0001-adduser-default-to-sbin-nologin-as-shell-for-system-.patch
+1efe1c4894ae983fed5ac848125f8603f157b9d91c952c53f4192b48d3e50967e05559851148397b583f34fb02d480393547904b4635e4248248be567ab268ea  0001-properly-fix-wget-https-support.patch
+0cac9b944928500293e366b42e03211d4159d05b622da60664825e5ee87c9bf6d5a8ea5e794584713f7464efb4cdc431e02f439c717b7e62b1864a228bc8cbac  0001-modutils-check-ELF-header-before-calling-finit_module.patch
+d8694293edc8cd55cecafeb902f03c01af318e13966f399365cf792b840793891ac086bb67ef83e7a5a2e01b246497a6c6511cb6a856834f6672dee4bca76896  0002-fsck-resolve-LABEL-.-UUID-.-spec-to-device.patch
+8c34dd5ce9a6e84279fa6494cbae0b254778976f341af1d0ccc2a3afb405fb22d374e9623ea83d1500da77c7463db2ed5218d2c9f49350a21114bd0bb17fd87d  0003-ash-exec-busybox.static.patch
+f12916e70f7cc1ef4f6d85d09b9a496a52a494e6318029fdce9a9c812ab5c7b2a046c33b66834127bf809f243c91a53c3c5e27efca026a96fe6b03421de26e60  0005-udhcpc-set-default-discover-retries-to-5.patch
+89215c328a46afc686c458a133dd88dcda817586df60eb041a694715e73dc78a297fc0f9a92e8ee7d0a39ce7f6053a6b8e38f3ee078ff90ed13fac2608510105  0006-ping-make-ping-work-without-root-privileges.patch
+7873b98c676a92faea61511d50c1efac1220354d20afd53de19e2c8f1472559cb333b9dd4e0d6432616d8c5f59885f1503c448c86a912e8031c9bfed628c2db1  0007-fbsplash-support-console-switching.patch
+2c56906dac70dea6276e4c573707cb06c4c8b53defcd33b1e5a28f928e7dafe905a52ce40571de430e4af7e00a75ecc0f249d2fec02da5f3d9edd4e904919a35  0008-fbsplash-support-image-and-bar-alignment-and-positio.patch
+df02adb3e3cd3349cc8d070911e3392164cb2e30bd72cae7ceaa974b2db6f958fdcedf809abc7b4bee37c729a4d20abf127f615b0e238a667d572137abe6a79e  0009-depmod-support-generating-kmod-binary-index-files.patch
+ecbe5c890d966f09280c7eb534109f785c68e292765f17ed7ff62fcc61d20f61443c4155add0a1ebfb67ce8564e104c1aa22a8ef0400e119b0bca2bca3671f2d  0010-Add-flag-for-not-following-symlinks-when-recursing.patch
+3ae5ecf3ea66c8d98762432026806fdb67b13a28075c6a3cb6e811a34ef89c2f0ed651946003aaad97fb4b7f74d132af3c394c114b7a72e1d20b319b739c5a6e  0012-udhcpc-Don-t-background-if-n-is-given.patch
+6b1ebc6da26c355a63c166f4c8d1774e7a9c5456ec76b773395a2158cb4848cf245fa5553843666c0a46f4c97d03e08815abae777f2b80bbb69d916618f94761  0013-ash-fix-unsafe-use-of-mempcpy.patch
+3eb7609054fa8e03d7e366f7debc5cb0630ff65d521a91be84803bdef3854f81e29d26a9567c501a121e94a55d3a3477894e774508f80def775f2ecc812805e7  0014-ash-fix-use-after-free-in-bash-pattern-substitution.patch
+0040800382a6e3adcc6a8094b821488c7e297fc80304afba23a4fca43b7b26ac699378dfbd930ebbf9985336b3e431301f7ca93e2d041a071902a48740d263ef  0015-ed-don-t-use-memcpy-with-overlapping-memory-regions.patch
+4c95dc4bf6aff9018bfb52b400f6d8375a1d22493b44ea516cb12dba6556f12797a3cba55768d2e59ff57c0f3247ec1ff95edb8f17561f3d37ec18d83ca47eb0  0016-ash-don-t-read-past-end-of-var-in-subvareval-for-bas.patch
+ccdf098fb15eaa316708181469a1193d6eec7067131e7b7645e0219bf03cfd07f4f79e8f62c1e560f6146dcc38186a29bdee08aaa39f290e11d020b8f07d2f65  0017-ash-Fix-use-after-free-on-idx-variable.patch
+3abdbd25f1f0daa24b0aabe92880c28dc2d3b59eb29fad357dfaf2b78bb895466bbf4495e2185370d9219d65b22e65e525769e369e50fb1fdfd71b5229a4f429  0018-ash-fix-ifs-cleanup-on-error-paths.patch
+bff815bf9c8cd0856dde87eb90e2fe56f105dccb426e4f5da9425e30d449d7ee7ccc3b3324aee5136b276678e7be12afbcc368c7ca92d2c1bdcf22ed92ea1f4f  0019-awk.c-fix-CVE-2023-42366-bug-15874.patch
+6d100fe44da2b97c2cbdda253d0504b487212d195144d9315cddbe8c51d18fae3745701923b170b40e35f54b592f94f02cadbffd9cb716661c12a7f1da022763  0001-ash-add-built-in-BB_ASH_VERSION-variable.patch
+e33dbc27d77c4636f4852d5d5216ef60a9a4343484e4559e391c13c813bf65c782b889914eff2e1f038d74cf02cb0d23824ebbb1044b5f8c86260d5a1bbc4e4d  0001-pgrep-add-support-for-matching-against-UID-and-RUID.patch
+7608fbb9deddc9268ba53bc5b762a00fa16744d595f6f8a2f5a857339e754ea0c3da084a1e48269c8281553e9171d2bb29b8530fbe85e6a934f97c3cfcdbe31b  0001-avoid-redefined-warnings-when-building-with-utmps.patch
+9b66151ef51293292b3829adaf721e5453c0710b1d151ab7e959aff0ffae2ec704e686161909cbbfc09c700e23e7200f5e14539ccc5583bccaa11193ea0cffce  test-fix-tarball-creation.patch
+f65052adc4df305c22f79cc2819d7750b528ad66289512fc15c442c4347ebd6bc14340e60f2c5209d2e7d2e7feb7d19f372e02dca2451dd36787c5f6908c21d8  test-timezone-workaround.patch
+b52050678e79e4da856956906d07fcb620cbf35f2ef6b5a8ee3b8d244ea63b4b98eef505451184d5b4937740d91eef154ed748c30d329ac485be51b37626f251  0001-libbb-sockaddr2str-ensure-only-printable-characters-.patch
+ead4ad65d270d8659e1898fa16f76b6cbcf567d8aba238eacccda3764edb4362240d9359d6389873bedc126d405f805fc6dfce653a7181618ebcc67c94bd08d2  0002-nslookup-sanitize-all-printed-strings-with-printable.patch
+4f6ddd59d6096943f617b0938fca428114190b8b37732d6783faab291451a2c30c452ed39299db22d1d9679d007022f87d43e93b38a4f6ced64a8659e9233773  0001-modinfo-add-k-option-for-kernel-version.patch
+22e2fa8f7a6105fd9990f93b71c235980fd4eab62269939a0e3a920fe517ee4f913c6bd0148a554b67fe01d1660bf0fd76a80e9dcac290b4b8b2c304ef6080a9  CVE-2022-30065.patch
+28c659598ba17d9a26cb5e29279a3ac3796da6f8343f3ffe3082d1cf868086b24c14d39dbbcf5a728403faa009c078bec3702850415dbb5c04e666124327a821  0101-init-don-t-reset-init-s-tty-settings-for-every-runac.patch
+539ae1292411e5f7976237954151a8eb7f401f1c6091febc7cb74a0ed721a10244ee0a66559d1f752dd62e1bed110c2b01899693534a60600b9564e5ff2984da  0102-busybox-libbb-install-to-usr-s-bin.patch
+54711eb98a5df308af7ed48d5fb1f6d42578baec5a03a3c7775ea73a7bf4455b44c46b7d8052b2d87914bcf0a872b17a8d8a971540b062a7654861cdfcbeb783  0103-init-re-exec-init-before-shutdown-reboot.patch
+e3670ab567818a42593698546dcdabaa447c10682261c128901b4390eb2bf2dbea9e84f8f2dcdd6d67c82bf93bb1eed14406e5a8dd723b4670d1995b6100651f  0104-umount-Implement-O-option-to-unmount-by-mount-option.patch
+034c8de00a5a48b2a4d6e1ce2726084ea1e5e09a875efdcd88dbf0b7555313da3e3a99cda072abd170e5ca37bc5ea77b05b61dcc4d89a8d86b411a123e12af45  0001-awk-fix-use-after-free-CVE-2023-42363.patch
+8ca33e03f8f5d327fce4935ed330aa3219c4ec2a84519b3b075951933a40afa92343d9f40ac94c8440df628dd75df4526dccf2d3179b8a90371b908d191fd838  0002-awk-fix-precedence-of-relative-to.patch
+9b8fbd4be2a56251597bb33ae432fe6072c5ae784a38715683b4bae05e878b4a8fefb92841567f028cb30b1d780b3cc01b674fdf45419371bbf7cdead0a368a3  0003-awk-fix-ternary-operator-and-precedence-of.patch
+aa93095e20de88730f526c6f463cef711b290b9582cdbd8c1ba2bd290019150cbeaa7007c2e15f0362d5b9315dd63f60511878f0ea05e893f4fdfb4a54af3fb1  acpid.logrotate
+d9639a03367ea6b5b5cdf1bb7815fd82e3902a60a5eec9e920fddfa31b6133e8439dc671bbec9773a5e79dbd705f6a448d317fee95b101807f368743607b57a3  busyboxconfig
+99de34584d591e42b3055ba90426397c9388161d0434e6b426c13ce12e1eded7b6f51368db99891fa1e7844de22d390a7733b6db37d7855ff353f1b36c879e4b  busyboxconfig-extras
+0becc2186d6c32fb0c401cf7bc0e46268b38ce8892db33be1daf40273024c1c02d518283f44086a313a2ccef34230a1d945ec148cc173f26e6aa9d88a7426e54  bbsuid.c
+6321c1d96d8938a3b5eab21731de289ede136fff550f98127c509452bfb17769ccf94b118491f7b81d3c60e1bbb3e80bb07186e4ce07e29724a52f0daba9b218  dad.if-up
+26eac967d6cfe13b7dc973112de145543ac0bdda9e9dd3a69bbd8c133ae6a20387abe9377917efb770b191130d3a6385ff5738abc84a8216d7b86ae88b159260  ssl_client.c
+e56f9d74f7d471893ff9c3fde319b989e1854c9b12f06c1b6739694b07165ae256b5c555bc75c92986265df7f0a276001aba73853855c7a0fb3404a091a92c86  default.script
+6e0ad6dde9da4a8050cebe022166b608756fc108db6e7d169ecb938f161ffcb05deb57aaa4c9a4b99bf2b20569db96ae2e9337b9d84160371e21b9d9e7007e21  acpid.initd
+34c6f3197064bb91619b899b28a201bd4d920b18bded3845440b2cb36dc6f16cabf447c96878349b16e46c30184cbe48bac00a01c5f7cf1be038c0b7136064c5  crond.confd
+d1b495066eaf1c052577e386ca512365f3b2d6305e45a920795d434c472815fdaf439d54ef811bcdfd8ef2efea1638344edc0bb5414da59b74a5f420957ee184  crond.initd
+f9bf43b72142bbb4c0665c1268a3d91586ef8a057dfe64c53b6923815d2db1f669b8080a38311ad89cda0b783a8628700fc5414d834a21d8e48515760bb910f7  klogd.confd
+c3f4aa21d457ffc73f72365434ebab48da3c16720b7e79d59921accc20a1718f32230e7760e4abddaf90939e903065cfaab12a55fe99f36bf1a286facc8d6231  klogd.initd
+b0ba67585f39d83320ed6de183d7463a0e163807b9f3dc6f0baa212236056f22aeb2c5399dfdcd54929eb5ae06a15714c2fed133b5888869ed9d9cf589cef843  ntpd.confd
+4c023cb255e486071731874db55cccd1b789217d287e6936e5bc39c5331e5c936664e8db6c9ca7cc9a6565dca418ffe4b7908cb3b1701345c0cc7f23233e357c  ntpd.initd
+3d6c4d358e226e0c0462f2003bcf0b6787f91a53f4d6b6db5bfe7748bb0dd392d7cc454058ea8a9b649e8dd2629963a5ad1257c36af04367caeb1923f954daf7  rdate.confd
+804fdcfd7fd8001fb72836b92746fc3824df6c53423ac1635176c8b5b180547d0ef8049f33ceea65b8999f6654f7a542fedc6c420a04764f22bf14a41733678b  rdate.initd
+bf8173ee33a5d2b61cbdbc1b070e599a17a21e5433a0d8aa9beef71e4ac831304076af8e7e58dc594cdee61562329793afdc57af91e5496bf5fffb9b734a3d9c  syslog.confd
+224929cc5295546c6299956db8f8f4110467f8eb3a084060065101bd56cc0be961393b7f26bb722f96f9a680c7dea3444a01746922cdba1f2c583c5918db9b52  syslog.initd
+acbba3385fb2c416362eb9176f24146b617a2e394ee0e00b9eff89350f82468a5ab8396f4f52b0aaf03d341ac6150c73182e808fa3f29a2dc71c69271cdfb811  loadkmap.confd
+504394ef69d316fd7cef63a31c6d0e32b70f4cc060acf70fbe42c0e1eb5d04120c221ef1cace20cb3191be61e600000f7f3174807e5249d6a8ba4e639c40e3db  loadkmap.initd
+359af0a4a1841dd6557eaf3e71d39f0d7a2687bad6a8fc6ef436eccf72a40f85c6400a3b7880c7f64d8e460b6af8a0ff3dd5ffc3a4b1aa8eb0d8f7eaf99ee3e4  watchdog.confd
+8c8eabb4f9bca466e42fd0676638f472c6f86c7f6dfbf0ef5c1bc63cd5e864d808d287b1e4c048ae2caae2c5070b644a017d0c334d472d324cfc9633987c2f0c  watchdog.initd
+c571c5acf8cec351a41cbce00a7e21d08e8db5da129830d4bcc09cba5dc7ce5acfe8670bb4475436917d53cd7e5e0502042025124e2a905d929ff811bc2036d0  dnsd.initd
+f8dcfb5c722a3bd87d4e08f0af0e047270e9158d262bf5909caed2f641a44f38a742437c315909a3f70a588282054af0f9356ebb9aab8d51d35c702bbb5559f4  httpd.initd
+81bba7fc625a86e04069b82cdf9dcfb5b6a9b3ceaf138e08cc8fd5e7680d8c9aa670e74783b00778e1cb1f7b1fb65946b003d0927771e412d15e2d92b4d5c5e2  inetd.initd
+1171b4144fa2bca2fd48ea6143a297a271d76cf9b109efe4fb09a07d07427a5cee028ebdce1efa9b18fdea84002a82674c2dc08fbf25647fd22443abefbb02ae  udhcpd.initd
+"

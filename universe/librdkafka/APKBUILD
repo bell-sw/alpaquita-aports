@@ -1,0 +1,42 @@
+pkgname=librdkafka
+pkgver=1.9.2
+pkgrel=0
+pkgdesc="The Apache Kafka C/C++ library"
+url="https://github.com/edenhill/librdkafka"
+arch="all"
+license="BSD-2-Clause"
+makedepends="
+	bsd-compat-headers
+	cmake
+	cyrus-sasl-dev
+	lz4-dev
+	openssl-dev>3
+	rapidjson-dev
+	samurai
+	zlib-dev
+	zstd-dev
+	"
+subpackages="$pkgname-dev $pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/edenhill/librdkafka/archive/v$pkgver.tar.gz"
+options="!check" # a bunch of them fail
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_BUILD_TYPE=RelWithDebinfo \
+		-DRDKAFKA_BUILD_EXAMPLES=OFF \
+		-DRDKAFKA_BUILD_TESTS="$(want_check && echo ON || echo OFF)"
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+f067b227bc784e1dee61261d540632e54a4e5849934d1f55571979fea6b3c6858c27bcd397cf33fbee2409df12b149bb78f201f33646d14b5288a33147a9c9dc  librdkafka-1.9.2.tar.gz
+"

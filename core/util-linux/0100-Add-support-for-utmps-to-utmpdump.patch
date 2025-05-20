@@ -1,0 +1,54 @@
+From bcd0428e11835b7a8d739d4a229b34ddb0e4dbf3 Mon Sep 17 00:00:00 2001
+From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
+Date: Fri, 12 Aug 2022 17:51:01 +0300
+Subject: [PATCH] Add support for utmps to 'utmpdump'
+
+According to utmps.patch, support for utmps is not added to program
+'utmpdump' because
+
+  'utmpdump' includes utmpx.h, but doesn't log anything, just parses
+  utmp/wtmp files, so doesn't need to be linked with utmps.
+
+This makes 'utmp/last' tests fail on glibc systems:
+
+  utmp: last: [01] dns                                ... FAILED (utmp/last-dns)
+  utmp: last: [02] nodns                              ... FAILED (utmp/last-nodns)
+
+In these tests, 'utmpdump' is used to discover the size of 'struct
+utmpx' in order to prepare a correct utmp/wtmp file.  But the size of
+'struct utmpx' in utmpx.h provided by glibc is not the same as in
+utmpx.h provided by musl/utmps:
+
+  (glibc system)$ cat check_utmp_struct_size.c
+  #include <stdio.h>
+  #include <utmpx.h>
+
+  int main(void)
+  {
+          printf("sizeof(struct utmpx) = %zd\n", sizeof(struct utmpx));
+  }
+  (glibc system)$ gcc check_utmp_struct_size.c && ./a.out
+  sizeof(struct utmpx) = 384
+  (glibc system)$ gcc -I/usr/include/utmps/ check_utmp_struct_size.c && ./a.out
+  sizeof(struct utmpx) = 400
+---
+ login-utils/Makemodule.am | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/login-utils/Makemodule.am b/login-utils/Makemodule.am
+index 8f227a0ea..04af68183 100644
+--- a/login-utils/Makemodule.am
++++ b/login-utils/Makemodule.am
+@@ -94,7 +94,8 @@ usrbin_exec_PROGRAMS += utmpdump
+ MANPAGES += login-utils/utmpdump.1
+ dist_noinst_DATA += login-utils/utmpdump.1.adoc
+ utmpdump_SOURCES = login-utils/utmpdump.c
+-utmpdump_LDADD = $(LDADD) libcommon.la
++utmpdump_CFLAGS = $(AM_CFLAGS) $(UTMPX_CFLAGS)
++utmpdump_LDADD = $(LDADD) libcommon.la $(UTMPX_LIBS)
+ endif
+ 
+ 
+-- 
+2.37.1
+

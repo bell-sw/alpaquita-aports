@@ -1,0 +1,614 @@
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME Native Image Kit is a versatile multilingual
+# tool for accelerating your applications, based on GraalVM Open Source.
+
+: ${BUILD_FROM_SOURCE:=0}
+
+_java_pkgname=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
+_pkgname="${_java_pkgname}-nik"
+_nikmajor=24
+_nik_build=1
+# java version and release date required for the build
+_javamajor=24
+_javaver=24.0.1
+RELEASE_DATE=2025-04-15
+
+pkgver=24.2.1
+pkgrel=0
+pkgname=$_pkgname-$_nikmajor-$_javamajor
+
+arch="aarch64 x86_64"
+
+# workaround for building without git
+_hash_truffleruby="703c2de84470cc6b8c05971b954582b6214577b3"
+_date_truffleruby=${RELEASE_DATE}
+
+pkgdesc="$VENDOR_JAVA_NAME Native Image Kit $pkgver (Java $_javamajor)"
+url="$VENDOR_URL"
+license="GPL-2.0"
+
+case "$CARCH" in
+	x86_64)  JARCH="amd64" ;;
+	*)  JARCH="$CARCH" ;;
+esac
+
+if [ "${BUILD_FROM_SOURCE}" -eq 0 ]; then
+	case "$CARCH:$CLIBC" in
+		x86_64:glibc )
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/bellsoft-liberica-vm-openjdk24-24.2.1-linux-amd64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/js-java-openjdk24-24.2.1-linux-amd64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/js-native-openjdk24-24.2.1-linux-amd64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/llvm-java-openjdk24-24.2.1-linux-amd64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/llvm-native-openjdk24-24.2.1-linux-amd64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/nodejs-java-openjdk24-24.2.1-linux-amd64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/nodejs-native-openjdk24-24.2.1-linux-amd64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/python-java-openjdk24-24.2.1-linux-amd64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/python-native-openjdk24-24.2.1-linux-amd64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/ruby-java-openjdk24-24.2.1-linux-amd64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/ruby-native-openjdk24-24.2.1-linux-amd64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/wasm-java-openjdk24-24.2.1-linux-amd64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/wasm-native-openjdk24-24.2.1-linux-amd64.tar.xz
+"
+			NIK_SHA="
+2eaa087215581e274a04f27207f6ec13865a7376158adca6503d0c0aeb768f5aaa354bd2c4726fd2cd55b06f95b56c56ae07a6f36fb772f2c2b3c8f5c3611b69  bellsoft-liberica-vm-openjdk24-24.2.1-linux-amd64.tar.xz
+79b9958c8ddbe86fe545ffc6afcd5b188ff9eeda0ff475f83a7b63398e2066ff7b0a6e5958099c6d1ae7fc87aa1645a71650f9461247343a60e1caa7cb2ab519  js-java-openjdk24-24.2.1-linux-amd64.tar.xz
+7ad23b3d89bb63acdad1824ad13b027d0a0350c59d6a51427353b857f179197b490f3da7234b19458f2dc682a39e285b3849d2e438489c57fccab7c6fbe5d977  js-native-openjdk24-24.2.1-linux-amd64.tar.xz
+db7f705a5ebfe67201e34cc73f8df6516d5b92cb85bd142864e391648d6e28a227db8977b579574272ceb618beb3aa1603d8b4bc0c00451195cdeb8ae5179700  llvm-java-openjdk24-24.2.1-linux-amd64.tar.xz
+5f535b446e9473eb1e58e4f2ad3696c45a9738a60926caf51797137c2053d6deb7f618cf1344d29dcd0de0eccb63f64f49421714ecdea2a960e9dee34f56553c  llvm-native-openjdk24-24.2.1-linux-amd64.tar.xz
+16a6c7f7fb23c6188f4c43adbbd3d9905eab1840f4b2372d543dd8ce269217c7f2ed04abb1bae5395624fc5b76e6a15fe9e54f61f5b42f8d933b0f352a60d5d3  nodejs-java-openjdk24-24.2.1-linux-amd64.tar.xz
+9e76f7372ee7b528010ab757509254aa14a15d5608b43d1fc41497bda28850f879f4ad24b3bfc4a72304e90cb69d9a7ceb436a92debfe745035e0e478344ec29  nodejs-native-openjdk24-24.2.1-linux-amd64.tar.xz
+d1babcb6989882b54adf059f0add725d1497bf364a14b7d96359690bede304a7681b7341c76be6025cf0b8b930a69f37ac7ecadeccf1b5da098cdf4b55117120  python-java-openjdk24-24.2.1-linux-amd64.tar.xz
+c6ea32529f53607afb110d255b2e636d1a10b4d0bb46f155dcbf0e7ab7cf577a832dfbd79dcc3192bafcc3bba2f2c8292297bd722654cb9ff7849409290b2b72  python-native-openjdk24-24.2.1-linux-amd64.tar.xz
+90d20f621058274529618a865d0b763222a31119e81bd083882083200b6cb2c5dd86e30c3445372b84910ba917b60ea7b8203cb1d2bc47a15f55a1d77a5bcc32  ruby-java-openjdk24-24.2.1-linux-amd64.tar.xz
+b8b6d614b19be05a4170330f3cc7f5df890d8150049825932117d1e4c74cd06306d648efb1235804e51baacebf518800aa93ecd2d8f55effb2c326e84f6e0be6  ruby-native-openjdk24-24.2.1-linux-amd64.tar.xz
+f82460d37700aa9875fd203488ee7e5ad750fb78c053382c643568e0ef909b316a9882be9b677bc38fa6ab040d067dc8b9dc902b1e510d7f8fbf03f482212bdc  wasm-java-openjdk24-24.2.1-linux-amd64.tar.xz
+6681f63d3ae836d7cd50af04e35f7de0c76e9e8d55dd10ce87ec45789c13ab3d07071746e85798e17c91c686229376c5544d316f8b5b2b0e95641f3570a54175  wasm-native-openjdk24-24.2.1-linux-amd64.tar.xz
+"
+		;;
+		x86_64:musl )
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/bellsoft-liberica-vm-openjdk24-24.2.1-linux-x64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/js-java-openjdk24-24.2.1-linux-x64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/js-native-openjdk24-24.2.1-linux-x64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/llvm-java-openjdk24-24.2.1-linux-x64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/llvm-native-openjdk24-24.2.1-linux-x64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/nodejs-java-openjdk24-24.2.1-linux-x64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/nodejs-native-openjdk24-24.2.1-linux-x64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/python-java-openjdk24-24.2.1-linux-x64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/python-native-openjdk24-24.2.1-linux-x64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/ruby-java-openjdk24-24.2.1-linux-x64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/ruby-native-openjdk24-24.2.1-linux-x64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/wasm-java-openjdk24-24.2.1-linux-x64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/wasm-native-openjdk24-24.2.1-linux-x64-musl.tar.xz
+"
+			NIK_SHA="
+15f7b546017b7d592e15f546e915a53c77edcc9dad1366926a80f0956bcd16c7d8c6327041fffed65ded554299abeddcc019827d0e63f8b014f789bd27298165  bellsoft-liberica-vm-openjdk24-24.2.1-linux-x64-musl.tar.xz
+14a3441bc260d322d7ad0db2144252059982db69b148acf19af95d0a610ed4f9700c4590d070ad619048549b43124e6b1b9d4e44a96988123b3a133105359a2b  js-java-openjdk24-24.2.1-linux-x64-musl.tar.xz
+68384899ee119776df2f2ef5cee7ef149a8d756c041211aa2766d4ba6ba407e65963ead8354703714b6d0ca18cc96186fa2db67b766a745e34f271a14d8a7c62  js-native-openjdk24-24.2.1-linux-x64-musl.tar.xz
+f8873ed7c8e0b8e60b13c71fe0d04bcdffb37460c68240d597e038bdd1ac9a335ee6113229a5136cf3c6884c1d7ab8cea1d19d45770b1f4847f2f5c6a7818605  llvm-java-openjdk24-24.2.1-linux-x64-musl.tar.xz
+3d76b8665f227fcea8d05b53e795f48959492bda47ddaa80973ec552595ee5a84820f0636a8d149e5effc9f85c0e1353aa7f7094daf11a4ce277ce3ffd539253  llvm-native-openjdk24-24.2.1-linux-x64-musl.tar.xz
+cee54ac7e4caeaf3aaf864eb7c99eeccb1e14dfc86afd05a35ef60472a915e33f39a98d13dfe02e2c9f881a8cd751b9212c57f3fb6d99ccccf21eb600f45f16c  nodejs-java-openjdk24-24.2.1-linux-x64-musl.tar.xz
+86703dc9830811f878a6ad5c699610d373a0881bfad097a6e02c728b0c46887820e14c0d8d8e905595ae9c7069613c0ee141b5c927dbcec0e9a05ca23520d6da  nodejs-native-openjdk24-24.2.1-linux-x64-musl.tar.xz
+494ef74f71ea4c7a9279d5f59ec468315498df03f02b3f18e28efb90945a7cd2a118f30e6d6ec6c18cf37e74632b682982231fdd150e93c4509ae09808a0c092  python-java-openjdk24-24.2.1-linux-x64-musl.tar.xz
+464ae6edeb60327a830ffca3dd0dd250a5e6bdb55fb0e5486fb6f02f663a0dfa612e88660616059dc88b834ce4cea2c3bc33502733fb4a3f8e62c03282fa7302  python-native-openjdk24-24.2.1-linux-x64-musl.tar.xz
+735f27e3ba3bc082f1f0827d9952ef333148178db4533b953f17cf2f68f3ae1c284ce238d436d33447d51db1a00166a88ac0f9b4474f94eff9d2a9943c02a644  ruby-java-openjdk24-24.2.1-linux-x64-musl.tar.xz
+5cab0ac67d53850162363f46a04bd6921b83c8da7fd33959525c99c851e0da726c1b5f13d6bde1a5f4b24de6b9f1e28ad313c10c45c23816d9c4a1eab4991c1e  ruby-native-openjdk24-24.2.1-linux-x64-musl.tar.xz
+187a695cf158655be711350f6ce5a5903346aec41e414e20be06c780c56808ca9db340586c71d5f737e5e874baac7a02bab5e749172a793b5b2a27da4d02eed6  wasm-java-openjdk24-24.2.1-linux-x64-musl.tar.xz
+60f8219bc657a47a80cb9f51d19e80bbd40c42ebd06e3842d73de467aa33aceb594f9d2e248f3606b662a9fd4178ec212fd5297b28dc2894567f3e629b46075c  wasm-native-openjdk24-24.2.1-linux-x64-musl.tar.xz
+"
+		;;
+		aarch64:glibc )
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/bellsoft-liberica-vm-openjdk24-24.2.1-linux-aarch64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/js-java-openjdk24-24.2.1-linux-aarch64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/js-native-openjdk24-24.2.1-linux-aarch64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/llvm-java-openjdk24-24.2.1-linux-aarch64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/llvm-native-openjdk24-24.2.1-linux-aarch64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/nodejs-java-openjdk24-24.2.1-linux-aarch64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/nodejs-native-openjdk24-24.2.1-linux-aarch64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/python-java-openjdk24-24.2.1-linux-aarch64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/python-native-openjdk24-24.2.1-linux-aarch64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/ruby-java-openjdk24-24.2.1-linux-aarch64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/ruby-native-openjdk24-24.2.1-linux-aarch64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/wasm-java-openjdk24-24.2.1-linux-aarch64.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/wasm-native-openjdk24-24.2.1-linux-aarch64.tar.xz
+"
+			NIK_SHA="
+c9070af5e6c6ba0d683f46212ce04f6937cabc2b09e3427d8460eea9b499e86b1d846b29db82ed7b6e64ca26b4b2fccace7c890c400e6ef1c7fc74153c3c1908  bellsoft-liberica-vm-openjdk24-24.2.1-linux-aarch64.tar.xz
+f9fa7ca518aa9858504705a85ed1d6f01135b5045d61e0a734ed1b6114ffad7b0e4be899fe578c0f83fafa0b1d745cc70616d47cd3451d3d81b1da1bc23f5775  js-java-openjdk24-24.2.1-linux-aarch64.tar.xz
+9cf060c6a947f9f1815c0c846e72332986949a6aecabe605616091d68330072eb8615ba424178ff0f3eae1d4bdc8287ff2888c3246a7df1eccaa055c947d4a3a  js-native-openjdk24-24.2.1-linux-aarch64.tar.xz
+90347fe8205c08336c43c58cb4aeffa60812d800847d303a8c288e15de3d020e597ceec06463128d03d2c22fc4bc522fa10ff7aa87585f2089364959ca5a71d9  llvm-java-openjdk24-24.2.1-linux-aarch64.tar.xz
+a08472ccc07c7418dfceb4b0ea630a2ced702569989fae6ff325583569a44fc21dc8ca087500871fdc5d032cf64d40ef0b3f520c0252f8ab23f139f1949b5d19  llvm-native-openjdk24-24.2.1-linux-aarch64.tar.xz
+bb0f31e50ea4d416d21e77618460cc43b2c745da14d5057d744e1589ba0be0696041a4707b5f06f2d574acdf9a251d7d38ac3b855d48e9e34fed036935c8b5c9  nodejs-java-openjdk24-24.2.1-linux-aarch64.tar.xz
+6373885ed0821b88963bb811556709b4dbfea6c471a323698e5623bba7752de43737b79598393586bb3bfa3a4527f2db8b8861eb27cd681c3cb8c618846791b4  nodejs-native-openjdk24-24.2.1-linux-aarch64.tar.xz
+40db5a230f53a29fd4791530f3be3436368f1c5eced02528c34cb5e331c1437c1cf564485cf15b8f0e0f201f9a8e4bdbf9f70ebc304fc5833d224f54f081f83e  python-java-openjdk24-24.2.1-linux-aarch64.tar.xz
+69132cad0b1f4ee792a660ea23b6fa6d50d3c0c331caea5ab04dce243faeece99d5bb6e617784593ae0c4a3c9b8e36a047146781b985ac235356b69ccfa132ab  python-native-openjdk24-24.2.1-linux-aarch64.tar.xz
+f382c4da3c45ea9e13cc11d07bbed9f64a0b5a668a53888750bff71b6481c9355b1c8573cab41914e186244f4bb9d1cad30b6fc7b706253a7e1b144adbd58e08  ruby-java-openjdk24-24.2.1-linux-aarch64.tar.xz
+5f0008ba831d27008fc69e45eacb90abe703d4968855a610f2e0279c5cb07e229ac83fa397766540003966c00ecaba6dc00f83c2ae5a2f70b1bfb5402112f4f7  ruby-native-openjdk24-24.2.1-linux-aarch64.tar.xz
+5530a1ea1728d88663616941839be4326c052092d664560601a6f3f9485b9fc84ab154c24a4e3904abad6a328227007b491cb605e9b5736e39ae96c38472bf3d  wasm-java-openjdk24-24.2.1-linux-aarch64.tar.xz
+81445f6fe65a156f7b2393841f7e935ef9ed55c8cd5a99feab4bab1ba0cc1b649956dcfb5b4624c7fe06c9ddc4b4b4484648d304eda61654964725d015c196eb  wasm-native-openjdk24-24.2.1-linux-aarch64.tar.xz
+"
+		;;
+		aarch64:musl )
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/bellsoft-liberica-vm-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/js-java-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/js-native-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/llvm-java-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/llvm-native-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/nodejs-java-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/nodejs-native-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/python-java-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/python-native-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/ruby-java-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/ruby-native-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/wasm-java-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/wasm-native-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+"
+			NIK_SHA="
+1a129cc688d9b2d28042a07ba24285bea6d9b37116bc7cde567b6e104dc112c186b696db4f2ef6f597476cc41f9b8bcec6c9dbe62f372d435c59933e6df62384  bellsoft-liberica-vm-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+292f38d3acd602d7804e6aa7c958b61b4f9f3661bb08bd5ab91fd24d93662a5967cca11ff44ae72ec4d4f32d0e5e129eaf990f03d8759d90bc9f4a3944f23c54  js-java-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+55d8bf4a08834d0757af91139822a4ec077cb779886599f5a4cf57e603925391392d7bf99d03a7ca629470f869ec66d4ddea463a655c6fbb5d28b9b245ab19bc  js-native-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+d628c3af5ea916b998d6fa1411b9692f9112ad9c79b7d0705656f18ba205aeb60578bfd328d34f13c941ceaec72e4d856a710e10ced048d46154121e1b5e2c52  llvm-java-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+e01395af8a9c8313aec86230a46690c998beab3e3efd31a637996a136f074d2e727c6bad9faef44fb66757b2416b570f8a122358362f706d831405180b755914  llvm-native-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+3c81ebffba96bc8ec4f0b693772851958b63eded50af486c2389e4a705f406dc07236100bf72b1193b10dc9c208eb1317ba9d34d1c5cfd878962ab99a198ca87  nodejs-java-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+5d7c80aa91c5b41cf93eb8c0ee52c2ba884289d75866c6c82fc9694556d4a983c532aa6a1f9e354113569764c2c2e44836ed41574508dad5b3c72413e4a4728c  nodejs-native-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+5f6c511bdfe0941b999940a061fefe70a45eea5966767575a673cf6748b75a7a44c826e77e55f3831a2f9707f9617b0d374fa55fe67280aa55d9bf8e04a7cf9f  python-java-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+1711577d5fc3bf101a3a137a1e4d96950bf46c6adb181678bf117f4359a47896addca1edddc52f4768a62a92771115423f1193a2137c29d2c64834836fade7e1  python-native-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+7f70f55be8857f02e54b7fe5cf55e3e4d7431618c7c00e2cd39aa2ac1fcdd26c6361e5b8fd9ccac6e2c49066445592544c3198a8060f95efb319b4c461305e68  ruby-java-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+a876bc2327b71cb4ccc03fb5567a2b2f4101022066ab73d6bb0e5b0121b39e8e90d1edad4f0f9831d6974cb1da58f6e13171b0e5e84ac90845fb848e302ec178  ruby-native-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+43a7dda6c890ed9931f131519220b7344247671701e38aa559e22309e19180ce1a6c1c5bbf91f453adb6c292861a5726abff718f67ff63783bce2d7dc098d9ef  wasm-java-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+b925606f4b5b911a86786ed75dfa72447b0617f19fe92cbbff9cab55b1e85e0fe01ea4bf918b449d9524c2ce414fc9331b767f40fdc639106d8f085f1b68c729  wasm-native-openjdk24-24.2.1-linux-aarch64-musl.tar.xz
+"
+		;;
+	esac
+else
+	case "$CARCH:$CLIBC" in
+		x86_64:glibc)
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-x86_64/src-graal-24.2.1-linux-alpaquita-x86_64.tar.xz
+"
+			NIK_SHA="
+1cb331343aa14e12dec9ce90e6d9caf6ea3ddb67be38c57feb18e988baf5da44745c0612d6c31456b1b4ed1c9141030a22eec5ae0ce9bf77047ec4ce46e974d9  src-graal-24.2.1-linux-alpaquita-x86_64.tar.xz
+"
+		;;
+		x86_64:musl)
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-x86_64/src-graal-24.2.1-linux-alpaquita-musl-x86_64.tar.xz
+"
+			NIK_SHA="
+491717774257c51b7167b4a20e9b0e74fde9c8ac65e073bfccfa979a3378f130b26ffaf65dd8082fd8607e7bbde455f7696b1093af671011ee27aa5e023487e4  src-graal-24.2.1-linux-alpaquita-musl-x86_64.tar.xz
+"
+		;;
+		aarch64:glibc)
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-aarch64/src-graal-24.2.1-linux-alpaquita-aarch64.tar.xz
+"
+			NIK_SHA="
+5490b2eeadb36b78f55b7998f6c4cf1a2df0beaee256e1fecb49895e791a77e5261ef7ead4c535c6db85b8945a872a4baa3e861a100c6065b5936cdb641e5b55  src-graal-24.2.1-linux-alpaquita-aarch64.tar.xz
+"
+		;;
+		aarch64:musl)
+			NIK_BIN="
+			https://download.bell-sw.com/linux-alpaquita/java-sources/nik/24.2.1+1-24.0.1+11/linux-alpaquita-musl-aarch64/src-graal-24.2.1-linux-alpaquita-musl-aarch64.tar.xz
+"
+			NIK_SHA="
+55687f05208ed04c2b80db36a21d949c11d0ea7457bb811b36821615e12831ee772b9655426dfa5e7d33641663b3b7437304adb40eea7342ac1e8408dd583ce6  src-graal-24.2.1-linux-alpaquita-musl-aarch64.tar.xz
+"
+		;;
+	esac
+fi
+
+makedepends=
+if [ "${BUILD_FROM_SOURCE}" -ne 0 ]; then
+	makedepends="
+		openjdk$_javamajor~$_javaver
+		openjdk$_javamajor-jmods~$_javaver
+		openjdk$_javamajor-libs-static~$_javaver
+		openjdk$_javamajor-src~$_javaver
+	"
+fi
+
+makedepends="
+	$makedepends
+	bash
+	bzip2-dev
+	cmake
+	coreutils
+	curl-dev
+	diffutils
+	ed
+	gfortran
+	git
+	grep
+	linux-headers
+	patch
+	pcre-dev
+	pcre2-dev
+	perl
+	python3
+	py3-setuptools
+	readline-dev
+	samurai
+	sed
+	unzip
+	xz
+	xz-dev
+	yaml-dev
+	z3-dev
+	zlib-static
+	"
+
+options="!annobin !strip !check !tracedeps textrels ldpath-recursive"
+
+subpackages="
+	${pkgname}-js:_js
+	${pkgname}-js-native:_js_native
+	${pkgname}-llvm-core:_llvm_core
+	${pkgname}-llvm-core-native:_llvm_core_native
+	${pkgname}-nodejs:_nodejs
+	${pkgname}-nodejs-native:_nodejs_native
+	${pkgname}-python:_python
+	${pkgname}-python-native:_python_native
+	${pkgname}-ruby:_ruby
+	${pkgname}-ruby-native:_ruby_native
+	${pkgname}-wasm:_wasm
+	${pkgname}-wasm-native:_wasm_native
+	"
+
+provides="
+	openjdk-nik-$_nikmajor-$_javamajor=$pkgver-r$pkgrel
+	java-jre-no-deps
+	java-jdk-no-deps
+	java24-jre-no-deps
+	java24-jdk-no-deps
+	"
+
+source="
+	$NIK_BIN
+"
+
+builddir="$srcdir"/$_pkgname-$pkgver
+
+_java_home="/usr/lib/jvm/$pkgname"
+ldpath="$_java_home/lib"
+sonameprefix="$pkgname:"
+
+_provide_openjdk_alias() {
+	provides="openjdk-${subpkgname#$_java_pkgname-}=$pkgver-r$pkgrel"
+}
+
+unpack() {
+	mkdir -p "$builddir"
+	if [ "${BUILD_FROM_SOURCE}" -eq 0 ]; then
+		mkdir -p "$builddir"/graal/sdk/
+		mkdir -p "$builddir"/native/
+		mkdir -p "$builddir"/java/
+		for f in $srcdir/*.tar.[xg]z; do
+			msg "extract $f"
+			# NIK
+			if [[ $f =~ vm-openjdk ]]; then
+				tar -C "$builddir"/ -xf $f
+			# Native and java components have the same directory name, so extract to different build directories
+			elif [[ $f =~ java-openjdk ]]; then
+				tar -C "$builddir"/java/ -xf $f
+			else
+			    tar -C "$builddir"/native/ -xf $f
+			fi
+		done
+	else
+	    default_unpack
+		# rename the directories to their basenames, dropping git refs
+		mv graal            "$builddir"/graal
+		mv graaljs          "$builddir"/graaljs
+		mv graalpython      "$builddir"/graalpython
+		mv truffleruby      "$builddir"/truffleruby
+		mv fastr            "$builddir"/fastr
+		mv mx               "$builddir"/mx
+	fi
+}
+
+prepare() {
+	default_prepare
+
+	if [ "${BUILD_FROM_SOURCE}" -ne 0 ]; then
+		for p in graal graaljs graalpython truffleruby fastr mx ; do
+			touch $p/.mx_vcs_root
+		done
+	fi
+}
+
+
+build() {
+	if [ "${BUILD_FROM_SOURCE}" -ne 0 ]; then
+		cd "$builddir"/graal/vm
+
+		export VENDOR=${VENDOR_JAVA_NAME}
+		export VERSION=${pkgver}
+		export NIK_BUILD=${_nik_build}
+
+		export PATH="$builddir"/mx:$PATH
+
+		export JAVA_HOME=/usr/lib/jvm/$_java_pkgname$_javamajor
+
+		export CFLAGS=
+		export CXXFLAGS=
+
+		export MX_CACHE_DIR="$SRCDEST"/mx.cache # extra mx distfiles
+		export MX_NO_VCS=true
+		export MX_PYTHON=python3
+
+		export SULONG_BOOTSTRAP_TOOLCHAIN_NO_HOME=/usr
+
+		# build components/options
+		local mx_vm="$builddir"/graal/vm/mx.vm
+		local ce
+		case "$CARCH" in
+		    aarch64*)	ce="ce-aarch64";;
+		    x86_64)	ce="ce";;
+		esac
+
+		msg "Building core"
+		(
+			export MX_ENV_PATH="$mx_vm"/$ce
+
+			mx graalvm-show
+			mx -V build
+		)
+		# The directory with the NIK core that we have just built is
+		# now pointed to by the "$builddir"/graal/sdk/latest_graalvm
+		# symlink.
+
+
+		msg "Building standalones"
+		(
+			export MX_ENV_PATH="$mx_vm"/$ce-complete
+
+			export TRUFFLERUBY_COMMIT_SHA="$_hash_truffleruby" # XXX
+			export TRUFFLERUBY_COMMIT_DATE="$_date_truffleruby"
+
+			export FASTR_BUNDLE_DEPENDENCIES=
+			export FASTR_CAPTURE_DEPENDENCIES=
+			export FASTR_NO_RECOMMENDED=true
+			export FASTR_RELEASE=true
+
+			mx graalvm-show
+			mx -V build --targets GRAALVM_STANDALONES
+		)
+
+		# The build command above has constructed fully self-contained
+		# distributions for languages in the directories named like
+		#
+		#   *_{JAVA,NATIVE}_STANDALONE_SVM_JAVA22/*-community-${pkgver}-linux-${JARCH}/
+		#
+		# JAVA and NATIVE versions for the same language overlap for
+		# things like language libraries (e.g. lib/python3.*), all
+		# JAVA packages have their own copies of JAVA_HOME, and
+		# languages that need llvm has their own copies of llvm
+		# toolchain and, some, also binutils.  Carving this into
+		# properly shared apk packages without upstream guidance is
+		# non-trivial at best.
+		msg "NIK standalone languages: graal/sdk/mxbuild/linux-$JARCH"
+		(
+			cd "$builddir"/graal/sdk/mxbuild/linux-$JARCH
+			ls -ld *_STANDALONE_SVM_JAVA*/*
+		)
+	fi
+}
+
+
+# the directory where the graal build stows its artifacts
+_outputdir="$builddir"/graal/sdk/mxbuild/linux-${JARCH}
+
+# the destination directory for the language subpackages.  we don't
+# want to put them into /usr/lib/jvm as that directory is for java
+# versions while graal languages are just java applications
+_nikdir=/usr/lib/nik
+
+package() {
+	# only the openjdk-nik package that ships a public jdk
+	# requires the java-common trickery and compiler &c are for
+	# native-image (that is now a part of the base nik package),
+	# so don't declare these deps at the top-level, so that
+	# subpackages don't accidentally it pick up.
+	depends="
+		java-common
+		gcc libc-dev zlib-dev linux-headers
+		"
+
+	mkdir -p "$pkgdir/$_java_home"
+
+	# latest_graalvm_home symlink points into $_outputdir, e.g.
+	# GRAALVM_COMMUNITY_JAVA22/graalvm-community-openjdk-22.0.1+12.1
+	# that explicitly mentions the openjdk build number (the
+	# number right after the plus sign) and we don't want to make
+	# this package aware of that kind of details, so we prefer to
+	# use the symlink the build conveniently creates for us.
+	if [ "${BUILD_FROM_SOURCE}" -eq 0 ]; then
+		cp -a "$builddir"/bellsoft-liberica-vm-openjdk${_javamajor}-${pkgver}/. "$pkgdir/$_java_home/"
+	else
+		cp -a "$builddir"/graal/sdk/latest_graalvm_home/. "$pkgdir/$_java_home/"
+	fi
+	# Add readme.txt to base package
+	cp ../../readme.txt "$pkgdir/$_java_home/"
+}
+
+
+# This directory contains the standalone "java" build of the specified
+# language.  It's an implementation of the language on top of graal
+# with the jvm included into the package.
+_lang_java_dir() {
+	local LNAME="$1"	# "lang" name
+	local gname="$2"	# "graal" name
+	local pre_gname="$3"	# "graal" name
+	if [ "${BUILD_FROM_SOURCE}" -eq 0 ]; then
+		echo "${builddir}"/java/${pre_gname}-openjdk${_javamajor}-${pkgver}
+	else
+		echo "${_outputdir}"/${LNAME}_JAVA_STANDALONE_SVM_JAVA23/${gname}-community-${pkgver}-linux-${JARCH}
+	fi
+}
+
+# This directory contains the native "java" build of the specified
+# language.  It's an implementation of the language on top of graal
+# that was AOT-compiled by native-image.  You can think of it as
+# _lang_java_dir compiled with native-image and then the (now
+# unnecessary) jvm garbage collected from the package.
+_lang_native_dir() {
+	local LNAME="$1"	# "lang" name
+	local gname="$2"	# "graal" name
+	local pre_gname="$3"	# name of precompiled component name
+	if [ "${BUILD_FROM_SOURCE}" -eq 0 ]; then
+		echo "${builddir}"/native/${pre_gname}-openjdk${_javamajor}-${pkgver}
+	else
+		echo "${_outputdir}"/${LNAME}_JAVA_STANDALONE_SVM_JAVA23/${gname}-community-${pkgver}-linux-${JARCH}
+	fi
+}
+
+
+_js() {
+	pkgdesc="$pkgname (Graal.js)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_java_dir JS graaljs js)"
+	local dstdir=$_nikdir/js-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_js_native() {
+	pkgdesc="$pkgname (Graal.js native)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_native_dir JS graaljs js)"
+	local dstdir=$_nikdir/js-native-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_llvm_core() {
+	pkgdesc="$pkgname (LLVM Core)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_java_dir LLVM llvm llvm)"
+	local dstdir=$_nikdir/llvm-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_llvm_core_native() {
+	pkgdesc="$pkgname (LLVM Core native)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_native_dir LLVM llvm llvm)"
+	local dstdir=$_nikdir/llvm-native-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_nodejs() {
+	pkgdesc="$pkgname (Graal.nodejs)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_java_dir NODEJS graalnodejs nodejs)"
+	local dstdir=$_nikdir/nodejs-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_nodejs_native() {
+	pkgdesc="$pkgname (Graal.nodejs native)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_native_dir NODEJS graalnodejs nodejs)"
+	local dstdir=$_nikdir/nodejs-native-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_python() {
+	pkgdesc="$pkgname (Graal.python)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_java_dir PYTHON graalpy python)"
+	local dstdir=$_nikdir/python-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_python_native() {
+	pkgdesc="$pkgname (Graal.python native)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_native_dir PYTHON graalpy python)"
+	local dstdir=$_nikdir/python-native-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_ruby() {
+	pkgdesc="$pkgname (Graal.ruby)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_java_dir RUBY truffleruby ruby)"
+	local dstdir=$_nikdir/ruby-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_ruby_native() {
+	pkgdesc="$pkgname (Graal.ruby native)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_native_dir RUBY truffleruby ruby)"
+	local dstdir=$_nikdir/ruby-native-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_wasm() {
+	pkgdesc="$pkgname (Graal.wasm)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_java_dir WASM graalwasm wasm)"
+	local dstdir=$_nikdir/wasm-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+_wasm_native() {
+	pkgdesc="$pkgname (Graal.wasm native)"
+	depends="zlib"
+	_provide_openjdk_alias
+
+	local srcdir="$(_lang_native_dir WASM graalwasm wasm)"
+	local dstdir=$_nikdir/wasm-native-openjdk${_javamajor}-${pkgver}
+
+	mkdir -p "$subpkgdir"/${dstdir}
+	cp -a "$srcdir"/. "$subpkgdir"/${dstdir}
+}
+
+sha512sums="
+$NIK_SHA
+"

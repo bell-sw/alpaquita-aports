@@ -1,0 +1,57 @@
+pkgname=libavif
+pkgver=0.11.1
+pkgrel=0
+pkgdesc="Library for encoding and decoding .avif files"
+url="https://aomediacodec.github.io/av1-avif/"
+arch="all"
+license="BSD-2-Clause"
+makedepends="
+	aom-dev
+	cmake
+	dav1d-dev
+	gtest-dev
+	libjpeg-turbo-dev
+	libpng-dev
+	samurai
+	zlib-dev
+	"
+subpackages="$pkgname-dev $pkgname-apps"
+source="https://github.com/AOMediaCodec/libavif/archive/v$pkgver/libavif-v$pkgver.tar.gz"
+case $CARCH in
+	s390x)
+		# core dump https://github.com/AOMediaCodec/libavif/issues/731
+		options="!check"
+		;;
+esac
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DAVIF_BUILD_APPS=ON \
+		-DAVIF_BUILD_TESTS=ON \
+		-DAVIF_CODEC_AOM=ON \
+		-DAVIF_CODEC_DAV1D=ON
+	cmake --build build
+}
+
+check() {
+	# cmake --build build --target avif_test_all
+
+	# https://github.com/AOMediaCodec/libavif/issues/800
+	cd "$builddir"/build
+	./tests/aviftest ../tests/data --io-only
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+apps() {
+	amove usr/bin
+}
+
+sha512sums="
+4a9e2711fccddf35c477db6e2fa2f76c0648aafaa98b4e3f34df62c0fbd02ddcd57762f1f8149822da4f1bc3757ee75ec1d9ced5e56a54dbe9d0b43265aacd4c  libavif-v0.11.1.tar.gz
+"

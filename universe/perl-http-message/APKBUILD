@@ -1,0 +1,38 @@
+pkgname=perl-http-message
+_pkgreal=HTTP-Message
+_author=OALDERS
+_au=${_author%%"${_author#??}"}
+_a=${_author%%"${_author#?}"}
+pkgver=6.44
+pkgrel=0
+pkgdesc="HTTP style message"
+url="https://metacpan.org/release/HTTP-Message"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-clone>=0.46 perl-http-date perl-uri perl-io-html perl-encode-locale perl-lwp-mediatypes"
+checkdepends="perl-try-tiny perl-test-needs"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/$_a/$_au/$_author/HTTP-Message-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+prepare() {
+	default_prepare
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+}
+
+build() {
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+515f3b91b4ed1b12c63149006651b8d60e3b4d3d842e2b997b2e8c67ce93cbdcb8eb5357f4c5bce20057aea22c1f84b5e02995b02e381c21d918032edb35a994  HTTP-Message-6.44.tar.gz
+"

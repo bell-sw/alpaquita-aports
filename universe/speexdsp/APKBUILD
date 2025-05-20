@@ -1,0 +1,38 @@
+pkgname=speexdsp
+pkgver=1.2.1
+pkgrel=0
+pkgdesc="A voice compression format (DSP)"
+url="https://www.speex.org/"
+arch="all"
+options="!check"  # No test suite.
+license="BSD-3-Clause"
+makedepends="autoconf automake libtool"
+subpackages="$pkgname-dev $pkgname-doc"
+replaces="libspeex"
+source="https://gitlab.xiph.org/xiph/speexdsp/-/archive/SpeexDSP-$pkgver/speexdsp-SpeexDSP-$pkgver.tar.bz2"
+builddir="$srcdir/speexdsp-SpeexDSP-$pkgver"
+
+prepare() {
+	default_prepare
+	autoreconf -vif
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--disable-static
+	make
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+5b82a87390976cfe1272c896a6a29b6b7eacd0b747adf707e7286b9c5612d486686e24bdb3112e8b6b044f413e7cb9b6a580d0222def87fbbad58c0be49335ba  speexdsp-SpeexDSP-1.2.1.tar.bz2
+"

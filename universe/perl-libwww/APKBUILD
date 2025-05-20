@@ -1,0 +1,46 @@
+pkgname=perl-libwww
+_realname=libwww-perl
+pkgver=6.67
+pkgrel=0
+pkgdesc="Perl module - World Wide Web library"
+url="https://metacpan.org/pod/LWP"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="
+	perl perl-http-date perl-http-cookies perl-net-http perl-http-daemon perl-html-parser
+	perl-file-listing perl-www-robotrules perl-http-negotiate perl-uri perl-http-message
+	perl-lwp-mediatypes perl-encode-locale perl-try-tiny
+	"
+makedepends="perl-test-fatal perl-test-requiresinternet"
+checkdepends="perl-test-needs perl-test-leaktrace"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/O/OA/OALDERS/libwww-perl-$pkgver.tar.gz"
+builddir="$srcdir/$_realname-$pkgver"
+
+prepare() {
+	default_prepare
+
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+	rm -v t/base/protocols/nntp.t
+}
+
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+0e0c148e7d7e29e813e880e18be63d86b04a1b74fa7862e988727d7a9e6497e17baa7a90f79608f4edb83552d468c8b9be0ea7562a3777d305ae8891a04e496e  libwww-perl-6.67.tar.gz
+"

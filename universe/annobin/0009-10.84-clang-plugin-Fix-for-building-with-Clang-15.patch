@@ -1,0 +1,30 @@
+From 06f567c2bed8d946ad6b6daa7f1e0484c64d8153 Mon Sep 17 00:00:00 2001
+From: Nick Clifton <nickc@redhat.com>
+Date: Tue, 20 Sep 2022 12:39:51 +0100
+Subject: [PATCH] 10.84:clang-plugin: Fix for building with Clang-15
+
+---
+ clang-plugin/annobin.cpp | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/clang-plugin/annobin.cpp b/clang-plugin/annobin.cpp
+index a7b470d..3a41865 100644
+--- a/clang-plugin/annobin.cpp
++++ b/clang-plugin/annobin.cpp
+@@ -199,7 +199,12 @@ private:
+       Decl* NewDecl = FileScopeAsmDecl::Create
+ 	(Context,
+ 	 TU,
+-	 clang::StringLiteral::Create (Context, text, clang::StringLiteral::Ascii,
++	 clang::StringLiteral::Create (Context, text,
++#if CLANG_VERSION_MAJOR > 14
++				       clang::StringLiteral::Ordinary,
++#else
++				       clang::StringLiteral::Ascii,
++#endif
+ 				       /*Pascal*/ false,
+ 				       Context.getConstantArrayType (Context.CharTy,
+ 								     llvm::APInt (32, text.size () + 1),
+-- 
+2.38.1
+

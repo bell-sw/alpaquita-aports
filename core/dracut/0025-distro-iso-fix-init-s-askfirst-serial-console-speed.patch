@@ -1,0 +1,31 @@
+From 126491ec9c085f7803fe929c0c7c2ec93a8e9b42 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Fri, 7 Feb 2025 14:00:53 +0000
+Subject: [PATCH] distro-iso: fix init's 'askfirst' serial console speed
+
+---
+ modules.d/98distro-iso/mount-tmpfs.sh | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/modules.d/98distro-iso/mount-tmpfs.sh b/modules.d/98distro-iso/mount-tmpfs.sh
+index 2b03a282..16d00f53 100755
+--- a/modules.d/98distro-iso/mount-tmpfs.sh
++++ b/modules.d/98distro-iso/mount-tmpfs.sh
+@@ -38,10 +38,13 @@ _get_serial_ttys() {
+ _enable_serial_login() {
+ 	local serial="$(_get_serial_ttys)"
+ 	local i
++	local speed="115200"
+ 
+ 	for i in $serial; do
+ 		grep -q "^$i:" "$NEWROOT/etc/inittab" && continue
+-		echo "$i::askfirst:/usr/sbin/getty -L -n -l /usr/local/bin/login_as_root 115200 $i vt220" >> "$NEWROOT/etc/inittab"
++		# Make sure init has the same speed setting as getty when it waits for '\n'
++		echo "$i::once:/usr/bin/stty $speed" >> "$NEWROOT/etc/inittab"
++		echo "$i::askfirst:/usr/sbin/getty -L -n -l /usr/local/bin/login_as_root $speed $i vt220" >> "$NEWROOT/etc/inittab"
+ 	done
+ }
+ 
+-- 
+2.25.1
+

@@ -1,0 +1,58 @@
+# Description: nettle provides a low-level roitines for a wide range of
+# cryptographic algorithms.
+
+pkgname=nettle
+pkgver=3.8.1
+pkgrel=0
+pkgdesc="Low level cryptographic library"
+url="https://www.lysator.liu.se/~nisse/nettle/"
+arch="all"
+license="LGPL-2.0-or-later"
+depends_dev="gmp-dev"
+makedepends="$depends_dev m4"
+subpackages="$pkgname-static $pkgname-dev $pkgname-utils"
+source="https://ftp.gnu.org/gnu/nettle/nettle-$pkgver.tar.gz"
+
+# secfixes:
+#   3.7.3-r0:
+#     - CVE-2021-3580
+#   3.7.2-r0:
+#     - CVE-2021-20305
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--libdir=/usr/lib \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--enable-fat \
+		--enable-shared \
+		--disable-openssl \
+		--enable-static
+	make
+	# strip comments in fields from .pc as it confuses pkgconf
+	sed -i -e 's/ \#.*//' ./*.pc
+}
+
+check() {
+	make -C examples  # required for rsa-encrypt
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+utils() {
+	pkgdesc="Utils for nettle"
+	mkdir -p "$subpkgdir"/usr
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+}
+
+sha512sums="
+a405da3438d185d96917b03b00abb9ab43e04f58f770f657f716c25d64bb258ee170a71328e74736caa7121f50c0c89d3cc840c1201d2a92cfaf1357d24bdc6a  nettle-3.8.1.tar.gz
+"

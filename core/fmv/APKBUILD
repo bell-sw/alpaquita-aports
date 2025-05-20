@@ -1,0 +1,25 @@
+pkgname=fmv
+pkgver=1.1
+pkgrel=0
+pkgdesc="GCC plugin for adding multi-versioning attributes"
+url="$VENDOR_URL"
+arch="x86_64"
+license="GPL"
+makedepends="gmp-dev"
+source="${VENDOR_URL/\/\//\/\/packages.}${VENDOR_DISTRO}/distfiles/$pkgname-$pkgver.tar.xz"
+
+build() {
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+check() {
+	make test
+}
+
+sha512sums="
+885c05025ab0d12c31562cba84cbad63896afa7d5af662a20c5b907a01093c15109971ab5df6ef5fbcf2b2d4e50defbf26c038ff503c6bbae939278f17aa27fc  fmv-1.1.tar.xz
+"

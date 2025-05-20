@@ -1,0 +1,459 @@
+# Description:
+
+# secfixes:
+#   6.1.114-r0:
+#     - CVE-2024-39497
+#   6.1.113-r0:
+#     - CVE-2024-8805
+#     - CVE-2024-43866
+#   6.1.102-r0:
+#     - CVE-2024-41091
+#     - CVE-2024-41090
+#   6.1.97-r0:
+#     - CVE-2024-25741
+#   6.1.85-r0:
+#     - CVE-2024-24857
+#     - CVE-2024-24858
+#   6.1.84-r0:
+#     - CVE-2023-47233
+#   6.1.83-r0:
+#     - CVE-2023-6270
+#   6.1.80-r0:
+#     - CVE-2022-3061
+#   6.1.75-r0:
+#     - CVE-2023-46838
+#   6.1.74-r0:
+#     - CVE-2023-6610
+#   6.1.70-r0:
+#     - CVE-2023-6606
+#   6.1.64-r0:
+#     - CVE-2023-28464
+#   6.1.62-r0:
+#     - CVE-2023-5090
+#   6.1.60-r0:
+#     - CVE-2020-26555
+#   6.1.57-r0:
+#     - CVE-2023-34324
+_flavor=lts
+pkgname=linux-${_flavor}
+pkgver=6.1.134
+pkgrel=0
+_kernver=${pkgver%.*}
+pkgdesc="$VENDOR_DISTRO_NAME Linux lts kernel"
+url="https://www.kernel.org"
+depends="dracut kmod"
+_depends_dev="perl gmp-dev elfutils-dev bash flex bison"
+makedepends="$_depends_dev sed installkernel bc linux-headers openssl-dev
+	diffutils findutils xz sbsigntool gawk"
+options="!strip !annobin"
+_config=${config:-config-lts.${CARCH}}
+source="https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$_kernver.tar.xz
+	lts.x86_64.config
+	lts.aarch64.config
+	extramods
+	extramods.x86_64
+	extramods.aarch64
+	x509.genkey
+	../shim/bellsoft-uefi-ca.pem
+
+	0100-efi-Add-an-EFI_SECURE_BOOT-flag-to-indicate-secure-b.patch
+	0101-efi-Lock-down-the-kernel-if-booted-in-secure-boot-mo.patch
+	0102-mtd-phram-slram-Disable-when-the-kernel-is-locked-do.patch
+	0103-arm64-add-kernel-config-option-to-lock-down-when-in-.patch
+	0104-livepatch-Use-kallsyms_on_each_match_symbol-to-impro.patch
+	0105-livepatch-Call-klp_match_callback-in-klp_find_callba.patch
+	0106-kernel-params.c-defer-most-of-param_sysfs_init-to-la.patch
+	0107-pci-pme-wakeups.patch
+	0108-ksm-wakeups.patch
+	0109-intel_idle-tweak-cpuidle-cstates.patch
+	0110-smpboot-reuse-timer-calibration.patch
+	0111-initialize-ata-before-graphics.patch
+	0112-ata-libahci-ignore-staggered-spin-up.patch
+	0113-net-skb-disable-a-single-page-frag-cache.patch
+	0114-ext4-do-not-mark-inode-dirty-every-time-when-appendi.patch
+	0115-x86-Kconfig-Enable-kernel-IBT-by-default.patch
+	"
+subpackages="$pkgname-dev:_dev:$CBUILD_ARCH $pkgname-doc"
+subpackages="$subpackages $pkgname-extra-modules:_extramods:$CBUILD_ARCH"
+
+_flavors=
+for _i in $source; do
+	case $_i in
+	*.$CARCH.config)
+		_f=${_i%."$CARCH".config}
+		_flavors="$_flavors $_f"
+		[ "linux-$_f" = "$pkgname" ] && continue
+		subpackages="$subpackages linux-${_f}:_${_f}:$CBUILD_ARCH \
+			linux-${_f}-dev:_dev:$CBUILD_ARCH \
+			linux-${_f}-extra-modules:_extramods:$CBUILD_ARCH"
+		;;
+	esac
+done
+builddir="$srcdir"/linux-$_kernver
+
+if [ "${pkgver%.0}" = "$pkgver" ]; then
+	# Prepend to apply first
+	source="patch-$pkgver.patch.xz::https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/patch-$pkgver.xz $source"
+fi
+arch="all"
+license="GPL-2.0"
+
+prepare() {
+	default_prepare
+
+	# remove localversion from patch if any
+	rm -f localversion*
+}
+
+_kernelarch() {
+	local arch="$1"
+	case "$arch" in
+		aarch64*) arch="arm64" ;;
+		arm*) arch="arm" ;;
+		ppc*) arch="powerpc" ;;
+		s390*) arch="s390" ;;
+		riscv*) arch="riscv" ;;
+		loongarch64) arch="loongarch" ;;
+	esac
+	echo "$arch"
+}
+
+_prepareconfig() {
+	local _flavor="$1"
+	local _arch="$2"
+	local _config=$_flavor.$_arch.config
+	local _builddir="$srcdir"/build-$_flavor.$_arch
+	local _cfg_file="$_builddir"/.config
+	mkdir -p "$_builddir"
+	echo "-$pkgrel-$_flavor" > "$_builddir"/localversion-$VENDOR_DISTRO
+
+	cp "$srcdir"/$_config "$_cfg_file"
+	msg "Configuring $_flavor kernel ($_arch)"
+	make -C "$builddir" \
+		O="$_builddir" \
+		ARCH="$(_kernelarch $_arch)" \
+		olddefconfig
+
+	mkdir -p "$_builddir"/certs
+	cp "$srcdir"/x509.genkey "$_builddir"/certs/
+
+	if [ "$KERNEL_SIGNKEY_X509" ]; then
+		cp $KERNEL_SIGNKEY_X509 "$_builddir"/certs/bellsoft_signkey.pem
+		scripts/config --file "$_cfg_file" --set-str system_trusted_keys "certs/bellsoft_signkey.pem"
+		msg "Using trusted keys: '$KERNEL_SIGNKEY_X509'"
+	fi
+
+	if [ "$KERNEL_DEV_BUILD" ]; then
+		# increase build speed for development kernels
+		scripts/config --file "$_cfg_file" --disable x86_decoder_selftest
+	fi
+}
+
+listconfigs() {
+	for i in $source; do
+		case "$i" in
+			*.config) echo $i;;
+		esac
+	done
+}
+
+prepareconfigs() {
+	for _config in $(listconfigs); do
+		local _flavor=${_config%%.*}
+		local _arch=${_config%.config}
+		_arch=${_arch#*.}
+		local _builddir="$srcdir"/build-$_flavor.$_arch
+		_prepareconfig "$_flavor" "$_arch"
+	done
+}
+
+# this is supposed to be run before version is bumped so we can compare
+# what new kernel config knobs are introduced
+prepareupdate() {
+	clean && fetch && unpack && prepare && deps
+	prepareconfigs
+	rm -r "$builddir"
+}
+
+updateconfigs() {
+	if ! [ -d "$builddir" ]; then
+		deps && fetch && unpack && prepare
+	fi
+	for _config in ${CONFIGS:-$(listconfigs)}; do
+		msg "updating $_config"
+		local _flavor=${_config%%.*}
+		local _arch=${_config%.config}
+		_arch=${_arch#*.}
+		local _builddir="$srcdir"/build-$_flavor.$_arch
+		mkdir -p "$_builddir"
+		echo "-$pkgrel-$_flavor" > "$_builddir"/localversion-$VENDOR_DISTRO
+		local actions="listnewconfig oldconfig"
+		if ! [ -f "$_builddir"/.config ]; then
+			cp "$srcdir"/$_config "$_builddir"/.config
+			actions="olddefconfig"
+		fi
+		env | grep ^CONFIG_ >> "$_builddir"/.config || true
+		make -j1 -C "$builddir" \
+			O="$_builddir" \
+			ARCH="$(_kernelarch $_arch)" \
+			$actions savedefconfig
+
+		cp "$_builddir"/defconfig "$startdir"/$_config
+	done
+}
+
+set_kbuild_timestamp() {
+	# KBUILD_BUILD_TIMESTAMP needs to be parsable by busybox date
+	export KBUILD_BUILD_TIMESTAMP="$(date '+%Y-%m-%d %H:%M:%S' -u${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
+}
+
+build() {
+	unset LDFLAGS
+	export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
+	for i in $_flavors; do
+		cd "$srcdir"/build-$i.$CARCH
+		make ARCH="$_carch" CC="${CC:-gcc}" \
+			KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-$VENDOR_DISTRO_NAME"
+	done
+}
+
+build() {
+	unset LDFLAGS
+	# for some reason these sometimes leak into the kernel build,
+	# -Werror=format-security breaks some stuff
+	unset CFLAGS CPPFLAGS CXXFLAGS
+	set_kbuild_timestamp
+	local i
+	for i in $_flavors; do
+		_prepareconfig "$i" "$CARCH"
+	done
+	for i in $_flavors; do
+		msg "Building $i kernel"
+		cd "$srcdir"/build-$i.$CARCH
+
+		make ARCH="$(_kernelarch $CARCH)" \
+			CC="${CC:-gcc}" \
+			KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-$VENDOR_DISTRO_NAME"
+	done
+}
+
+_move_extra_modules() {
+	local _outdir="$1"
+	local _abi_release="$2"
+	local _buildflavor="$3"
+	local _extra_path="${srcdir}/extra_modules_${_buildflavor}"
+	local _mods_path="$_outdir/lib/modules/${_abi_release}/kernel"
+	local _extramods="$(cat "$srcdir"/extramods)"
+	local _extramods_arch="$(test -f "$srcdir"/extramods.$CARCH && cat "$srcdir"/extramods.$CARCH)"
+	local _dir_name _mod_path _m _c _src _dst
+	local err=0
+
+	for _m in $_extramods $_extramods_arch; do
+		_c="${_m:0:1}"
+
+		case "$_c" in
+			#) continue;;
+			-) _m="${_m:1}";;
+		esac
+
+		_dir_name="$(dirname $_m)"
+		[ "${_m: -3}" = ".ko" ] && _m="$_m.xz"
+
+		if [ "$_c" = "-" ]; then
+			_src="$_extra_path/$_m"
+			_dst="$_mods_path/$_dir_name"
+		else
+			_src="$_mods_path/$_m"
+			_dst="$_extra_path/$_dir_name"
+		fi
+
+		mkdir -p "$_dst"
+		mv -f "$_src" "$_dst" || err=1
+	done
+
+	return $err
+}
+
+_package() {
+	local _buildflavor="$1" _outdir="$2"
+	set_kbuild_timestamp
+
+	cd "$srcdir"/build-$_buildflavor.$CARCH
+	local _abi_release="$(make -s kernelrelease)"
+
+	sign_list="boot/vmlinuz-${_abi_release}"
+	sign_verify="bellsoft-uefi-ca.pem"
+
+	mkdir -p "$_outdir"/boot "$_outdir"/lib/modules
+
+	local _install
+	case "$CARCH" in
+		arm*|aarch64) _install="install dtbs_install";;
+		*) _install=install;;
+	esac
+
+	make modules_install $_install \
+		ARCH="$(_kernelarch $CARCH)" \
+		INSTALL_MOD_PATH="$_outdir" \
+		INSTALL_PATH="$_outdir"/boot \
+		INSTALL_DTBS_PATH="$_outdir/boot/dtbs-$_buildflavor"
+
+	_move_extra_modules $_outdir $_abi_release $_buildflavor
+
+	rm -f "$_outdir"/lib/modules/${_abi_release}/build \
+		"$_outdir"/lib/modules/${_abi_release}/source
+	rm -rf "$_outdir"/lib/firmware
+
+	install -D -m644 include/config/kernel.release \
+		"$_outdir"/usr/share/kernel/$_buildflavor/kernel.release
+}
+
+package() {
+	install="$pkgname.pre-upgrade $pkgname.post-deinstall $pkgname.post-install $pkgname.post-upgrade"
+	_package lts "$pkgdir"
+
+	# copy files for linux-lts-doc sub package
+	mkdir -p "$pkgdir"/usr/share/doc
+	cp -r "$builddir"/Documentation \
+		"$pkgdir"/usr/share/doc/linux-doc-"$pkgver"/
+	# remove files that aren't part of the documentation itself
+	for nondoc in \
+		.gitignore conf.py docutils.conf \
+		dontdiff Kconfig Makefile
+	do
+		rm "$pkgdir"/usr/share/doc/linux-doc-"$pkgver"/"$nondoc"
+	done
+	# create /usr/share/doc/linux-doc symlink
+	cd "$pkgdir"/usr/share/doc; ln -s linux-doc-"$pkgver" linux-doc
+
+	msg "Checking modules dependencies"
+	local _abi_release="$(make -C "$_builddir" -s kernelrelease)"
+
+	cd "$pkgdir"/lib/modules/${_abi_release}
+
+	local _mods="$(find kernel -name *.ko.xz)"
+	local _d _m _deps _failed=0
+
+	for _m in $_mods; do
+		_deps="$(grep "^$_m:" modules.dep | cut -f2 -d: | xargs)"
+		for _d in $_deps; do
+			if ! echo "$_mods" | grep -q "$_d"; then
+				msg "moddep error: $_m -> $_d"
+				_failed=1
+			fi
+		done
+	done
+
+	return $_failed
+}
+
+_extramods() {
+	local _flavor=$(echo $subpkgname | sed -E 's/(^linux-|-extra-modules$)//g')
+	local _abi_release="$(make -C "$srcdir/build-${_flavor}.$CARCH" -s kernelrelease)"
+	local _dir="$subpkgdir"/lib/modules/${_abi_release}/kernel
+
+	depends="$depends linux-${_flavor}=$pkgver-r$pkgrel linux-firmware-extra-modules-any"
+	pkgdesc="Additional modules for $VENDOR_DISTRO_NAME Linux $_flavor kernel"
+
+	mkdir -p "$_dir"
+	cp -r "$srcdir"/extra_modules_${_flavor}/* "$_dir"/
+}
+
+_dev() {
+	local _flavor=$(echo $subpkgname | sed -E 's/(^linux-|-dev$)//g')
+	local _builddir="$srcdir"/build-$_flavor.$CARCH
+	local _abi_release="$(make -C "$_builddir" -s kernelrelease)"
+	# copy the only the parts that we really need for build 3rd party
+	# kernel modules and install those as /usr/src/linux-headers,
+	# simlar to what ubuntu does
+	#
+	# this way you dont need to install the 300-400 kernel sources to
+	# build a tiny kernel module
+	#
+	pkgdesc="Headers and script for third party modules for $_flavor kernel"
+	depends="$_depends_dev"
+	local dir="$subpkgdir"/usr/src/linux-headers-"$_abi_release"
+	set_kbuild_timestamp
+
+	# first we import config, run prepare to set up for building
+	# external modules, and create the scripts
+	mkdir -p "$dir"
+	cp -a "$_builddir"/.config "$_builddir"/localversion-$VENDOR_DISTRO \
+		"$dir"/
+
+	install -D -t "$dir"/certs "$_builddir"/certs/signing_key.x509 || :
+
+	make -C "$builddir" \
+		O="$dir" \
+		ARCH="$(_kernelarch $CARCH)" \
+		prepare modules_prepare scripts
+
+	# remove the stuff that points to real sources. we want 3rd party
+	# modules to believe this is the sources
+	rm "$dir"/Makefile "$dir"/source
+
+	# copy the needed stuff from real sources
+	#
+	# this is taken from ubuntu kernel build script
+	# http://kernel.ubuntu.com/git/ubuntu/ubuntu-zesty.git/tree/debian/rules.d/3-binary-indep.mk
+	cd "$builddir"
+	find .  -path './include/*' -prune \
+		-o -path './scripts/*' -prune -o -type f \
+		\( -name 'Makefile*' -o -name 'Kconfig*' -o -name 'Kbuild*' -o \
+		   -name '*.sh' -o -name '*.pl' -o -name '*.lds' -o -name 'Platform' \) \
+		-print | cpio -pdm "$dir"
+
+	cp -a scripts include "$dir"
+
+	find "arch/$_karch" -name include -type d -print | while IFS='' read -r folder; do
+		find "$folder" -type f
+	done | sort -u | cpio -pdm "$dir"
+
+	install -Dm644 "$srcdir"/build-$_flavor.$CARCH/Module.symvers \
+		"$dir"/Module.symvers
+
+	# remove unneeded things
+	msg "Removing documentation..."
+	rm -r "$dir"/Documentation
+	find "$dir" -type f -name '*.o' -printf 'Removing %P\n' -delete
+	local _karch="$(_kernelarch $CARCH | sed 's/x86_64/x86/')"
+	msg "Removing unneeded arch headers..."
+	for i in "$dir"/arch/*; do
+		if [ "${i##*/}" != "$_karch" ]; then
+			echo "  ${i##*/}"
+			rm -r "$i"
+		fi
+	done
+
+	mkdir -p "$subpkgdir"/lib/modules/"$_abi_release"
+	ln -sf /usr/src/linux-headers-"$_abi_release" \
+		"$subpkgdir"/lib/modules/"$_abi_release"/build
+}
+
+sha512sums="
+6ed2a73c2699d0810e54753715635736fc370288ad5ce95c594f2379959b0e418665cd71bc512a0273fe226fe90074d8b10d14c209080a6466498417a4fdda68  linux-6.1.tar.xz
+99aea347b7a27c71207b8eaee2f1d364344373131538ae3a11665858a6b8d0e2153d2d135cef120955eee9a5bd6c324c385ed9c867ac86a6b43b2fa71b13b581  patch-6.1.134.patch.xz
+941ef0b6c8626680983f10737a642c5fa3b7c873270c715fc6beb16ef00121a9762207193bc34d31fc3af0ddbab5771decdfa945725154dd59d20949dc2f1cf0  lts.x86_64.config
+e818612adc580753f8195ab9a89c90756e9993c06d0b9b6ffafbd6e4328e79e4d73d96a75ac594c287a54fcda575cbb3271eadf5ef7d00563e9fecfd72702b1d  lts.aarch64.config
+79f209294b64df448552394fbce42d818f8757eae9573dede2cb51d3c50dbf1d348066f00b64fe9e5b5757dbc63db5f4805c9e4dd5dca2edbff7a01597bc32d8  extramods
+13008f24076f769a497ede3cf212acc732220c42951c7bd241ab24f4a963f60673b915feb460488c08b470ab0520fb82c11403ec4d0faae0f09d5faa95e6713a  extramods.x86_64
+f6c9c08b8a2e228fa1a0a01963f058a97cd0e8acf29c51bc1a45aff96a06defea77a5023264043156c83e7cea7b776643eb446f10b53c70fc009d22190652c04  extramods.aarch64
+8ab1221f07d35b710da7e27d6e443ca303e03b69f29a21d2a8fef236a48e0b95b5521cd1e4adb1046d048a37a9d52989e5a5c55647da6f57f1ba7bb69230ce4f  x509.genkey
+304d6a2d2c25af142b2cf2222079ebf59b8174f0825840dfc88e60016e5fcfe12973e0a250b4172ff7ea77cdb014cb5fec1a474965fee97478a6dcd0cbe6bdd3  bellsoft-uefi-ca.pem
+3e3d21971766bd7cbb840349ff89b280e4da0997b4a4210cf337bf294739827a833aa91da846703aa040231e5228c6e39fefaa51c639f46b4bb2084bd9cecc56  0100-efi-Add-an-EFI_SECURE_BOOT-flag-to-indicate-secure-b.patch
+3cba00d463dd0eab3432f58089f39dea849b35e167c08c024f62610a97267625ffa0e86213d55c27b151fb7cb2ba9dc12110cd4707e61323c73da312e9e73207  0101-efi-Lock-down-the-kernel-if-booted-in-secure-boot-mo.patch
+6c5693891863f626510ed9c8089bd62a39f054269e41d95c1b204c2be9467d376c041fe57dac0571cb8ad622e2a201f86dbdd42cb7ddbeff2a4aaa1de550d83b  0102-mtd-phram-slram-Disable-when-the-kernel-is-locked-do.patch
+9df1efb8cb3f999d77645102115a77a0079669846e7014c007cabc028172bf0e6e8efd2d96ca14ec19b2a4e69d91c83ee4133e92b0ab99ac0887478895e4ee06  0103-arm64-add-kernel-config-option-to-lock-down-when-in-.patch
+3cd54a622eab7b22b3a13f644d54d2a3cf04c58b22f74c806a50f57f9df4c93a2aaeee9b1a104073049b773b4cfb8ce35c73fb61321f133be136f9063e74d7dd  0104-livepatch-Use-kallsyms_on_each_match_symbol-to-impro.patch
+87607431e83a202bcaee12a24380b25097ea5bd5afd35fdc188155bbbc5d25a74debabddce8e86ee85e9c210d14aba93355fb353c2031a1be6b996ef79a71164  0105-livepatch-Call-klp_match_callback-in-klp_find_callba.patch
+d5bf6f8b92fdfc9484f121c9862440dc1902147e9346807f22241d14fd19dc171fb0b88037a05baa918772cc0ec6c581df2961aec513ce4ed699eeb95466a9c0  0106-kernel-params.c-defer-most-of-param_sysfs_init-to-la.patch
+94173acf89409bf5b36419ff9a8331380e26468a2dcd76c6515250087b15d928b520689e89cdb3dd814c32836f17c146621d572a8950baea64ca14688fba9c24  0107-pci-pme-wakeups.patch
+ce30be2da9f4e41dade6280e507fd889aa1fc53ee030abfb5530808b169394c68ce4102b2c6a868a4e1c10bac0cba58de9eeb0c2fefddf61f03d9963c22ebd14  0108-ksm-wakeups.patch
+85326e2d9333a851fec9f65efdbf4431d5a76d2519fa3bd15f9ed7f1c228f8b45df83886ddce30c517bf88b4ce6a490967a9168fce5d0e590f8cb90a543930b2  0109-intel_idle-tweak-cpuidle-cstates.patch
+b850e6addf2491e22dd3b1a16299d679adabf26b999d994e2ad7389abee7a5bcb9283c5bed521fd91bbc20500246e3a7ca10cfe8f355763f78e2c27b94d42e5f  0110-smpboot-reuse-timer-calibration.patch
+889828e0d3392cd8903b052da11348f80d57eaced8ea55dae4324486e9b332ec4e3450bb8587b5e2ec82e9ac7307bf4c640f9ba92df730a042a71bcb3570cffb  0111-initialize-ata-before-graphics.patch
+19eb895787790b2a2205528cacf2b3f2e707df7ee165988c0569887928da35d4206a554e69ca3ae40468d1570d36254b05786b63b688b0cf245b09685bbd0188  0112-ata-libahci-ignore-staggered-spin-up.patch
+a3cd4a65a74dcff4a999bdb468c3b3a01a77337db61e3420b7be7eba668dfc1fa282901d51e6b5a5bff9b3b106bebb6c6f2f9a315ccd1fdaf5c26197aff4a55d  0113-net-skb-disable-a-single-page-frag-cache.patch
+4d062af932a805f77dc4699066e68a2e3fc6229c3fddd076a350ab8f27bd4e283b46beb4966d9c5f7264f10eb4e0fc0eab2e2ea86d17966882fddb2bdc1b0ffc  0114-ext4-do-not-mark-inode-dirty-every-time-when-appendi.patch
+e3172b273362cf59cd408c7df4f31bdb843d8cdf81deb18f2326697895e57ca662dcf463c0460298dfb05979a494d3e0a352dd03c9c8c8d36d1b7b88af760a4e  0115-x86-Kconfig-Enable-kernel-IBT-by-default.patch
+"

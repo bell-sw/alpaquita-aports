@@ -1,0 +1,34 @@
+pkgname=libxtst
+pkgver=1.2.4
+pkgrel=0
+pkgdesc="X11 Testing -- Resource extension library"
+url="https://wiki.freedesktop.org/xorg/"
+arch="all"
+license="custom"
+options="!check"  # No test suite.
+subpackages="$pkgname-dev $pkgname-doc"
+makedepends="xorgproto libx11-dev libxext-dev libxi-dev util-macros"
+source="https://www.x.org/releases/individual/lib/libXtst-$pkgver.tar.xz
+	"
+builddir="$srcdir"/libXtst-$pkgver
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--disable-static
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+}
+
+sha512sums="
+f2f4e01239b892b8e26284cede90feb4fe7738beb243bca0f6adb349029f8bf87b5a482911edcd2401733c92ef78eec07fcd455b92e5b8c4828374769e60098d  libXtst-1.2.4.tar.xz
+"

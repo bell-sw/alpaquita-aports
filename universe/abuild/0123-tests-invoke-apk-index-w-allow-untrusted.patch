@@ -1,0 +1,25 @@
+From 87863f86debb7cf4f6b611d68587fecc396da85f Mon Sep 17 00:00:00 2001
+From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
+Date: Mon, 8 Apr 2024 19:31:48 +0300
+Subject: [PATCH] tests: invoke apk-index w/ --allow-untrusted
+
+apk-index is intolerant to untrusted package signatures now.
+---
+ tests/abuild_test | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tests/abuild_test b/tests/abuild_test
+index 290688f..d0b0ca4 100755
+--- a/tests/abuild_test
++++ b/tests/abuild_test
+@@ -30,6 +30,7 @@ init_tests \
+ 
+ export ABUILD_SHAREDIR=$(atf_get_srcdir)/..
+ export ABUILD_CONF=/dev/null
++export ABUILD_APK_INDEX_OPTS="--allow-untrusted"
+ export GIT_CONFIG_GLOBAL="$(atf_get_srcdir)/testdata/gitconfig"
+ export REPODEST="$PWD"/packages
+ export APKBUILD=
+-- 
+2.43.0
+

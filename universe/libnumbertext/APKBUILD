@@ -1,0 +1,35 @@
+pkgname=libnumbertext
+pkgver=1.0.11
+pkgrel=1
+pkgdesc="Number to number name and money text conversion library"
+url="https://github.com/Numbertext/libnumbertext"
+arch="all"
+license="BSD-3-Clause"
+checkdepends="bash"
+subpackages="$pkgname-dev"
+source="https://github.com/Numbertext/libnumbertext/releases/download/$pkgver/libnumbertext-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--disable-static \
+		--disable-werror
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+0c4d2b98d8cef46a2c51c4265f96ac2af6e58d3b8e63e7b6a40134e86d1dc7bec38e048abf227d1ebad7774ba8a6d68a1fac464739914b2d14786c309819c836  libnumbertext-1.0.11.tar.xz
+"

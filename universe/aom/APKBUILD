@@ -1,0 +1,73 @@
+pkgname=aom
+pkgver=3.7.2
+pkgrel=0
+pkgdesc="Alliance for Open Media (AOM) AV1 codec SDK"
+url="https://aomedia.org/"
+arch="all"
+license="BSD-2-Clause AND custom"
+options="!check" # tests run for 5+ hours
+makedepends="
+	cmake
+	linux-headers
+	nasm
+	perl
+	python3
+	samurai
+	"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-libs"
+source="https://storage.googleapis.com/aom-releases/libaom-$pkgver.tar.gz
+	fix-stack-size-e53da0b.patch
+	posix-implicit.patch
+
+	0100-CVE-2024-5171.patch
+	"
+builddir="$srcdir/libaom-$pkgver"
+
+# secfixes:
+#   3.7.2-r0:
+#     - CVE-2024-5171
+#   3.7.1-r0:
+#     - CVE-2023-6879
+#   3.1.1-r0:
+#     - CVE-2021-30473
+#     - CVE-2021-30474
+#     - CVE-2021-30475
+
+build() {
+	local _neon_opt=
+	case "$CARCH" in
+		armhf) _neon_opt="-DENABLE_NEON=OFF" ;;
+		armv7) _neon_opt="-DAOM_NEON_INTRIN_FLAG=-mfpu=neon" ;;
+	esac
+
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_SHARED_LIBS=True \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DENABLE_TESTS="$(want_check && echo ON || echo OFF)" \
+		$_neon_opt
+	cmake --build build
+}
+
+check() {
+	local _testdata="$builddir"/test_data
+	mkdir -p $_testdata
+	export LIBAOM_TEST_DATA_PATH=$_testdata
+	ninja -C build testdata
+	ninja -C build runtests
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+
+	install -Dm 644 -t "$pkgdir"/usr/share/doc/"$pkgname"/ \
+		README.md LICENSE PATENTS
+}
+
+sha512sums="
+465ebd363a9626575e31c864e6b0cf2788b44adefcc1f7ddc280bbfaa27bb1afeda441007977334f29d4886f6cdfe16a76d26ae2c9186bdc045d4450e48ec179  libaom-3.7.2.tar.gz
+ae844ad9c2f74a25048f939227d8c00a1ebccb0adecfb734f3aab1a5c7c22c77f46a6c3d42a7ec4fabfa952a33a0fa831dfa74bcd12f94cbf1489a3c20106f21  fix-stack-size-e53da0b.patch
+14e241f4bf8f181c323cc7db16ea791e3a5ccf6f7f82b854b468f167e7f7210ab66cfacd85806693ba604c58e91ff6a45a5c49dc17a200d5fd65eb3788d397b5  posix-implicit.patch
+eb4a2bb432a65d77b6a2e28a113e5904a8c836fcdaa4d30d1fe8eae1244f63c0c3a0f9e34b3450c1914f1e7f4df47b040d55bf2e5c94770d74b2cf33e751024c  0100-CVE-2024-5171.patch
+"

@@ -1,0 +1,60 @@
+pkgname=mariadb-connector-c
+pkgver=3.3.3
+pkgrel=0
+pkgdesc="The MariaDB Native Client library (C driver)"
+url="https://mariadb.org/"
+arch="all"
+license="LGPL-2.1-or-later"
+depends_dev="openssl-dev>3 zlib-dev"
+makedepends="$depends_dev cmake samurai"
+options="!check" # no testsuite
+replaces="mariadb-client-libs"
+subpackages="$pkgname-dev"
+source="https://mirror.vpsfree.cz/mariadb/connector-c-$pkgver/mariadb-connector-c-$pkgver-src.tar.gz"
+builddir="$srcdir/mariadb-connector-c-$pkgver-src"
+
+build() {
+	if [ "$CBUILD" != "$CHOST" ]; then
+		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+
+	# INSTALL_LIBDIR and INSTALL_INCLUDEDIR are relative to CMAKE_INSTALL_PREFIX.
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DBUILD_SHARED_LIBS=True \
+		-DINSTALL_LIBDIR=lib \
+		-DINSTALL_INCLUDEDIR=include/mysql \
+		\
+		-DMARIADB_PORT=3306 \
+		-DMARIADB_UNIX_ADDR=/run/mysqld/mysqld.sock \
+		-DWITH_EXTERNAL_ZLIB=YES \
+		-DWITH_MYSQLCOMPAT=ON \
+		-DWITH_SSL=OPENSSL \
+		$CMAKE_CROSSOPTS
+	cmake --build build
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+
+	# purge static libs
+	rm "$pkgdir"/usr/lib/*.a
+
+	# Docs conflict with mariadb-doc
+	rm -r "$pkgdir"/usr/man
+
+	# compat symlinks
+	ln -s mariadb_config "$pkgdir"/usr/bin/mysql_config
+	ln -s mariadb_version.h "$pkgdir"/usr/include/mysql/mysql_version.h
+}
+
+dev() {
+	default_dev
+	replaces="mariadb-dev"
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+}
+
+sha512sums="
+c30caa1d1ecae42fe6500ea859f1b7630a03cee569bb4170f7f442ca3cca6fb6407f533aa411b005cb3f3fe682fdf047a669bc694466046b66b9e8cc945941fb  mariadb-connector-c-3.3.3-src.tar.gz
+"

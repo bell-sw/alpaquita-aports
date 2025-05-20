@@ -1,0 +1,59 @@
+# Description:
+
+pkgname=py3-fonttools
+_pkgname=fonttools
+pkgver=4.38.0
+pkgrel=1
+pkgdesc="Converts OpenType and TrueType fonts to and from XML"
+url="https://github.com/fonttools/fonttools"
+arch="all"
+license="MIT AND OFL-1.1"
+depends="python3"
+makedepends="
+	cython
+	py3-gpep517
+	py3-installer
+	py3-setuptools
+	py3-wheel
+	python3-dev
+	"
+checkdepends="py3-fs py3-pytest py3-pytest-xdist py3-brotli"
+subpackages="$pkgname-doc"
+source="$_pkgname-$pkgver.tar.gz::https://github.com/fonttools/fonttools/archive/refs/tags/$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces="py-fonttools" # Backwards compatibility
+provides="py-fonttools=$pkgver-r$pkgrel" # Backwards compatibility
+
+prepare() {
+	default_prepare
+	# remove interpreter line
+	sed -i '1d' Lib/fontTools/mtiLib/__init__.py
+}
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir dist \
+		--output-fd 1
+}
+
+check() {
+	PATH="$PATH:$PWD" \
+	PYTHONPATH=$(echo "$PWD"/build/lib*) \
+	pytest -n4
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		dist/fonttools-$pkgver-*.whl
+}
+
+doc() {
+	replaces="py-$_pkgname-doc" # Backwards compatibility
+	provides="py-$_pkgname-doc=$pkgver-r$pkgrel" # Backwards compatibility
+	default_doc
+}
+
+sha512sums="
+438694e7a4c19ee63ab504763793c0219d96fdc58095fe55a4f44726e96a3ec8ae63066aa47a341a059c7a2c9893b9bbbdfc8ab4d75c177cbd90986debc31431  fonttools-4.38.0.tar.gz
+"

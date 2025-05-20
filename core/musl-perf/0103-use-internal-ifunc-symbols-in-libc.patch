@@ -1,0 +1,138 @@
+From aa0c529739d95487e7fc6df6b1ec4828d958a53f Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 14 Sep 2021 16:44:15 +0300
+Subject: [PATCH] use internal ifunc symbols in libc
+
+Use baseline symbols for memcpy/memset/memmove in the startup stage
+
+It also necessary to init CPU features before calling the
+function.
+---
+ ldso/dlstart.c                      |  1 +
+ ldso/dynlink.c                      |  6 ++++++
+ src/env/__init_tls.c                |  1 +
+ src/env/__libc_start_main.c         |  5 +++++
+ src/env/__stack_chk_fail.c          |  1 +
+ src/internal/use_base_memory_func.h | 13 +++++++++++++
+ 6 files changed, 27 insertions(+)
+ create mode 100644 src/internal/use_base_memory_func.h
+
+diff --git a/ldso/dlstart.c b/ldso/dlstart.c
+index 259f5e18..fc866e4f 100644
+--- a/ldso/dlstart.c
++++ b/ldso/dlstart.c
+@@ -1,6 +1,7 @@
+ #include <stddef.h>
+ #include "dynlink.h"
+ #include "libc.h"
++#include "use_base_memory_func.h"
+ 
+ #ifndef START
+ #define START "_dlstart"
+diff --git a/ldso/dynlink.c b/ldso/dynlink.c
+index 3a9d07d5..9d59ad03 100644
+--- a/ldso/dynlink.c
++++ b/ldso/dynlink.c
+@@ -22,6 +22,7 @@
+ #include "pthread_impl.h"
+ #include "fork_impl.h"
+ #include "dynlink.h"
++#include "use_base_memory_func.h"
+ 
+ static size_t ldso_page_size;
+ #ifndef PAGE_SIZE
+@@ -45,6 +46,9 @@ static void (*error)(const char *, ...) = error_noop;
+ #define container_of(p,t,m) ((t*)((char *)(p)-offsetof(t,m)))
+ #define countof(a) ((sizeof (a))/(sizeof (a)[0]))
+ 
++/* provided by glibc-string library */
++extern void *__get_cpu_features(void);
++
+ struct debug {
+ 	int ver;
+ 	void *head;
+@@ -1745,6 +1749,8 @@ hidden void __dls2(unsigned char *base, size_t *sp)
+ 	size_t addends[symbolic_rel_cnt+1];
+ 	saved_addends = addends;
+ 
++	__get_cpu_features();
++
+ 	head = &ldso;
+ 	reloc_all(&ldso);
+ 
+diff --git a/src/env/__init_tls.c b/src/env/__init_tls.c
+index a93141ed..d651acfa 100644
+--- a/src/env/__init_tls.c
++++ b/src/env/__init_tls.c
+@@ -8,6 +8,7 @@
+ #include "libc.h"
+ #include "atomic.h"
+ #include "syscall.h"
++#include "use_base_memory_func.h"
+ 
+ volatile int __thread_list_lock;
+ 
+diff --git a/src/env/__libc_start_main.c b/src/env/__libc_start_main.c
+index fdcb1ed5..7575f1c9 100644
+--- a/src/env/__libc_start_main.c
++++ b/src/env/__libc_start_main.c
+@@ -9,6 +9,7 @@
+ #include "elf.h"
+ #include "link.h"
+ #include "reloc.h"
++#include "use_base_memory_func.h"
+ 
+ static void dummy(void) {}
+ weak_alias(dummy, _init);
+@@ -18,6 +19,9 @@ extern weak hidden void (*const __init_array_start)(void), (*const __init_array_
+ static void dummy1(void *p) {}
+ weak_alias(dummy1, __init_ssp);
+ 
++/* provided by glibc-string library */
++extern void *__get_cpu_features(void);
++
+ #define AUX_CNT 38
+ 
+ #if UINTPTR_MAX == 0xffffffff
+@@ -72,6 +76,7 @@ void __init_libc(char **envp, char *pn)
+ 	__progname = __progname_full = pn;
+ 	for (i=0; pn[i]; i++) if (pn[i]=='/') __progname = pn+i+1;
+ 
++	__get_cpu_features();
+ 	__init_tls(aux);
+ 	__init_ssp((void *)aux[AT_RANDOM]);
+ 
+diff --git a/src/env/__stack_chk_fail.c b/src/env/__stack_chk_fail.c
+index e5352602..941389e4 100644
+--- a/src/env/__stack_chk_fail.c
++++ b/src/env/__stack_chk_fail.c
+@@ -1,6 +1,7 @@
+ #include <string.h>
+ #include <stdint.h>
+ #include "pthread_impl.h"
++#include "use_base_memory_func.h"
+ 
+ uintptr_t __stack_chk_guard;
+ 
+diff --git a/src/internal/use_base_memory_func.h b/src/internal/use_base_memory_func.h
+new file mode 100644
+index 00000000..50f1b9b9
+--- /dev/null
++++ b/src/internal/use_base_memory_func.h
+@@ -0,0 +1,13 @@
++#ifndef USE_BASE_MEMORY_FUNC_H
++#define USE_BASE_MEMORY_FUNC_H
++
++/* Use baseline implementations in the early startup stages before
++ * ifuncs are resolved.
++ */
++#ifdef __x86_64__
++__asm__ ("memset = __memset_sse2_unaligned");
++__asm__ ("memcpy = __memcpy_sse2_unaligned");
++__asm__ ("memmove = __memmove_sse2_unaligned");
++#endif
++
++#endif
+-- 
+2.25.1
+

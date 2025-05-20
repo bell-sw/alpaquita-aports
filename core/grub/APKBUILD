@@ -1,0 +1,380 @@
+# Description: grub is a program that runs at the computer startup and calls an
+# OS into memory. It is flexible and allows you to make changes at boot time.
+
+pkgname=grub
+# NOTE: After upgrading or applying a fix, please rebuild the following aport:
+# - grub-efi-signed
+pkgver=2.12
+pkgrel=6
+_deb_peimage_ver="2.12-2"
+pkgdesc="Multiboot boot loader"
+url="https://www.gnu.org/software/grub/"
+arch="all !s390x"
+license="GPL-3.0-or-later"
+depends="dracut"
+triggers="grub.trigger=/boot"
+makedepends="autoconf automake bison flex unifont freetype-dev fuse-dev gawk
+	gettext-dev libtool linux-headers lvm2-dev python3 squashfs-tools xz-dev"
+install="$pkgname.post-upgrade"
+# strip handled by grub Makefiles, abuild strip breaks xen pv-grub
+options="!check !strip !stackprot !fortify !annobin"  # Cannot test boot loader.
+subpackages="
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-mkfont
+	$pkgname-mount
+	$pkgname-bash-completion:bashcomp:noarch
+	"
+
+# currently grub only builds on x86*, aarch64 and ppc* systems
+case "$CARCH" in
+	x86)		_flavors="efi bios";;
+	x86_64)		_flavors="efi bios xenhost xenhost_pvh";;
+	aarch64|arm*)	_flavors="efi";;
+	mips*)		_flavors="qemu_mips";;
+	riscv*)		_flavors="efi";;
+	ppc*)		_flavors="ieee1275"; makedepends="$makedepends powerpc-utils" ;;
+	s390x)		_flavors="emu" ;;
+	loongarch64)	_flavors="efi" ;;
+esac
+for f in $_flavors; do
+	[ "$f" = "xenhost_pvh" ] && continue # xenhost_pvh shipped in the xenhost subpackage
+	subpackages="$subpackages $pkgname-$f"
+done
+
+source="https://ftp.gnu.org/gnu/grub/grub-$pkgver.tar.xz
+	grub-xen-host_grub.cfg
+	sbat.distro.csv
+
+	0001-Fix-grub-mkconfig-detection-of-linux-edge-virt.patch
+	0002-ensure-grub-mkconfig-ignores-.apk-new-files.patch
+	0003-prevent-harmless-LVM-warnings-from-grub-probe.patch
+	0004-Handle-encrypted-zfs-root-partition.patch
+	0005-Alpine-Linux-fixes-for-menu.patch
+	0007-uefi-firmware-remove-fsetup-check.patch
+
+	0100-fs-xfs-Handle-non-continuous-data-blocks-in-director.patch
+
+	secure-boot/efi-use-peimage-shim.patch
+	secure-boot/loader-framework.patch
+	secure-boot/revert-efi-fallback-to-legacy.patch
+	"
+
+# secfixes:
+#   2.06-r17:
+#     - CVE-2023-4693
+#     - CVE-2023-4692
+#   2.06-r8:
+#     - CVE-2022-3775
+#     - CVE-2022-2601
+#   2.06-r7:
+#     - CVE-2022-28736
+#     - CVE-2022-28735
+#     - CVE-2022-28734
+#     - CVE-2022-28733
+#     - CVE-2021-3697
+#     - CVE-2021-3696
+#     - CVE-2021-3695
+#   2.06-r0:
+#     - CVE-2021-3418
+#     - CVE-2020-10713
+#     - CVE-2020-14308
+#     - CVE-2020-14309
+#     - CVE-2020-14310
+#     - CVE-2020-14311
+#     - CVE-2020-14372
+#     - CVE-2020-15705
+#     - CVE-2020-15706
+#     - CVE-2020-15707
+#     - CVE-2020-25632
+#     - CVE-2020-25647
+#     - CVE-2020-27749
+#     - CVE-2020-27779
+#     - CVE-2021-20225
+#     - CVE-2021-20233
+
+prepare() {
+	default_prepare
+	PYTHON=python3 sh ./autogen.sh
+
+	# Required to fix 2.12 build - (empty) file is missing from release
+	touch "$builddir"/grub-core/extra_deps.lst
+}
+
+_build_flavor() {
+	local flavor="$1"
+	shift
+	local _configure="$@"
+
+	msg "Building grub for platform $flavor"
+	mkdir -p "$srcdir"/build-$flavor
+	cd "$srcdir"/build-$flavor
+	$builddir/configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--target=$CTARGET \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--disable-nls \
+		--disable-werror \
+		--with-utils=host \
+		$_configure
+	make
+}
+
+build() {
+	local f
+	for f in $_flavors; do
+		case "$f" in
+		bios)		_build_flavor $f --with-platform=pc;;
+		efi)		_build_flavor $f --with-platform=efi --disable-efiemu;;
+		xenhost)	_build_flavor $f --with-platform=xen;;
+		xenhost_pvh)	_build_flavor $f --with-platform=xen_pvh --target=i386;;
+		*)		_build_flavor $f --with-platform=$f;;
+
+		esac
+	done
+}
+
+_install_xen() {
+	grub_dir=$(mktemp -d)
+	cfg=$(mktemp)
+	grub_memdisk=$(mktemp)
+
+	mkdir -p $grub_dir/boot/grub
+	echo 'normal (memdisk)/grub.cfg' > $cfg
+	sed -e "s/@@PVBOOT_ARCH@@/$CARCH/g" \
+		$srcdir/grub-xen-host_grub.cfg \
+			> $grub_dir/grub.cfg
+	tar -cf - -C $grub_dir grub.cfg > $grub_memdisk
+
+	./grub-mkimage \
+		-O $CARCH-xen \
+		-c $cfg \
+		-d ./grub-core ./grub-core/*.mod \
+		-m $grub_memdisk \
+		-o $pkgdir/grub-$CARCH-xen.bin
+
+	rm -r "$grub_dir"
+	rm "$cfg" "$grub_memdisk"
+}
+
+_install_xenpvh() {
+	grub_dir=$(mktemp -d)
+	cfg=$(mktemp)
+	grub_memdisk=$(mktemp)
+
+	mkdir -p $grub_dir/boot/grub
+	echo 'normal (memdisk)/grub.cfg' > $cfg
+	sed -e "s/@@PVBOOT_ARCH@@/$CARCH/g" \
+		$srcdir/grub-xen-host_grub.cfg \
+			> $grub_dir/grub.cfg
+	tar -cf - -C $grub_dir grub.cfg > $grub_memdisk
+
+	echo "About to run grub-mkimage in: $PWD"
+	# Note: only i386-xen_pvh supported
+	./grub-mkimage \
+		-O i386-xen_pvh \
+		-c $cfg \
+		-d ./grub-core ./grub-core/*.mod \
+		-m $grub_memdisk \
+		-o $pkgdir/grub-i386-xen_pvh.bin
+
+	rm -r "$grub_dir"
+	rm "$cfg" "$grub_memdisk"
+}
+
+_install_flavor() {
+	local flavor="$1"
+	cd "$srcdir"/build-$flavor
+	case $flavor in
+	xenhost)	_install_xen;;
+	xenhost_pvh)	_install_xenpvh;;
+	*)	 	make DESTDIR="$pkgdir" install-strip;;
+	esac
+}
+
+package() {
+	# install BIOS & EFI version into the same directory
+	# and overwrite similar files.
+	for f in $_flavors; do
+		_install_flavor $f
+	done
+
+	rm -f "$pkgdir"/usr/lib/charset.alias
+	# remove grub-install warning of missing directory
+	mkdir -p "$pkgdir"/usr/share/locale
+
+	mkdir -p "$pkgdir"/etc/default/
+	cat >"$pkgdir"/etc/default/grub <<-EOF
+		GRUB_TIMEOUT=0
+		GRUB_TIMEOUT_STYLE=hidden
+		GRUB_DISABLE_SUBMENU=true
+		GRUB_DISABLE_RECOVERY=true
+		GRUB_CMDLINE_LINUX_DEFAULT="quiet"
+		GRUB_DEFAULT=saved
+		GRUB_TERMINAL="console"
+
+		# Note that os-prober is not installed by default, therefore
+		# /etc/grub.d/30_os-prober is no-op. In order to use it,
+		# you need to install the os-prober package.
+		GRUB_DISABLE_OS_PROBER=false
+	EOF
+
+	mkdir -p "$pkgdir"/usr/share/bash-completion
+	mv "$pkgdir"/etc/bash_completion.d "$pkgdir"/usr/share/bash-completion/completions
+}
+
+bios() {
+	pkgdesc="$pkgdesc (BIOS version)"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	amove 'usr/lib/grub/*-pc'
+}
+
+_grub_gen_earlyconf() {
+	cat <<- EOF
+	search --no-floppy --set=root --label "${VENDOR_DISTRO}-23-lts-${CARCH}"
+	set prefix=(\$root)/boot/grub
+	EOF
+}
+
+efi() {
+	pkgdesc="$pkgdesc (EFI version)"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	amove 'usr/lib/grub/*-efi' 'etc/grub.d/*_bli' 'etc/grub.d/*_uefi-firmware'
+
+	local _cd_modules="\
+		all_video cat configfile disk echo fat gzio halt help \
+		iso9660 linux ls memdisk normal part_gpt part_msdos \
+		peimage reboot search search_label serial squash4 test true \
+		"
+
+	local _modules="$_cd_modules \
+		boot btrfs cryptodisk efifwsetup efinet ext2 f2fs \
+		font gcry_rijndael gcry_rsa gcry_serpent gcry_sha256 gcry_sha512 \
+		gcry_twofish gcry_whirlpool gfxmenu gfxterm hfsplus http \
+		jpeg loadenv loopback lsefi lsefimmap luks lvm mdraid09 mdraid1x \
+		minicmd part_apple password_pbkdf2 png regexp search_fs_file \
+		search_fs_uuid sleep tftp video xfs zstd \
+		"
+
+	local _format _efi
+
+	case "$CARCH" in
+	aarch64)_format="arm64-efi";  _efi="aa64.efi" ;;
+	arm*)	_format="arm-efi";    _efi="arm.efi"  ;;
+	x86)	_format="i386-efi";   _efi="ia32.efi" ;;
+	x86_64) _format="x86_64-efi"; _efi="x64.efi"; _modules="$_modules at_keyboard" ;;
+	*)	return 0 ;;
+	esac
+
+	local _install_dir="$subpkgdir/usr/lib/grub/$_format/unified"
+
+	mkdir -p $_install_dir
+	_grub_gen_earlyconf > "$builddir"/grub_early.cfg
+
+	sed -e "s,@PKGVER@,$pkgver,g" -e "s,@PKGREL@,$pkgrel," \
+		-e "s,@DISTRO@,$VENDOR_DISTRO,g" -e "s,@DISTRO_NAME@,$VENDOR_DISTRO_NAME,g" \
+		-e "s,@SUPPORT_URL@,$VENDOR_BUG_REPORT_URL,g" \
+		-e "s,@DEB_PEIMAGE_VER@,$_deb_peimage_ver,g" \
+		< "$srcdir"/sbat.distro.csv > "$builddir"/sbat.distro.csv
+
+	# create memdisk with fonts
+	local grub_dir=$(mktemp -d)
+	local grub_memdisk=$(mktemp)
+
+	mkdir -p $grub_dir/fonts
+	cp "$pkgdir"/usr/share/grub/unicode.pf2 $grub_dir/fonts
+	mksquashfs $grub_dir $grub_memdisk -noappend
+
+	# Create unified grub efi with .sbat section for signing
+	# For cd/iso image boot
+	"$srcdir"/build-efi/grub-mkimage \
+		--directory="$subpkgdir/usr/lib/grub/$_format" \
+		--config="$builddir/grub_early.cfg" \
+		--output="$_install_dir/gcd$_efi" \
+		--format="$_format" \
+		--compression="xz" \
+		--sbat="$builddir/sbat.distro.csv" \
+		--memdisk=$grub_memdisk \
+		--prefix="/boot/grub" \
+		$_cd_modules
+
+	# For normal boot
+	"$srcdir"/build-efi/grub-mkimage \
+		--directory="$subpkgdir/usr/lib/grub/$_format" \
+		--output="$_install_dir/grub$_efi" \
+		--format="$_format" \
+		--sbat="$builddir/sbat.distro.csv" \
+		--memdisk=$grub_memdisk \
+		--prefix="/EFI/$VENDOR_DISTRO" \
+		$_modules
+
+	rm -r $grub_dir
+	rm "$grub_memdisk"
+}
+
+xenhost() {
+	pkgdesc="$pkgdesc (XEN host version)"
+	mkdir -p $subpkgdir/usr/lib/grub-xen
+	mv $pkgdir/*-xen.bin $subpkgdir/usr/lib/grub-xen/
+
+	# pick up result from xenhost_pvh build as well
+	mv $pkgdir/*-xen_pvh.bin $subpkgdir/usr/lib/grub-xen/
+}
+
+qemu_mips() {
+	pkgdesc="$pkgdesc (QEMU MIPS version)"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	amove 'usr/lib/grub/*-qemu_mips'
+}
+
+ieee1275() {
+	pkgdesc="$pkgdesc (IEEE1275 version)"
+	depends="$pkgname=$pkgver-r$pkgrel powerpc-utils"
+	amove 'usr/lib/grub/*-ieee1275'
+}
+
+emu() {
+	pkgdesc="$pkgdesc (EMU version)"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	amove 'usr/lib/grub/*-emu'
+}
+
+mkfont() {
+	pkgdesc="$pkgdesc (mkfont utility)"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	amove usr/bin/grub-mkfont
+}
+
+mount() {
+	pkgdesc="$pkgdesc (mount utility)"
+	depends=""
+	amove usr/bin/grub-mount
+}
+
+bashcomp() {
+	depends=""
+	pkgdesc="Bash completions for $pkgname"
+	install_if="$pkgname=$pkgver-r$pkgrel bash-completion"
+
+	amove usr/share/bash-completion/completions
+}
+
+sha512sums="
+761c060a4c3da9c0e810b0ea967e3ebc66baa4ddd682a503ae3d30a83707626bccaf49359304a16b3a26fc4435fe6bea1ee90be910c84de3c2b5485a31a15be3  grub-2.12.tar.xz
+f145c6cf9f1e7a8c9ee07be75f8984406899e75eb2d2eccbb654f559b3b361b35557563bfdc2434f2a52429b797f57696e532f7d53ac96dd9d68f3f91d1d98b5  sbat.distro.csv
+4e7394e0fff6772c89683039ccf81099ebbfe4f498e6df408977a1488fd59389b6e19afdbf0860ec271e2b2aea0df7216243dcc8235d1ca3af0e7f4d0a9d60a4  grub-xen-host_grub.cfg
+d45f416f7308f338cd187909207cd8329dcb21e22ab0573ae932110c3e108e4bafe6411ae22b5f87809bea39544660dcb03e3fea2c1c33492cd230fa6d3b2760  0001-Fix-grub-mkconfig-detection-of-linux-edge-virt.patch
+e1612f34d14644b30a63d9dc18a0eaf9617ef9f4aa6787c386e6304e15b4573f5149758936cac1ceffdb4e39f6a83e7e7c01a7ef3ed2f7bc974971ae0e2c644c  0002-ensure-grub-mkconfig-ignores-.apk-new-files.patch
+d8606bc2fc6b34e683fdba8b2a131b7d5bede907556c141a30be1d7475a65bf5e2266d577f7a0f0da91646f8605c74d083858c100d2285375474249e53c14fd4  0003-prevent-harmless-LVM-warnings-from-grub-probe.patch
+0f64ab38da309d3c91043b4b662bd8facbcad859c3150da0b15aa0874e33640de1ad7b1539f858f69d26f72512ebbaa70556f07613bea59d1ce509933ba5b753  0004-Handle-encrypted-zfs-root-partition.patch
+474f3576b45f612de4b157f951fbd334d7e136275dd2640e2d3deac7c813e4e8a8809a3b798476eb51cb0a3dd42b52583f7fe526fc78e7638f4506861c98a062  0005-Alpine-Linux-fixes-for-menu.patch
+c0bea923acc6affd32e78a58685e847f24e26c501b5bbabee99cc6e25c5668263e61f0bf508a6741bd75fef891ca3229f9d746ef254c72d2cb8dca7c18f92f54  0007-uefi-firmware-remove-fsetup-check.patch
+2fa7d09419ce8179c961e939306c3de006e2d9088f75c572ae68002206b68e9acf9c4e332a378e30a7f8691ecb0c3fdc7834692950d5f1d6320209b340e6dce5  0100-fs-xfs-Handle-non-continuous-data-blocks-in-director.patch
+1b2e951c3089f5d73d6e34a6635f5d078c99dd90b50043ae848f23858bfe1ed6fb4662c2fff635e2ac22c7f847fa4304a841cf1a7e4429ddcb10285a2c9ef82c  efi-use-peimage-shim.patch
+aba93e2473a5144bdd0b6d03fb840f40448b5054505a560ef3e92e91b9191007b390702bc75a1fd422ac75fecb57d44a51c4425a77f2ab760d8b214427c4f8e1  loader-framework.patch
+a9603574d881980d78ee2441a549cb06c4b8c65b9bb3d9ccc19760bb9c87b15cb33bf2728a46a2b1a7f524ca002a1a488610db3c77e05a9c57b7e8c438817fd8  revert-efi-fallback-to-legacy.patch
+"

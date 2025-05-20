@@ -1,0 +1,25 @@
+From aa78876da0d2326180d99fbc66e1986708cd3700 Mon Sep 17 00:00:00 2001
+From: Denis Kononenko <denis.kononenko@bell-sw.com>
+Date: Wed, 13 Oct 2021 23:50:22 +0000
+Subject: [PATCH] truffleruby: librt fix
+
+---
+ src/main/c/cext/extconf.rb | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/main/c/cext/extconf.rb b/src/main/c/cext/extconf.rb
+index 2abc9b5..f0814d3 100644
+--- a/truffleruby/src/main/c/cext/extconf.rb
++++ b/truffleruby/src/main/c/cext/extconf.rb
+@@ -27,7 +27,7 @@ $LIBS << " #{ENV['NFI_LIB_ARGS']}"
+ 
+ # libruby depends on librt on Linux, and C extensions like date rely on that because they then
+ # automatically depend on librt (e.g., for clock_gettime).
+-$LIBS << '-lrt' if Truffle::Platform.linux?
++$LIBS << ' -lrt' if Truffle::Platform.linux?
+ 
+ if Truffle::Platform.darwin?
+   # Set the install_name of libtruffleruby on macOS, so mkmf executables linking to it
+-- 
+2.30.2
+

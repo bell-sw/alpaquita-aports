@@ -1,0 +1,32 @@
+# Description:
+
+pkgname=bdftopcf
+pkgver=1.1.1
+pkgrel=0
+pkgdesc="X.Org font utility"
+url="http://xorg.freedesktop.org"
+arch="all"
+license="MIT"
+options="!check" # No test suite.
+makedepends="libxfont-dev util-macros xorgproto"
+subpackages="$pkgname-doc"
+source="https://www.x.org/releases/individual/util/$pkgname-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+257dc9ae29f2cf1496aad91ccba534348d87f881d75431aa6611a8154cb817d17588c464ab6c6c6bc51e6060baa8dcfcb9fd8c037cdaea8d18287651fa6b7ea9  bdftopcf-1.1.1.tar.xz
+"

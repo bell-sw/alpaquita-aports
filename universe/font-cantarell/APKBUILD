@@ -1,0 +1,34 @@
+pkgname=font-cantarell
+pkgver=0.303.1
+pkgrel=2
+pkgdesc="Humanist sans-serif font designed for on-screen reading"
+url="https://wiki.gnome.org/Projects/CantarellFonts"
+arch="noarch"
+license="OFL-1.1 AND Apache-2.0"
+makedepends="meson gettext-dev"
+source="https://download.gnome.org/sources/cantarell-fonts/${pkgver%.*}/cantarell-fonts-$pkgver.tar.xz"
+builddir="$srcdir/cantarell-fonts-$pkgver"
+
+# it's just data, no testsuites
+options="!check"
+
+# backwards compat (<3.17)
+provides="ttf-cantarell=$pkgver-r$pkgrel"
+replaces="ttf-cantarell"
+
+build() {
+	abuild-meson \
+		-Duseprebuilt=true \
+		build
+	meson compile ${JOBS:+-j ${JOBS}} -C build
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C build
+	mkdir -p "$pkgdir"/usr/share/licenses/"$pkgname"
+	install -m644 COPYING "$pkgdir"/usr/share/licenses/"$pkgname"/copyright
+}
+
+sha512sums="
+f61c2df6bb04167a9623bac141773211486059a5569106c0ed096d6d1a5d57e599cc5b75b06be954859aef13c649f7617ae067d9936932faec0b2ce896fd31b5  cantarell-fonts-0.303.1.tar.xz
+"

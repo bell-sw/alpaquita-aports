@@ -1,0 +1,56 @@
+# Description:
+
+pkgname=giflib
+pkgver=5.2.2
+pkgrel=2
+pkgdesc="A library for reading and writing GIF images"
+url="https://sourceforge.net/projects/giflib/"
+arch="all"
+license="MIT"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-utils"
+makedepends="xmlto"
+checkdepends="coreutils"
+source="https://downloads.sourceforge.net/sourceforge/giflib/giflib-$pkgver.tar.gz
+	CVE-2021-40633.patch
+	correct-document-page-install.patch
+	dont-build-html-pages-images.patch
+
+	0100-CVE-2025-31344.patch
+	"
+
+# secfixes:
+#   5.2.2-r2:
+#     - CVE-2025-31344
+#   5.2.2-r0:
+#     - CVE-2023-39742
+#     - CVE-2023-48161
+#     - CVE-2021-40633
+#   5.2.1-r2:
+#     - CVE-2022-28506
+
+build() {
+	make CFLAGS="$CFLAGS -fPIC"
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" PREFIX=/usr install
+	rm -f "$pkgdir"/usr/lib/*.a
+}
+
+utils() {
+	pkgdesc="Programs for manipulating GIF format image files"
+
+	amove usr/bin
+}
+
+sha512sums="
+0865ab2b1904fa14640c655fdb14bb54244ad18a66e358565c00287875d00912343f9be8bfac7658cc0146200d626f7ec9160d7a339f20ba3be6b9941d73975f  giflib-5.2.2.tar.gz
+33394cd01a5379ffadffa1a3c9ebd4fe2fddd3ea53fd3c713cc65b0ea0158d26aeb5148a9721c4892e944ef1a5694f54c23450118ab3b6f597e64eb6f3986731  CVE-2021-40633.patch
+6cb391eefc95f554ee83e89edf6fae365498597e370d684de5d020cb8f87f7bc3506afb30cbd36e9de2302d3301e33e044804c2d2a2c977d1bb7fa9e73f489cb  correct-document-page-install.patch
+aa32ccce78120a50f84c2dec644d10996a0fdb41335b47a1d71b45d14ffc9efd14e6aca3f2392dd6713e3c216c07736e94d21d661a90cfe4d57422eb08a1fbc2  dont-build-html-pages-images.patch
+5ea7f844d23088dbab1de6375238015f3712053244de1b6d5352d239c87a322fcc3ab4b8531bd3b72ed323f4b1697dc3548c1f2276789cd1619d608e431f7dfa  0100-CVE-2025-31344.patch
+"

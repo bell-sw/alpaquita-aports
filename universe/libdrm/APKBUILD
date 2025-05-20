@@ -1,0 +1,42 @@
+pkgname=libdrm
+pkgver=2.4.114
+pkgrel=0
+pkgdesc="Userspace interface to kernel DRM services"
+url="https://dri.freedesktop.org/"
+arch="all"
+# Requires a computer with gfx, no X running, build user in 'video' group..
+options="!check"
+license="MIT"
+depends_dev="linux-headers"
+makedepends="$depends_dev meson libpthread-stubs eudev-dev libpciaccess-dev xmlto"
+checkdepends="cunit-dev bash"
+subpackages="$pkgname-dev"
+source="https://gitlab.freedesktop.org/mesa/drm/-/archive/libdrm-$pkgver/drm-libdrm-$pkgver.tar.gz"
+builddir="$srcdir/drm-libdrm-$pkgver"
+
+build() {
+	abuild-meson \
+		-Db_lto=true \
+		-Dfreedreno=enabled \
+		-Dtegra=enabled \
+		-Domap=enabled \
+		-Dexynos=enabled \
+		-Dvc4=enabled \
+		-Detnaviv=enabled \
+		-Dudev=true \
+		-Dtests="$(want_check && echo true || echo false)" \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --print-errorlogs -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+c24b7ee89dcdcf084573cead12d1ab3d0801cad5f3f8f1afcbc8cd700a394b2ddebbf4ce65d34b16cbab47e9f11ae13ca5b9fe3f088c33c595e37afd2de7320c  drm-libdrm-2.4.114.tar.gz
+"

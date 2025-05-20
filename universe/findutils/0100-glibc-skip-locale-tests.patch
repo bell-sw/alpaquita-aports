@@ -1,0 +1,14 @@
+By default, we have locale C.utf8 on glibc.  sv-bug-14535.exp thinks it's
+enough for its locale tests, but actually it isn't so skip them.
+
+--- a/locate/testsuite/locate.gnu/sv-bug-14535.exp	2022-12-21 08:48:46.149000000 +0000
++++ b/locate/testsuite/locate.gnu/sv-bug-14535.exp	2022-12-21 08:48:53.315000000 +0000
+@@ -48,7 +48,7 @@
+ locate_textonly p  c "testE\n" "-i teste" "testE\n"
+ locate_textonly p  d "teste\n" "-i testE" "teste\n"
+ 
+-set locale [ select_any_locale $localeoptions ]
++set locale []
+ if { [ string length $locale ] } {
+     # We have a UTF-8 locale.  Do the extra tests.
+     locate_textonly p  0 "testé\n" "-i testé" "testé\n"

@@ -1,0 +1,37 @@
+pkgname=xcb-util-keysyms
+pkgver=0.4.1
+pkgrel=0
+pkgdesc="X C-language Binding - X constants and keycodes"
+url="https://xcb.freedesktop.org/"
+arch="all"
+license="MIT"
+depends_dev="xcb-util-dev"
+makedepends="$depends_dev m4"
+checkdepends="check-dev"
+replaces="xcb-util"
+subpackages="$pkgname-dev"
+source="https://xcb.freedesktop.org/dist/xcb-util-keysyms-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+dd53a36b52647f22bf0da8cded4b2974a51899eaac799797017ed8534f14bc2d2d339a14fa5ef387ae4528b7d9a5d31920bb0c71b09ca34f58e5081e768e2bbf  xcb-util-keysyms-0.4.1.tar.xz
+"

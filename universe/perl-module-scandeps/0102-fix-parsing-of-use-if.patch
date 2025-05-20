@@ -1,0 +1,33 @@
+Patch-Source: https://salsa.debian.org/perl-team/modules/packages/libmodule-scandeps-perl/-/raw/bookworm/debian/patches/fix-parsing-of-use-if.patch?ref_type=heads
+
+From 90476aae7c2b5ef7d94ac1b22672ca8dc4adae20 Mon Sep 17 00:00:00 2001
+From: rschupp <roderich.schupp@gmail.com>
+Date: Thu, 14 Nov 2024 23:09:10 +0100
+Subject: [PATCH] fix parsing of "use if ..."
+
+---
+ lib/Module/ScanDeps.pm | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/lib/Module/ScanDeps.pm
++++ b/lib/Module/ScanDeps.pm
+@@ -874,7 +874,7 @@ sub scan_line {
+           }
+         }
+ 
+-        if (my ($pragma, $args) = /^use \s+ (autouse|if) \s+ (.+)/x)
++        if (my ($pragma, $args) = /^(?:use|no) \s+ (autouse|if) \s+ (.+)/x)
+         {
+             # NOTE: There are different ways the MODULE may
+             # be specified for the "autouse" and "if" pragmas, e.g.
+@@ -887,7 +887,9 @@ sub scan_line {
+             else {
+                 # The syntax of the "if" pragma is
+                 #   use if COND, MODULE => ARGUMENTS
+-                (undef, $module) = _parse_module_list($args);
++                # NOTE: This works only for simple conditions.
++                $args =~ s/.*? (?:,|=>) \s*//x;
++                ($module) = _parse_module_list($args);
+             }
+             $found{_mod2pm($pragma)}++;
+             $found{_mod2pm($module)}++ if $module;

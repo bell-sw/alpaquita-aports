@@ -1,0 +1,60 @@
+pkgname=gdk-pixbuf
+pkgver=2.42.12
+pkgrel=0
+pkgdesc="GTK+ image loading library"
+url="https://wiki.gnome.org/Projects/GdkPixbuf"
+arch="all"
+license="LGPL-2.1-or-later"
+depends="shared-mime-info"
+makedepends="
+	glib-dev
+	gobject-introspection-dev
+	libjpeg-turbo-dev
+	libpng-dev
+	meson
+	py3-docutils
+	tiff-dev
+	"
+install="$pkgname.pre-deinstall"
+triggers="$pkgname.trigger=/usr/lib/gdk-pixbuf-2.0/*/loaders"
+subpackages="$pkgname-dbg $pkgname-doc $pkgname-lang $pkgname-dev"
+source="https://download.gnome.org/sources/gdk-pixbuf/${pkgver%.*}/gdk-pixbuf-$pkgver.tar.xz"
+
+case "$CARCH" in
+x86|arm*)
+	# https://gitlab.gnome.org/GNOME/gdk-pixbuf/-/issues/215
+	options="$options !check"
+esac
+
+# secfixes:
+#   2.42.12-r0:
+#     - CVE-2022-48622
+#   2.42.8-r0:
+#     - CVE-2021-44648
+#   2.42.2-r0:
+#     - CVE-2020-29385
+#   2.36.6-r1:
+#     - CVE-2017-6311
+#     - CVE-2017-6312
+#     - CVE-2017-6314
+
+build() {
+	abuild-meson \
+		-Db_lto=true \
+		-Dinstalled_tests=false \
+		-Dtests="$(want_check && echo true || echo false)" \
+		output .
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test -t 10 --print-errorlogs -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+ae9fcc9b4e8fd10a4c9bf34c3a755205dae7bbfe13fbc93ec4e63323dad10cc862df6a9e2e2e63c84ffa01c5e120a3be06ac9fad2a7c5e58d3dc6ba14d1766e8  gdk-pixbuf-2.42.12.tar.xz
+"

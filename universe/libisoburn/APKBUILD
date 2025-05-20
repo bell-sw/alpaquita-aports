@@ -1,0 +1,49 @@
+pkgname=libisoburn
+pkgver=1.5.4
+pkgrel=2
+pkgdesc="Library to enable creation and expansion of ISO-9660 filesystems"
+url="https://dev.lovelyhq.com/libburnia/libisoburn"
+arch="all"
+license="GPL-2.0-or-later"
+makedepends="libburn-dev libisofs-dev acl-dev zlib-dev
+	libedit-dev"
+subpackages="$pkgname-dev $pkgname-doc xorriso:_xorriso"
+source="https://files.libburnia-project.org/releases/libisoburn-$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+	update_config_sub
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--disable-static
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm "$pkgdir"/usr/bin/xorriso-tcltk
+	ln -s xorriso "$pkgdir"/usr/bin/mkisofs
+}
+
+_xorriso() {
+	pkgdesc="ISO-9660 and Rock Ridge image manipulation tool"
+	replaces="cdrkit"
+	mkdir -p "$subpkgdir"/usr
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+}
+
+sha512sums="
+5fc8532a13caf6caa5a0711753ca99ee2b3f4d5e2db9b3ed2aeef76714e3ae6de6d9c2db0d8297c0d749c42c5ab84fe92989751d8da24d41457b98656eb1bd86  libisoburn-1.5.4.tar.gz
+"

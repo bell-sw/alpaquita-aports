@@ -1,0 +1,62 @@
+# Description: libtasn1 is a portable library for working with ASN.1 structures.
+
+pkgname=libtasn1
+pkgver=4.19.0
+pkgrel=1
+pkgdesc="Library to manage ASN.1 structures"
+url="https://www.gnu.org/software/gnutls/"
+arch="all"
+license="LGPL-2.1-or-later"
+depends_dev="$pkgname-progs=$pkgver-r$pkgrel"
+makedepends="texinfo"
+checkdepends="diffutils"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-progs"
+source="https://ftp.gnu.org/gnu/libtasn1/libtasn1-$pkgver.tar.gz
+	0100-asn1_der_decoding2-optimize-_asn1_find_up-call-with-.patch
+	0101-asn1_find_node-optimize-NUMBER-node-lookup-with-inde.patch
+	"
+
+# secfixes:
+#   4.19-r1:
+#     - CVE-2024-12133
+#   4.19-r0:
+#     - CVE-2021-46848
+#   4.14-r0:
+#     - CVE-2018-1000654
+#   4.13-r0:
+#     - CVE-2018-6003
+#   4.12-r1:
+#     - CVE-2017-10790
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--disable-static
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+progs() {
+	license="GPL-3.0-only"
+	pkgdesc="$pkgdesc (utilities)"
+
+	amove usr/bin
+}
+
+sha512sums="
+287f5eddfb5e21762d9f14d11997e56b953b980b2b03a97ed4cd6d37909bda1ed7d2cdff9da5d270a21d863ab7e54be6b85c05f1075ac5d8f0198997cf335ef4  libtasn1-4.19.0.tar.gz
+1996fe5b556f597790811c1a0f2697e97ae302f940b28889e30eeb9368acc685258f0b193f52d61cabd5eb13610fd05f43baee67aca16bc75139540d6bc737b0  0100-asn1_der_decoding2-optimize-_asn1_find_up-call-with-.patch
+ac8b852c4e51586e9f890e152904c7037c58f6392286ae6418203499678441a9018add1fd123aa9e316cc798e6aa54c16fbaa349b372391a60ac44f9653ba356  0101-asn1_find_node-optimize-NUMBER-node-lookup-with-inde.patch
+"

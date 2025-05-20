@@ -1,0 +1,37 @@
+pkgname=py3-certifi
+pkgver=2022.12.7
+pkgrel=0
+pkgdesc="Python3 package for providing Mozilla's CA Bundle"
+url="https://pypi.python.org/pypi/certifi"
+arch="noarch"
+license="MPL-2.0"
+depends="python3 ca-certificates-bundle"
+makedepends="py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/c/certifi/certifi-$pkgver.tar.gz
+	use-alpine-system-certs.patch
+	"
+builddir="$srcdir/certifi-$pkgver"
+
+replaces="py-certifi" # Backwards compatibility
+provides="py-certifi=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+# no tests provided
+check() {
+	PYTHONPATH=build/lib python3 -m certifi
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+
+	# Remove bundled certificates, we use system certificates
+	rm -f "$pkgdir"/usr/lib/python3*/site-packages/certifi/cacert.pem
+}
+
+sha512sums="
+fd08b6bf138aa1b0a47909077642713d80f036e4b18de2c7f236a185521db3d6498a81a60b150124cc4bc21dd7e687badad4324a898117060c9e4ec93dfbdbe8  certifi-2022.12.7.tar.gz
+1002ff4648c79ced36c27dde110415091685d0a73f346068b38f0110a3439ce01a5db94121a709bda4b91c1a6d1d760c69f7e304aec27690cfe28ca5be725796  use-alpine-system-certs.patch
+"

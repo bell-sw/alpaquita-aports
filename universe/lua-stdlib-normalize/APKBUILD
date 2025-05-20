@@ -1,0 +1,32 @@
+pkgname=lua-stdlib-normalize
+_rockname=std.normalize
+pkgver=2.0.3
+pkgrel=1
+pkgdesc="Normalized Lua functions"
+url="https://lua-stdlib.github.io/normalize/"
+arch="noarch"
+license="MIT"
+depends="lua lua-stdlib-debug"
+options="!check"  # FIXME: requires lua-specl that we don't have yet
+source="$pkgname-$pkgver.tar.gz::https://github.com/lua-stdlib/normalize/archive/v$pkgver.tar.gz"
+builddir="$srcdir/normalize-$pkgver"
+
+_luaversions="5.1 5.2 5.3 5.4"
+for _v in $_luaversions; do
+	provides="$provides lua$_v-${pkgname#lua-}=$pkgver-r$pkgrel"  # for backward compatibility
+done
+
+package() {
+	local lmod_dir="$pkgdir/usr/share/lua/common"
+	local rockdir="$pkgdir/usr/lib/luarocks/rocks-common/$_rockname/$pkgver-1"
+
+	mkdir -p "$lmod_dir"
+	cp -r "$builddir"/lib/std "$lmod_dir"/
+
+	mkdir -p "$rockdir"
+	echo 'rock_manifest = {}' > "$rockdir"/rock_manifest
+}
+
+sha512sums="
+eaae2f4962b060d33f7c8487b95f5bc53fbcc0719bedb8dbf0adfaa5678f9161949534dc22904d2e004f9b55018956b6ca6d25ee478085fe803c7e53d3450e63  lua-stdlib-normalize-2.0.3.tar.gz
+"

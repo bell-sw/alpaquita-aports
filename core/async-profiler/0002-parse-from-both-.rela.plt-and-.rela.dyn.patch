@@ -1,0 +1,26 @@
+From e63c98e5c6f64029c3838b311557a559e8b6caf5 Mon Sep 17 00:00:00 2001
+From: Takha Polat <takha.polat@bell-sw.com>
+Date: Tue, 28 Jan 2025 11:48:04 +0000
+Subject: [PATCH] fix
+ https://github.com/async-profiler/async-profiler/issues/1060
+
+---
+ src/symbols_linux.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/symbols_linux.cpp b/src/symbols_linux.cpp
+index b5449b6..003988b 100644
+--- a/src/symbols_linux.cpp
++++ b/src/symbols_linux.cpp
+@@ -347,7 +347,8 @@ void ElfParser::parseDynamicSection() {
+                     _cc->addImport((void**)(_base + r->r_offset), strtab + sym->st_name);
+                 }
+             }
+-        } else if (rel != NULL && relsz != 0) {
++        }
++	if (rel != NULL && relsz != 0) {
+             // Shared library was built without PLT (-fno-plt)
+             // Relocation entries have been moved from .rela.plt to .rela.dyn
+             for (size_t offs = relcount * relent; offs < relsz; offs += relent) {
+--
+2.48.1

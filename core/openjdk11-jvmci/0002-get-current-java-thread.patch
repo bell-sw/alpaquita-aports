@@ -1,0 +1,91 @@
+diff -r 405102e26a62 src/hotspot/share/jvmci/jvmciCompilerToVM.cpp
+--- a/src/hotspot/share/jvmci/jvmciCompilerToVM.cpp	Wed Dec 23 09:07:55 2020 +0100
++++ b/src/hotspot/share/jvmci/jvmciCompilerToVM.cpp	Tue Jan 12 17:30:33 2021 +0300
+@@ -86,6 +86,10 @@
+   }
+ }
+ 
++static Thread* get_current_thread() {
++  return Thread::current_or_null_safe();
++}
++
+ // Entry to native method implementation that transitions current thread to '_thread_in_vm'.
+ #define C2V_VMENTRY(result_type, name, signature) \
+   JNIEXPORT result_type JNICALL c2v_ ## name signature { \
+@@ -93,6 +97,12 @@
+   TRACE_CALL(result_type, jvmci_ ## name signature) \
+   JVMCI_VM_ENTRY_MARK; \
+ 
++// Entry to native method implementation that does not transition
++// current thread to '_thread_in_vm'.
++#define C2V_VMENTRY_PREFIX(result_type, name, signature) \
++  JNIEXPORT result_type JNICALL c2v_ ## name signature { \
++  Thread* base_thread = get_current_thread();
++
+ #define C2V_END }
+ 
+ oop CompilerToVM::get_jvmci_method(const methodHandle& method, TRAPS) {
+@@ -1503,6 +1513,15 @@
+   }
+ C2V_END
+ 
++C2V_VMENTRY_PREFIX(jlong, getCurrentJavaThread, (JNIEnv* env, jobject c2vm))
++  if (base_thread == NULL) {
++    // Called from unattached JVMCI shared library thread
++    return 0L;
++  }
++  assert(base_thread->is_Java_thread(), "just checking");
++  return (long) base_thread;
++C2V_END
++
+ #define CC (char*)  /*cast a literal from (const char*)*/
+ #define FN_PTR(f) CAST_FROM_FN_PTR(void*, &(c2v_ ## f))
+ 
+@@ -1592,6 +1611,7 @@
+   {CC "compileToBytecode",                            CC "(" OBJECT ")V",                                                                   FN_PTR(compileToBytecode)},
+   {CC "getFlagValue",                                 CC "(" STRING ")" OBJECT,                                                             FN_PTR(getFlagValue)},
+   {CC "ensureLinked",                                 CC "(" HS_RESOLVED_KLASS ")V",                                                        FN_PTR(ensureLinked)},
++  {CC "getCurrentJavaThread",                         CC "()J",                                                                             FN_PTR(getCurrentJavaThread)},
+ };
+ 
+ int CompilerToVM::methods_count() {
+diff -r 405102e26a62 src/hotspot/share/jvmci/vmStructs_jvmci.cpp
+--- a/src/hotspot/share/jvmci/vmStructs_jvmci.cpp	Wed Dec 23 09:07:55 2020 +0100
++++ b/src/hotspot/share/jvmci/vmStructs_jvmci.cpp	Tue Jan 12 17:30:33 2021 +0300
+@@ -180,6 +180,7 @@
+   nonstatic_field(JavaThread,                  _pending_transfer_to_interpreter,              bool)                                  \
+   nonstatic_field(JavaThread,                  _jvmci_counters,                               jlong*)                                \
+   nonstatic_field(JavaThread,                  _reserved_stack_activation,                    address)                               \
++  nonstatic_field(JavaThread,                  _jni_environment,                              JNIEnv)                                \
+                                                                                                                                      \
+   static_field(java_lang_Class,                _klass_offset,                                 int)                                   \
+   static_field(java_lang_Class,                _array_klass_offset,                           int)                                   \
+diff -r 405102e26a62 src/jdk.internal.vm.ci/share/classes/jdk.vm.ci.hotspot/src/jdk/vm/ci/hotspot/CompilerToVM.java
+--- a/src/jdk.internal.vm.ci/share/classes/jdk.vm.ci.hotspot/src/jdk/vm/ci/hotspot/CompilerToVM.java	Wed Dec 23 09:07:55 2020 +0100
++++ b/src/jdk.internal.vm.ci/share/classes/jdk.vm.ci.hotspot/src/jdk/vm/ci/hotspot/CompilerToVM.java	Tue Jan 12 17:30:33 2021 +0300
+@@ -663,4 +663,9 @@
+      * Gets the host class for {@code type}.
+      */
+     native HotSpotResolvedObjectTypeImpl getHostClass(HotSpotResolvedObjectTypeImpl type);
++
++    /**
++     * @see HotSpotJVMCIRuntime#getCurrentJavaThread()
++     */
++    native long getCurrentJavaThread();
+ }
+diff -r 405102e26a62 src/jdk.internal.vm.ci/share/classes/jdk.vm.ci.hotspot/src/jdk/vm/ci/hotspot/HotSpotJVMCIRuntime.java
+--- a/src/jdk.internal.vm.ci/share/classes/jdk.vm.ci.hotspot/src/jdk/vm/ci/hotspot/HotSpotJVMCIRuntime.java	Wed Dec 23 09:07:55 2020 +0100
++++ b/src/jdk.internal.vm.ci/share/classes/jdk.vm.ci.hotspot/src/jdk/vm/ci/hotspot/HotSpotJVMCIRuntime.java	Tue Jan 12 17:30:33 2021 +0300
+@@ -762,4 +762,12 @@
+     public void registerNativeMethods(Class<?> clazz) {
+         throw new UnsatisfiedLinkError("SVM library is not available");
+     }
++
++    /**
++     * Gets the address of the HotSpot {@code JavaThread} C++ object for the current thread. This
++     * will return {@code 0} if called from an unattached JVMCI shared library thread.
++     */
++    public long getCurrentJavaThread() {
++        return compilerToVm.getCurrentJavaThread();
++    }
+ }

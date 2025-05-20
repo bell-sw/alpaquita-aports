@@ -1,0 +1,45 @@
+# Description:
+
+pkgname=py3-requests
+pkgver=2.28.1
+pkgrel=3
+pkgdesc="HTTP request library for Python3"
+url="http://www.python-requests.org/"
+arch="noarch"
+license="Apache-2.0"
+# Requirements for tests are not available in main
+options="!check"
+depends="
+	py3-certifi
+	py3-charset-normalizer
+	py3-idna
+	py3-urllib3
+	python3
+	"
+makedepends="py3-setuptools"
+source="https://files.pythonhosted.org/packages/source/r/requests/requests-$pkgver.tar.gz
+	charset-normaliser-3.patch
+	0100-CVE-2023-32681.patch
+	"
+builddir="$srcdir/requests-$pkgver"
+
+replaces="py-requests" # Backwards compatibility
+provides="py-requests=$pkgver-r$pkgrel" # Backwards compatibility
+
+# secfixes:
+#   2.28.1-r3:
+#     - CVE-2023-32681
+
+build() {
+	python3 setup.py build
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+c123ec07171c2c7c34e4173b97750adfa313b4312d91c0d58e4eb8750361604017e5b370c23ec886d2cbf704f9074ec5ad0fa9c2cd8e6f9521532adafff39d41  requests-2.28.1.tar.gz
+188675a3d35b9e8c0bee52bd699e0b9034c8fd8c699c0677c891ae1258008c0ed5cefa544457b36ce44640c6b6edde11fa7b35974c66355bb3ec51eb34b059f1  charset-normaliser-3.patch
+0441637c5edee6fc40aaefc9151df7c641b2faf34500833aa5d4bda3df1cd5c5b35365d7e5affbe2c468d95675d37e22abc439688efd59378a816e25c581a87b  0100-CVE-2023-32681.patch
+"

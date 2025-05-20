@@ -1,0 +1,181 @@
+pkgname=polkit
+pkgver=122
+pkgrel=1
+pkgdesc="Application development toolkit for controlling system-wide privileges"
+url="https://www.freedesktop.org/wiki/Software/polkit/"
+arch="all"
+license="GPL-2.0-or-later"
+options="suid !check"  # Needs a functioning dbus daemon
+depends="$pkgname-common=$pkgver-r$pkgrel $pkgname-libs=$pkgver-r$pkgrel"
+makedepends="
+	bash
+	dbus-glib-dev
+	duktape-dev
+	elogind-dev
+	expat-dev
+	glib-dev
+	gobject-introspection-dev
+	gtk-doc
+	intltool
+	linux-pam-dev
+	meson
+	"
+pkgusers="polkitd"
+pkggroups="polkitd"
+install="$pkgname-common.pre-install $pkgname-common.pre-upgrade"
+subpackages="
+	$pkgname-dev
+	$pkgname-libs
+	$pkgname-doc
+	$pkgname-lang
+	$pkgname-openrc
+	$pkgname-common
+	$pkgname-elogind
+	$pkgname-elogind-dev:_elogind_dev
+	$pkgname-elogind-libs:_elogind_libs
+	"
+source="https://gitlab.freedesktop.org/polkit/polkit/-/archive/$pkgver/polkit-$pkgver.tar.bz2
+	alpine-polkit.pam
+	polkit.initd
+	"
+
+# secfixes:
+#   0.120-r2:
+#     - CVE-2021-4034
+#   0.119-r0:
+#     - CVE-2021-3560
+
+build() {
+	msg 'Building without elogind'
+	_build no-elogind -Dsession_tracking="ConsoleKit"
+
+	msg 'Building with elogind'
+	_build elogind -Dsession_tracking="libelogind"
+}
+
+_build() {
+	local outdir="$1"
+	shift
+	abuild-meson \
+		-Db_lto=true \
+		-Dtests="$(want_check && echo true || echo false)" \
+		-Dman=true \
+		-Dsystemdsystemunitdir=/trash \
+		"$@" \
+		. "$outdir"
+	meson compile -C "$outdir"
+}
+
+check() {
+	meson test --print-errorlogs --no-rebuild -C elogind
+}
+
+package() {
+	provider_priority=100  # highest
+
+	DESTDIR="$pkgdir" meson install --no-rebuild -C no-elogind
+	DESTDIR="$builddir/elogind/dest" meson install --no-rebuild -C elogind
+
+	cd "$pkgdir"
+
+	# systemd files
+	rm -rf ./trash
+
+	# Use our own polkit rules, upstream may change them
+	install -m644 "$srcdir"/alpine-polkit.pam etc/pam.d/polkit-1
+
+	# See polkit's configure script which tells us what permissions to set
+	chown -R polkitd:polkitd etc/polkit-1/rules.d usr/share/polkit-1/rules.d
+	chmod -R 700 etc/polkit-1/rules.d usr/share/polkit-1/rules.d
+	chmod 4755 usr/lib/polkit-1/polkit-agent-helper-1
+	chmod 4755 usr/bin/pkexec
+
+	install -Dm755 "$srcdir"/polkit.initd etc/init.d/polkit
+}
+
+libs() {
+	provider_priority=100  # highest
+	depends=""
+
+	default_libs
+}
+
+dev() {
+	default_dev
+
+	# XXX: We have to disable tracedeps to avoid abuild adding both
+	# polkit-libs and polkit-elogind-libs to depends - they are autodetected
+	# via symlinks in /usr/lib.
+	options="!tracedeps"
+	# XXX: Since we disabled tracedeps, all depends and provides must be
+	# specified. This sucks, but I don't know of a better solution (@jirutka).
+	depends="$depends_dev
+		$pkgname-common=$pkgver-r$pkgrel
+		$pkgname-libs=$pkgver-r$pkgrel
+		dbus-glib-dev
+		pc:gio-2.0>=2.18
+		pc:glib-2.0>=2.18
+		pkgconfig
+		"
+	provides="pc:polkit-agent-1=$pkgver pc:polkit-gobject-1=$pkgver"
+}
+
+elogind() {
+	pkgdesc="Polkit with elogind session tracking"
+	depends="$pkgname-elogind-libs=$pkgver-r$pkgrel $pkgname-common=$pkgver-r$pkgrel"
+	provides="$pkgname=$pkgver-r$pkgrel"
+	provider_priority=10  # lowest
+	replaces="$pkgname"  # for backward compatibility
+
+	cd "$builddir"/elogind/dest
+
+	mkdir -p "$subpkgdir"/usr/lib/polkit-1
+	mv usr/lib/polkit-1/polkitd "$subpkgdir"/usr/lib/polkit-1/
+}
+
+_elogind_dev() {
+	pkgdesc="Polkit with elogind session tracking (development files)"
+	depends="$pkgname-dev=$pkgver-r$pkgrel $pkgname-elogind-libs=$pkgver-r$pkgrel"
+	replaces="$pkgname-dev"
+
+	cd "$builddir"/elogind/dest
+
+	# *.gir files for the default and the elogind variant differ, the rest
+	# is the same.
+	mkdir -p "$subpkgdir"/usr/share
+	mv usr/share/gir-1.0 "$subpkgdir"/usr/share/
+}
+
+_elogind_libs() {
+	pkgdesc="Polkit with elogind session tracking (libraries)"
+	depends=""
+	provides="$pkgname-libs=$pkgver-r$pkgrel"
+	provider_priority=10  # lowest
+	replaces="$pkgname-libs $pkgname-elogind<=0.118"  # for backward compatibility
+
+	cd "$builddir"/elogind/dest
+
+	mkdir -p "$subpkgdir"/usr/lib
+	mv usr/lib/lib*.so.* "$subpkgdir"/usr/lib/
+}
+
+common() {
+	pkgdesc="Common files for polkit and polkit-elogind"
+	depends=""
+	replaces="$pkgname $pkgname-elogind"  # for backward compatibility
+
+	# Move all that left to subpackage.
+	amove etc/*
+	amove usr/*
+
+	# Move polkitd back to the base package (that's the only file from the
+	# polkit package that differs between default and elogind variant).
+	mkdir -p "$pkgdir"/usr/lib/polkit-1
+	mv "$subpkgdir"/usr/lib/polkit-1/polkitd "$pkgdir"/usr/lib/polkit-1/
+}
+
+sha512sums="
+a7c0a951bbcdb09899adbc128296c74fc062441e996f4d6a782b214178f0936137e2fdc489eaa86a00599b988711735a5bd9b5c3b93bdb42fb915db9f9b04e26  polkit-122.tar.bz2
+f5102dc00d390b3a3c957b62e1712db778c7ffb7378f3d8e816c0757c11a308c5d5303e42595b0d6add9839247c773880cd34e56afacc89eb6efaadf9aae7826  alpine-polkit.pam
+251a682da170f8f4eb33ecb27fb1392c8560a17375c2f873ceef0649ca2b0894b68ed7209e1b3716bb2c4c817b57f470d5a326fd26ec1c90615bfd9a1c5be288  polkit.initd
+"

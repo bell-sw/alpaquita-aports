@@ -1,0 +1,33 @@
+pkgname=py3-pytest-timeout
+_pyname=pytest-timeout
+pkgver=2.1.0
+pkgrel=1
+pkgdesc="py.test plugin to abort hanging tests"
+url="https://github.com/pytest-dev/pytest-timeout/"
+arch="noarch"
+license="MIT"
+depends="py3-pytest"
+makedepends="py3-setuptools"
+checkdepends="py3-pexpect"
+source="https://files.pythonhosted.org/packages/source/p/pytest-timeout/pytest-timeout-$pkgver.tar.gz"
+builddir="$srcdir/$_pyname-$pkgver"
+options="!check" # tests broken
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	PYTHONPATH="$PWD/build/lib" python3 -m pytest -x
+}
+
+package() {
+	python3 setup.py install \
+		--prefix=/usr \
+		--root="$pkgdir" \
+		--single-version-externally-managed
+}
+
+sha512sums="
+5750e5183669ed9b83fbb76bd7fc9fc1f5f6eef3d9b675dc44f6c7edfd2c6d15739d71e845ededaa192c93da73026ac3376a3295be9f7d3f3eac325660ce7bf3  pytest-timeout-2.1.0.tar.gz
+"

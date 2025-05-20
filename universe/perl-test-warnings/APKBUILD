@@ -1,0 +1,33 @@
+pkgname=perl-test-warnings
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=Test-Warnings
+pkgver=0.031
+pkgrel=0
+pkgdesc="Test for warnings and the lack of them"
+url="https://metacpan.org/release/Test-Warnings/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/E/ET/ETHER/Test-Warnings-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+02ddd342b6aa8771dd6ea3b7385c5eb970173633d49a3535bc46c3f98a66cd6e81895fc5f38cbe23366c8fa0f96121b51a8180b0d4ef0f2d8c658bb559c72c58  Test-Warnings-0.031.tar.gz
+"

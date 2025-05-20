@@ -1,0 +1,36 @@
+pkgname=perl-sub-quote
+_pkgreal=Sub-Quote
+pkgver=2.006006
+pkgrel=1
+pkgdesc="Efficient generation of subroutines via string eval"
+url="https://metacpan.org/release/Sub-Quote"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+checkdepends="perl-test-fatal"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/H/HA/HAARG/Sub-Quote-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+prepare() {
+	default_prepare
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+}
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+sha512sums="19cd0504f039f3218d3f47b3b44714f0baed73a13f97c4552eb1816b7b03186b1bbdf48cc70c2cae616eb9ec81721b30217c7f788176d389df694c9b355ead64  Sub-Quote-2.006006.tar.gz"

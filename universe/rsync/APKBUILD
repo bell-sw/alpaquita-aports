@@ -1,0 +1,114 @@
+# Description:
+
+pkgname=rsync
+pkgver=3.2.7
+pkgrel=1
+pkgdesc="A file transfer program to keep remote files in sync"
+url="https://rsync.samba.org/"
+arch="all"
+license="GPL-3.0-or-later"
+makedepends="perl acl-dev attr-dev popt-dev zlib-dev zstd-dev lz4-dev"
+subpackages="$pkgname-doc $pkgname-openrc rrsync"
+source="https://download.samba.org/pub/rsync/src/rsync-$pkgver.tar.gz
+	rsyncd.initd
+	rsyncd.confd
+	rsyncd.conf
+	rsyncd.logrotate
+
+	0100-CVE-2024-12084.patch
+	0101-CVE-2024-12085.patch
+	0102-CVE-2024-12086.patch
+	0103-CVE-2024-12087.patch
+	0104-Fix-FLAG_GOT_DIR_FLIST-collission-with-FLAG_HLINKED.patch
+	0105-CVE-2024-12088.patch
+	0106-CVE-2024-12747.patch
+	0107-Fix-use-after-free-in-generator.patch
+	"
+
+# secfixes:
+#   3.2.7-r1:
+#     - CVE-2024-12084
+#     - CVE-2024-12085
+#     - CVE-2024-12086
+#     - CVE-2024-12087
+#     - CVE-2024-12088
+#     - CVE-2024-12747
+#   3.2.4-r2:
+#     - CVE-2022-29154
+#   3.1.2-r7:
+#     - CVE-2017-16548
+#     - CVE-2017-17433
+#     - CVE-2017-17434
+#   0:
+#     - CVE-2020-14387
+
+# delete the itemize test because it is flawed and depends on filesystem-specific behavior
+prepare() {
+	default_prepare
+	rm testsuite/itemize.test
+
+	# Prevent the aports version being used
+	printf '#!/bin/sh\n\necho "#define RSYNC_GITVER RSYNC_VERSION" >git-version.h\n' >mkgitver
+}
+
+build() {
+	# Force IPv6 enabled, upstream bug https://bugzilla.samba.org/show_bug.cgi?id=10715
+	CFLAGS="$CFLAGS -DINET6" \
+
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--enable-acl-support \
+		--enable-xattr-support \
+		--without-included-popt \
+		--without-included-zlib \
+		--disable-xxhash \
+		--disable-openssl
+		# xxhash and openssl support were implicitly disabled before via automagic
+		# since nobody complained that those features were missing starting with 3.2.x
+		# they cause errors unless they are expilcitly disabled. If you need those
+		# features then open a MR
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	install -Dm755 "$srcdir"/rsyncd.initd "$pkgdir"/etc/init.d/rsyncd
+	install -Dm644 "$srcdir"/rsyncd.conf "$pkgdir"/etc/rsyncd.conf
+	install -Dm644 "$srcdir"/rsyncd.confd "$pkgdir"/etc/conf.d/rsyncd
+	install -Dm644 "$srcdir"/rsyncd.logrotate "$pkgdir"/etc/logrotate.d/rsyncd
+}
+
+rrsync() {
+	pkgdesc="Restricted rsync, restricts rsync to a subdir declared in .ssh/authorized_keys"
+	depends="rsync python3"
+	arch="noarch"
+
+	cd "$builddir"
+	install -D -m 755 ./support/rrsync "$subpkgdir"/usr/bin/rrsync
+}
+
+sha512sums="
+c2afba11a352fd88133f9e96e19d6df80eb864450c83eced13a7faa23df947bccf2ef093f2101df6ee30abff4cbbd39ac802e9aa5f726e42c9caff274fad8377  rsync-3.2.7.tar.gz
+cc8660ee8fb488734cb4f2d54f18925065334463323116c16784a3ae0288d059d0b391c4c54b93e3e271d9eee8fa3afd6d6dcb8fba98a7ea11855e2f74c9eefa  rsyncd.initd
+d91337cfb57e6e3b2a8ba1e24f7d851dd927bfc327da2212b9eb0acda0e1ca2f24987f6dcc4903eccc3bf170e0f115172b3cfa5a172700495296f26302c834d7  rsyncd.confd
+3db8a2b364fc89132af6143af90513deb6be3a78c8180d47c969e33cb5edde9db88aad27758a6911f93781e3c9846aeadc80fffc761c355d6a28358853156b62  rsyncd.conf
+e7ff164926785c4eff2ea641c7ce2d270b25f1c26d93a6108bb6ff2c0207a28ebfd93dca39596243446ce41aceaeae62fc2b34084eb9c9086fcdbc03a657eed8  rsyncd.logrotate
+b203d7a40cff7532e2f777c1668fe927168084c0802876bd73b59daf2c63d98f6e3133f0976f2bfb6e070552199aa4bf9e990c5944c10b85ffa87e4cbc7fe80e  0100-CVE-2024-12084.patch
+e0db49710207c157caec2d7ff23d111f05327b1a2d209ef4c70c2de8ed5c357ca8b15a60165d0c41e9446cd69aa26a4241932c937d16e1db6bcfdcab7463e2b6  0101-CVE-2024-12085.patch
+e2ea1bd6e2c3df2e51020b3520c78c6574f3a6f07626392e1c6fe6af08a1c30ed328f0a6d5c693e263f2fdcbad4f42674fb153ee2b8112aa2b4ea9693bc7a494  0102-CVE-2024-12086.patch
+ebf06d07f6ecaa4c8ea3e4dc050658cee2975d0fed490f9d6ad8f27dce609a4d2de0db2901c01a26939a0e210e7b23a618ed1bb3bfc1c2a0059095983b94327c  0103-CVE-2024-12087.patch
+e3db50445a9f34243647ecf503faba37b2e5f3885b3707f1be26c46edf708ead4cd7d0319aea70e987a32bed3ffa98c42f106c99103f7f1a3711ceb8592d3a2a  0104-Fix-FLAG_GOT_DIR_FLIST-collission-with-FLAG_HLINKED.patch
+5c8ed8a274522067b91b8c3a6fafec56048dacf114bc5ffef19926a9cf16fc4bcf379b8fc0b8fe883345ce41bcec5126193206830ff7c8b726773d0507ba9075  0105-CVE-2024-12088.patch
+82d5e67acd4fbc5b0068035b09a27045ce61604669b1d8d262e6760822e1403a83325ca5a6f02d41810d7c1e9d341f9012b0cc43f89b80c98fc9945ffdc78655  0106-CVE-2024-12747.patch
+4e49190ae25960b9f7b9d4860fc9cc480b41f27e46cebdcc2f6aa4b83fac2b2bd39f0749b6fbc4d778c7cba5f09782ec8095318f69299a077adea43fdb3b1ee3  0107-Fix-use-after-free-in-generator.patch
+"

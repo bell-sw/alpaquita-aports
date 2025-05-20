@@ -1,0 +1,35 @@
+pkgname=os-prober
+pkgver=1.81
+pkgrel=1
+pkgdesc="Utility to detect other OSes on a set of drives"
+url="https://joeyh.name/code/os-prober/"
+arch="all !s390x" # grub-mount does not support s390x
+depends="grub-mount blkid"
+license="GPL-3.0-only"
+source="https://deb.debian.org/debian/pool/main/o/os-prober/os-prober_$pkgver.tar.xz"
+options="!check" # No tests
+
+build() {
+	make newns
+}
+
+package() {
+	install -Dm755 os-prober linux-boot-prober -t "$pkgdir"/usr/bin
+	install -Dm755 newns "$pkgdir"/usr/lib/os-prober/newns
+	install -Dm755 common.sh "$pkgdir"/usr/share/os-prober/common.sh
+
+	for dir in os-probes os-probes/mounted os-probes/init linux-boot-probes linux-boot-probes/mounted; do
+		install -dm755 "$pkgdir"/usr/lib/"$dir"
+		install -m755 -t "$pkgdir"/usr/lib/"$dir" "$dir"/common/*
+		if [ -d "$dir"/x86 ]; then
+			cp -r "$dir"/x86/* "$pkgdir"/usr/lib/"$dir"
+		fi
+	done
+
+	install -Dm655 os-probes/mounted/powerpc/20macosx "$pkgdir"/usr/lib/os-probes/mounted/20macosx
+	install -dm755 "$pkgdir"/var/lib/os-prober
+}
+
+sha512sums="
+ffb0e618f9e58a7a8e4a265d253bad4e168c220697216684acb38dbfa20680e552eb7c5f3d2186cd750c61a8929bf152527aa85c39318ed8b025a4ffffadde50  os-prober_1.81.tar.xz
+"

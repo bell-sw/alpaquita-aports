@@ -1,0 +1,177 @@
+# Description: ncurses library routines are a terminal-independent method of
+# updating character screens with reasonable optimization.
+
+pkgname=ncurses
+pkgver=6.3_p20221119
+_pkgver=${pkgver/_p/-}
+pkgrel=1
+pkgdesc="Shared libraries for terminal handling"
+url="https://invisible-island.net/ncurses/"
+arch="all"
+options="!check" # "tests" are actual demo programs, not a test suite.
+license="MIT"
+makedepends_build="ncurses"
+subpackages="
+	$pkgname-static
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-libs
+	$pkgname-terminfo-base:base:noarch
+	$pkgname-terminfo:terminfo:noarch
+	"
+_kitty_ver=0.25.2  # see comment in package()
+source="https://invisible-mirror.net/archives/ncurses/archive/ncurses-$_pkgver.tgz
+	xterm-kitty-$_kitty_ver::https://github.com/kovidgoyal/kitty/raw/v$_kitty_ver/terminfo/x/xterm-kitty
+	fix-configure-root-args-option.patch
+	root-environ-only-setuid.patch
+	"
+builddir="$srcdir/$pkgname-$_pkgver"
+
+# secfixes:
+#   6.3_p20221119-r1:
+#     - CVE-2023-29491
+#   6.3_p20220416-r0:
+#     - CVE-2022-29458
+#   6.2_p20200530-r0:
+#     - CVE-2021-39537
+#   6.1_p20180414-r0:
+#     - CVE-2018-10754
+#   6.0_p20171125-r0:
+#     - CVE-2017-16879
+#   6.0_p20170701-r0:
+#     - CVE-2017-10684
+
+# Terminfo definitions to be included in ncurses-terminfo-base.
+_basic_terms="
+	alacritty
+	ansi
+	console
+	dumb
+	gnome
+	gnome-256color
+	konsole
+	konsole-256color
+	konsole-linux
+	linux
+	putty
+	putty-256color
+	rxvt
+	rxvt-256color
+	screen
+	screen-256color
+	st-*
+	sun
+	terminator
+	terminology*
+	tmux
+	tmux-256color
+	vt100
+	vt102
+	vt200
+	vt220
+	vt52
+	vte
+	vte-256color
+	xterm
+	xterm-256color
+	xterm-color
+	xterm-kitty
+	xterm-xfree86
+	"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--mandir=/usr/share/man \
+		--without-ada \
+		--without-tests \
+		--disable-termcap \
+		--disable-root-environ \
+		--disable-rpath-hack \
+		--disable-stripping \
+		--with-pkg-config-libdir=/usr/lib/pkgconfig \
+		--without-cxx-binding \
+		--with-terminfo-dirs="/etc/terminfo:/usr/share/terminfo:/usr/lib/terminfo" \
+		--enable-pc-files \
+		--with-shared \
+		--enable-widec
+	make
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install
+
+	cd "$pkgdir"
+
+	# kitty terminfo in ncurses database is outdated and upstream doesn't
+	# cooperate, so Kitty now uses xterm-kitty instead.
+	# https://github.com/kovidgoyal/kitty/issues/879
+	install -m644 "$srcdir"/xterm-kitty-$_kitty_ver usr/share/terminfo/x/xterm-kitty
+
+	# force link against *w.so
+	local lib; for lib in ncurses ncurses++ form panel menu; do
+		ln -s ${lib}w.pc usr/lib/pkgconfig/$lib.pc
+		ln -s lib${lib}w.a usr/lib/lib$lib.a
+		echo "INPUT(-l${lib}w)" > usr/lib/lib$lib.so
+	done
+
+	# link curses -> ncurses
+	ln -s libncurses.a usr/lib/libcurses.a
+	ln -s libncurses.so usr/lib/libcurses.so
+	echo 'INPUT(-lncursesw)' > usr/lib/libcursesw.so
+
+	# Install basic terms in /etc/terminfo
+	local i; for i in $_basic_terms; do
+		local termfiles=$(find usr/share/terminfo/ -name "$i" 2>/dev/null) || true
+
+		[ -z "$termfiles" ] && continue
+
+		for termfile in $termfiles; do
+			local basedir=$(basename "$(dirname "$termfile")")
+			install -d etc/terminfo/$basedir
+			mv "$termfile" etc/terminfo/$basedir/
+			ln -s "../../../../etc/terminfo/$basedir/${termfile##*/}" \
+				"usr/share/terminfo/$basedir/${termfile##*/}"
+		done
+	done
+}
+
+dev() {
+	default_dev
+
+	# also move symlinks
+	amove usr/lib/*.so
+}
+
+terminfo() {
+	pkgdesc="$pkgdesc (other terminfo files)"
+	depends="$pkgname-terminfo-base=$pkgver-r$pkgrel"
+	replaces="kitty<0.25.2-r1"  # /usr/share/terminfo/x/xterm-kitty (Alpine <3.17)
+
+	amove usr/share/terminfo
+	# also move symlink
+	amove usr/lib/terminfo
+}
+
+libs() {
+	pkgdesc="Ncurses libraries"
+	depends="$pkgname-terminfo-base=$pkgver-r$pkgrel"
+	provides="ncurses-widec-libs=$pkgver-r$pkgrel"
+
+	amove usr/lib/*.so.*
+}
+
+base() {
+	pkgdesc="Descriptions of common terminals"
+	depends=""
+
+	amove etc/terminfo
+}
+
+sha512sums="
+49a25f0d6481965121e808c5e470d1e6978ca140ce6d72f8bf79ee2e1a1cc8be7f41d4f1b8ee8b80a667bf77f593c5e91e6f502c5e5320967a5597ad7ea04225  ncurses-6.3-20221119.tgz
+76da551cffa16313933310c71eb7363ef0e35e14cd9c4547f5130484e0001195d2fad08978c9369e2519958c799226ebe14d6018b837bf6c6d75f2ad114cf9ba  xterm-kitty-0.25.2
+a075e0f0ed1778466f8da58bed279f5603ce3676afeb5345c228d4c89a42a28755d6a6f9ddcce5c4a364e6b020bf021a8aa63802fa781829c63ef0fdb9fd41c1  fix-configure-root-args-option.patch
+cd0bcf43cb8bc54b2a0189ae20b106a8545e6e3008782f1faa9ea341ac8b05305f5870d6217dbd33009876d32ce3dcc14fc454df4be234187528db27d1351432  root-environ-only-setuid.patch
+"

@@ -1,0 +1,38 @@
+# Description:
+
+pkgname=perl-gd
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=GD
+pkgver=2.76
+pkgrel=0
+pkgdesc="Perl interface to the gd2 graphics library"
+url="https://metacpan.org/release/GD/"
+arch="all"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+makedepends="perl-dev perl-extutils-pkgconfig gd-dev libjpeg-turbo-dev zlib-dev
+	libpng-dev freetype-dev libwebp-dev"
+checkdepends="perl-test-fork"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/R/RU/RURBAN/GD-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+31c2d61440a7fef9804aed677ee5568f6c237e678cf5a2b7f48e98326ef7cddbf3624ce3965e6711ef9cec4148881a0cb4352c19b91ead4b78835fafaeefbe4d  GD-2.76.tar.gz
+"

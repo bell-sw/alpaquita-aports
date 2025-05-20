@@ -1,0 +1,22 @@
+pkgname=lua-resty-core
+pkgver=0.1.24
+pkgrel=0
+pkgdesc="New FFI-based API for lua-nginx-module"
+url="https://github.com/openresty/lua-resty-core"
+arch="noarch !riscv64"
+license="BSD-2-Clause"
+depends="luajit lua-resty-lrucache"
+source="https://github.com/openresty/lua-resty-core/archive/v$pkgver/lua-resty-core-$pkgver.tar.gz"
+options="!check"  # FIXME: tests require OpenResty and additional dependencies
+
+package() {
+	make install DESTDIR="$pkgdir" LUA_LIB_DIR="/usr/share/lua/common"
+
+	echo 'rock_manifest = {}' > rock_manifest
+	install -D -m 644 rock_manifest \
+		"$pkgdir"/usr/lib/luarocks/rocks-common/$pkgname/$pkgver-1
+}
+
+sha512sums="
+9013f0c4d882412daa7f1847c2ddaa189eaf30b519c288687efef028d1fbb28aab29bc8f5f781782f54756a0393b5bd52be6772507af1847aa79751e473c691b  lua-resty-core-0.1.24.tar.gz
+"

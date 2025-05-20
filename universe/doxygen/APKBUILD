@@ -1,0 +1,38 @@
+# Description:
+
+pkgname=doxygen
+pkgver=1.9.5
+pkgrel=0
+pkgdesc="A documentation system for C++, C, Java, IDL and PHP"
+url="https://www.doxygen.nl/"
+arch="all"
+license="GPL-2.0-or-later"
+checkdepends="libxml2-utils"
+makedepends="flex bison coreutils perl python3 cmake samurai"
+source="https://doxygen.nl/files/doxygen-$pkgver.src.tar.gz"
+
+[ "$CARCH" = "riscv64" ] && options="textrels"
+
+build() {
+	cmake -B build -G Ninja \
+		-DGIT_EXECUTABLE=/bin/false \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-Dbuild_xmlparser=ON
+	cmake --build build
+}
+
+check() {
+	# Remove test that use bibtex
+	rm -f ./testing/012_cite.dox
+	cd build
+	CTEST_OUTPUT_ON_FAILURE=TRUE ctest
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+4ad4c1ecd4a12220442f354b90aa56f80e78fcaf288d5e36da421437d59811ed3d429ee13717692886a55b9628ae565d40ce13c51792ccc8bba15b1e018cb651  doxygen-1.9.5.src.tar.gz
+"

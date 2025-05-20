@@ -1,0 +1,30 @@
+pkgname=perl-http-negotiate
+pkgver=6.01
+pkgrel=3
+pkgdesc="HTTP::Negotiate perl module"
+url="https://metacpan.org/release/HTTP-Negotiate/"
+arch="noarch"
+license="GPL-2.0 or Artistic"
+depends="perl perl-http-message"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/G/GA/GAAS/HTTP-Negotiate-$pkgver.tar.gz"
+
+builddir="$srcdir"/HTTP-Negotiate-$pkgver
+
+build() {
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+2651010f0d989fb255d37a0e4585de4779edcccd59fcad7d7f5ccc7d2c2ec420060324beebc880664d6c0d29193ce62f2d21cb6332bbfa0a3adacfa632876617  HTTP-Negotiate-6.01.tar.gz
+"

@@ -1,0 +1,35 @@
+pkgname=libxfixes
+pkgver=6.0.0
+pkgrel=0
+pkgdesc="X11 miscellaneous 'fixes' extension library"
+url="http://xorg.freedesktop.org/"
+arch="all"
+license="custom"
+options="!check"  # No test suite.
+depends=
+makedepends="xorgproto libx11-dev util-macros"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://www.x.org/releases/individual/lib/libXfixes-$pkgver.tar.bz2"
+
+builddir="$srcdir"/libXfixes-$pkgver
+
+build() {
+	cd "$builddir"
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+package() {
+	cd "$builddir"
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+1985ef156f382e9a7e1cc7e044e0f626de1e4c82557a511cbcf6431994c0ac25b1f8b3a0293bd3089331593db8ce01d3a71ddec68f19b5fe6029d5082fb6885d  libXfixes-6.0.0.tar.bz2
+"

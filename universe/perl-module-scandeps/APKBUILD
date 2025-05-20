@@ -1,0 +1,45 @@
+pkgname=perl-module-scandeps
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=Module-ScanDeps
+pkgver=1.31
+pkgrel=2
+pkgdesc="Recursively scan Perl code for dependencies"
+url="https://metacpan.org/release/Module-ScanDeps/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+checkdepends="perl-test-requires"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/R/RS/RSCHUPP/Module-ScanDeps-$pkgver.tar.gz
+	0100-use-three-argument-open.patch
+	0101-replace-eval-constructs.patch
+	0102-fix-parsing-of-use-if.patch
+	"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+# secfixes:
+#   1.31-r2:
+#     - CVE-2024-10224
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+c7164d768b6401a0d01516f5a09ddf2a0399355738ff17d04757aeb235b47f8d973083d0425ca53757588916c7fb2959d8c042361055a0e8eab7bf6d4c31d6fd  Module-ScanDeps-1.31.tar.gz
+7947046faabb507fd7fca4fe81797629ff2034c5432cca0cc18981911eb4c5ddf64cbb225e3103ce19fed774f72b8a7290304100c43629bf60ace906a1db7709  0100-use-three-argument-open.patch
+b651e48c76f56708717b9dc9ad93d4965e3867b76d41767085b65474c549d04ae1c2e00d5c6a22ca0fc9ad00019de6737961d4977cb311606984aea48ebc26f0  0101-replace-eval-constructs.patch
+d94a89c7eb40fa6ee7d9659a73eef99911e2003d56bfa55a9be7299385a6e43fdac4888879b5a3188b10e35c668e57b80a2b39dac806ae82f4778b99133a19d5  0102-fix-parsing-of-use-if.patch
+"

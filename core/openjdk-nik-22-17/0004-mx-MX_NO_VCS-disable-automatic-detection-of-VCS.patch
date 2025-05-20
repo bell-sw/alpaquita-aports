@@ -1,0 +1,54 @@
+From 7ff16650a5c3e1c28ed65e51aa89d8f86ff35aed Mon Sep 17 00:00:00 2001
+From: Denis Kononenko <denis.kononenko@bell-sw.com>
+Date: Sun, 18 Sep 2022 23:08:01 +0000
+Subject: [PATCH] MX_NO_VCS: disable automatic detection of VCS
+
+---
+ mx.py | 24 +++++++++++++-----------
+ 1 file changed, 13 insertions(+), 11 deletions(-)
+
+diff --git a/mx.py b/mx.py
+index 93c0e6fb..65e7b9b5 100755
+--- a/mx/mx.py
++++ b/mx/mx.py
+@@ -514,6 +514,7 @@ environment variables:
+                            local cache. Hence, remote references will be synchronized occasionally. This
+                            allows cloning without even contacting the git server.
+                         The cache is located at `~/.mx/git-cache`.
++  MX_NO_VCS             Don't try to determine the current VCS, we're building from the source tarball.
+ """ + _format_commands()
+ 
+ 
+@@ -8864,17 +8865,18 @@ class VC(_with_metaclass(ABCMeta, object)):
+         """
+         best_root = None
+         best_vc = None
+-        for vcs in _vc_systems:
+-            vcs.check()
+-            root = vcs.root(directory, abortOnError=False)
+-            if root is None:
+-                continue
+-            root = realpath(os.path.abspath(root))
+-            if best_root is None or len(root) > len(best_root):  # prefer more nested vcs roots
+-                best_root = root
+-                best_vc = vcs
+-        if abortOnError and best_root is None:
+-            abort('cannot determine VC and root for ' + directory)
++        if os.getenv('MX_NO_VCS') != 'true':
++            for vcs in _vc_systems:
++                vcs.check()
++                root = vcs.root(directory, abortOnError=False)
++                if root is None:
++                    continue
++                root = realpath(os.path.abspath(root))
++                if best_root is None or len(root) > len(best_root):  # prefer more nested vcs roots
++                    best_root = root
++                    best_vc = vcs
++            if abortOnError and best_root is None:
++                abort('cannot determine VC and root for ' + directory)
+         return best_vc, best_root
+ 
+     def check(self, abortOnError=True):
+-- 
+2.34.4
+

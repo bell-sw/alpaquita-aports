@@ -1,0 +1,38 @@
+pkgname=grub-efi-signed
+pkgver=2.12
+pkgrel=1
+pkgdesc="Bootloader with support for Linux, Multiboot and more (signed)"
+url="https://www.gnu.org/software/grub/"
+arch="x86_64 aarch64"
+license="GPL-3.0-or-later"
+depends="grub-efi"
+makedepends="sbsigntool grub-efi"
+install="$pkgname.post-install"
+options="!strip !check !annobin"
+source="../shim/bellsoft-uefi-ca.pem"
+
+case "$CARCH" in
+aarch64) _format="arm64-efi";  _efi_sfx="aa64";;
+x86_64)  _format="x86_64-efi"; _efi_sfx="x64" ;;
+esac
+
+sign_list="
+	boot/efi/EFI/$VENDOR_DISTRO/grub$_efi_sfx.efi
+	usr/lib/grub/$_format/unified/gcd$_efi_sfx.efi.signed
+"
+sign_verify="bellsoft-uefi-ca.pem"
+
+package() {
+	mkdir -p "$pkgdir"/boot/efi/EFI/"$VENDOR_DISTRO"/
+	mkdir -p "$pkgdir"/usr/lib/grub/$_format/unified/
+	mkdir -p "$pkgdir"/boot/grub
+
+	cp /usr/lib/grub/$_format/unified/grub$_efi_sfx.efi \
+		"$pkgdir"/boot/efi/EFI/"$VENDOR_DISTRO"/grub$_efi_sfx.efi
+	cp /usr/lib/grub/$_format/unified/gcd$_efi_sfx.efi \
+		"$pkgdir"/usr/lib/grub/$_format/unified/gcd$_efi_sfx.efi.signed
+}
+
+sha512sums="
+304d6a2d2c25af142b2cf2222079ebf59b8174f0825840dfc88e60016e5fcfe12973e0a250b4172ff7ea77cdb014cb5fec1a474965fee97478a6dcd0cbe6bdd3  bellsoft-uefi-ca.pem
+"

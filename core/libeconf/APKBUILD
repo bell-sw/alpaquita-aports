@@ -1,0 +1,45 @@
+# Description: it is a performant library for parsing configuration files.
+
+pkgname=libeconf
+pkgver=0.4.7
+pkgrel=1
+pkgdesc="Enhanced configuration files parser"
+url="https://github.com/openSUSE/libeconf"
+arch="all"
+license="MIT"
+makedepends="meson"
+checkdepends="bash"
+subpackages="$pkgname-dev $pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/openSUSE/libeconf/archive/refs/tags/v$pkgver.tar.gz
+	gid_t.patch
+	musl:musl-tests.patch
+
+	0100-CVE-2023-22652.patch
+	0101-CVE-2023-32181.patch
+	"
+
+# secfixes:
+#   0.4.7-r1:
+#     - CVE-2023-22652
+#     - CVE-2023-32181
+
+build() {
+	abuild-meson -Db_lto=true . output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	meson test --no-rebuild --print-errorlogs -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+b2577eb33a72a8f7a2273e7e857bc2142033edab6357f63f9bb7b77b6d83316c541bb9d9796be435ebb8bbb776d1a0b9d39d14dfcc12a344332a94321cdd8108  libeconf-0.4.7.tar.gz
+46cc26f6110ae488b523729fd707ea7992b57b8b5bdff0b8054bc27da30b8bec2535d6471a6a78b663066b676d32c09addd37159117b413a4c4f08ae8199ee6f  gid_t.patch
+28431c1f80ee7815991584ef6307dabe593b4da58b9406e6f1a9cb30bfba3e925a48c83b0d3824427631bede5b1249b0c87e0d9fb55971d4ecf90805076b25dd  musl-tests.patch
+1590e4fa83df46d0eabaa4ff62162ae78f9b3988c729cbf7583f396317fe2156b2c1a5cc72e213a87f906a50fe8412b0a06784fa4c43edca80622f77707c37d0  0100-CVE-2023-22652.patch
+69487cc25f9247661f5e91dca38d94f72926d21967a4349e7c40b1786a9e56aeaaabe93fb93392784862d3fedb51754d5c18d345e4f68c43488e5b63681a102e  0101-CVE-2023-32181.patch
+"

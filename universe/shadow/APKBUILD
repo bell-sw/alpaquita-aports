@@ -1,0 +1,180 @@
+pkgname=shadow
+pkgver=4.13
+pkgrel=1
+pkgdesc="PAM-using login and passwd utilities (usermod, useradd, ...)"
+url="https://github.com/shadow-maint/shadow"
+arch="all"
+license="BSD-3-Clause"
+options="suid"
+makedepends="linux-pam-dev libcap-dev cmd:setcap"
+install="$pkgname.post-upgrade"
+subpackages="
+	$pkgname-dbg
+	$pkgname-dev
+	$pkgname-libs
+	$pkgname-login
+	$pkgname-login-doc:_login_doc:noarch
+	$pkgname-doc
+	$pkgname-conv
+	$pkgname-subids
+	"
+source="https://github.com/shadow-maint/shadow/releases/download/$pkgver/shadow-$pkgver.tar.xz
+	useradd-defaults.patch
+	0100-CVE-2023-29383.patch
+	0101-CVE-2023-4641.patch
+
+	chpasswd.pamd
+	login.pamd
+	useradd.pamd
+	"
+# secfixes:
+#   4.13-r1:
+#     - CVE-2023-29383
+#     - CVE-2023-4641
+#   4.5-r0:
+#     - CVE-2017-12424
+#   4.2.1-r11:
+#     - CVE-2017-2616
+#   4.2.1-r7:
+#     - CVE-2016-6252
+
+# login utils included in subpackage shadow-login.
+_login_cmds='faillog lastlog login newgrp nologin sg su'
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--target=$CTARGET \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--disable-account-tools-setuid \
+		--disable-nls \
+		--without-audit \
+		--with-libpam \
+		--without-selinux \
+		--without-acl \
+		--without-attr \
+		--without-tcb \
+		--with-yescrypt \
+		--without-nscd \
+		--without-group-name-max-length \
+		--with-fcaps
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	make -C man DESTDIR="$pkgdir" install-man
+
+	# Do not install these pam.d files they are broken and outdated.
+	rm "$pkgdir"/etc/pam.d/*
+
+	cd "$pkgdir"
+
+	# Avoid conlict with coreutils-doc package.
+	rm usr/share/man/man1/groups.*
+
+	# Avoid conflict with man-pages package.
+	rm usr/share/man/man3/getspnam.3*
+	rm usr/share/man/man5/passwd.5*
+
+	local f; for f in groupadd groupdel groupmems groupmod \
+		useradd userdel usermod newusers
+	do
+		install -m0644 "$srcdir"/useradd.pamd etc/pam.d/$f
+	done
+
+	# Install our own for login.
+	install -m644 "$srcdir"/login.pamd etc/pam.d/login
+
+	# Also install custom pam configuration for chpasswd (see bug #10209).
+	install -m644 "$srcdir"/chpasswd.pamd etc/pam.d/chpasswd
+
+	# /etc/login.defs is not very useful - replace it with an *almost* blank file.
+	rm etc/login.defs
+	echo "USERGROUPS_ENAB yes" > etc/login.defs
+
+	# Used e.g. for unprivileged LXC containers.
+	install -m644 /dev/null etc/subuid
+	install -m644 /dev/null etc/subgid
+
+	# binaries and libraries must be under usr/
+	local dir; for dir in bin sbin lib; do
+		mkdir -p usr/$dir
+		mv $dir/* usr/$dir
+	done
+}
+
+login() {
+	pkgdesc="Login utils from shadow package: ${_login_cmds// /, }"
+	# Commands in conflict with util-linux-login: newgrp login nologin su
+	provides="login-utils"
+	provider_priority=10  # lowest (other provider is util-linux-login)
+	replaces="$pkgname"  # for backward compatibility (Alpine <3.16)
+
+	cd "$pkgdir"
+
+	local cmd dir
+	for cmd in $_login_cmds; do
+		for dir in bin sbin usr/bin usr/sbin; do
+			if [ -e $dir/$cmd ] || [ -L $dir/$cmd ]; then
+				amove $dir/$cmd
+				continue 2
+			fi
+		done
+		error "file $cmd not found"
+		return 1
+	done
+
+	amove etc/pam.d/login
+}
+
+_login_doc() {
+	pkgdesc="Login utils from shadow package (documentation)"
+	depends="!util-linux-login-doc"
+	replaces="$pkgname-doc"  # for backward compatibility (Alpine <3.16)
+	install_if="docs $pkgname-login=$pkgver-r$pkgrel"
+
+	local cmd; for cmd in $_login_cmds; do
+		amove usr/share/man/man*/$cmd.*
+	done
+
+	find "$subpkgdir"/usr/share/man -type f -exec gzip -9 {} \;
+}
+
+conv() {
+	pkgdesc="Utilities for converting to and from shadow passwords and groups"
+	replaces="$pkgname"  # for backward compatibility
+
+	local i; for i in pwconv pwunconv grpconv grpunconv; do
+		amove usr/sbin/$i
+	done
+}
+
+subids() {
+	pkgdesc="Utilities for using subordinate UIDs and GIDs"
+	depends=""
+	provides="$pkgname-uidmap=$pkgver-r$pkgrel"  # for backward compatibility (Alpine <3.16)
+
+	amove usr/bin/getsubids
+	amove usr/bin/new*idmap
+	amove etc/subuid
+	amove etc/subgid
+}
+
+sha512sums="
+2949a728c3312bef13d23138d6b79caf402781b1cb179e33b5be546c1790971ec20778d0e9cd3dbe09691d928ffcbe88e60da42fab58c69a90d5ebe5e3e2ab8e  shadow-4.13.tar.xz
+fa2e639b558b504f664dfb55c9081ae51d5adfd512263a392ea0b21b5d4c7efe5456e9a13f8c4c27d32f3bbf68339f8a77ba6ad09f22e16681c144e1f6bb3034  useradd-defaults.patch
+4c7d16a15a5b1b422db9da6c2bd2dd985640a384cb91ed9bf77460290b1c41c1f4b99d468c3675882f29cbeb365a7906c64ed0cfdd311d63d4f9e0de2aa42e5b  0100-CVE-2023-29383.patch
+87ceb5dd5a56f6bdfc23aa96beedd9691203b414a73be4c896a4da76e23e433d1b1920b7362583610681c859b822c5d5b2d51bd73a3dabd92fe8388a34896845  0101-CVE-2023-4641.patch
+7eff04de1004aa6bffcad1c32f52e8a06b338a3a1a1146dc4306d399d65e05b4f59ac62aa545351fc4a0deff13ea8b3acd7000d984d043bf4209008b900be8d6  chpasswd.pamd
+8d1c7043719af9ee1473fdb482e054ca0e0fa1ac673cb9c7db96a6aad00382456225dea05267dab96e19d5f444a00681e8dbaf7399100c75424fd388d48ad68b  login.pamd
+1c4f7d9057855a187d5f3cac6cb6486e7da5ef374f7b8a3058e2d385304b02fb7bd7127c9fecb7c2e3bdb179c210b4c2c31eba3d3d4559928c55a9e63e52f70f  useradd.pamd
+"

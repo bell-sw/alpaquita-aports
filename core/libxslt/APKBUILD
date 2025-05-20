@@ -1,0 +1,67 @@
+# Description: This package contains the libxslt library that can be used by
+# applications for performing XSLT transformations.
+
+pkgname=libxslt
+pkgver=1.1.37
+pkgrel=2
+pkgdesc="XSLT 1.0 processing library"
+url="http://xmlsoft.org/XSLT/"
+arch="all"
+license="custom"
+makedepends="autoconf automake libtool libxml2-dev libgcrypt-dev libgpg-error-dev"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
+source="https://download.gnome.org/sources/libxslt/${pkgver%.*}/libxslt-$pkgver.tar.xz
+	0100-CVE-2024-55549.patch
+	0101-CVE-2025-24855.patch
+	"
+
+# secfixes:
+#   1.1.37-r2:
+#     - CVE-2024-55549
+#     - CVE-2025-24855
+#   1.1.35-r0:
+#     - CVE-2021-30560
+#   1.1.34-r0:
+#     - CVE-2019-13117
+#     - CVE-2019-13118
+#   1.1.33-r3:
+#     - CVE-2019-18197
+#   1.1.33-r1:
+#     - CVE-2019-11068
+#   1.1.29-r1:
+#     - CVE-2017-5029
+#   0:
+#     - CVE-2022-29824
+
+prepare() {
+	default_prepare
+	chmod 644 python/tests/*
+	
+	# can't detect py3.10 otherwise
+	autoreconf -fvi
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--with-python=no \
+		--enable-static
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -D -m644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+}
+
+sha512sums="
+a4e477d2bb918b7d01945e2c7491c3a4aae799dc1602bbd13de55c8a5052e210a20bc45115347eae44473c8b1d03dbc5e4a2aa18c2218f1fdfd376d87cd501ca  libxslt-1.1.37.tar.xz
+ca73f4811bb922506ceabe578fa3152768dc574788b6803538a2d8dd8e42935a89bb8d5c9b5fb654270ff7a741ed0d927ab9ce3d2d9407844f3455730e4385c4  0100-CVE-2024-55549.patch
+89b0118ee8c20964fa5687dae07d327d9727ed258af0f726c88bff8f526729fb1ca969ba9bea24be000215f53684bff6967f16ded152c4c7b1d170da67dafb60  0101-CVE-2025-24855.patch
+"

@@ -1,0 +1,208 @@
+pkgname=apparmor
+pkgver=3.1.7
+pkgrel=0
+pkgdesc="Linux application security framework - mandatory access control for programs"
+url="https://gitlab.com/apparmor/apparmor/wikis/home"
+arch="all"
+license="GPL-2.0-only"
+depends="bash"
+makedepends="
+	autoconf
+	automake
+	bison
+	flex
+	gettext-dev
+	libtool
+	linux-headers
+	linux-pam-dev
+	perl-dev
+	py3-setuptools
+	python3-dev
+	sed
+	swig
+	"
+checkdepends="
+	dejagnu
+	py3-notify2
+	py3-psutil
+	py3-pyflakes
+	"
+subpackages="
+	libapparmor:_libapparmor
+	libapparmor-dev
+	py3-$pkgname:_py3_apparmor
+	perl-$pkgname:_perl_apparmor
+	$pkgname-utils:_apparmor_utils
+	$pkgname-utils-lang:_apparmor_utils_lang
+	$pkgname-profiles:_apparmor_profiles:noarch
+	$pkgname-pam:_apparmor_pam
+	$pkgname-vim:_apparmor_vim:noarch
+	$pkgname-openrc
+	$pkgname-doc
+	$pkgname-lang
+	"
+source="
+	https://launchpad.net/apparmor/${pkgver%.*}/$pkgver/+download/apparmor-$pkgver.tar.gz
+
+	apparmor.initd
+
+	musl:0001-Fix-linking-against-gettext-on-musl-libc.patch
+	0006-utils-adjust-rc-functions-for-aa-remove-unknown.patch
+	fix-dnsmasq-profile.patch
+	"
+options="!check" # checkdepends in community
+
+# test_entries_since_login fails
+[ "$CARCH" = "s390x" ] && options="!check"
+
+# secfixes:
+#   3.1.7-r0:
+#     - CVE-2016-1585
+
+prepare() {
+	default_prepare
+
+	common/list_af_names.sh > parser/base_af_names.h
+}
+
+build() {
+	export PYTHON_VERSION=3
+	export PYTHON_VERSIONS=python3
+	export PYTHON=/usr/bin/python3
+
+	(
+		cd "$builddir"/libraries/libapparmor
+		msg "Building: libapparmor"
+		./configure \
+			--prefix=/usr \
+			--with-python \
+			--with-perl
+		make
+	)
+
+	msg "Building: apparmor parser"
+	make -C parser
+
+	msg "Building: apparmor-binutils"
+	make -C binutils
+
+	msg "Building: apparmor-utils"
+	make -C utils
+
+	msg "Building: apparmor-profiles"
+	make -C profiles
+
+	msg "Building: apparmor-pam"
+	make -C changehat/pam_apparmor
+
+	msg "Building: apparmor-vim"
+	make -C utils/vim
+}
+
+check() {
+	cd "$builddir"/libraries/libapparmor
+	make check
+
+	cd "$builddir"
+	make -C parser check
+	make -C binutils check
+	make -j1 -e PYFLAKES=pyflakes-3 -C utils check
+}
+
+package() {
+	make -C libraries/libapparmor install DESTDIR="$pkgdir"
+	make -C changehat/pam_apparmor install DESTDIR="$pkgdir"
+	make -C binutils install DESTDIR="$pkgdir" BINDIR="$pkgdir/usr/bin"
+	make -C parser install DESTDIR="$pkgdir" BINDIR="$pkgdir/usr/bin"
+	make -C profiles install DESTDIR="$pkgdir"
+	make -C utils install \
+		DESTDIR="$pkgdir" \
+		BINDIR="$pkgdir/usr/bin" \
+		VIM_INSTALL_PATH="$pkgdir/usr/share/vim/vimfiles/syntax"
+
+	mv "$pkgdir"/lib "$pkgdir"/usr/lib
+
+	mkdir -p "$pkgdir"/usr/libexec/apparmor "$pkgdir"/lib
+	mv "$pkgdir"/usr/lib/lib/apparmor/rc.apparmor.functions \
+		"$pkgdir"/usr/libexec/apparmor/
+	mv "$pkgdir"/usr/lib/lib/security "$pkgdir"/lib
+	rm -r "$pkgdir"/usr/lib/lib/
+
+	install -Dm755 "$srcdir"/apparmor.initd \
+		"$pkgdir"/etc/init.d/apparmor
+
+	install -Dm644 changehat/pam_apparmor/README \
+		"$pkgdir"/usr/share/doc/apparmor/README.pam_apparmor
+}
+
+_libapparmor() {
+	pkgdesc="AppArmor library"
+	depends="bash sed"
+
+	amove usr/lib/libapparmor.so.*
+}
+
+_py3_apparmor() {
+	pkgdesc="Python3 module for apparmor"
+	depends="libapparmor=$pkgver-r$pkgrel python3"
+
+	amove usr/lib/python3*/site-packages/LibAppArmor*
+}
+
+_perl_apparmor() {
+	pkgdesc="Perl module for apparmor"
+	depends="libapparmor=$pkgver-r$pkgrel perl"
+
+	amove usr/lib/perl5
+}
+
+_apparmor_utils() {
+	pkgdesc="AppArmor userspace utilities"
+	depends="py3-apparmor libapparmor=$pkgver-r$pkgrel perl python3 bash"
+
+	amove etc/apparmor/easyprof.conf
+	amove etc/apparmor/logprof.conf
+	amove etc/apparmor/notify.conf
+	amove etc/apparmor/severity.db
+	amove usr/bin
+	amove usr/sbin
+	amove usr/lib/python3*/site-packages/apparmor*
+	amove usr/share/apparmor/easyprof
+}
+
+_apparmor_utils_lang() {
+	pkgdesc="Languages for package $subpkgname"
+	install_if="$pkgname-utils=$pkgver-r$pkgrel lang"
+
+	amove usr/share/locale/*/LC_MESSAGES/*utils.mo
+}
+
+_apparmor_profiles() {
+	pkgdesc="AppArmor sample pre-made profiles"
+	depends="apparmor"
+
+	amove etc/apparmor.d
+	amove usr/share/apparmor/extra-profiles
+}
+
+_apparmor_pam() {
+	pkgdesc="AppArmor PAM library"
+	depends="libapparmor=$pkgver-r$pkgrel linux-pam"
+
+	amove lib/security
+}
+
+_apparmor_vim() {
+	pkgdesc="AppArmor VIM support"
+	install_if="$pkgname-vim=$pkgver-r$pkgrel vim"
+
+	amove usr/share/vim
+}
+
+sha512sums="
+7984a3cfd251f82c08604eb3c584ea5a84600c5fbe3a25834ba550c7a1bebb8b1b0216092a9a497eac2ba32a3f880495d024acf641212bce0041698ac5ff8552  apparmor-3.1.7.tar.gz
+1a57cc577ba3aedfbe10ef6148c1e8f5d0bbf65c99e60eec80c52409c9dab59ae002024500c6e4fd0e01e8c7aeb0c85e3e6b41cacee08c17fdd869d31bca614e  apparmor.initd
+e94f44427ed3c6f64462170939ffc92ce9ac1a58c61c7c7c3483fe16fe8e1c419daade9d56cdd342132e4d823dcac1963a86ad889f10bf71fd52b7f54c4694ed  0001-Fix-linking-against-gettext-on-musl-libc.patch
+38ebb30a0185f8eabd9103925959da365f64ef485f66ffb10180ac596fc172f9c98df39baec0b035138e9ab32056148e69a066faba9faebf9e92bf7a09c150c0  0006-utils-adjust-rc-functions-for-aa-remove-unknown.patch
+0131e9274a1e8d82bf71919a942b2801895189b9e993d8c4cd9c6565cd3c03645d042fe15f49ec456addd722b2f15854ae76c2053c511f22b3837395f3b304df  fix-dnsmasq-profile.patch
+"

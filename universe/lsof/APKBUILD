@@ -1,0 +1,31 @@
+pkgname=lsof
+pkgver=4.96.4
+pkgrel=0
+pkgdesc="LiSt Open Files"
+url="https://github.com/lsof-org/lsof"
+arch="all"
+license="lsof"
+subpackages="$pkgname-doc"
+makedepends="linux-headers"
+source="$pkgname-$pkgver.tar.gz::https://github.com/lsof-org/lsof/archive/$pkgver/lsof-$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+
+	sed -i "s|/\* #define\tHASSECURITY\t1 \*/|#define\tHASSECURITY\t1|" \
+		dialects/linux/machine.h
+}
+
+build() {
+	./Configure -n linux
+	make
+}
+
+package() {
+	install -Dm0755 lsof "$pkgdir"/usr/bin/lsof
+	install -Dm0644 Lsof.8 "$pkgdir"/usr/share/man/man8/lsof.8
+}
+
+sha512sums="
+06f8005e1eb72324c1fd603d8b8287a61ad6fdec182e9da833991a8915aaa69c416af1564d3b1087cb08b3504ef9b15cdffec7051605e89d945d6750ec8da985  lsof-4.96.4.tar.gz
+"

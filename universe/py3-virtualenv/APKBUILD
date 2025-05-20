@@ -1,0 +1,42 @@
+pkgname=py3-virtualenv
+pkgver=20.16.7
+pkgrel=1
+pkgdesc="Virtual Python3 Environment builder"
+options="!check" # Requires unpackaged 'flaky'
+url="https://virtualenv.pypa.io/en/latest/"
+arch="noarch"
+license="MIT"
+depends="python3 py3-platformdirs py3-distlib py3-filelock"
+makedepends="py3-setuptools"
+checkdepends="py3-pytest py3-six"
+[ -n "BOOTSTRAP" ] && options="!check" # To break a cyclic dependency on py3-pytest
+source="https://files.pythonhosted.org/packages/source/v/virtualenv/virtualenv-$pkgver.tar.gz"
+builddir="$srcdir/virtualenv-$pkgver"
+
+replaces="py-virtualenv" # Backwards compatibility
+provides="py-virtualenv=$pkgver-r$pkgrel" # Backwards compatibility
+
+prepare() {
+	default_prepare
+
+	sed -e '/setuptools_scm/d' \
+		-e '/use_scm_verison=/,/}/d' \
+		-i setup.py
+	sed -i "/^\[metadata\]/a version = $pkgver" setup.cfg
+}
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+
+sha512sums="
+975298181696c4636a9567c29b4da5bad703d35fcf2a110cc24146e5bf7afe63b3fcb1f1601586b03bc0deef08c2278577bedf40cb21a7e07841986a9215dc69  virtualenv-20.16.7.tar.gz
+"

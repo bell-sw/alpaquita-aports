@@ -1,0 +1,43 @@
+pkgname=libxmu
+pkgver=1.1.4
+pkgrel=0
+pkgdesc="X11 miscellaneous micro-utility library"
+url="http://xorg.freedesktop.org/"
+arch="all"
+license="MIT"
+subpackages="$pkgname-dev $pkgname-doc"
+depends_dev="util-linux-dev"
+makedepends="
+	libsm-dev
+	libx11-dev
+	libxext-dev
+	libxt-dev
+	util-linux-dev
+	util-macros
+	xmlto
+	"
+source="https://www.x.org/releases/individual/lib/libXmu-$pkgver.tar.xz"
+builddir="$srcdir"/libXmu-$pkgver
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--without-fop
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -Dm644 COPYING "$pkgdir"/usr/share/licenses/$pkgname/COPYING
+}
+
+sha512sums="
+3cf90cb3ff380aafefbb39297bdd95b9e1e6d6618cecb53ff09faf38f9b9c54599d28367f07a9ec77a20214c6c3e661b8d0a12b38082556790a79a59942039c1  libXmu-1.1.4.tar.xz
+"

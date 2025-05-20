@@ -1,0 +1,49 @@
+# Description: libuv package provides cross-platform tools for working with
+# asynchronous I/O with event loops.
+
+pkgname=libuv
+pkgver=1.44.2
+pkgrel=0
+pkgdesc="Library for asynchronous I/O"
+url="https://libuv.org/"
+arch="all"
+license="MIT AND ISC"
+makedepends_build="automake autoconf libtool"
+makedepends_host="linux-headers"
+subpackages="$pkgname-static $pkgname-dev $pkgname-dbg"
+source="https://dist.libuv.org/dist/v$pkgver/libuv-v$pkgver.tar.gz"
+builddir="$srcdir/$pkgname-v$pkgver"
+
+# secfixes:
+#   1.39.0-r0:
+#     - CVE-2020-8252
+
+prepare() {
+	default_prepare
+	sh autogen.sh
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make CFLAGS="$CFLAGS -D__USE_MISC" BUILDTYPE=Release
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	install -Dm644 LICENSE \
+		"$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+}
+
+sha512sums="
+91197ff9303112567bbb915bbb88058050e2ad1c048815a3b57c054635d5dc7df458b956089d785475290132236cb0edcfae830f5d749de29a9a3213eeaf0b20  libuv-v1.44.2.tar.gz
+"

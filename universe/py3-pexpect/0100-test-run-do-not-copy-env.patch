@@ -1,0 +1,28 @@
+We use BASH_XTRACEFD environment variable when running abuild in our CI
+infrastructure.  And when this test runs bash, it fails with the following
+error:
+
+  BASH_XTRACEFD: 10: invalid value for trace file descriptor
+
+So let's not copy environment variables at all.
+
+--- a/tests/test_run.py
++++ b/tests/test_run.py
+@@ -121,6 +121,7 @@
+             'bash --rcfile {0}'.format(self.rcfile),
+             withexitstatus=True,
+             events=events,
++            env={},
+             timeout=10)
+         assert exitstatus == 0
+ 
+--- a/tests/test_run.py
++++ b/tests/test_run.py
+@@ -134,6 +134,7 @@
+             'bash --rcfile {0}'.format(self.rcfile),
+             withexitstatus=True,
+             events=events,
++            env={},
+             timeout=10)
+         assert exitstatus == 0
+ 

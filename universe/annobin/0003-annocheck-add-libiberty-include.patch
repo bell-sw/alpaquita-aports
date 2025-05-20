@@ -1,0 +1,53 @@
+From 1794da8eb593374ce681ca873e4f415f1ce3ce79 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Wed, 24 Aug 2022 18:54:56 +0300
+Subject: [PATCH] annocheck: add libiberty include
+
+---
+ annocheck/Makefile.in | 2 +-
+ annocheck/meson.build | 3 +++
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/annocheck/Makefile.in b/annocheck/Makefile.in
+index 89f928a..49879d2 100644
+--- a/annocheck/Makefile.in
++++ b/annocheck/Makefile.in
+@@ -181,7 +181,7 @@ AM_V_at = $(am__v_at_@AM_V@)
+ am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
+ am__v_at_0 = @
+ am__v_at_1 = 
+-DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/gcc-plugin
++DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/gcc-plugin -I/usr/include/libiberty
+ depcomp =
+ am__maybe_remake_depfiles =
+ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
+diff --git a/annocheck/meson.build b/annocheck/meson.build
+index a69d190..91f8162 100644
+--- a/annocheck/meson.build
++++ b/annocheck/meson.build
+@@ -11,6 +11,7 @@ configure_file(
+ 
+ elf_lib = cxx.find_library('elf')
+ iberty_lib = cxx.find_library('iberty')
++iberty_incdir = include_directories('/usr/include/libiberty')
+ dw_lib = cxx.find_library('dw')
+ rpm_lib = cxx.find_library('rpm')
+ rpmio_lib = cxx.find_library('rpmio')
+@@ -37,6 +38,7 @@ annocheck = executable(
+   include_directories: [
+     toplevel_incdir,
+     gcc_plugin_incdir,
++    iberty_incdir,
+   ],
+ )
+ 
+@@ -60,5 +62,6 @@ libannocheck = shared_library(
+   include_directories: [
+     toplevel_incdir,
+     gcc_plugin_incdir,
++    iberty_incdir,
+   ]
+ )
+-- 
+2.25.1
+

@@ -1,0 +1,44 @@
+# Description: it is a Berkeley-style licensed library for command line editing.
+
+pkgname=libedit
+pkgver=20221030.3.1
+_ver=${pkgver/./-}
+pkgrel=0
+pkgdesc="BSD line editing library"
+url="https://www.thrysoee.dk/editline"
+arch="all"
+license="BSD-3-Clause"
+depends_dev="bsd-compat-headers ncurses-dev"
+makedepends_host="$depends_dev"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
+source="https://www.thrysoee.dk/editline/libedit-$_ver.tar.gz"
+builddir="$srcdir"/libedit-$_ver
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	# Prevent conflict with editline-doc and readline-doc
+	mv "$pkgdir"/usr/share/man/man3/editline.3 \
+		"$pkgdir"/usr/share/man/man3/libedit.3
+	rm "$pkgdir"/usr/share/man/man3/history.3*
+}
+
+sha512sums="
+41eb46feaffa909e8790b9a9e304d5246e82ab366721196126a923d68b4d4964d0a433fe238f9d5e0a00aefb5c8cb66132150792929a793785ad091d91016f97  libedit-20221030-3.1.tar.gz
+"

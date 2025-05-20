@@ -1,0 +1,14 @@
+diff --git a/src/mx/_impl/mx_native.py b/src/mx/_impl/mx_native.py
+index dabea6bc..47a0e4ff 100644
+--- a/mx/src/mx/_impl/mx_native.py
++++ b/mx/src/mx/_impl/mx_native.py
+@@ -374,7 +374,8 @@ class NinjaProject(MultiarchProject):
+ 
+     @property
+     def cflags(self):
+-        return self._cflags
++        cxxflags = os.environ.get('CXXFLAGS')
++        return self._cflags + (cxxflags.split() if cxxflags else [])
+ 
+     @property
+     def ldflags(self):

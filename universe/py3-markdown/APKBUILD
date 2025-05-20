@@ -1,0 +1,32 @@
+pkgname=py3-markdown
+_pkgname=Markdown
+pkgver=3.4.1
+pkgrel=1
+pkgdesc="Python3 implementation of Markdown"
+url="https://python-markdown.github.io/"
+arch="noarch"
+license="BSD-3-Clause"
+depends="python3"
+makedepends="py3-setuptools"
+checkdepends="py3-coverage py3-yaml"
+source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces="py-markdown" # Backwards compatibility
+provides="py-markdown=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 -m unittest discover tests
+}
+
+package() {
+	python3 setup.py install --root="$pkgdir"
+}
+
+sha512sums="
+73b0006ac8aaf281a2dbc2c14534853dbb7ab26a620f3961975279feb83334b6868fa4bbcd30767189201a0c84e502dacd16783de3808393699ace0cbaab30a8  Markdown-3.4.1.tar.gz
+"

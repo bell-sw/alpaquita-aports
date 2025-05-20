@@ -1,0 +1,42 @@
+pkgname=maven
+pkgver=3.8.8
+_pkgname="$pkgname-${pkgver%%.*}"
+pkgrel=0
+pkgdesc="A Java project management and project comprehension tool."
+url="https://maven.apache.org/"
+arch="noarch !riscv64"
+license="Apache-2.0"
+options="!check" # No test suite
+depends="java-jdk-no-deps"
+source="https://archive.apache.org/dist/maven/$_pkgname/$pkgver/binaries/apache-maven-$pkgver-bin.tar.gz"
+builddir="$srcdir/apache-$pkgname-$pkgver"
+
+package() {
+	local m2_home="/usr/share/java/$_pkgname"
+	local destdir="${pkgdir}$m2_home"
+
+	local dir; for dir in bin boot lib; do
+		mkdir -p "$destdir/$dir"
+	done
+
+	install -m644 -Dt "$destdir"/bin ./bin/*.conf
+	install -m644 -Dt "$destdir"/boot ./boot/*.jar
+	install -m644 -Dt "$destdir"/lib ./lib/*.jar
+	cp -Rp ./conf "$destdir"/
+
+	mkdir -p "$pkgdir"/usr/bin
+
+	local file; for file in mvn mvnDebug mvnyjp; do
+		install -m755 -Dt "$destdir"/bin ./bin/$file
+		ln -sf "$m2_home"/bin/$file "$pkgdir"/usr/bin/$file
+	done
+
+	mkdir "$pkgdir"/etc
+	cat > "$pkgdir"/etc/mavenrc <<-EOF
+		M2_HOME="$m2_home"
+	EOF
+}
+
+sha512sums="
+332088670d14fa9ff346e6858ca0acca304666596fec86eea89253bd496d3c90deae2be5091be199f48e09d46cec817c6419d5161fb4ee37871503f472765d00  apache-maven-3.8.8-bin.tar.gz
+"

@@ -1,0 +1,41 @@
+# Description:
+
+pkgname=dos2unix
+pkgver=7.4.3
+pkgrel=1
+pkgdesc="Text file format converters"
+url="https://waterlan.home.xs4all.nl/dos2unix.html"
+arch="all"
+license="BSD-2-Clause"
+checkdepends="gettext-dev perl-utils"
+subpackages="$pkgname-doc"
+source="https://waterlan.home.xs4all.nl/dos2unix/dos2unix-$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+	sed -e '/^LDFLAGS/s|=|+=|' \
+		-e '/CFLAGS_OS \+=/d' \
+		-e '/LDFLAGS_EXTRA \+=/d' \
+		-e "/^CFLAGS/s|-O2|${CFLAGS}|" \
+		-i Makefile
+}
+
+build() {
+	make ENABLE_NLS=
+}
+
+check() {
+	make check
+}
+
+package() {
+	make prefix=/usr \
+		docsubdir=$pkgname \
+		ENABLE_NLS= \
+		DESTDIR="$pkgdir" \
+		install
+}
+
+sha512sums="
+1c6d81348de8aca451174794141d0802685487cf6847fa91f7de745d89bcf2af864fc2ec549b9af72031891d4efcb9731fe823ce05da36d1f9e9890ff2cb60fb  dos2unix-7.4.3.tar.gz
+"

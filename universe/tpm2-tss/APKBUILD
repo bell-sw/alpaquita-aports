@@ -1,0 +1,156 @@
+pkgname=tpm2-tss
+pkgver=3.2.3
+pkgrel=0
+pkgdesc="TPM 2.0 TSS"
+url="https://github.com/tpm2-software/tpm2-tss/"
+pkgusers="tss"
+pkggroups="tss"
+arch="all"
+license="BSD-2-Clause"
+makedepends="
+	cmocka-dev
+	curl-dev
+	json-c-dev
+	linux-headers
+	openssl-dev>3
+	perl
+	"
+_depends_fapi="acl"
+subpackages="
+	$pkgname-doc
+	$pkgname-mu
+	$pkgname-sys
+	$pkgname-esys
+	$pkgname-tcti-device
+	$pkgname-tcti-mssim
+	$pkgname-tcti-swtpm
+	$pkgname-tcti-cmd
+	$pkgname-tcti-pcap
+	$pkgname-rc
+	$pkgname-tctildr
+	$pkgname-fapi
+	$pkgname-static
+	$pkgname-dev
+	"
+install="tpm2-tss-fapi.pre-install tpm2-tss-fapi.pre-upgrade tpm2-tss-fapi.post-install tpm2-tss-fapi.post-upgrade"
+source="
+	https://github.com/tpm2-software/tpm2-tss/releases/download/$pkgver/tpm2-tss-$pkgver.tar.gz
+	musl:musl-32bit-stat-workaround.patch
+	"
+
+#
+# secfixes:
+#   3.2.3-r0:
+#     - CVE-2024-29040
+#   3.2.2-r0:
+#     - CVE-2023-22745
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--localstatedir=/var \
+		--without-udevrulesdir \
+		--with-tctidefaultmodule=device \
+		--with-tctidefaultconfig=/dev/tpmrm0 \
+		--with-crypto=ossl \
+		--enable-unit
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir"/etc/tmpfiles.d
+	rm -rf "$pkgdir"/etc/sysusers.d
+}
+
+mu() {
+	pkgdesc="TPM 2.0 Marshaling libraries"
+
+	amove usr/lib/libtss2-mu.so.*
+}
+
+sys() {
+	pkgdesc="TPM 2.0 System API libraries"
+
+	amove usr/lib/libtss2-sys.so.*
+}
+
+esys() {
+	pkgdesc="TPM 2.0 Enhanced System API libraries"
+
+	amove usr/lib/libtss2-esys.so.*
+}
+
+device() {
+	pkgdesc="TPM 2.0 Device TCTI"
+	provides="libtss2-tcti"
+	provider_priority="100"
+
+	amove usr/lib/libtss2-tcti-device.so.*
+}
+
+mssim() {
+	pkgdesc="TPM 2.0 Simulator TCTI"
+	provides="libtss2-tcti"
+	provider_priority="10"
+
+	amove usr/lib/libtss2-tcti-mssim.so.*
+}
+
+rc() {
+	pkgdesc="TPM 2.0 RC libraries"
+
+	amove usr/lib/libtss2-rc.so.*
+}
+
+tctildr() {
+	pkgdesc="TPM 2.0 TCTI loader libraries"
+
+	amove usr/lib/libtss2-tctildr.so.*
+}
+
+fapi() {
+	depends="$_depends_fapi"
+	pkgdesc="TPM 2.0 FAPI libraries"
+
+	amove usr/lib/libtss2-fapi.so.* \
+		etc/tpm2-tss/fapi-config.json \
+		etc/tpm2-tss/fapi-profiles \
+		var/lib/tpm2-tss
+}
+
+swtpm() {
+	pkgdesc="TPM 2.0 SWTPM TCTI"
+	provides="libtss2-tcti"
+	provider_priority="10"
+
+	amove usr/lib/libtss2-tcti-swtpm.so.*
+}
+
+cmd() {
+	pkgdesc="TPM 2.0 CMD TCTI"
+	provides="libtss2-tcti"
+	provider_priority="10"
+
+	amove usr/lib/libtss2-tcti-cmd.so.*
+}
+
+pcap() {
+	pkgdesc="TPM 2.0 PCAP TCTI"
+	provides="libtss2-tcti"
+	provider_priority="10"
+
+	amove usr/lib/libtss2-tcti-pcap.so.*
+}
+
+sha512sums="
+0a06f07718a1a9622bbd35f960c9d71dc54267c477fa67f885e358a95716b475eedc83559952058ac4140df4cf8516e0154c0e017086e6b8a7dce26735c87acf  tpm2-tss-3.2.3.tar.gz
+5177b9a83b27124176d01d2a0213120916af0c3ebb5037990a860199aa5c41baed7d3e2876e1e7e94c4b2eb22a9f9f01bd152e454acbef8bbffad013debd65df  musl-32bit-stat-workaround.patch
+"

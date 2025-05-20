@@ -1,0 +1,34 @@
+# Description: ethtool package contains utilities to configure Ethernet devices
+# parameters.
+
+pkgname=ethtool
+pkgver=6.0
+pkgrel=0
+pkgdesc="Network drivers and hardware controlling tools"
+url="https://mirrors.edge.kernel.org/pub/software/network/ethtool/"
+arch="all"
+license="GPL-2.0-only"
+makedepends="linux-headers libmnl-dev"
+subpackages="$pkgname-doc $pkgname-bash-completion"
+source="https://www.kernel.org/pub/software/network/ethtool/ethtool-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+4a8b17ab71aaae3a74e2a82eab19e4ce147fda01af618aa1baaf4c337df22f968ab1f90569118c83ce0405bf0950cdab08212977e43dc0293239bb8e2ceb868a  ethtool-6.0.tar.xz
+"

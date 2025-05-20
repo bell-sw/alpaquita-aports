@@ -1,0 +1,36 @@
+pkgname=perl-uri
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=URI
+pkgver=5.17
+pkgrel=0
+pkgdesc="Uniform Resource Identifiers (absolute and relative)"
+replaces="perl-uri-escape"
+url="https://metacpan.org/release/URI/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+makedepends="perl-dev"
+checkdepends="perl-test-warnings perl-test-needs perl-test-fatal"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/O/OA/OALDERS/URI-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+52171e16137bfaa77ab31007245a561614c5c42336473022ebbe370b395d3052d3de80da0b42754ca2e0b09f47520ef96afdbdb72fe5c25cab87441eda03ec12  URI-5.17.tar.gz
+"

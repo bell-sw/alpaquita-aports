@@ -1,0 +1,340 @@
+pkgname=mesa
+pkgver=22.2.5
+pkgrel=1
+pkgdesc="Mesa DRI OpenGL library"
+url="https://www.mesa3d.org"
+arch="all"
+license="MIT SGI-B-2.0 BSL-1.0"
+subpackages="
+	$pkgname-dbg
+	$pkgname-dev
+	$pkgname-dri-gallium:_gallium
+	$pkgname-va-gallium:_va
+	$pkgname-vdpau-gallium:_vdpau
+	$pkgname-glapi
+	$pkgname-egl
+	$pkgname-gl
+	$pkgname-gles
+	$pkgname-xatracker
+	$pkgname-osmesa
+	$pkgname-gbm
+	$pkgname-vulkan-ati:_vulkan
+	$pkgname-vulkan-swrast:_vulkan
+	$pkgname-vulkan-layers:_vulkan_layers
+	$pkgname-libd3dadapter9
+	"
+_llvmver=15
+depends_dev="
+	libdrm-dev
+	libxext-dev
+	libxdamage-dev
+	libxcb-dev
+	libxshmfence-dev
+	"
+makedepends="
+	$depends_dev
+	bison
+	eudev-dev
+	expat-dev
+	findutils
+	flex
+	gettext
+	elfutils-dev
+	glslang-dev
+	libtool
+	libxfixes-dev
+	libva-dev
+	libvdpau-dev
+	libx11-dev
+	libxml2-dev
+	libxrandr-dev
+	libxxf86vm-dev
+	llvm$_llvmver-dev
+	meson
+	py3-mako
+	python3
+	vulkan-loader-dev
+	wayland-dev
+	wayland-protocols
+	xorgproto
+	zlib-dev
+	zstd-dev
+	"
+source="
+	https://mesa.freedesktop.org/archive/mesa-$pkgver.tar.xz
+	"
+replaces="mesa-dricore"
+options="!check" # we skip tests intentionally
+
+_dri_driverdir=/usr/lib/xorg/modules/dri
+_gallium_drivers="r300,r600,radeonsi,nouveau,swrast,virgl,zink"
+_vulkan_drivers="amd,swrast"
+_vulkan_layers="device-select,overlay"
+
+# extra gallium per arch
+case "$CARCH" in
+x86*)
+	_gallium_drivers="$_gallium_drivers,svga,i915,iris,crocus"
+	;;
+armhf|armv7|aarch64)
+	_gallium_drivers="$_gallium_drivers,vc4,v3d,freedreno,kmsro,lima,panfrost,etnaviv,tegra"
+	;;
+esac
+
+# extra vulkan per arch
+case "$CARCH" in
+x86*)
+	_vulkan_drivers="$_vulkan_drivers,intel"
+	_vulkan_layers="$_vulkan_layers,intel-nullhw"
+	subpackages="
+		$subpackages
+		$pkgname-vulkan-intel:_vulkan
+		"
+	;;
+aarch64)
+	_vulkan_drivers="$_vulkan_drivers,broadcom,freedreno,panfrost"
+	subpackages="
+		$subpackages
+		$pkgname-vulkan-broadcom:_vulkan
+		$pkgname-vulkan-freedreno:_vulkan
+		$pkgname-vulkan-panfrost:_vulkan
+		"
+	;;
+esac
+
+case "$CARCH" in
+x86)
+	# lto fails on x86 only
+	_lto=false
+	;;
+*)
+	# ~5% smaller
+	_lto=true
+	;;
+esac
+
+
+build() {
+	# use -g1 to generate less debug info:
+	# 485 MiB -> ~80 MiB
+	export CFLAGS="$CFLAGS -O2 -g1"
+	export CXXFLAGS="$CXXFLAGS -O2 -g1"
+	export CPPFLAGS="$CPPFLAGS -O2 -g1"
+
+	case "$CARCH" in
+	armhf|armv7)
+		# gnu2 tlsdesc is broken in binutils
+		export CFLAGS="$CFLAGS -mtls-dialect=gnu"
+		export CXXFLAGS="$CXXFLAGS -mtls-dialect=gnu"
+		;;
+	esac
+
+	PATH="$PATH:/usr/lib/llvm$_llvmver/bin" \
+	abuild-meson \
+		-Ddri-drivers-path=$_dri_driverdir \
+		-Dgallium-drivers=$_gallium_drivers \
+		-Dvulkan-drivers=$_vulkan_drivers \
+		-Dvulkan-layers=$_vulkan_layers \
+		-Dplatforms=x11,wayland \
+		-Dllvm=enabled \
+		-Dshared-llvm=enabled \
+		-Dshared-glapi=enabled \
+		-Dgbm=enabled \
+		-Dglx=dri \
+		-Dopengl=true \
+		-Dosmesa=true \
+		-Dgles1=enabled \
+		-Dgles2=enabled \
+		-Degl=enabled \
+		-Dgallium-extra-hud=true \
+		-Dgallium-xa=enabled \
+		-Dgallium-vdpau=enabled \
+		-Dgallium-va=enabled \
+		-Dgallium-nine=true \
+		-Dvideo-codecs=h264dec,h264enc,h265dec,h265enc \
+		-Db_ndebug=true \
+		-Db_lto=$_lto \
+		. output
+
+	# Print config
+	meson configure --no-pager output
+
+	# parallel build workaround
+	if [ "$CARCH" = "aarch64" ]; then
+		local build_first="
+		src/broadcom/cle/v3d_packet_v33_pack.h
+		src/broadcom/cle/v3d_packet_v41_pack.h
+		"
+	fi
+	ninja -C output \
+		src/compiler/nir/nir_intrinsics.h \
+		src/util/format/u_format_pack.h \
+		$build_first
+
+	meson compile -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+egl() {
+	pkgdesc="Mesa libEGL runtime libraries"
+	depends="mesa=$pkgver-r$pkgrel"
+
+	install -d "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libEGL.so* "$subpkgdir"/usr/lib/
+}
+
+gl() {
+	pkgdesc="Mesa libGL runtime libraries"
+	depends="mesa=$pkgver-r$pkgrel"
+
+	install -d "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libGL.so* "$subpkgdir"/usr/lib/
+}
+
+glapi() {
+	pkgdesc="Mesa shared glapi"
+	replaces="$pkgname-gles=$pkgver-r$pkgrel"
+
+	install -d "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libglapi.so.* "$subpkgdir"/usr/lib/
+}
+
+gles() {
+	pkgdesc="Mesa libGLESv2 runtime libraries"
+	depends="mesa=$pkgver-r$pkgrel"
+
+	install -d "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libGLES*.so* "$subpkgdir"/usr/lib/
+}
+
+xatracker() {
+	pkgdesc="Mesa XA state tracker for vmware"
+	depends="mesa=$pkgver-r$pkgrel"
+
+	install -d "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libxatracker*.so.* "$subpkgdir"/usr/lib/
+}
+
+osmesa() {
+	pkgdesc="Mesa offscreen rendering libraries"
+	depends="mesa=$pkgver-r$pkgrel"
+
+	install -d "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libOSMesa.so.* "$subpkgdir"/usr/lib/
+}
+
+gbm() {
+	pkgdesc="Mesa gbm library"
+	depends="mesa=$pkgver-r$pkgrel"
+
+	install -d "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libgbm.so.* "$subpkgdir"/usr/lib/
+}
+
+libd3dadapter9() {
+	pkgdesc="Mesa directx9 adapter"
+	depends="mesa=$pkgver-r$pkgrel"
+
+	amove usr/lib/d3d/d3dadapter9.so*
+}
+
+# Move links referencing the same file to the subpackage.
+# Usage: _mv_links <base directory> <example>
+# where <example> is one of the libraries covered by the megadriver.
+# The example is used to find other links that point to the same file.
+_mv_links() {
+	install -d "$subpkgdir"/$1
+	find -L "$pkgdir"/$1 -samefile "$pkgdir"/$1/$2 -print0 \
+		| xargs -0 -I{} mv {} "$subpkgdir"/$1/
+}
+
+_mv_vulkan() {
+	local i
+	install -d "$subpkgdir"/usr/lib
+	install -d "$subpkgdir"/usr/share/vulkan/icd.d
+	for i in "$@"; do
+		mv "$pkgdir"/usr/lib/libvulkan_$i.so "$subpkgdir"/usr/lib/
+		mv "$pkgdir"/usr/share/vulkan/icd.d/${i}* "$subpkgdir"/usr/share/vulkan/icd.d/
+	done
+}
+
+# Mesa uses "megadrivers" where multiple drivers are linked into one shared
+# library. This library is then hard-linked to separate files (one for each driver).
+# Each subpackage contains one megadriver so that all the hard-links are preserved.
+
+_gallium() {
+	pkgdesc="Mesa gallium DRI drivers"
+	depends="mesa=$pkgver-r$pkgrel"
+
+	# libgallium_dri.so
+	_mv_links $_dri_driverdir swrast_dri.so
+}
+
+_va() {
+	local n=${subpkgname##*-va-}
+	pkgdesc="Mesa $n VAAPI drivers"
+	depends="mesa=$pkgver-r$pkgrel libva"
+
+	case $n in
+	gallium)
+		# libgallium_drv_video.so
+		_mv_links /usr/lib/dri radeonsi_drv_video.so ;;
+	esac
+}
+
+_vdpau() {
+	local n=${subpkgname##*-vdpau-}
+	pkgdesc="Mesa $n VDPAU drivers"
+	depends="mesa=$pkgver-r$pkgrel libvdpau"
+
+	case $n in
+	gallium)
+		# libvdpau_gallium.so.1.0.0
+		_mv_links /usr/lib/vdpau libvdpau_radeonsi.so.1.0.0 ;;
+	esac
+}
+
+_vulkan() {
+	local n=${subpkgname##*-vulkan-}
+	pkgdesc="Mesa Vulkan API driver for $n"
+	depends="mesa=$pkgver-r$pkgrel"
+
+	case $n in
+	ati)
+		_mv_vulkan radeon ;;
+	intel)
+		_mv_vulkan intel ;;
+	broadcom)
+		_mv_vulkan broadcom ;;
+	freedreno)
+		_mv_vulkan freedreno ;;
+	panfrost)
+		_mv_vulkan panfrost ;;
+	swrast)
+		_mv_vulkan lvp ;;
+	esac
+}
+
+_vulkan_layers() {
+	pkgdesc="collection of vulkan layers from mesa"
+	depends="python3"
+
+	# Remove this after the release of the next stable (3.14)
+	# it originally was claed layer as it only packaged the
+	# overlay one but now it also packages device-select and
+	# intel-nullhw (on x86*)
+	provides="$pkgname-vulkan-layer=$pkgver-r$pkgrel"
+	replaces="$pkgname-vulkan-layer=$pkgver-r$pkgrel"
+
+	amove usr/share/vulkan/explicit_layer.d
+	amove usr/share/vulkan/implicit_layer.d
+	amove usr/lib/libVkLayer_*.so
+	amove usr/bin/mesa-overlay-control.py
+}
+
+sha512sums="
+9039cf31e719b66a6ecea48e7f871d187333a1accd3fa77ce2cb36ce539682dd50f09bccc11a0c35760051768108699cf90dfb0936809faf1e1294cc5d1ec0af  mesa-22.2.5.tar.xz
+"

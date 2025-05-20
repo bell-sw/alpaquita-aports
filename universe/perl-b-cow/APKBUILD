@@ -1,0 +1,34 @@
+pkgname=perl-b-cow
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=B-COW
+pkgver=0.007
+pkgrel=0
+pkgdesc="B::COW additional B helpers to check COW status"
+url="https://metacpan.org/release/B-COW/"
+arch="all"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+makedepends="perl-dev"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/A/AT/ATOOMIC/B-COW-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+889e5a57f679735f4f064bc59a7e4c1bec994cb123c83742a165e2ba62a17619e36659b3f0125b6dd6a15616da7100a9d04b66de293a8bf700847d294fe0a2c2  B-COW-0.007.tar.gz
+"

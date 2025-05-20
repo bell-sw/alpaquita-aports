@@ -1,0 +1,57 @@
+From bb576111c44992d8d044eb143d0169c59e26a399 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Wed, 7 Sep 2022 15:59:44 +0300
+Subject: [PATCH] hardened: add musl specific functions and libs
+
+---
+ annocheck/hardened.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/annocheck/hardened.c b/annocheck/hardened.c
+index 017437c..88354ce 100644
+--- a/annocheck/hardened.c
++++ b/annocheck/hardened.c
+@@ -586,6 +586,7 @@ skip_fortify_checks_for_function (annocheck_data * data, enum test_index check,
+       "_nss_files_parse_protoent",
+       "_nss_files_sethostent",
+       "_start",
++      "_start_c",
+       "abort",
+       "atexit",
+       "blacklist_store_name",
+@@ -690,6 +691,7 @@ skip_stack_checks_for_function (annocheck_data * data, enum test_index check, co
+       "_fini",
+       "_init",
+       "_start",
++      "_start_c",
+       "check_match", 	/* Found in AArch64, RHEL-8, /lib64/ld-2.28.so.  */
+       "check_one_fd",
+       "dlmopen_doit",
+@@ -790,6 +792,7 @@ is_special_glibc_binary (const char * path)
+ 	  "libBrokenLocale.a",
+ 	  "libc.a:",
+ 	  "libc_nonshared.a:",
++	  "libssp_nonshared.a:",
+ 	  "libm-2.34.a:",
+ 	  "libmvec.a:",
+ 	  "libresolv.a:"
+@@ -1128,6 +1131,7 @@ is_special_glibc_binary (const char * path)
+       "ld-linux-x86-64.so.1",
+       "ld-linux-x86-64.so.2",
+       "ld-linux.so.2",
++      "ld-musl-x86_64.so.1",
+       "ld64.so.1",
+       "ld64.so.2",
+       "ldconfig",
+@@ -1206,7 +1210,7 @@ skip_test_for_current_func (annocheck_data * data, enum test_index check)
+ 
+   if (is_special_glibc_binary (data->full_filename))
+     {
+-      sprintf (reason, "the %s binary is a special case, hand-crafted by the glibc build system", data->filename);
++      sprintf (reason, "the %s binary is a special case, hand-crafted by the libc build system", data->filename);
+       skip (data, check < TEST_MAX ? check : TEST_NOTES, SOURCE_SKIP_CHECKS, reason);
+       return true;
+     }
+-- 
+2.25.1
+

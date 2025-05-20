@@ -1,0 +1,60 @@
+From 977454d103fae6dfeca10a92c3d90918e9558940 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Wed, 31 Aug 2022 20:57:46 +0300
+Subject: [PATCH] allow common java rpath pattern with origin/..
+
+---
+ annocheck/hardened.c | 27 ++++++++++++++++++++++++---
+ 1 file changed, 24 insertions(+), 3 deletions(-)
+
+diff --git a/annocheck/hardened.c b/annocheck/hardened.c
+index 139c68a..017437c 100644
+--- a/annocheck/hardened.c
++++ b/annocheck/hardened.c
+@@ -3685,6 +3685,25 @@ origin_path_after_non_origin_path (const char * str)
+   return false;
+ }
+ 
++static bool
++single_double_dot(const char * str)
++{
++    size_t count = 0;
++
++    for (; *str; ++str) {
++        switch (*str) {
++        case '.':
++            if (++count > 2)
++                return false;
++            break;
++        case ':':
++            count = 0;
++            break;
++        }
++    }
++    return true;
++}
++
+ /* Check the runtime search paths found in a dynamic tag.  These checks attempt
+    to match the logic in /usr/lib/rpm/check-rpaths-worker, except that we do not
+    complain about the presence of standard library search paths.  Return true if
+@@ -3700,12 +3719,14 @@ check_runtime_search_paths (annocheck_data * data, const char * path)
+     maybe (data, TEST_RUN_PATH, SOURCE_DYNAMIC_SECTION, "the DT_RPATH/DT_RUNPATH dynamic tag exists but is empty");
+   else if (not_rooted_at_usr (path))
+     fail (data, TEST_RUN_PATH, SOURCE_DYNAMIC_SECTION, "the DT_RPATH/DT_RUNPATH dynamic tag contains a path that does not start with /usr");
+-  else if (strstr (path, "..") != NULL)
+-    /* If a path contains .. then it may not work if the portion before it is a symlink.  */
+-    fail (data, TEST_RUN_PATH, SOURCE_DYNAMIC_SECTION, "the DT_RPATH/DT_RUNPATH dynamic tag has a path that contains '..'");
+   else if (origin_path_after_non_origin_path (path))
+     /* Placing $ORIGIN paths after non-$ORIGIN paths is probably a mistake.  */
+     maybe (data, TEST_RUN_PATH, SOURCE_DYNAMIC_SECTION, "the DT_RPATH/DT_RUNPATH dynamic tag has $ORIGIN after a non-$ORIGIN path");
++  else if (strstr (path, "$ORIGIN/..") != NULL && single_double_dot(path))
++    return true;
++  else if (strstr (path, "..") != NULL)
++    /* If a path contains .. then it may not work if the portion before it is a symlink.  */
++    fail (data, TEST_RUN_PATH, SOURCE_DYNAMIC_SECTION, "the DT_RPATH/DT_RUNPATH dynamic tag has a path that contains '..'");
+   else
+     return true;
+   return false;
+-- 
+2.25.1
+

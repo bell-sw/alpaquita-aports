@@ -1,0 +1,22 @@
+pkgname=py3-hatchling
+pkgver=1.11.1
+pkgrel=2
+pkgdesc="Modern, extensible Python build backend"
+url="https://hatch.pypa.io/latest/"
+license="MIT"
+arch="noarch"
+depends="python3 py3-editables py3-packaging py3-pathspec py3-pluggy"
+makedepends="py3-installer"
+source="https://files.pythonhosted.org/packages/py3/h/hatchling/hatchling-$pkgver-py3-none-any.whl"
+options="!check"
+
+package() {
+	# this causes a lot of circular dependencies, namely this depends on
+	# poetry-core, which needs jsonschema, which needs this
+	python3 -m installer -d "$pkgdir" \
+		"$srcdir"/hatchling-$pkgver-py3-none-any.whl
+}
+
+sha512sums="
+7f45fb0e20c4a7769c12dc58805cd91ffb50de35f314eade923212ccb9c8de9f0b38ef5f1ba9098e089a7db1e770dc3b0602e264dcbc6d2c0fd41cb3ae27ce21  hatchling-1.11.1-py3-none-any.whl
+"

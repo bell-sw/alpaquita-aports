@@ -1,0 +1,102 @@
+pkgname=gst-plugins-base
+pkgver=1.20.7
+pkgrel=1
+pkgdesc="GStreamer streaming media framework base plug-ins"
+url="https://gstreamer.freedesktop.org"
+arch="all"
+license="GPL-2.0-or-later LGPL-2.0-or-later"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-lang"
+replaces="gst-plugins-base1 gst-plugins-bad"
+depends_dev="wayland-dev"
+makedepends="
+	alsa-lib-dev
+	cdparanoia-dev
+	expat-dev
+	glib-dev
+	gobject-introspection-dev
+	graphene-dev
+	gstreamer-dev
+	gtk+3.0-dev
+	libice-dev
+	libogg-dev
+	libsm-dev
+	libtheora-dev
+	libvorbis-dev
+	libxv-dev
+	mesa-dev
+	meson
+	opus-dev
+	orc-compiler
+	orc-dev
+	perl
+	"
+source="https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-$pkgver.tar.xz
+	0100-CVE-2024-4453.patch
+	0101-CVE-2024-47538.patch
+	0102-CVE-2024-47541.patch
+	0103-CVE-2024-47542.patch
+	0104-CVE-2024-47600.patch
+	0105-CVE-2024-47607.patch
+	0106-CVE-2024-47615.patch
+	0107-CVE-2024-47835.patch
+"
+# All upstream patches are relative to subprojects/gst-plugins-base
+patch_args="-p3"
+ldpath="/usr/lib/gstreamer-1.0"
+
+# secfixes:
+#   1.20.7-r1:
+#     - CVE-2024-4453
+#     - CVE-2024-47538
+#     - CVE-2024-47541
+#     - CVE-2024-47542
+#     - CVE-2024-47600
+#     - CVE-2024-47607
+#     - CVE-2024-47615
+#     - CVE-2024-47835
+#   1.20.7-r0:
+#     - CVE-2023-37327
+#     - CVE-2023-37328
+#   1.16.0-r0:
+#     - CVE-2019-9928
+
+# sporadic testsuite failures on various archs, testsuite fails with network
+# restricted too
+options="!check"
+
+build() {
+	abuild-meson \
+		-Db_lto=true \
+		-Dalsa=enabled \
+		-Dintrospection=enabled \
+		-Dpackage-origin="https://alpinelinux.org" \
+		-Dpackage-name="GStreamer base plug-ins (Alpaquita Linux)" \
+		-Dtests="$(want_check && echo enabled || echo disabled)" \
+		. output
+	meson compile ${JOBS:+-j ${JOBS}} -C output
+}
+
+check() {
+	make check
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+doc() {
+	default_doc
+	replaces="${pkgname}1-doc"
+}
+
+sha512sums="
+c8894fdb5b9549e776b322c3ac4bc3902855044be7329047b775f735ea146a5ab2e371349248494ed11c7cdea5389487761200473f32632e1480a25eca9279ff  gst-plugins-base-1.20.7.tar.xz
+695535dfc087c88ae093133e736daf49daea6616bbe458e87d2845f80e3758d525da0c81413ee3b3bd2d2c183616eed9a4bea9b7e8d5b89a7ced3ba82936c492  0100-CVE-2024-4453.patch
+380c46d0d4e052094bd0401753eb2a339c456e2878e1e1833f31bb39e5c25e1cd710182135de73ea4f715bdeb66aee8fdf882cf56257ae003d32df663e9d4860  0101-CVE-2024-47538.patch
+1791bb9647fadd58cdc3bce3caf7b1f2dd38f31914fb5aae423aa12ecfd1d900cba06999f1b2e33dbc89cbcb065402873b893edfa05dd0edaab628e8228a06a3  0102-CVE-2024-47541.patch
+709bbbb684976cc8630766537c72642666bbfd9e40f24f20d2082329e69cad6956d940e25b1769c1e276e9bc19a018cd99db1c154084ce0384260a985f1ef0e2  0103-CVE-2024-47542.patch
+a0274ab853f72874b38526d459acf07ab06e08dbf9ea01bc00cf4a7c33d535b66f773d503efff56a207df20badca23fe657dcf00ad1d5d00ac2a762dd603ad5f  0104-CVE-2024-47600.patch
+6c498913e678e98f3a0367a4b3b20399838f30c99edb8e8d888345ff6066089430936538a5f98e5a94f3fc83be2603c3b408e1661a6f24ecd5fec58a00ea615a  0105-CVE-2024-47607.patch
+e0bfa1895d5d2d4ca0c9b9f2fe7306421bd04b1e7092ce2d3120d55e0752bb90231b1aae229d465a380394728d05edd98f72d45e81c09035b4d637a6228e9914  0106-CVE-2024-47615.patch
+fefb1b8450d3b0f1ce718b3cb79d31867aa1b56b32e3f3a62c7d7208a5b063f3d58b895ca967d268aec295af4a0bc56ac049af9665380a9eaa130773752bcc9b  0107-CVE-2024-47835.patch
+"

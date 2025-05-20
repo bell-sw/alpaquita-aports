@@ -1,0 +1,37 @@
+pkgname=re2c
+pkgver=3.0
+pkgrel=0
+pkgdesc="Lexer generator for C, C++ and Go"
+url="http://www.re2c.org"
+arch="all"
+license="Public-Domain"
+checkdepends="python3"
+subpackages="$pkgname-doc"
+source="https://github.com/skvadrik/re2c/releases/download/$pkgver/re2c-$pkgver.tar.xz"
+
+# secfixes:
+#   1.3-r1:
+#     - CVE-2020-11958
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+147f5d2be36cbfe014cd0089297b4994ee95ed3179dec3c84222555636d937e2bdd22373a648efe59decf6810ce1d9d89d96908761a19aed848fa4185a3ca4cb  re2c-3.0.tar.xz
+"

@@ -1,0 +1,103 @@
+pkgname=tiny-cloud
+pkgver=2.1.2
+pkgrel=2
+pkgdesc="Tiny Cloud instance bootstrapper"
+url="https://gitlab.alpinelinux.org/alpine/cloud/tiny-cloud"
+arch="noarch"
+license="MIT"
+options="!check"  # no tests provided
+depends="e2fsprogs-extra eudev partx sfdisk"
+source="
+	$url/-/archive/$pkgver/$pkgname-$pkgver.tar.gz
+	0100-default-user.patch
+	0101-udev.patch
+	$pkgname-aws.post-install
+	$pkgname-azure.post-install
+	$pkgname-gcp.post-install
+	$pkgname-nocloud.post-install
+	$pkgname-oci.post-install
+"
+subpackages="
+	$pkgname-network
+	$pkgname-openrc
+	$pkgname-aws
+	$pkgname-azure
+	$pkgname-gcp
+	$pkgname-oci
+	$pkgname-nocloud
+"
+
+package() {
+	make PREFIX="$pkgdir" core openrc
+
+	# delete mdev-related files
+	rm "$pkgdir"/lib/tiny-cloud/mdev
+}
+
+network() {
+	pkgdesc="Tiny Cloud - networking module"
+	depends="ifupdown-ng iproute2-minimal $pkgname=$pkgver-r$pkgrel"
+	cd "$builddir"
+	make PREFIX="$subpkgdir" network
+
+	# keep "$subpkgdir"/lib/mdev/vnic-eth-hotplug
+	# to reuse it from an udev rule
+}
+
+aws() {
+	pkgdesc="Tiny Cloud - Amazon Web Services module"
+	depends="nvme-cli $pkgname-network=$pkgver-r$pkgrel"
+	provides="tiny-ec2-bootstrap"
+	install="$pkgname-aws.post-install"
+	cd "$builddir"
+	make PREFIX="$subpkgdir" aws
+
+	# delete mdev-related files
+	rm "$subpkgdir"/lib/tiny-cloud/aws/mdev
+
+	# keep "$subpkgdir"/lib/mdev/nvme-ebs-links
+	# to reuse it from an udev rule
+}
+
+azure() {
+	pkgdesc="Tiny Cloud - Azure module"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	install="$pkgname-azure.post-install"
+	cd "$builddir"
+	make PREFIX="$subpkgdir" azure
+}
+
+gcp() {
+	pkgdesc="Tiny Cloud - Google Cloud Platform module"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	install="$pkgname-gcp.post-install"
+	cd "$builddir"
+	make PREFIX="$subpkgdir" gcp
+}
+
+oci() {
+	pkgdesc="Tiny Cloud - Oracle Cloud Infrastructure module"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	install="$pkgname-oci.post-install"
+	cd "$builddir"
+	make PREFIX="$subpkgdir" oci
+}
+
+nocloud() {
+	pkgdesc="Tiny Cloud - NoCloud module"
+	depends="$pkgname=$pkgver-r$pkgrel yx"
+	install="$pkgname-nocloud.post-install"
+	cd "$builddir"
+	make PREFIX="$subpkgdir" nocloud
+}
+
+sha512sums="
+306aa9111c8b5d27cccc2505181dea08909d1ba3f6bf4e70c6fd329327c8d6fa74b6c67975896fc75760daaa2e040c2e6003e92eecf012197707d37dba777cfd  tiny-cloud-2.1.2.tar.gz
+042034226f6335d701e171fd4c5ec73c9ff7512d448c756df9100a85e29f0fcc256ec0b745306c40026b58fa0bc3b9048cbb9f636f009bab0de87a534e971603  0100-default-user.patch
+a39bc89d94c3633dd4492d89090896cabe1200c72a6e1b01de15b0289f1c7c4c80def5a1cee2eabfd5814d72811d406e676f3dbc49b37e17e838bf3c3f2c53ad  0101-udev.patch
+94489bc073afb6866e2d467b4bf2558130a5b3739d0578462baaa8565b1472ea38d3a556e73859f46c6f036868adb35019b19476f422b65c09012def679b7ff4  tiny-cloud-aws.post-install
+bbe5f1f81e9a0fd59e0fb3aa464edf1aca57518677ecc6ae15c4efb97a8488a70683bb491eabec2a003aefdddd6df9b405bff89e6b4c52d591cf038a99da57f2  tiny-cloud-azure.post-install
+8203da8d64c4626c4ae95e28d6e33c9bace21ba2a8c9dd566e9e20a97aa443f71a271534103fb9ce2b2d530ee256d76b2b857bcc7c89b66c7eeeae5aaa2855ad  tiny-cloud-gcp.post-install
+ae40de18ba0312616b045982052ed32c3815f5df1ddd3c95b169542c0617bbf1e6cf03deea0785a41dd180764d95ce74e2c75e09202acb92737ed2dd4357e5f4  tiny-cloud-nocloud.post-install
+a3a2c1df16df2f76e00a3b2f05c323bb0e4e36d2b3f8d0423492cb1bbcf269c516cca4abe330f188e51b72cf627644c62955d2b1b8a3da330c75e8f0f68b0a68  tiny-cloud-oci.post-install
+"

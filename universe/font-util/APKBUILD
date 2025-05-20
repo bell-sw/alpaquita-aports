@@ -1,0 +1,32 @@
+pkgname=font-util
+pkgver=1.3.3
+pkgrel=0
+pkgdesc="X.org font utilities"
+url="http://xorg.freedesktop.org/"
+arch="all"
+license="custom"
+options="!check"  # No test suite.
+depends="perl"
+depends_dev="font-util"
+makedepends="$depends_dev util-macros"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://www.x.org/releases/individual/font/font-util-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man
+	make
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install
+	mkdir -p "$pkgdir"/usr/share/licenses/"$pkgname"
+	install -m644 COPYING "$pkgdir"/usr/share/licenses/"$pkgname"/copyright
+}
+
+sha512sums="
+5e1cb8af44fe0bea72b1a6a4e455f50ca49b7531c2f4b605800c0b2b7578b9826ccf17fa195c505ab1d6339fd4ad697c01ba3b9777616f354ab62b23434d47c9  font-util-1.3.3.tar.xz
+"

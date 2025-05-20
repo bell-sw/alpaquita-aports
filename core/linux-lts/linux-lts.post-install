@@ -1,0 +1,12 @@
+#!/bin/sh
+
+name="$(basename $0)"
+pkgver="$1"
+flavor="lts"
+echo "$name" | grep -q "lts-debug" && flavor="lts-debug"
+
+version="${pkgver/-r/-}-$flavor"
+menuentry_id=$(grub-mkconfig 2>/dev/null | awk -F\' '$/^menuentry / {print $4}' | grep "$version-adv")
+[ -n "$menuentry_id" ] && grub-set-default "$menuentry_id"
+
+exit 0

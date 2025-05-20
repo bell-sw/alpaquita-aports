@@ -1,0 +1,76 @@
+pkgname=sudo
+pkgver=1.9.15_p5
+if [ "${pkgver%_*}" != "$pkgver" ]; then
+	_realver=${pkgver%_*}${pkgver#*_}
+else
+	_realver=$pkgver
+fi
+pkgrel=0
+pkgdesc="Give certain users the ability to run some commands as root"
+url="https://www.sudo.ws/sudo/"
+arch="all"
+license="custom ISC"
+makedepends="zlib-dev bash mandoc"
+subpackages="$pkgname-doc $pkgname-dev"
+source="https://www.sudo.ws/dist/sudo-$_realver.tar.gz"
+options="suid"
+builddir="$srcdir/sudo-$_realver"
+
+# secfixes:
+#   1.9.15_p5-r0:
+#     - CVE-2023-28486
+#     - CVE-2023-28487
+#     - CVE-2023-42465
+#   1.9.12_p2-r1:
+#     - CVE-2023-27320
+#   1.9.12_p2-r0:
+#     - CVE-2023-22809
+#   1.9.5p2-r0:
+#     - CVE-2021-3156
+#   1.9.5-r0:
+#     - CVE-2021-23239
+#     - CVE-2021-23240
+#   1.8.31-r0:
+#     - CVE-2019-18634
+#   1.8.28-r0:
+#     - CVE-2019-14287
+#   1.8.20_p2-r0:
+#     - CVE-2017-1000368
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--libexecdir=/usr/lib \
+		--mandir=/usr/share/man \
+		--disable-nls \
+		--enable-pie \
+		--with-env-editor \
+		--with-mdoc \
+		--without-pam \
+		--without-skey \
+		--with-sendmail=/usr/sbin/sendmail \
+		--with-passprompt="[sudo] password for %p: "
+
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	# the sudo's mkinstalldir script miscreates the leading
+	# path components with bad permissions. fix this.
+	install -d -m0755 "$pkgdir"/var "$pkgdir"/var/db
+	make -j1 DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir"/var/run
+
+	# Exactly the same as /etc/sudoers
+	rm "$pkgdir"/etc/sudoers.dist
+}
+
+sha512sums="
+ebac69719de2fe7bd587924701bdd24149bf376a68b17ec02f69b2b96d4bb6fa5eb8260a073ec5ea046d3ac69bb5b1c0b9d61709fe6a56f1f66e40817a70b15a  sudo-1.9.15p5.tar.gz
+"

@@ -1,0 +1,45 @@
+# Description:
+
+pkgname=py3-more-itertools
+_pkgname=more-itertools
+pkgver=9.0.0
+pkgrel=1
+pkgdesc="More routines for operating on iterables, beyond itertools"
+url="https://github.com/more-itertools/more-itertools"
+arch="noarch"
+license="MIT"
+depends="python3"
+makedepends="py3-installer"
+source="https://github.com/more-itertools/more-itertools/archive/v$pkgver/more-itertools-$pkgver.tar.gz
+	https://files.pythonhosted.org/packages/py3/m/more_itertools/more_itertools-$pkgver-py3-none-any.whl
+	"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+replaces="py-more-itertools" # Backwards compatibility
+provides="py-more-itertools=$pkgver-r$pkgrel" # Backwards compatibility
+
+prepare() {
+	default_prepare
+
+	# use tests from GitHub tarball, but source code from wheel
+	unzip -q "$srcdir"/more_itertools-$pkgver-py3-none-any.whl -d "$srcdir"/wheel
+}
+
+build() {
+	# install directly from pypi tarball to avoid circular dep with py3-setuptools
+	return 0
+}
+
+check() {
+	PYTHONPATH="$srcdir/wheel" python3 -m unittest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		"$srcdir"/more_itertools-$pkgver-py3-none-any.whl
+}
+
+sha512sums="
+727ce0773312ffe9cdd819e6d88ad0e039714a4df8ee6f363ff88a458762defcf24c8a30c3e32801a70f19f05ec886551688cf161919e7dc55de9952e724ead4  more-itertools-9.0.0.tar.gz
+0720c8db72dc1eddf8d5c514f91fb4dd27bb724970d350dcbb2d294bdc53fc6c44ba31f14593c5e716cd23b0b2896f6412287cb2573fb2c81f8a940bab74dc6f  more_itertools-9.0.0-py3-none-any.whl
+"

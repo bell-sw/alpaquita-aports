@@ -1,0 +1,262 @@
+# Description: curl is a command line tool and library for URL transfers by
+# means of Internet protocols.
+
+# RESTRICTED: Do NOT enable the rustls or hyper backends, as they depend on Rust
+# and Rust is not yet available on all architectures.  Any commit which changes
+# this aport from arch=all WILL be reverted.
+
+pkgname=curl
+pkgver=8.9.1
+pkgrel=2
+pkgdesc="Command line tool for data transfer with URL syntax"
+url="https://curl.se/"
+arch="all"
+license="curl"
+depends="ca-certificates libcurl=$pkgver-r$pkgrel"
+depends_dev="openssl-dev>3 nghttp2-dev zlib-dev brotli-dev"
+checkdepends="nghttp2 python3"
+makedepends_host="$depends_dev"
+makedepends_build="autoconf automake groff libtool perl"
+subpackages="$pkgname-dbg $pkgname-static $pkgname-doc $pkgname-dev libcurl"
+[ -z "$BOOTSTRAP" ] && subpackages="$subpackages $pkgname-zsh-completion $pkgname-fish-completion"
+source="
+	https://curl.se/download/curl-$pkgver.tar.xz
+	0100-CVE-2024-9681.patch
+	0101-CVE-2024-11053.patch
+	0102-CVE-2025-0167.patch
+	"
+options="net" # Required for running tests
+[ -n "$BOOTSTRAP" ] && options="$options !check" # remove python3 dependency
+
+# secfixes:
+#   8.9.1-r2:
+#     - CVE-2024-11053
+#     - CVE-2025-0167
+#   8.9.1-r1:
+#     - CVE-2024-9681
+#   8.9.1-r0:
+#     - CVE-2024-7264
+#   8.9.0-r0:
+#     - CVE-2024-6197
+#     - CVE-2024-6874
+#   8.7.1-r0:
+#     - CVE-2024-2004
+#     - CVE-2024-2379
+#     - CVE-2024-2398
+#     - CVE-2024-2466
+#   8.5.0-r1:
+#     - CVE-2024-0853
+#   8.5.0-r0:
+#     - CVE-2023-46218
+#     - CVE-2023-46219
+#   8.4.0-r0:
+#     - CVE-2023-38545
+#     - CVE-2023-38546
+#   8.3.0-r0:
+#     - CVE-2023-38039
+#   8.1.0-r0:
+#     - CVE-2023-28319
+#     - CVE-2023-28320
+#     - CVE-2023-28321
+#     - CVE-2023-28322
+#   7.88.1-r1:
+#     - CVE-2023-27533
+#     - CVE-2023-27534
+#     - CVE-2023-27535
+#     - CVE-2023-27536
+#     - CVE-2023-27537
+#     - CVE-2023-27538
+#   7.87.0-r2:
+#     - CVE-2023-23914
+#     - CVE-2023-23915
+#     - CVE-2023-23916
+#   7.87.0-r0:
+#     - CVE-2022-43551
+#     - CVE-2022-43552
+#   7.86.0-r0:
+#     - CVE-2022-32221
+#     - CVE-2022-35260
+#     - CVE-2022-42915
+#     - CVE-2022-42916
+#   7.85.0-r0:
+#     - CVE-2022-35252
+#   7.84.0-r0:
+#     - CVE-2022-32205
+#     - CVE-2022-32206
+#     - CVE-2022-32207
+#     - CVE-2022-32208
+#   7.83.1-r0:
+#     - CVE-2022-27778
+#     - CVE-2022-27779
+#     - CVE-2022-27780
+#     - CVE-2022-27781
+#     - CVE-2022-27782
+#     - CVE-2022-30115
+#   7.83.0-r0:
+#     - CVE-2022-22576
+#     - CVE-2022-27774
+#     - CVE-2022-27775
+#     - CVE-2022-27776
+#   7.79.0-r0:
+#     - CVE-2021-22945
+#     - CVE-2021-22946
+#     - CVE-2021-22947
+#   7.78.0-r0:
+#     - CVE-2021-22922
+#     - CVE-2021-22923
+#     - CVE-2021-22924
+#     - CVE-2021-22925
+#   7.77.0-r0:
+#     - CVE-2021-22898
+#     - CVE-2021-22901
+#   7.76.0-r0:
+#     - CVE-2021-22876
+#     - CVE-2021-22890
+#   7.74.0-r0:
+#     - CVE-2020-8284
+#     - CVE-2020-8285
+#     - CVE-2020-8286
+#   7.72.0-r0:
+#     - CVE-2020-8231
+#   7.71.0-r0:
+#     - CVE-2020-8169
+#     - CVE-2020-8177
+#   7.66.0-r0:
+#     - CVE-2019-5481
+#     - CVE-2019-5482
+#   7.65.0-r0:
+#     - CVE-2019-5435
+#     - CVE-2019-5436
+#   7.64.0-r0:
+#     - CVE-2018-16890
+#     - CVE-2019-3822
+#     - CVE-2019-3823
+#   7.62.0-r0:
+#     - CVE-2018-16839
+#     - CVE-2018-16840
+#     - CVE-2018-16842
+#   7.61.1-r0:
+#     - CVE-2018-14618
+#   7.61.0-r0:
+#     - CVE-2018-0500
+#   7.60.0-r0:
+#     - CVE-2018-1000300
+#     - CVE-2018-1000301
+#   7.59.0-r0:
+#     - CVE-2018-1000120
+#     - CVE-2018-1000121
+#     - CVE-2018-1000122
+#   7.57.0-r0:
+#     - CVE-2017-8816
+#     - CVE-2017-8817
+#     - CVE-2017-8818
+#   7.56.1-r0:
+#     - CVE-2017-1000257
+#   7.55.0-r0:
+#     - CVE-2017-1000099
+#     - CVE-2017-1000100
+#     - CVE-2017-1000101
+#   7.54.0-r0:
+#     - CVE-2017-7468
+#   7.53.1-r2:
+#     - CVE-2017-7407
+#   7.53.0-r0:
+#     - CVE-2017-2629
+#   7.52.1-r0:
+#     - CVE-2016-9594
+#   7.51.0-r0:
+#     - CVE-2016-8615
+#     - CVE-2016-8616
+#     - CVE-2016-8617
+#     - CVE-2016-8618
+#     - CVE-2016-8619
+#     - CVE-2016-8620
+#     - CVE-2016-8621
+#     - CVE-2016-8622
+#     - CVE-2016-8623
+#     - CVE-2016-8624
+#     - CVE-2016-8625
+#   7.50.3-r0:
+#     - CVE-2016-7167
+#   7.50.2-r0:
+#     - CVE-2016-7141
+#   7.50.1-r0:
+#     - CVE-2016-5419
+#     - CVE-2016-5420
+#     - CVE-2016-5421
+#   7.36.0-r0:
+#     - CVE-2014-0138
+#     - CVE-2014-0139
+#   0:
+#     - CVE-2021-22897
+
+build() {
+	local cross_configure=
+
+	# the ca-cert path detection is skipped when cross-compiling
+	[ "$CBUILD" != "$CHOST" ] \
+		&& cross_configure='--with-ca-bundle=/etc/ssl/certs/ca-certificates.crt'
+
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		$cross_configure \
+		--prefix=/usr \
+		--enable-ipv6 \
+		--enable-unix-sockets \
+		--enable-static \
+		--with-openssl \
+		--with-zsh-functions-dir \
+		--with-fish-functions-dir \
+		--without-libidn2 \
+		--with-nghttp2 \
+		--disable-ldap \
+		--with-pic \
+		--enable-websockets \
+		--without-libssh2 # https://bugs.alpinelinux.org/issues/10222
+	make
+
+	# generation of completions is not supported when cross-compiling.
+	if [ -z "$BOOTSTRAP" ]; then
+		make -C scripts/
+	fi
+}
+
+check() {
+	# test 1477 tries to run tests/errorcodes.pl, which was
+	# accidentally omitted from the 8.5.0 tarball, remove
+	# TFLAGS when upgrading to curl>8.5.0, more details at:
+	# https://github.com/curl/curl/issues/12462
+	make -C tests TFLAGS="!1477" nonflaky-test
+}
+
+package() {
+	make install DESTDIR="$pkgdir"
+	if [ -z "$BOOTSTRAP" ]; then
+		install -Dm644 scripts/_curl -t \
+			"$pkgdir"/usr/share/zsh/site-functions/
+		install -Dm644 scripts/curl.fish -t \
+			"$pkgdir"/usr/share/fish/completions/
+	fi
+}
+
+libcurl() {
+	pkgdesc="The multiprotocol file transfer library"
+
+	mkdir -p "$subpkgdir"/usr
+	mv "$pkgdir"/usr/lib "$subpkgdir"/usr
+}
+
+static() {
+	pkgdesc="$pkgdesc (static library)"
+
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/*.a "$subpkgdir"/usr/lib
+}
+
+sha512sums="
+a0fe234402875db194aad4e4208b7e67e7ffc1562622eea90948d4b9b0122c95c3dde8bbe2f7445a687cb3de7cb09f20e5819d424570442d976aa4c913227fc7  curl-8.9.1.tar.xz
+13244d2c917ab5f078967ef02c0b36e1aa33a00b402d63fab0259181520277c3b621d92b63644bf6cb2c44be588b6263ca37100629721cf9a104c4ba8c637a06  0100-CVE-2024-9681.patch
+67c71d171ba49e8b77c2b575c4e3aa0d311769c7a6d1fe406b1285f8f20bcfa4906d7525fd5f5426702c7b707c60d6c0c3adc1597ed75ac91cb35a9c2d5f54dc  0101-CVE-2024-11053.patch
+8f9af6c5619ea3726569b50fc98a503e657b4fe4555c8c444ea027e603dd1121e19cf7671bed4ae157b95b7ea55f71760e4cbcc823e4ed3a52c322faf6f2e6d2  0102-CVE-2025-0167.patch
+"

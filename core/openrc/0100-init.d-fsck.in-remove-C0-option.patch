@@ -1,0 +1,26 @@
+From b3b46f4e344dfdad13053b5a48e01d6bb962aee9 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Thu, 10 Feb 2022 16:32:17 +0300
+Subject: [PATCH] init.d/fsck.in: remove -C0 option
+
+Not supported by fsck.fat.
+---
+ init.d/fsck.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/init.d/fsck.in b/init.d/fsck.in
+index 7052d808..391549fd 100644
+--- a/init.d/fsck.in
++++ b/init.d/fsck.in
+@@ -82,7 +82,7 @@ start()
+ 		local skiptypes
+ 		skiptypes=$(printf 'no%s,' ${net_fs_list} ${extra_net_fs_list})
+ 		[ "${skiptypes}" = "no," ] && skiptypes=""
+-		fsck_opts="$fsck_opts -C0 -T -t ${skiptypes}noopts=_netdev"
++		fsck_opts="$fsck_opts -T -t ${skiptypes}noopts=_netdev"
+ 		if [ -z "$fsck_passno" -a -z "$fsck_mnt" ]; then
+ 			fsck_args=${fsck_args:--A -p}
+ 			if echo 2>/dev/null >/.test.$$; then
+-- 
+2.25.1
+

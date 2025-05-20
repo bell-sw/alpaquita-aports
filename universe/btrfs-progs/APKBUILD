@@ -1,0 +1,84 @@
+pkgname=btrfs-progs
+pkgver=6.0.2
+pkgrel=0
+pkgdesc="BTRFS filesystem utilities"
+url="https://btrfs.wiki.kernel.org"
+arch="all"
+license="GPL-2.0-or-later LGPL-3.0-or-later"
+depends_dev="linux-headers"
+makedepends="$depends_dev
+	acl-dev
+	asciidoc
+	attr-dev
+	e2fsprogs-dev
+	eudev-dev
+	lzo-dev
+	py3-setuptools
+	py3-sphinx
+	python3-dev
+	util-linux-dev
+	xmlto
+	zlib-dev
+	zstd-dev
+	"
+subpackages="
+	$pkgname-doc
+	$pkgname-static
+	$pkgname-dev
+	$pkgname-bash-completion
+	py3-$pkgname:py3
+	$pkgname-libs
+	$pkgname-extra
+	"
+source="https://www.kernel.org/pub/linux/kernel/people/kdave/btrfs-progs/btrfs-progs-v$pkgver.tar.xz"
+builddir="$srcdir/$pkgname-v$pkgver"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var \
+		--disable-backtrace \
+		--disable-libudev
+
+	make
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install install_python
+
+	mkdir -p "$pkgdir"/usr/share/doc/$pkgname
+	install -m644 README.md CHANGES \
+		"$pkgdir"/usr/share/doc/$pkgname
+
+	mkdir "$pkgdir"/sbin
+	local i; for i in btrfs btrfsck fsck.btrfs mkfs.btrfs; do
+		mv "$pkgdir"/usr/bin/$i "$pkgdir"/sbin/
+	done
+	mv "$pkgdir"/usr/bin "$pkgdir"/usr/sbin
+
+	install -Dm644 btrfs-completion \
+		"$pkgdir"/usr/share/bash-completion/completions/btrfs
+}
+
+py3() {
+	pkgdesc="Python 3 bindings for $pkgname"
+	provides="py-btrfs-progs=$pkgver-r$pkgrel"  # for backward compatibility
+	replaces="py-btrfs-progs"  # for backward compatibility
+
+	amove usr/lib/python*
+}
+
+extra() {
+	depends="$pkgname"
+	pkgdesc="BTRFS filesystem extra utilities"
+
+	amove usr/sbin
+}
+
+sha512sums="
+8e01fa6e3373d95a8e8577003ceb94722e4dfdf24110bfea79191a9862daf5e6580d72e898fdea134b5e86beeda32948eed572072f7906226189c6f1ac8615e3  btrfs-progs-v6.0.2.tar.xz
+"

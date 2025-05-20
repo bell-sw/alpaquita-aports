@@ -1,0 +1,62 @@
+diff --git a/graal/sdk/src/org.graalvm.launcher.native/src/launcher.cc b/graal/sdk/src/org.graalvm.launcher.native/src/launcher.cc
+index 9ebbdfd820a..552bc4570d1 100644
+--- a/graal/sdk/src/org.graalvm.launcher.native/src/launcher.cc
++++ b/graal/sdk/src/org.graalvm.launcher.native/src/launcher.cc
+@@ -237,6 +237,41 @@ static std::string canonicalize(std::string path) {
+     return std::string(real);
+ }
+ 
++#ifdef __linux__
++#define LD_LIBRARY_PATH "LD_LIBRARY_PATH"
++#define NIK_RELAUNCHED "__NIK_RELAUNCHED"
++
++static void maybe_relaunch(int argc, char *argv[], std::string exeDir) {
++    char *relaunched = getenv(NIK_RELAUNCHED);
++    if (relaunched) {
++        return;
++    }
++
++    std::string javaLibDir = exeDir + "/../jvm/lib";
++    std::string jimageLibPath = javaLibDir + "/libjimage.so";
++    void* libHandle = dlopen(jimageLibPath.c_str(), RTLD_LAZY);
++
++    if (!libHandle) {
++        /* define LD_LIBRARY_PATH to point to jvm/lib/server */
++        std::stringstream libPathSpec;
++        libPathSpec << javaLibDir << "/server";
++        char *runpath = getenv(LD_LIBRARY_PATH);
++        if (runpath) {
++            libPathSpec << CP_SEP_STR << std::string(runpath);
++        }
++        setenv(LD_LIBRARY_PATH, libPathSpec.str());
++
++        /* define NIK_RELAUNCHED to prevent endless recursion */
++        setenv(NIK_RELAUNCHED, "true");
++
++        /* relaunch with updated environment */
++        std::string exe = exe_path();
++        execve(exe.c_str(), argv, environ);
++    }
++    /* don't dlclose(libHandle), it will be required later anyway */
++}
++#endif
++
+ #if defined (__APPLE__)
+ /* Load libjli - this is needed on osx for libawt, which uses JLI_* methods.
+  * If the GraalVM libjli is not loaded, the osx linker will look up the symbol
+@@ -684,6 +719,15 @@ static int jvm_main_thread(int argc, char *argv[], std::string exeDir, bool jvmM
+         return -1;
+     }
+ 
++#ifdef __linux__
++    if (jvmMode) {
++        /* a relaunch might be required on musl systems, because ldopen() tries to load
++         * libjvm.so which it cannot resolve, despite the fact that it is already loaded
++         */
++        maybe_relaunch(argc, argv, exeDir);
++    }
++#endif
++
+     int res = createVM(&vm, (void**)&env, &vmInitArgs);
+     if (res != JNI_OK) {
+         std::cerr << "Creation of the VM failed." << std::endl;

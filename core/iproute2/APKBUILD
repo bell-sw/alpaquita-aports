@@ -1,0 +1,92 @@
+# Description: iproute2 is used for TCP/IP networking and traffic control in
+# the Linux kernel.
+
+pkgname=iproute2
+pkgver=6.0.0
+pkgrel=1
+pkgdesc="IP Routing Utilities"
+url="https://wiki.linuxfoundation.org/networking/iproute2"
+arch="all"
+license="GPL-2.0-or-later"
+install="$pkgname.post-install"
+depends="
+	$pkgname-minimal
+	$pkgname-tc
+	$pkgname-ss
+	"
+makedepends="
+	bash
+	bison
+	elfutils-dev
+	libcap-dev
+	libmnl-dev
+	flex
+	iptables-dev
+	"
+subpackages="
+	$pkgname-doc
+	$pkgname-dev
+	$pkgname-bash-completion
+	$pkgname-minimal
+	$pkgname-tc
+	$pkgname-ss
+	$pkgname-rdma
+	"
+source="https://kernel.org/pub/linux/utils/net/iproute2/iproute2-$pkgver.tar.xz"
+options="!check"  # requires namespaces support and root
+
+# secfixes:
+#   5.1.0-r0:
+#     - CVE-2019-20795
+
+build() {
+	make CCOPTS="-D_GNU_SOURCE $CFLAGS" V=1
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" SBINDIR=/usr/sbin install
+
+	install -D -m644 include/libnetlink.h "$pkgdir"/usr/include/libnetlink.h
+	install -D -m644 lib/libnetlink.a "$pkgdir"/usr/lib/libnetlink.a
+}
+
+minimal() {
+	pkgdesc="IP Routing Utilities (/sbin/ip only)"
+	depends=""
+	replaces="$pkgname"  # for backward compatibility (Alpine <3.13)
+
+	amove usr/sbin/ip
+	amove etc
+}
+
+tc() {
+	pkgdesc="$pkgdesc (traffic control and XDP support)"
+	depends=""
+	replaces="$pkgname"  # for backward compatibility (Alpine <3.13)
+
+	amove usr/sbin/tc
+	amove usr/lib/tc
+}
+
+ss() {
+	pkgdesc="$pkgdesc (socket statistics tool)"
+	depends=""
+	replaces="$pkgname"  # for backward compatibility (Alpine <3.13)
+
+	amove usr/sbin/ss
+}
+
+rdma() {
+	pkgdesc="$pkgdesc (rdma utilities)"
+	depends=""
+
+	amove usr/sbin/dcb
+	amove usr/sbin/devlink
+	amove usr/sbin/rdma
+	amove usr/sbin/tipc
+	amove usr/sbin/vdpa
+}
+
+sha512sums="
+be30362b0df6906aa786f935d5f555b8b86c747fe05314066f4180ab2f7c952ae227b7cf04c15e75d8f99ca17bafb7c8dc0fb1c18f3a9e3222d98716bb449f7a  iproute2-6.0.0.tar.xz
+"

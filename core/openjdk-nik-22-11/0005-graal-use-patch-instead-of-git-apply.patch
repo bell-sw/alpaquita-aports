@@ -1,0 +1,31 @@
+From 137e052708c781c7e7390f582891e4a88bdc8955 Mon Sep 17 00:00:00 2001
+From: Denis Kononenko <denis.kononenko@bell-sw.com>
+Date: Mon, 19 Sep 2022 18:44:40 +0000
+Subject: [PATCH] Use patch instead of git apply
+
+---
+ truffle/mx.truffle/mx_truffle.py | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/truffle/mx.truffle/mx_truffle.py b/truffle/mx.truffle/mx_truffle.py
+index 30ac2e8e4b1..09b53f9edbb 100644
+--- a/graal/truffle/mx.truffle/mx_truffle.py
++++ b/graal/truffle/mx.truffle/mx_truffle.py
+@@ -847,10 +847,11 @@ class LibffiBuildTask(mx.AbstractNativeBuildTask):
+         mx.Extractor.create(self.subject.sources.get_path(False)).extract(self.subject.out_dir)
+ 
+         mx.log('Applying patches...')
+-        git_apply = ['git', 'apply', '--whitespace=nowarn', '--unsafe-paths', '--directory',
+-                     os.path.realpath(self.subject.delegate.dir)]
++        patch_apply = ['patch', '-p1', '--no-backup-if-mismatch', '--ignore-whitespace', '--directory',
++            os.path.relpath(self.subject.delegate.dir, self.subject.suite.vc_dir), '--input']
++	
+         for patch in self.subject.patches:
+-            mx.run(git_apply + [patch], cwd=self.subject.suite.vc_dir)
++            mx.run(patch_apply + [patch], cwd=self.subject.suite.vc_dir)
+ 
+         self.delegate.logBuild()
+         self.delegate.build()
+-- 
+2.34.4
+

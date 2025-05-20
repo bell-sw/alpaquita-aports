@@ -1,0 +1,34 @@
+pkgname=py3-tomli-w
+pkgver=1.0.0
+pkgrel=4
+pkgdesc="Lil' TOML writer"
+url="https://github.com/hukkin/tomli-w"
+license="MIT"
+arch="noarch"
+depends="python3"
+makedepends="py3-flit-core py3-gpep517"
+checkdepends="py3-pytest py3-tomli"
+source="https://github.com/hukkin/tomli-w/archive/$pkgver/py3-tomli-w-$pkgver.tar.gz"
+builddir="$srcdir/tomli-w-$pkgver"
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir dist \
+		--output-fd 1
+}
+
+check() {
+	python3 -m venv --system-site-packages testenv
+	testenv/bin/python3 -m installer \
+		dist/tomli_w*.whl
+	testenv/bin/python3 -m pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		dist/tomli_w*.whl
+}
+
+sha512sums="
+406f81e4e8151e55e8367031b5880f51de41016711238a114c82962012de4b90d5e465c503a8979d565d07843fbc4804a53c29848e4f6e5f20f9ec5dc5ce536a  py3-tomli-w-1.0.0.tar.gz
+"

@@ -1,0 +1,42 @@
+pkgname=async-profiler
+pkgver=3.0
+pkgrel=1
+pkgdesc="Low overhead sampling profiler for Java"
+url="https://github.com/async-profiler/async-profiler"
+arch="all"
+license="Apache-2.0"
+makedepends="openjdk17"
+options="!fhs"
+checkdepends="bash"
+source="
+	$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz
+	0001-940-lseek64-is-not-declared-when-compiling-on-Alpine.patch
+	0002-parse-from-both-.rela.plt-and-.rela.dyn.patch
+	0003-exclude-fdtransfer-smoke-test.patch
+"
+
+build() {
+	make all
+}
+
+check() {
+	make test
+}
+
+package() {
+	install -m755 -D build/lib/libasyncProfiler.so "$pkgdir"/opt/async-profiler/lib/libasyncProfiler.so
+	install -m755 -D build/bin/asprof "$pkgdir"/opt/async-profiler/bin/asprof
+	install -m644 -D build/lib/async-profiler.jar "$pkgdir"/opt/async-profiler/lib/async-profiler.jar
+	install -m644 -D build/lib/converter.jar "$pkgdir"/opt/async-profiler/lib/converter.jar
+
+	install -dm755 "$pkgdir"/usr/lib "$pkgdir"/usr/bin
+	ln -s ../../opt/async-profiler/lib/libasyncProfiler.so "$pkgdir"/usr/lib/libasyncProfiler.so
+	ln -s ../../opt/async-profiler/bin/asprof "$pkgdir"/usr/bin/asprof
+}
+
+sha512sums="
+70c01baac8effb2ea2d84b9c4b29091119a438d25e28cfceb4c27061175ac9d19f7ba3ef5c87b4b17b6306c7974338537d381950c7414385a6dee6a142c6a2c0  async-profiler-3.0.tar.gz
+ebae6c55c257b20e6a93914dd20c5b6628747204abcc0372fc638e6403d6c62c511eee0619d592ef1a8c432fa25cf336b318a9da10aa76588ff63c6b76a7d71d  0001-940-lseek64-is-not-declared-when-compiling-on-Alpine.patch
+5c3d31d8f96e72ee2b67b7fd33a922d78c47b4e7e17bf78b1be24ef4d2389a300536369e267e659c20437169a262c1cb8f45f585685f2a38628059274a5d0339  0002-parse-from-both-.rela.plt-and-.rela.dyn.patch
+a7decd39f8cc6e19a68f70c12517b741f13c80f12afcf764c5b2665bad5145127df4cafac5f54b36a014f44c3b3af826952ef70d3b9d6c464e25dd31013c37f8  0003-exclude-fdtransfer-smoke-test.patch
+"

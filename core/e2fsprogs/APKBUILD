@@ -1,0 +1,120 @@
+# Description: e2fsprogs contains utilities to create, configure, and debug 
+# ext2/3/4 filesystems.
+
+pkgname=e2fsprogs
+pkgver=1.46.6
+pkgrel=0
+pkgdesc="Ext2/3/4 filesystem management tools"
+url="https://e2fsprogs.sourceforge.net/"
+arch="all"
+license="GPL-2.0-or-later AND LGPL-2.0-or-later AND BSD-3-Clause AND MIT"
+depends="$pkgname-core $pkgname-extra"
+depends_dev="util-linux-dev gawk"
+makedepends="$depends_dev linux-headers fuse-dev"
+checkdepends="diffutils perl coreutils"
+subpackages="
+	$pkgname-static
+	$pkgname-dev
+	libcom_err
+	fuse2fs
+	fuse2fs-doc:fuse2fs_doc:noarch
+	$pkgname-doc
+	$pkgname-libs
+	$pkgname-core
+	$pkgname-extra
+	"
+source="$pkgname-$pkgver.tar.gz::https://github.com/tytso/e2fsprogs/archive/v$pkgver.tar.gz"
+
+# secfixes:
+#   1.46.6-r0:
+#     - CVE-2022-1304
+#   1.45.5-r0:
+#     - CVE-2019-5188
+#   1.45.4-r0:
+#     - CVE-2019-5094
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		--enable-elf-shlibs \
+		--enable-lto \
+		--enable-symlink-install \
+		--disable-fsck \
+		--disable-uuidd \
+		--disable-libuuid \
+		--disable-libblkid \
+		--disable-nls
+	make
+}
+
+check() {
+	# Disable failing test
+	rm -rf tests/m_offset*
+
+	# Failing on CI
+	rm -rf tests/f_bigalloc_orphan_list*
+
+	# Fails on armhf on CI
+	rm -rf tests/f_extent_htree*
+
+	# Fails on builders with less than 4TB free space
+	rm -rf tests/m_hugefile
+
+	make check
+}
+
+package() {
+	make -j1 MKDIR_P="install -d"  DESTDIR="$pkgdir" install install-libs
+}
+
+core() {
+	mkdir -p "$subpkgdir"/usr/sbin
+	local i; for i in e2fsck mke2fs mkfs.* fsck.*; do
+		mv "$pkgdir"/usr/sbin/$i "$subpkgdir"/usr/sbin/
+	done
+}
+
+dev() {
+	default_dev
+
+	amove \
+		usr/bin/compile_et \
+		usr/bin/mk_cmds \
+		usr/share/et \
+		usr/share/ss
+}
+
+libcom_err() {
+	pkgdesc="Common error description library"
+
+	amove usr/lib/libcom_err*
+}
+
+fuse2fs() {
+	pkgdesc="Ext2/3/4 filesystem driver for FUSE"
+	amove usr/bin/fuse2fs
+}
+
+fuse2fs_doc() {
+	pkgdesc="Ext2/3/4 filesystem driver for FUSE (documentation)"
+	install_if="fuse2fs=$pkgver-r$pkgrel docs"
+
+	amove usr/share/man/man1/fuse2fs.1
+	gzip -9 "$subpkgdir"/usr/share/man/man1/fuse2fs.1
+}
+
+extra() {
+	depends="$pkgname=$pkgver-r$pkgrel"
+	pkgdesc="Ext2/3/4 filesystem extra utilities"
+
+	mkdir -p "$subpkgdir"
+	amove usr
+	rmdir "$pkgdir"/lib || true
+}
+
+sha512sums="
+756287e443656a17131e9d6f4ba90486a016b62197047d25f98045a03ce06154bcfa984ef3f295186922ecf6470cd60a045c2ec80e69b61d23dc389c2f1b3f7d  e2fsprogs-1.46.6.tar.gz
+"

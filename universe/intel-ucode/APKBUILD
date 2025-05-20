@@ -1,0 +1,105 @@
+pkgname=intel-ucode
+pkgver=20250211
+pkgrel=0
+pkgdesc="Microcode update files for Intel CPUs"
+arch="x86_64"
+url="https://github.com/intel/Intel-Linux-Processor-Microcode-Data-Files"
+license="custom"
+makedepends="iucode-tool"
+source="https://github.com/intel/Intel-Linux-Processor-Microcode-Data-Files/archive/microcode-$pkgver.tar.gz"
+options="!check"
+builddir="$srcdir/Intel-Linux-Processor-Microcode-Data-Files-microcode-$pkgver"
+
+# (Taken from https://github.com/intel/Intel-Linux-Processor-Microcode-Data-Files/blob/main/releasenote.md)
+# secfixes:
+#   20250211-r0:
+#     - CVE-2024-31068
+#     - CVE-2024-36293
+#     - CVE-2023-43758
+#     - CVE-2024-39355
+#     - CVE-2024-37020
+#   20241112-r0:
+#     - CVE-2024-21853
+#     - CVE-2024-23918
+#     - CVE-2024-24968
+#     - CVE-2024-23984
+#   20240910-r0:
+#     - CVE-2024-23984
+#     - CVE-2024-24968
+#   20240813-r0:
+#     - CVE-2024-24853
+#     - CVE-2024-25939
+#     - CVE-2024-24980
+#     - CVE-2023-42667
+#     - CVE-2023-49141
+#     - CVE-2023-45733
+#     - CVE-2023-46103
+#     - CVE-2023-45745
+#   20240312-r0:
+#     - CVE-2023-43490
+#     - CVE-2023-39368
+#     - CVE-2023-38575
+#     - CVE-2023-28746
+#     - CVE-2023-22655
+#   20231114-r0:
+#     - CVE-2023-23583
+#   20230808-r0:
+#     - CVE-2022-40982
+#     - CVE-2022-41804
+#     - CVE-2023-23908
+#   20230214-r0:
+#     - CVE-2022-21216
+#     - CVE-2022-33196
+#     - CVE-2022-38090
+#   20220809-r0:
+#     - CVE-2022-21233
+#   20220510-r0:
+#     - CVE-2022-21151
+#   20220207-r0:
+#     - CVE-2021-0127
+#     - CVE-2021-0146
+#   20210608-r0:
+#     - CVE-2020-24489
+#     - CVE-2020-24511
+#     - CVE-2020-24513
+#   20210216-r0:
+#     - CVE-2020-8698
+#   20201112-r0:
+#     - CVE-2020-8694
+#     - CVE-2020-8698
+#   20201110-r0:
+#     - CVE-2020-8694
+#     - CVE-2020-8698
+#   20200609-r0:
+#     - CVE-2020-0548
+#   20191113-r0:
+#     - CVE-2019-11135
+#   20191112-r0:
+#     - CVE-2018-12126
+#     - CVE-2019-11135
+#   20190918-r0:
+#     - CVE-2019-11135
+#   20190618-r0:
+#     - CVE-2018-12126
+#   20190514a-r0:
+#     - CVE-2018-12126
+#     - CVE-2017-5754
+#     - CVE-2017-5753
+
+build() {
+	rm -f intel-ucode/list intel-ucode-with-caveats/list
+	mkdir -p kernel/x86/microcode
+	iucode_tool -w kernel/x86/microcode/GenuineIntel.bin \
+		intel-ucode/ intel-ucode-with-caveats/
+	echo kernel/x86/microcode/GenuineIntel.bin | \
+		 cpio -o -H newc -R 0:0 > intel-ucode.img
+}
+
+package() {
+	install -D -m0644 intel-ucode.img "$pkgdir"/boot/intel-ucode.img
+	install -Dm644 license "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+}
+
+sha512sums="
+493216fb14097c7c9bda3117fbcae8ad4300fb8646918338119ef303000aad6f73ca04acc59c9a890b0b2b58e097798f673954f15e3142948267bbeeacc842cf  microcode-20250211.tar.gz
+"

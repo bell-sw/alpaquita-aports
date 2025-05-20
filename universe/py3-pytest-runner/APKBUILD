@@ -1,0 +1,31 @@
+pkgname=py3-pytest-runner
+pkgver=6.0.0
+pkgrel=1
+pkgdesc="Invoke py.test as distutils command"
+url="https://github.com/pytest-dev/pytest-runner"
+arch="noarch"
+license="MIT"
+depends="python3 py3-pytest py3-setuptools"
+makedepends="py3-gpep517 py3-setuptools_scm py3-wheel"
+source="$pkgname-$pkgver.tar.gz::https://github.com/pytest-dev/pytest-runner/archive/refs/tags/v$pkgver.tar.gz"
+builddir="$srcdir/pytest-runner-$pkgver"
+
+build() {
+	export SETUPTOOLS_SCM_PRETEND_VERSION=$pkgver
+	gpep517 build-wheel \
+		--wheel-dir dist \
+		--output-fd 1
+}
+
+check() {
+	python3 tests/test_ptr.py
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		dist/pytest_runner*.whl
+}
+
+sha512sums="
+8628f4b2ef24a1bcd3294efcfad289cb96949b0b1176e64b2033b8767c5fd217acdf763a3cdb137af6043e0dacd64a76d0a104674dc88464fbb473df37d24c61  py3-pytest-runner-6.0.0.tar.gz
+"

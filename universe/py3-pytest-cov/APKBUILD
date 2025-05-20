@@ -1,0 +1,32 @@
+pkgname=py3-pytest-cov
+pkgver=4.0.0
+pkgrel=1
+pkgdesc="Pytest plugin for measuring coverage"
+options="!check" # Requires unpackaged 'fields' module
+url="https://github.com/pytest-dev/pytest-cov"
+arch="noarch"
+license="MIT"
+replaces="pytest-cov" # for backwards compatibility
+provides="pytest-cov=$pkgver-r$pkgrel" # for backwards compatibility
+depends="py3-pytest py3-coverage"
+makedepends="py3-setuptools"
+#py3-pytest-xdist introduces a circular dependency
+#checkdepends="py3-virtualenv py3-pytest-xdist"
+source="$pkgname-$pkgver.tar.gz::https://github.com/pytest-dev/pytest-cov/archive/v$pkgver.tar.gz"
+builddir="$srcdir/pytest-cov-$pkgver"
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	pytest
+}
+
+package() {
+	python3 setup.py install --prefix="/usr" --root="$pkgdir"
+}
+
+sha512sums="
+bbc2ce3c6e6541dad3122a2af3cf33456fcfdeebd9ad31fe216b77f1ac2f7abf1ed1ed583f186bea88b8a9cf754500e929263eb8d635fd55e4f3615ed107b49c  py3-pytest-cov-4.0.0.tar.gz
+"

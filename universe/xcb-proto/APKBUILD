@@ -1,0 +1,28 @@
+# Description:
+
+pkgname=xcb-proto
+pkgver=1.15.2
+pkgrel=1
+pkgdesc="XML-XCB protocol descriptions"
+options="!check" # no testsuite
+url="https://xcb.freedesktop.org"
+arch="noarch"
+license="MIT"
+makedepends="python3"
+source="https://xorg.freedesktop.org/archive/individual/proto/xcb-proto-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr
+	make
+}
+
+package() {
+	make DESTDIR=$pkgdir install
+}
+
+sha512sums="
+9d0b2f0a4dbbf2d64e32ff4658d1663e13d7e5f1bffc1e8d45be7b9dd5bab46e29fc1c2f6e66a7a569e374ba6756faf3c39b0b5e5560df6d7f8b68beec97659d  xcb-proto-1.15.2.tar.xz
+"

@@ -1,0 +1,30 @@
+pkgname=datefudge
+pkgver=1.24
+pkgrel=0
+pkgdesc="Tool to fake the system date"
+url="https://packages.debian.org/sid/datefudge"
+arch="all"
+license="GPL-2.0"
+depends="coreutils"
+checkdepends="perl"
+subpackages="$pkgname-doc"
+source="https://deb.debian.org/debian/pool/main/d/datefudge/datefudge_$pkgver.tar.xz"
+
+build() {
+	# fix Makefile, set the version number directly as dpkg-parsechangelog is not available
+	sed -i "s/^VERSION := .\+/VERSION := $pkgver/" Makefile
+	make all
+}
+
+check() {
+	make test
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" \
+		-C "$builddir" install
+}
+
+sha512sums="
+cd548a7e8ff10189e101fa339b2845cdd19a59354e43b02cf47e466855ec192dc2084951f7663a94da56a580dd24524047651d8bcb41aa478fe94b24dffaedeb  datefudge_1.24.tar.xz
+"

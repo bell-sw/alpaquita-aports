@@ -1,0 +1,72 @@
+# Description:
+
+pkgname=mercurial
+pkgver=6.3.1
+pkgrel=2
+pkgdesc="Scalable distributed SCM tool"
+url="https://www.mercurial-scm.org/"
+arch="all"
+license="GPL-2.0-or-later"
+depends="python3"
+makedepends="python3-dev"
+checkdepends="bash unzip diffutils xz sqlite gettext py3-docutils"
+subpackages="
+	$pkgname-doc
+	$pkgname-vim:vim:noarch
+	$pkgname-zsh-completion
+	$pkgname-bash-completion
+	"
+source="https://www.mercurial-scm.org/release/mercurial-$pkgver.tar.gz
+	blacklist.txt
+	0100-CVE-2025-2361.patch
+	"
+options="!check" # a ton of tests fail due to egrep being deprecated and printing a warning
+case "$CARCH" in
+	aarch64|armhf) options="$options !check" ;;  # around 400 of 919 tests time out
+esac
+case "$CARCH" in
+	# Oxidation, limited by Rust
+	x86_64|armv7|armhf|aarch64|x86|ppc64le) makedepends="$makedepends cargo" ;;
+esac
+
+# secfixes:
+#   6.3.1-r2:
+#     - CVE-2025-2361
+#   4.9-r0:
+#     - CVE-2019-3902
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	make PYTHON=python3 TESTFLAGS=--blacklist="$srcdir/blacklist.txt" tests
+}
+
+package() {
+	HGPYTHON3=1 python3 setup.py install --root="$pkgdir"
+	install -m755 contrib/hgk contrib/hg-ssh hgeditor "$pkgdir"/usr/bin
+
+	local man
+	for man in doc/*.?; do
+		install -Dm644 "$man" \
+			"$pkgdir"/usr/share/man/man${man##*.}/${man##*/}
+	done
+}
+
+vim() {
+	depends=""
+	pkgdesc="Vim syntax for $pkgname"
+	install_if="vim $pkgname=$pkgver-r$pkgrel"
+
+	cd "$builddir"/contrib/vim/
+	mkdir -p "$subpkgdir"/usr/share/vim/vimfiles/syntax/
+	install -Dm644 HGAnnotate.vim hgtest.vim \
+		"$subpkgdir"/usr/share/vim/vimfiles/syntax/
+}
+
+sha512sums="
+99cd77c25e6c7f064ea9b631a8632b6020cb012c2f5a8c1da371ed413a4f984d04f8c293f551f890bbf084f840d7406aa25956f016ff2596173cd2f1f834873b  mercurial-6.3.1.tar.gz
+b24e1b79ca36ac1d78a5af4e35eb87581f209255838327a7d9315c17175d41bfa4b7f98c66be078cfa1e7d27a41c1a12bba265fa6d3d30edb4e2ba599fe0ed18  blacklist.txt
+19666f5ca68179acb96811d0e7c3191ef55db737b1baecd8bf8fb05268fca5525fda95fb9b457291d0ea25a584c1486a6ad1142deb344329de10b55b24722345  0100-CVE-2025-2361.patch
+"

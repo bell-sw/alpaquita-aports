@@ -1,0 +1,44 @@
+# Description:
+
+pkgname=argp-standalone
+pkgver=1.5.0
+pkgrel=0
+pkgdesc="Hierarchial argument parsing library broken out from glibc"
+url="http://www.lysator.liu.se/~nisse/misc/"
+arch="all"
+license="GPL-2.0-or-later"
+options="!libc_glibc"
+makedepends="libtool automake autoconf"
+source="$pkgname-$pkgver.tar.gz::https://github.com/argp-standalone/argp-standalone/archive/refs/tags/$pkgver.tar.gz
+	gnu89-inline.patch"
+
+prepare() {
+	default_prepare
+	autoreconf -vif
+}
+
+build() {
+	CFLAGS="$CFLAGS -fPIC" \
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make -C "$builddir" check
+}
+
+package() {
+	install -D -m644 argp.h "$pkgdir"/usr/include/argp.h
+	install -D -m755 libargp.a "$pkgdir"/usr/lib/libargp.a
+}
+
+sha512sums="
+fa2eb61ea00f7a13385e5c1e579dd88471d6ba3a13b6353e924fe71914b90b40688b42a9f1789bc246e03417fee1788b1990753cda8c8d4a544e85f26b63f9e2  argp-standalone-1.5.0.tar.gz
+42b2072b68d9287cfde2f5023af0a6c24bc34a7af6df036a313d5c4fa2762688b12476c688caf010176c069184305325f3134756f0c4e19aa4b06278e3f233e0  gnu89-inline.patch
+"

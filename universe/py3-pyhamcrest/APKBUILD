@@ -1,0 +1,37 @@
+pkgname=py3-pyhamcrest
+_pkgname=PyHamcrest
+pkgver=2.0.4
+pkgrel=1
+pkgdesc="Hamcrest framework for matcher objects"
+url="https://github.com/hamcrest/PyHamcrest"
+arch="noarch"
+license="BSD-3-Clause"
+depends="python3"
+makedepends="py3-gpep517 py3-hatchling py3-hatch-vcs"
+checkdepends="py3-hypothesis py3-mock py3-pytest"
+source="$_pkgname-$pkgver.tar.gz::https://github.com/hamcrest/PyHamcrest/archive/V$pkgver.tar.gz"
+builddir="$srcdir/"$_pkgname-$pkgver
+
+replaces="py-hamcrest" # Backwards compatibility
+provides="py-hamcrest=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	export SETUPTOOLS_SCM_PRETEND_VERSION=$pkgver
+	gpep517 build-wheel \
+		--wheel-dir dist \
+		--output-fd 1
+}
+
+check() {
+	PYTHONPATH=src \
+	pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		dist/pyhamcrest*.whl
+}
+
+sha512sums="
+6ee558fe04dce839d5d5d20b90ecf82fed96570e1c5b3a827fce19dba167bf4702ea707560b19e2d6e82be20913deb6cf17fa7e140733899a92abb28e9f2aa56  PyHamcrest-2.0.4.tar.gz
+"

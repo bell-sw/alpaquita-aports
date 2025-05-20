@@ -1,0 +1,35 @@
+# Description:
+
+pkgname=byacc
+pkgver=20221106
+pkgrel=0
+pkgdesc="The Berkeley Yacc general-purpose parser generator"
+url="https://invisible-island.net/byacc/byacc.html"
+arch="all"
+license="Public-Domain"
+depends="!bison"
+subpackages="$pkgname-doc"
+source="https://invisible-mirror.net/archives/byacc/byacc-$pkgver.tgz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--localstatedir=/var
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+866933b4eb2296565ce70b4ade565e4679f3b652715f0066072bbcc42b95389fa47a2f96cd03de577807dcc49bf453b1d4f7e22b96c80fef1aa66898d3de5d5c  byacc-20221106.tgz
+"

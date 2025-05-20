@@ -1,0 +1,36 @@
+# Description:
+
+pkgname=libxext
+pkgver=1.3.5
+pkgrel=0
+pkgdesc="X11 miscellaneous extensions library"
+url="http://xorg.freedesktop.org/"
+arch="all"
+license="MIT"
+depends_dev="libxau-dev"
+makedepends="$depends_dev libx11-dev xorgproto util-macros xmlto"
+subpackages="$pkgname-dev $pkgname-doc"
+options="!check"
+source="https://www.x.org/releases/individual/lib/libXext-$pkgver.tar.xz
+	"
+
+builddir="$srcdir"/libXext-$pkgver
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--with-xmlto \
+		--without-fop
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+fd9805982dabfb14b1526c0cb71f94508003fa3fcd60560d387465afd891c1dca61927ae86278436d53f4b840cacd1f412071fdc3dce1d6f730610a9c163d59b  libXext-1.3.5.tar.xz
+"

@@ -1,0 +1,59 @@
+pkgname=scons
+pkgver=4.4.0
+pkgrel=1
+pkgdesc="Software construction system"
+url="https://scons.org/"
+arch="noarch"
+license="MIT"
+depends="python3"
+makedepends="py3-setuptools"
+checkdepends="xz"
+subpackages="$pkgname-doc"
+# fetching both sources, because only github tarball has tests
+# and only sourceforge tarball has prebuilt manpages
+# building the scons manpages requires working scons install...
+source="https://github.com/SCons/scons/archive/$pkgver/scons-$pkgver.tar.gz
+	https://downloads.sourceforge.net/project/scons/scons/$pkgver/SCons-$pkgver.tar.gz
+	dont-install-manpages.patch
+	broken-tests.patch
+	"
+
+# tests need py3-psutil from community
+options="!check"
+
+prepare() {
+	default_prepare
+
+	# remove failing test
+	case $CARCH in
+	ppc64le) rm test/builderrors.py ;;
+	esac
+}
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 runtest.py -a
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+
+	# find and remove directories containing docbook files
+	find "$pkgdir" -name 'docbook' -type d -exec rm -rf {} +
+
+	install -Dm644 \
+		"$srcdir"/SCons-$pkgver/scons.1 \
+		"$srcdir"/SCons-$pkgver/scons-time.1 \
+		"$srcdir"/SCons-$pkgver/sconsign.1 \
+		-t "$pkgdir"/usr/share/man/man1/
+}
+
+sha512sums="
+01fcd40bf818ca22a278973af1cda3024efb74cf877f15d46607fda860448fbd577fc96ba33fef2bed3d145e662a0371f55e8c927e7ac44feea7f3081791ce11  scons-4.4.0.tar.gz
+d4e630214a9221f00d668b6524803efa83b41534fa6e0acca689d926cbc8546e5cf79c1c7a4b5627afbcd5033564343b408790bf4c29067d053cfbb39408a8ed  SCons-4.4.0.tar.gz
+286dbd5230119237b2ef2ece572d70c8b22d78ac71c5ac7a7a23e1c8597ca6379f324293560276777b608eb7b7af070374e8df91b593e6c656d81e13367efccd  dont-install-manpages.patch
+c8b383074c6167a22618f88db484a710b4c663f9541ce4e7079c1cc52ffe50128085f8519baa1626e48f17111043b7c74312cc8b9860ec1b5fb60f111eab9886  broken-tests.patch
+"

@@ -1,0 +1,57 @@
+# Description: is a program which helps to configure compiler and linker flags
+# for development libraries. 
+
+pkgname=pkgconf
+pkgver=1.9.4
+pkgrel=0
+pkgdesc="Compiler and linker flag configuration utilities"
+url="https://git.sr.ht/~kaniini/pkgconf"
+arch="all"
+license="ISC"
+replaces="pkgconfig"
+provides="pkgconfig=1"
+checkdepends="kyua atf"
+subpackages="$pkgname-doc $pkgname-dev"
+source="https://distfiles.dereferenced.org/pkgconf/pkgconf-$pkgver.tar.xz
+	"
+
+# secfixes:
+#   1.9.4-r0:
+#     - CVE-2023-24056
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var \
+		--with-pkg-config-dir=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	ln -s pkgconf "$pkgdir"/usr/bin/pkg-config
+}
+
+dev() {
+	default_dev
+
+	# Move pkg-config back to main package (default_dev implicitly moves
+	# files /usr/bin/*-config to -dev).
+	mv "$subpkgdir"/usr/bin/pkg-config "$pkgdir"/usr/bin/
+
+	mkdir -p "$pkgdir"/usr/share/aclocal/
+	mv "$subpkgdir"/usr/share/aclocal/pkg.m4 "$pkgdir"/usr/share/aclocal/
+}
+
+sha512sums="
+079436244f3942161f91c961c96d382a85082079c9843fec5ddd7fb245ba7500a9f7a201b5ef2c70a7a079fe1aacf3a52b73de5402a6f061df87bcdcf0a90755  pkgconf-1.9.4.tar.xz
+"

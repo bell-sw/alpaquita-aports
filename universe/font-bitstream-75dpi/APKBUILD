@@ -1,0 +1,36 @@
+pkgname=font-bitstream-75dpi
+pkgver=1.0.3
+pkgrel=2
+pkgdesc="X.Org Bitstream 75dpi bitmap fonts"
+url="http://xorg.freedesktop.org/"
+arch="noarch"
+license="custom"
+depends="encodings font-alias mkfontscale fontconfig"
+makedepends="font-util-dev bdftopcf"
+source="https://www.x.org/releases/individual/font/$pkgname-$pkgver.tar.bz2"
+
+prepare() {
+	update_config_sub
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--with-mapfiles=/usr/share/fonts/util \
+		--with-fontdir=/usr/share/fonts/75dpi
+	make
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" \
+		MKFONTDIR=: \
+		MKFONTSCALE=: \
+		FCCACHE=: \
+		install
+	mkdir -p "$pkgdir"/usr/share/licenses/"$pkgname"
+	install -m644 COPYING "$pkgdir"/usr/share/licenses/"$pkgname"/copyright
+}
+
+sha512sums="9311a5b0cbe1613aca87fdf7fd9ab263eb1129e3c3eacbce54547f2185e151fb1237128b1b6d39f716f28694a486909564ecc9a0aef061438622d11b5661d650  font-bitstream-75dpi-1.0.3.tar.bz2"

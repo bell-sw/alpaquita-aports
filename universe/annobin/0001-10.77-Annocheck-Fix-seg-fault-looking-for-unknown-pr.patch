@@ -1,0 +1,26 @@
+From 8235c252c00a0539b193e9eb631b006d4f25af0a Mon Sep 17 00:00:00 2001
+From: Nick Clifton <nickc@redhat.com>
+Date: Mon, 4 Jul 2022 16:17:15 +0100
+Subject: [PATCH] 10.77: Annocheck: Fix seg-fault looking for unknown
+ profile
+
+---
+ annocheck/hardened.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/annocheck/hardened.c b/annocheck/hardened.c
+index 72c8b20..7aad7ef 100644
+--- a/annocheck/hardened.c
++++ b/annocheck/hardened.c
+@@ -5784,7 +5784,7 @@ process_arg (const char * arg, const char ** argv, const uint argc, uint * next)
+       uint i;
+ 
+       for (i = ARRAY_SIZE (profiles); i--;)
+-	if (streq (arg, profiles[i].name))
++	if (profiles[i].name != NULL && streq (arg, profiles[i].name))
+ 	  {
+ 	    set_profile (i);
+ 	    return true;
+-- 
+2.25.1
+

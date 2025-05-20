@@ -1,0 +1,33 @@
+# Description:
+
+pkgname=help2man
+pkgver=1.49.3
+pkgrel=0
+pkgdesc="Create simple man pages from --help output"
+url="https://www.gnu.org/software/help2man"
+arch="noarch"
+license="GPL-3.0-or-later"
+depends="perl"
+options="!check"  # No test suite
+subpackages="$pkgname-doc"
+source="https://ftp.gnu.org/gnu/help2man/help2man-$pkgver.tar.xz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--localstatedir=/var
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+5f19fad1e38b0572b63ed8bfd146b717fc22dff3a26641e8b5c8431df13da9574679d9a3407da62790db8a29286694ea1bfd751cba168f475302ad31cce845cf  help2man-1.49.3.tar.xz
+"

@@ -1,0 +1,314 @@
+pkgname=go
+# go binaries are statically linked, security updates require rebuilds
+pkgver=1.23.8
+pkgrel=0
+pkgdesc="Go programming language compiler"
+url="https://go.dev/"
+arch="all"
+license="BSD-3-Clause"
+depends="binutils gcc $CLIBC-dev"
+makedepends="bash go-bootstrap"
+checkdepends="binutils-gold git git-daemon"
+subpackages="$pkgname-doc"
+source="https://go.dev/dl/go$pkgver.src.tar.gz
+	musl:0001-cmd-link-prefer-musl-s-over-glibc-s-ld.so-during-dyn.patch
+	0002-go.env-Don-t-switch-Go-toolchain-version-as-directed.patch
+	tests-fchmodat-not-supported.patch
+	"
+case "$CARCH" in
+	arm*|aarch64) depends="binutils-gold";;
+	riscv64)
+		# Gold does not support RISC-V
+		checkdepends=""
+		;;
+esac
+
+# Go is bootstrapped initially with gcc-go and from that point onward
+# compiled with the previous version of community/go (which is a bit
+# faster then gcc-go on most architectures).
+#
+# See https://lists.alpinelinux.org/~alpine/devel/%3C33KG0XO61I4IL.2Z7RTAZ5J3SY6%408pit.net%3E
+provides="go-bootstrap"
+provider_priority=100 # highest
+
+# secfixes:
+#   0:
+#     - CVE-2022-41716
+#     - CVE-2022-41720
+#     - CVE-2022-41722
+#     - CVE-2024-24787
+#     - CVE-2025-22866
+#   1.23.8-r0:
+#     - CVE-2025-22871
+#   1.21.12-r4:
+#     - CVE-2025-22870
+#   1.21.12-r3:
+#     - CVE-2024-45341
+#   1.21.12-r2:
+#     - CVE-2024-45336
+#   1.21.12-r0:
+#     - CVE-2024-24789
+#     - CVE-2024-24790
+#     - CVE-2024-24791
+#   1.21.10-r0:
+#     - CVE-2024-24788
+#   1.21.9-r0:
+#     - CVE-2023-45288
+#   1.21.8-r0:
+#     - CVE-2024-24783
+#     - CVE-2023-45290
+#     - CVE-2023-45289
+#     - CVE-2024-24785
+#     - CVE-2024-24784
+#   1.21.5-r0:
+#     - CVE-2023-39324
+#     - CVE-2023-39326
+#   1.21.3-r0:
+#     - CVE-2023-39325
+#     - CVE-2023-44487
+#   1.21.2-r0:
+#     - CVE-2023-39323
+#   1.21.1-r0:
+#     - CVE-2023-39318
+#     - CVE-2023-39319
+#     - CVE-2023-39320
+#     - CVE-2023-39321
+#     - CVE-2023-39322
+#   1.19.9-r0:
+#     - CVE-2023-24539
+#     - CVE-2023-24540
+#     - CVE-2023-29400
+#   1.19.8-r0:
+#     - CVE-2023-24537
+#     - CVE-2023-24538
+#     - CVE-2023-24534
+#     - CVE-2023-24536
+#   1.19.7-r0:
+#     - CVE-2023-24532
+#   1.19.6-r0:
+#     - CVE-2022-41725
+#     - CVE-2022-41724
+#     - CVE-2022-41723
+#   1.19.4-r0:
+#     - CVE-2022-41717
+#   1.19.2-r0:
+#     - CVE-2022-2879
+#     - CVE-2022-2880
+#     - CVE-2022-41715
+#   1.19.1-r0:
+#     - CVE-2022-27664
+#     - CVE-2022-32190
+#   1.18.5-r0:
+#     - CVE-2022-32189
+#   1.18.4-r0:
+#     - CVE-2022-1705
+#     - CVE-2022-1962
+#     - CVE-2022-28131
+#     - CVE-2022-30630
+#     - CVE-2022-30631
+#     - CVE-2022-30632
+#     - CVE-2022-30633
+#     - CVE-2022-30635
+#     - CVE-2022-32148
+#   1.18.1-r0:
+#     - CVE-2022-28327
+#     - CVE-2022-27536
+#     - CVE-2022-24675
+#   1.17.8-r0:
+#     - CVE-2022-24921
+#   1.17.7-r0:
+#     - CVE-2022-23772
+#     - CVE-2022-23773
+#     - CVE-2022-23806
+#   1.17.6-r0:
+#     - CVE-2021-44716
+#     - CVE-2021-44717
+#   1.17.3-r0:
+#     - CVE-2021-41772
+#     - CVE-2021-41771
+#   1.17.2-r0:
+#     - CVE-2021-38297
+#   1.17.1-r0:
+#     - CVE-2021-39293
+#   1.17-r0:
+#     - CVE-2021-29923
+#   1.16.7-r0:
+#     - CVE-2021-36221
+#   1.16.6-r0:
+#     - CVE-2021-34558
+#   1.16.5-r0:
+#     - CVE-2021-33195
+#     - CVE-2021-33196
+#     - CVE-2021-33197
+#     - CVE-2021-33198
+#   1.16.4-r0:
+#     - CVE-2021-31525
+#   1.16.2-r0:
+#     - CVE-2021-27918
+#     - CVE-2021-27919
+#   1.15.7-r0:
+#     - CVE-2021-3114
+#     - CVE-2021-3115
+#   1.15.5-r0:
+#     - CVE-2020-28362
+#     - CVE-2020-28366
+#     - CVE-2020-28367
+#   1.15.2-r0:
+#     - CVE-2020-24553
+#   1.15-r0:
+#     - CVE-2020-16845
+#   1.14.5-r0:
+#     - CVE-2020-15586
+#   1.13.7-r0:
+#     - CVE-2020-7919
+#   1.13.2-r0:
+#     - CVE-2019-17596
+#   1.13.1-r0:
+#     - CVE-2019-16276
+#   1.12.8-r0:
+#     - CVE-2019-9512
+#     - CVE-2019-9514
+#     - CVE-2019-14809
+#   1.11.5-r0:
+#     - CVE-2019-6486
+#   1.9.4-r0:
+#     - CVE-2018-6574
+
+case "$CTARGET_ARCH" in
+aarch64) export GOARCH="arm64" ;;
+armel)   export GOARCH="arm" GOARM=5 ;;
+armhf)   export GOARCH="arm" GOARM=6 ;;
+armv7)   export GOARCH="arm" GOARM=7 ;;
+s390x)   export GOARCH="s390x" ;;
+x86)     export GOARCH="386" ;;
+x86_64)  export GOARCH="amd64" ;;
+ppc64)   export GOARCH="ppc64" ;;
+ppc64le) export GOARCH="ppc64le" ;;
+riscv64) export GOARCH="riscv64" ;;
+*)       export GOARCH="unsupported";;
+esac
+
+# compile go itself as a PIE on supported arches.
+case "$CARCH" in
+x86_64|s390x|aarch64) export GO_LDFLAGS=-buildmode=pie ;;
+esac
+
+prepare() {
+	default_prepare
+
+	# The GitLab CI builds aports in a container. On ppc64le, ASLR
+	# needs to be disabled in order to have the following test case
+	# pass. However, the container doesn't have permissions to
+	# disable ASLR, hence we just disable this test for now.
+	#
+	# See https://github.com/golang/go/issues/49066#issuecomment-1252948861
+	if [ "$CTARGET_ARCH" = "ppc64le" ]; then
+		rm test/fixedbugs/bug513.go
+	fi
+
+	# gccgo test failures are explained below.
+	rm -f src/cmd/go/testdata/script/gccgo*.txt
+}
+
+builddir="$srcdir"/go
+build() {
+	cd "$builddir/src"
+
+	export GOOS="linux"
+	export GOPATH="$srcdir"
+	export GOROOT="$builddir"
+	export GOBIN="$GOROOT"/bin
+	export GOROOT_FINAL=/usr/lib/go
+
+	# GOROOT_BOOTSTRAP differs depending on bootstrap with gcc-go or go.
+	if command -v gccgo >/dev/null 2>&1; then
+		export GOROOT_BOOTSTRAP=/usr
+	else
+		export GOROOT_BOOTSTRAP=/usr/lib/go
+	fi
+
+	# on 32-bit arches gcc-go runs out-of-memory without limiting
+	# the number of OS threads, needs further investigation. When
+	# go-bootstrap is provided by community/go (i.e. when gccgo
+	# isn't installed) then this is not a problem.
+	if command -v gccgo >/dev/null 2>&1; then
+		case "$CARCH" in
+		armhf|armv7|x86) export GOMAXPROCS=1 ;;
+		esac
+	fi
+
+	./make.bash -v
+	unset GOMAXPROCS
+}
+
+check() {
+	cd "$builddir/src"
+	if [ "$CTARGET_ARCH" = "armhf" ]; then
+		export GO_TEST_TIMEOUT_SCALE=2
+	fi
+
+	# Test suite does not pass with ccache, thus remove it form $PATH.
+	export PATH="$(echo "$PATH" | sed 's|/usr/lib/ccache/bin:||g')"
+
+	# Tests which use GCCGO test building shared library and c-archives
+	# using -compiler=gccgo, this does presently not work with musl,
+	# hence disable these tests by setting GCCGO to a bogus value.
+	#
+	# See:
+	#
+	#   • https://github.com/golang/go/issues/13492
+	#   • https://github.com/golang/go/pull/52541
+	#   • https://gitlab.alpinelinux.org/alpine/aports/-/merge_requests/39618
+	export GCCGO=/does/not/exist
+
+	PATH="$builddir/bin:$PATH" ./run.bash -no-rebuild
+}
+
+package() {
+	mkdir -p "$pkgdir"/usr/bin "$pkgdir"/usr/lib/go/bin "$pkgdir"/usr/share/doc/go
+
+	for binary in go gofmt; do
+		install -Dm755 bin/"$binary" "$pkgdir"/usr/lib/go/bin/"$binary"
+		ln -s /usr/lib/go/bin/"$binary" "$pkgdir"/usr/bin/
+	done
+
+	cp -a pkg lib "$pkgdir"/usr/lib/go
+	cp -r doc misc "$pkgdir"/usr/share/doc/go
+	rm -rf "$pkgdir"/usr/lib/go/pkg/obj
+	rm -rf "$pkgdir"/usr/lib/go/pkg/bootstrap
+	rm -f  "$pkgdir"/usr/lib/go/pkg/tool/*/api
+
+	mkdir -p "$pkgdir"/usr/lib/go/
+	cp -a "$builddir"/src "$pkgdir"/usr/lib/go
+
+	# Install go.env, see https://go.dev/doc/toolchain#GOTOOLCHAIN.
+	install -Dm644 "$builddir"/go.env "$pkgdir"/usr/lib/go/go.env
+	install -Dm644 VERSION "$pkgdir/usr/lib/go/VERSION"
+
+	# Remove tests from /usr/lib/go/src to reduce package size,
+	# these should not be needed at run-time by any program.
+	find "$pkgdir"/usr/lib/go/src \( -type f -a -name "*_test.go" \) \
+		-exec rm -rf \{\} \+
+	find "$pkgdir"/usr/lib/go/src \( -type d -a -name "testdata" \) \
+		-exec rm -rf \{\} \+
+
+	# Remove rc (plan 9) and bat scripts (windows) to reduce package
+	# size further. The bash scripts are actually needed at run-time.
+	#
+	# See: https://gitlab.alpinelinux.org/alpine/aports/issues/11091
+	find "$pkgdir"/usr/lib/go/src -type f -a \( -name "*.rc" -o -name "*.bat" \) \
+		-exec rm -rf \{\} \+
+
+	# cgo test files will be removed from misc/ in Go 1.21.
+	# Removing them from now decreases the size of -doc below 2 MiB.
+	#
+	# See https://github.com/golang/go/issues/37486#issuecomment-1321364279
+	rm -r "$pkgdir"/usr/share/doc/go/misc/cgo
+}
+
+sha512sums="
+8e352a01484c168894026080ee4501180e327d734fb3d892ab17daac193964fcd5fd90033c9cf86d6ffe8b7e4da64bda83ba4501a6c05919bcefbe9e2467c771  go1.23.8.src.tar.gz
+34dbe032c5f08dd8a7aad36fc4d54e746a876fdadc25466888a2f04f5a9d53103190ebd68d3cf978d3a041976185e30ffb25611fb577d031c159810d2d4c7c41  0001-cmd-link-prefer-musl-s-over-glibc-s-ld.so-during-dyn.patch
+8061e4ef9d7dd31804bd8d98c95afa5dd82567940b3436f45f874e0419e324b49713d8a814df04617e575ec3c6155199c4661352ea8aef63ead81ca3020f3dc4  0002-go.env-Don-t-switch-Go-toolchain-version-as-directed.patch
+33ecefca77fa0af52a3b2b66a76977af27a88c8dddb89f03e0a5ae6794b9aac53a62d7be33020b49022e9a89d4cdfa383038ee10e160eb94548b2430bf3cfb5e  tests-fchmodat-not-supported.patch
+"

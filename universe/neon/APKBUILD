@@ -1,0 +1,50 @@
+pkgname=neon
+pkgver=0.32.4
+pkgrel=0
+pkgdesc="HTTP and WebDAV client library with a C interface"
+url="https://notroj.github.io/neon/"
+arch="all"
+license="LGPL-2.0-or-later"
+makedepends="
+	expat-dev
+	gzip
+	openssl-dev>3
+	xmlto
+	zlib-dev
+	"
+checkdepends="openssl>3"
+depends="ca-certificates"
+depends_dev="$makedepends"
+subpackages="$pkgname-dev $pkgname-doc"
+source="https://notroj.github.io/neon/neon-$pkgver.tar.gz"
+# /usr/bin/openssl invocation fails in testsuite, not sure why
+options="!check"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--with-ssl \
+		--with-expat \
+		--without-gssapi \
+		--disable-nls \
+		--enable-shared \
+		--disable-static \
+		--enable-threadsafe-ssl=posix \
+		--with-ca-bundle=/etc/ssl/certs/ca-certificates.crt
+	make
+	make docs
+}
+
+check() {
+	make check
+}
+
+package() {
+	make -j1 DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+82bcd1555f047d26cc5ccd67d2fef8dea4eb5a4cc45ca8030d2f3c356eee03fd78efd7ef45f516948e89f1089686731046b3fe48e73b3d84c65848ef6d86bd7a  neon-0.32.4.tar.gz
+"

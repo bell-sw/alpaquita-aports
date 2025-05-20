@@ -1,0 +1,55 @@
+pkgname=xfsprogs
+pkgver=6.0.0
+pkgrel=0
+pkgdesc="XFS filesystem utilities"
+url="https://xfs.org/index.php/Main_Page"
+arch="all"
+license="LGPL-2.1-or-later"
+makedepends="
+	attr-dev
+	bash
+	inih-dev
+	linux-headers
+	python3
+	userspace-rcu-dev
+	util-linux-dev
+	"
+options="!check"  # no test suite
+subpackages="$pkgname-dev $pkgname-doc $pkgname-libs $pkgname-extra"
+source="https://www.kernel.org/pub/linux/utils/fs/xfs/xfsprogs/xfsprogs-$pkgver.tar.xz"
+
+build() {
+	export DEBUG=-DNDEBUG
+	export OPTIMIZER="$CFLAGS -flto=auto"
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sbindir=/sbin \
+		--libexecdir=/usr/lib \
+		--enable-gettext=no
+	make
+}
+
+package() {
+	make -j1 DIST_ROOT="$pkgdir" install install-dev
+	find "$pkgdir" -name *.la -delete
+	mv "$pkgdir"/sbin "$pkgdir"/usr
+	mkdir -p "$pkgdir"/sbin
+	for i in mkfs.xfs fsck.xfs xfs_repair; do
+		mv "$pkgdir"/usr/sbin/$i "$pkgdir"/sbin/
+	done
+	chown -R root:root "$pkgdir"/*
+}
+
+extra() {
+	depends="$pkgname python3" # python3 for xfs_scrub_all
+	pkgdesc="XFS filesystem extra utilities"
+	mkdir -p "$subpkgdir"
+	rm -rf "$pkgdir"/lib "$pkgdir"/usr/lib
+	mv "$pkgdir"/usr "$subpkgdir"/
+}
+
+sha512sums="
+a3ddccdea1129038420d933f1e9ae8f9e75b3ad59fd0fe4c61b7a4dc6145f47b4262f68aefc3216d37cc33ee5643cd6f260ec83cd39d6b61a1cd046c03674ad8  xfsprogs-6.0.0.tar.xz
+"

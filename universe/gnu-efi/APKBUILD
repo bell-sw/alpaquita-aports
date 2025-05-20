@@ -1,0 +1,28 @@
+# Description:
+
+pkgname=gnu-efi
+pkgver=3.0.15
+pkgrel=0
+pkgdesc="Development Libraries and headers for EFI"
+url="https://sourceforge.net/projects/gnu-efi"
+arch="all !armhf !s390x !ppc64le !mips !mips64"
+options="!stackprot !fortify !annobin"
+license="BSD-3-Clause"
+subpackages="$pkgname-dev"
+depends_dev="$pkgname"
+source="https://downloads.sourceforge.net/project/gnu-efi/gnu-efi-$pkgver.tar.bz2
+	no-werror.patch
+	"
+
+build() {
+	make -j1
+}
+
+package() {
+	make PREFIX=/usr INSTALLROOT="$pkgdir" install
+}
+
+sha512sums="
+64d408b6d115bdc6eebae12fbd6cd907ed5f847f54e506c1e8f8ea5de38a95cf6fac66ab1009bd1d0bd2d54ad45ad598d29bcc303926a5899bf5cc25448cbb2f  gnu-efi-3.0.15.tar.bz2
+f384597dc967cc9b1cf738d4002dc75847606c8ab10efbaf9e23844c767f5b9a33518374321b2ae5c5d7e4c9c3abaed996d0690ea81a7906355cabec1426d248  no-werror.patch
+"

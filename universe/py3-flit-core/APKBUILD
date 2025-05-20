@@ -1,0 +1,38 @@
+pkgname=py3-flit-core
+pkgver=3.8.0
+pkgrel=2
+pkgdesc="simple packaging tool for simple packages (core)"
+url="https://flit.readthedocs.io/"
+arch="noarch"
+license="BSD-3-Clause"
+makedepends="py3-installer"
+checkdepends="py3-pytest py3-testpath"
+source="https://files.pythonhosted.org/packages/source/f/flit/flit-$pkgver.tar.gz"
+builddir="$srcdir/flit-$pkgver/flit_core"
+options="!check" # py3-testpath depends on this
+
+# split from py3-flit, allow replacing files
+replaces="py3-flit<3.5.1-r3"
+
+build() {
+	python3 build_dists.py
+
+	# don't need this with py3.11 for tomli
+	rm -r flit_core/vendor/
+}
+
+check() {
+	python3 -m pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		dist/flit_core-$pkgver-py3-none-any.whl
+
+	# remove installed tests
+	rm -r "$pkgdir"/usr/lib/python3*/site-packages/flit_core/tests
+}
+
+sha512sums="
+08170ee710857fcbfc1f72dbb94c535d70a2477c7598eacacc9a0e2f90f4fe11f4d910f1fcc11de210a6b50d89049e5835127090c6acabb00c69a821919e68cc  flit-3.8.0.tar.gz
+"

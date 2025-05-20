@@ -1,0 +1,81 @@
+From: Jakub Jirutka <jakub@jirutka.cz>
+Date: Wed, 24 Aug 2022 21:20:22 +0200
+Subject: [PATCH] Link with shared libraries, don't embed anything
+
+- Don't statically link openssl, zlib and cares.
+- Don't build and statically link libgrpc, link shared libgrpc.
+- Don't statically link libgcc and libstdc++.
+
+diff --git a/src/ruby/ext/grpc/extconf.rb b/src/ruby/ext/grpc/extconf.rb
+index 98a8876..808ecfe 100644
+--- a/src/ruby/ext/grpc/extconf.rb
++++ b/src/ruby/ext/grpc/extconf.rb
+@@ -69,11 +69,11 @@ if apple_toolchain && !cross_compiling
+ end
+ 
+ # Don't embed on TruffleRuby (constant-time crypto is unsafe with Sulong, slow build times)
+-ENV['EMBED_OPENSSL'] = (RUBY_ENGINE != 'truffleruby').to_s
++ENV['EMBED_OPENSSL'] = 'false'
+ # Don't embed on TruffleRuby (the system zlib is already linked for the zlib C extension, slow build times)
+-ENV['EMBED_ZLIB'] = (RUBY_ENGINE != 'truffleruby').to_s
++ENV['EMBED_ZLIB'] = 'false'
+ 
+-ENV['EMBED_CARES'] = 'true'
++ENV['EMBED_CARES'] = 'false'
+ 
+ ENV['ARCH_FLAGS'] = RbConfig::CONFIG['ARCH_FLAG']
+ if apple_toolchain && !cross_compiling
+@@ -97,32 +97,7 @@
+ strip_tool = RbConfig::CONFIG['STRIP']
+ strip_tool += ' -x' if apple_toolchain
+ 
+-unless windows
+-  puts 'Building internal gRPC into ' + grpc_lib_dir
+-  nproc = 4
+-  nproc = Etc.nprocessors if Etc.respond_to? :nprocessors
+-  nproc_override = ENV['GRPC_RUBY_BUILD_PROCS']
+-  unless nproc_override.nil? or nproc_override.size == 0
+-    nproc = nproc_override
+-    puts "Overriding make parallelism to #{nproc}"
+-  end
+-  make = bsd ? 'gmake' : 'make'
+-  cmd = "#{make} -j#{nproc} -C #{grpc_root} #{grpc_lib_dir}/libgrpc.a CONFIG=#{grpc_config} Q="
+-  puts "Building grpc native library: #{cmd}"
+-  system(cmd)
+-  exit 1 unless $? == 0
+-
+-  if grpc_config == 'opt'
+-    rm_obj_cmd = "rm -rf #{File.join(output_dir, 'objs')}"
+-    puts "Removing grpc object files: #{rm_obj_cmd}"
+-    system(rm_obj_cmd)
+-    exit 1 unless $? == 0
+-    strip_cmd = "#{strip_tool} #{grpc_lib_dir}/*.a"
+-    puts "Stripping grpc native library: #{strip_cmd}"
+-    system(strip_cmd)
+-    exit 1 unless $? == 0
+-  end
+-end
++$LDFLAGS << ' -L' + ENV.fetch('TOPDIR', '.')
+ 
+ $CFLAGS << ' -DGRPC_RUBY_WINDOWS_UCRT' if windows_ucrt
+ $CFLAGS << ' -I' + File.join(grpc_root, 'include')
+@@ -118,7 +103,7 @@ ext_export_file += '-truffleruby' if RUBY_ENGINE == 'truffleruby'
+ $LDFLAGS << ' -Wl,--version-script="' + ext_export_file + '.gcc"' if linux
+ $LDFLAGS << ' -Wl,-exported_symbols_list,"' + ext_export_file + '.clang"' if apple_toolchain
+ 
+-$LDFLAGS << ' ' + File.join(grpc_lib_dir, 'libgrpc.a') unless windows
++$LDFLAGS << ' -Wl,-wrap,memcpy -lgrpc' unless windows
+ if grpc_config == 'gcov'
+   $CFLAGS << ' -O0 -fprofile-arcs -ftest-coverage'
+   $LDFLAGS << ' -fprofile-arcs -ftest-coverage -rdynamic'
+@@ -129,10 +114,6 @@ if grpc_config == 'dbg'
+ end
+ 
+ $LDFLAGS << ' -Wl,-wrap,memcpy' if linux
+-# Do not statically link standard libraries on TruffleRuby as this does not work when compiling to bitcode
+-if linux && RUBY_ENGINE != 'truffleruby'
+-  $LDFLAGS << ' -static-libgcc -static-libstdc++'
+-end
+ $LDFLAGS << ' -static' if windows
+ 
+ $CFLAGS << ' -std=c11 '

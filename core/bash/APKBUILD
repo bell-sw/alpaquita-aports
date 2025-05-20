@@ -1,0 +1,117 @@
+# Description: Bash is a sh-compatible shell with several enhancements
+# such as command-line editing, shell function and aliases, etc.
+# It includes features from Korn shell and C shell.
+
+pkgname=bash
+pkgver=5.2.15
+_patchlevel=${pkgver##*.}
+_myver=${pkgver%.*}
+_patchbase=${_myver/./}
+pkgrel=0
+pkgdesc="The GNU Bourne Again shell"
+url="https://www.gnu.org/software/bash/bash.html"
+arch="all"
+license="GPL-3.0-or-later"
+makedepends_build="bison flex"
+makedepends_host="readline-dev>8 ncurses-dev linux-headers"
+[ "$CLIBC" = "musl" ] && makedepends_host="$makedepends_host musl-libintl"
+install="$pkgname.post-install $pkgname.post-upgrade $pkgname.pre-deinstall"
+subpackages="$pkgname-dbg $pkgname-dev $pkgname-doc"
+source="https://ftp.gnu.org/gnu/bash/bash-$_myver.tar.gz
+	bashrc
+	bash-noinfo.patch
+	"
+# generate url's to patches. note: no forks allowed!
+_i=1
+_pad=00
+while [ $_i -le $_patchlevel ]; do
+	[ $_i -ge 10 ] && _pad="0"
+	[ $_i -ge 100 ] && _pad=
+	source="$source https://ftp.gnu.org/gnu/bash/bash-$_myver-patches/bash$_patchbase-$_pad$_i"
+	_i=$(( _i + 1))
+done
+
+# secfixes:
+#   4.4.12-r1:
+#     - CVE-2016-0634
+
+builddir="$srcdir/$pkgname-$_myver"
+
+export CFLAGS="$CFLAGS -DSYS_BASHRC='\"/etc/bash/bashrc\"'"
+
+prepare() {
+	# NOTE: This section is for applying the vendor patches, which are required to fix
+	# security holes.  `default_prepare` does *not* apply vendor patches in the format
+	# shipped with bash.  We also need to make sure vendor patches are applied before
+	# our own.
+	# If you disagree, please request an experimental rebuild with bash as /bin/sh,
+	# before removing this section.
+	for p in $source; do
+		case $p in
+		*/bash[0-9][0-9]-[0-9]*)
+			msg "$p (vendor)"
+			patch -p0 -i "$srcdir"/${p##*/}
+			;;
+		esac
+	done
+
+	default_prepare
+
+	# preventively set Version to please 'apk version --check'
+	sed -i "s/@PACKAGE_VERSION@/$pkgver/" "$builddir"/support/bash.pc.in
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--with-curses \
+		--disable-nls \
+		--enable-readline \
+		--without-bash-malloc \
+		--with-installed-readline
+	# parallel build workarounds
+	make y.tab.c && make builtins/libbuiltins.a && make
+}
+
+check() {
+	make test
+}
+
+package() {
+	mkdir -p "$pkgdir"/etc/bash
+	make DESTDIR="$pkgdir" install
+	install -Dm644  "$srcdir"/bashrc "$pkgdir"/etc/bash/bashrc
+	rm -rf "$pkgdir"/usr/share/locale
+}
+
+dev() {
+	default_dev
+	mkdir -p "$subpkgdir"/usr/bin "$subpkgdir"/usr/lib/$pkgname
+	mv "$pkgdir"/usr/bin/${pkgname}bug "$subpkgdir"/usr/bin
+	mv "$pkgdir"/usr/lib/$pkgname/Makefile* "$subpkgdir"/usr/lib/$pkgname
+}
+
+sha512sums="
+5647636223ba336bf33e0c65e516d8ebcf6932de8b44f37bc468eedb87579c628ad44213f78534beb10f47aebb9c6fa670cb0bed3b4e7717e5faf7e9a1ef81ae  bash-5.2.tar.gz
+3e0ea7dd94ee4bf2967bb0b6c565df4f7f230afe76a69952e881802268db1ab2474d43c2f14441a956b6645b0ee0d524fdd107d28e56ae870bfbb1a6cba22eef  bashrc
+9d8845491d0fe335bdd8e9a2bd98bda54bfed2ae3c35b2196c6d5a38bdf96c4d97572ba7d6b19ab605ef4e8f001f64cf3312f87dedebb9e37a95ad2c44e33cdb  bash-noinfo.patch
+d1e5d508a4a1888052434adff551732c4215372174adb19dce9514faa18c78ee690e1c0fd9858e15c76fbb910ccace7e62751c3c266f5db253dbffda8c882409  bash52-001
+2484262d6cb32303c761793af2c352062421054149fcf3f591a590e409bb21985683a1e50669547e396eea46f1081ae0821076c3975357dc6c850f94cdd527c1  bash52-002
+c8dac54c8b1805dc756efd06be3092a4de1c45bc1e97b574ca49bf4152515a545d154a84c1d9a82747c79d676b8330254856380bc929d8e835b10af743d66cbb  bash52-003
+64bab53225ab2f0b974988c9b1ad5d2d2bb256ce384bb9d4646d1e75411a8eefc7ce2a7ee470345bff276e71147e9b5149a5d9b25bd5308f7bad77b8f68b5c84  bash52-004
+9971ebef50d2a776226d68dbb11feaac85522f66824a0e54faa97b0a14cc242eb8daae2c4364ec59cea5413824be7cbc149c02d1452f211588c505f030b13ee0  bash52-005
+aa46d8a5523374a269ea3d1b4b75ae4e3d918ef4f6d89331bed5da24505bcfac321864071f29161e56487c611d35fe1351c2a2ea226ccaeecef55d01a5a5f2c7  bash52-006
+a2f5ce78c651ec220852989a8b2325d0f1a3739f6494796124324e5883290f74b7e360f91d540c339e1ca3030e54b91301241bb481e965f9fdf915d5fd5accd1  bash52-007
+1f317f3c2313ede7b67c4e396dfad453787f4a30ff77fc53aae482c7dbb752f60c1f33cb414dcc3055a55b77c8c80aeda9626e5b066a79af8a082c6e056340e2  bash52-008
+71fffb71e5876e7abea7e769f4438f2f8d3843d7dfec13f1ba7e79ead5b001d7543c92eb3a628b393f8652bf136e4768c1d1c7b55c155cafe83886b900396e68  bash52-009
+12d120e39593d3f23aa86e510b0eda514ec69ef42e910e5855e4c7510354e8504e5d6949770448f5632ce482c9ab468f4ba82a8a38b4a8237cdd7b54f742946a  bash52-010
+83a7584ca8ee512839183e329183476a2c8bcb995e3dc9d5188f04f11760bd3cb0f2d29d12bca2661b7ce8ab125d44d35d839f735992ca6c27f936d609ac4683  bash52-011
+8f969cb36ee81ac47a4c3c6ee7fbe62159192fa4f14cb48973eccd55c458e6a093adc3045ee1c379544d8183d77813977a43cad5d225322d8816540a1cb8893b  bash52-012
+5aaa82d88ec98382e241cbf1a4356a9e69888432301f1c974038b59fd8be08ad2a52b782f51ac673bad72bc4e07d1eb45b926595ebe6d53223dcb7f15f3883a7  bash52-013
+5b6e846b30691e398ee5628226278ffd9def64ef1edd8d77dd4bd681405c339fce39f820837cf8e09c0478b39ecb3a8db01c3e0afb88bdecb7bf362d797e4884  bash52-014
+eb1bd6b3bf8811d765f222cd48360eb7f3f0aaa4f29f1b6c1f17635b819e5e4734ec4e7fcfde551fd7a6299a7d67869ea0bc5cc86cc523bc4a64d30e433df493  bash52-015
+"

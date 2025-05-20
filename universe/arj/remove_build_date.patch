@@ -1,0 +1,185 @@
+From: Helmut Grohne <helmut@subdivi.de>
+Subject: Remove the build date
+Forwarded: no
+Closes: #875568
+
+Presenting the date of the build is of very limited value. It has
+significant downsides though:
+ * Embedding the date makes the build unreproducible. An alternative
+   to removing it would be using SOURCE_DATE_EPOCH.
+ * The way of computing it involves running the today utility which
+   is compiled with the host architecture compiler and thus breaks
+   cross compilation.
+
+Thus this patch opts for removing the dubious feature.
+
+---
+ arj.c                 |    2 +-
+ arj.h                 |    1 -
+ arjsfx.c              |    2 +-
+ gnu/makefile.in       |   27 +++++----------------------
+ rearj.c               |    2 +-
+ resource/resource.txt |    6 +++---
+ 6 files changed, 11 insertions(+), 29 deletions(-)
+
+--- a/arj.c
++++ b/arj.c
+@@ -832,7 +832,7 @@ int main(int argc, char *argv[])
+  if((tmp_stdout=new_stdout)==new_stderr&&!is_registered)
+   new_stdout=stderr;
+  msg_strcpy(strcpy_buf, M_VERSION);
+- msg_cprintf(0, M_ARJ_BANNER, M_ARJ_BINDING, strcpy_buf, build_date);
++ msg_cprintf(0, M_ARJ_BANNER, M_ARJ_BINDING, strcpy_buf);
+  if(!is_registered&&!msg_strcmp((FMSG *)(regdata+REG_KEY2_SHIFT), M_REG_TYPE))
+   msg_cprintf(0, M_REGISTERED_TO, regdata+REG_NAME_SHIFT);
+  else
+--- a/arj.h
++++ b/arj.h
+@@ -12,7 +12,6 @@
+ #include "bindings.h"
+ #include "environ.h"
+ #include "defines.h"
+-#include "date_sig.h"
+ #include "arjtypes.h"
+ 
+ #if SFX_LEVEL!=ARJSFXJR
+--- a/arjsfx.c
++++ b/arjsfx.c
+@@ -244,7 +244,7 @@ void show_sfx_logo()
+   for(nptr=tptr=archive_name; *tptr!='\0'; tptr++)
+    if(strchr(path_separators, *tptr)!=NULL)
+     nptr=tptr+1;
+-  msg_cprintf(0, M_ARJSFX_BANNER, M_VERSION, nptr, build_date);
++  msg_cprintf(0, M_ARJSFX_BANNER, M_VERSION, nptr);
+   msg_cprintf(0, lf);
+   logo_shown=1;
+  }
+--- a/gnu/makefile.in
++++ b/gnu/makefile.in
+@@ -164,13 +164,13 @@ $(SFXSTUB_DIR)/%.o: $(SRC_DIR)/%.c
+ # Main dependency tree
+ #
+ 
+-.PHONY: timestamp msg-headers depends prepare clean package help
++.PHONY: msg-headers depends prepare clean package help
+ 
+ ifdef COMMERCIAL
+ MAKE_KEY=$(TOOLS_DIR)/make_key$x
+ endif
+ 
+-all:	prepare timestamp
++all:	prepare
+ 	$(MAKE) msg-headers
+ 	$(MAKE) depends
+ 	$(MAKE) do-all
+@@ -206,22 +206,12 @@ endif
+ depends: $(DEPS)
+ 
+ #
+-# Update timestamp file
+-#
+-
+-timestamp: $(TOOLS_DIR)/today$x
+-	$(TOOLS_DIR)/today$x $(LOCALE) $(BASEDIR)
+-
+-#
+ # The tools
+ #
+ 
+ MSGBIND_OBJS = $(patsubst %,$(TOOLS_DIR)/%, \
+                filemode.o msgbind.o arjdata.o crc32.o)
+ 
+-TODAY_OBJS = $(patsubst %,$(TOOLS_DIR)/%, \
+-             filemode.o today.o)
+-
+ MAKE_KEY_OBJS = $(patsubst %,$(TOOLS_DIR)/%, \
+                 make_key.o crc32.o misc.o arj_proc.o arjsec_h.o arjsec_l.o)
+ 
+@@ -237,9 +227,6 @@ PACKAGER_OBJS = $(patsubst %,$(TOOLS_DIR
+ $(TOOLS_DIR)/msgbind$x: $(MSGBIND_OBJS)
+ 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $@ $(MSGBIND_OBJS) $(LIBS)
+ 
+-$(TOOLS_DIR)/today$x: $(TODAY_OBJS)
+-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $@ $(TODAY_OBJS) $(LIBS)
+-
+ $(TOOLS_DIR)/make_key$x: $(MAKE_KEY_OBJS)
+ 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $@ $(MAKE_KEY_OBJS) $(LIBS)
+ 
+@@ -252,10 +239,6 @@ $(TOOLS_DIR)/join$x: $(JOIN_OBJS)
+ $(TOOLS_DIR)/packager$x: $(PACKAGER_OBJS)
+ 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $@ $(PACKAGER_OBJS) $(LIBS)
+ 
+-# This rule tells that timestamping badly needs date_sig.c (it may bail out
+-# otherwise when the timestamps are being created for the first time)
+-$(BASEDIR)/date_sig.c: timestamp
+-
+ # And this one explicitly specifies that chk_fmsg depends on individual files
+ $(ARJ_DIR)/chk_fmsg.o: $(SRC_DIR)/chk_fmsg.c $(BASEDIR)/fmsg_arj.c
+ $(ARJSFX_DIR)/chk_fmsg.o: $(SRC_DIR)/chk_fmsg.c $(BASEDIR)/fmsg_sfx.c
+@@ -300,7 +283,7 @@ $(BASEDIR)/nmsg_stb.c $(BASEDIR)/msg_stb
+ #
+ 
+ ARJSFXV_OBJS = $(patsubst %,$(ARJSFXV_DIR)/%, \
+-	       sfx_id.o filemode.o date_sig.o fmsg_sfv.o imsg_sfv.o nmsg_sfv.o \
++	       sfx_id.o filemode.o fmsg_sfv.o imsg_sfv.o nmsg_sfv.o \
+ 	       decode.o arjsfx.o fardata.o arj_user.o arj_arcv.o arj_file.o \
+ 	       crc32.o misc.o debug.o arj_proc.o environ.o ea_mgr.o ntstream.o \
+ 	       uxspec.o ext_hdr.o arjtypes.o exe_sear.o chk_fmsg.o filelist.o \
+@@ -356,7 +339,7 @@ $(BASEDIR)/msg_sfj.h: $(TOOLS_DIR)/msgbi
+ #
+ 
+ ARJ_OBJS = $(patsubst %,$(ARJ_DIR)/%, \
+-	   filemode.o date_sig.o fmsg_arj.o imsg_arj.o \
++	   filemode.o fmsg_arj.o imsg_arj.o \
+ 	   nmsg_arj.o integr.o file_reg.o decode.o encode.o \
+ 	   arj.o enc_gwy.o fardata.o arj_user.o arj_arcv.o \
+ 	   arj_file.o crc32.o misc.o debug.o arj_proc.o \
+@@ -393,7 +376,7 @@ $(BASEDIR)/msg_arj.h: $(TOOLS_DIR)/msgbi
+ #
+ 
+ REARJ_OBJS = $(patsubst %,$(REARJ_DIR)/%, \
+-	     integr.o filemode.o date_sig.o fmsg_rej.o nmsg_rej.o file_reg.o \
++	     integr.o filemode.o fmsg_rej.o nmsg_rej.o file_reg.o \
+ 	     rearj.o fardata.o arj_file.o crc32.o misc.o debug.o arj_proc.o \
+ 	     environ.o arjtypes.o filelist.o scrnio.o arjsec_h.o arjsec_l.o \
+              externs.o)
+--- a/rearj.c
++++ b/rearj.c
+@@ -1294,7 +1294,7 @@ int main(int argc, char **argv)
+ #ifdef COLOR_OUTPUT
+  no_colors=redirected=!is_tty(stdout);
+ #endif
+- msg_cprintf(0, M_REARJ_BANNER, build_date);
++ msg_cprintf(0, M_REARJ_BANNER);
+  #ifdef USE_TZSET
+   tzset();
+  #endif
+--- a/resource/resource.txt
++++ b/resource/resource.txt
+@@ -294,7 +294,7 @@
+ {FARMSGS}  {M_REPLIES_HELP}         {MSG_ARJ, MSG_SFV, MSG_SFX}          {*}                     {}  {en, fr, de, ru}     {F} {"Yes, No, or Quit? ", "Oui, Non, ou Quitte ? ", "Ja, Nein, oder Abbruch? ", "Y=да, N=нет, Q=выход: "}
+ {FARMSGS}  {M_ALL_REPLIES_HELP}     {MSG_ARJ, MSG_SFV}                   {*}                     {}  {en, fr, de, ru}     {F} {"Yes, No, Quit, Always, Skip, Global, Command? ", "Oui, Non, Quitte, Toujours, Passe, Global, Commande ? ", "Ja, Nein, Abbruch, Immer, Ъberspringen, Global, Kommando? ", "Y=да,\nN=нет,\nQ=выход,\nA=\"да\" на все последующие запросы,\nS=\"нет\" на все последующие запросы,\nG=\"да\" на все последующие запросы любого типа\nC=выполнение внешней команды\n? "}
+ {FARMSGS}  {M_REPLIES}              {MSG_ARJ, MSG_SFV}                   {*}                     {}  {en, fr, de, ru}     {F} {"YNQASGC", "ONQTPGC", "JNAIБGK", "YNQASGC"}
+-{FARMSGS}  {M_ARJ_BANNER}           {MSG_ARJ}                            {*}                     {}  {en, FR, de, ru}     {F} {"@PRODUCT v %s%s, Copyright (c) 1998-2004, ARJ Software Russia. %s\n", "", "@PRODUCT v %s%s, Copyright (c) 1998-2004, ARJ Software Russia. %s\n", "@PRODUCT %s%s. Авторские права ARJ Software Russia. %s\n"}
++{FARMSGS}  {M_ARJ_BANNER}           {MSG_ARJ}                            {*}                     {}  {en, FR, de, ru}     {F} {"@PRODUCT v %s%s, Copyright (c) 1998-2004, ARJ Software Russia.\n", "", "@PRODUCT v %s%s, Copyright (c) 1998-2004, ARJ Software Russia.\n", "@PRODUCT %s%s. Авторские права ARJ Software Russia.\n"}
+ 
+ /*
+  * OS-specific messages
+@@ -474,7 +474,7 @@
+  */
+ 
+ {FARMSGS}  {M_WRONG_ENC_VERSION}    {MSG_SFV}                            {*}                     {}  {en, FR, de, ru}     {F} {"Wrong encryption version", "", "Falsche VerschlБsselungsversion", "Неподдерживаемый алгоритм шифрования"}
+-{FARMSGS}  {M_ARJSFX_BANNER}        {MSG_SFV}                            {*}                     {}  {en, FR, de, ru}     {F} {"ARJSFXV %s - ARJ Archive Self-Extractor. %s -? for help.\nCopyright 1999-2004, ARJ Software Russia. All Rights Reserved. %s\n", "", "ARJSFXV %s - ARJ Archiv Selbst-Entpacker. %s -? for help.\nCopyright 1999-2004, ARJ Software Russia. Alle Rechte vorbehalten. %s\n", "Самораспаковывающийся архив ARJSFXV %s. Для справки наберите %s -?\n(C) 1998-2004, ARJ Software Russia. %s\n"}
++{FARMSGS}  {M_ARJSFX_BANNER}        {MSG_SFV}                            {*}                     {}  {en, FR, de, ru}     {F} {"ARJSFXV %s - ARJ Archive Self-Extractor. %s -? for help.\nCopyright 1999-2004, ARJ Software Russia. All Rights Reserved.\n", "", "ARJSFXV %s - ARJ Archiv Selbst-Entpacker. %s -? for help.\nCopyright 1999-2004, ARJ Software Russia. Alle Rechte vorbehalten.\n", "Самораспаковывающийся архив ARJSFXV %s. Для справки наберите %s -?\n(C) 1998-2004, ARJ Software Russia.\n"}
+ {FARMSGS}  {M_SW_TABLE}             {MSG_SFV}                            {*}                     {}  {*}                  {F} {"ABCDEFGHIJKLMNOPRSTUVWXYZ?#&*$@!_"}
+ {FARMSGS}  {M_SW_PARAMS}            {MSG_SFV}                            {*}                     {}  {*}                  {F} {"100000002000000010000000000010000"}
+ {FARMSGS}  {M_JYSW_TABLE}           {MSG_SFV}                            {*}                     {}  {*}                  {F} {"ACKMNORV"}
+@@ -585,7 +585,7 @@
+ {FARMSGS}  {M_NO_INTEGRITY_PATTERN} {MSG_REJ}                            {*}                     {}  {en, FR, de, ru}     {F} {"Program integrity is questionable!\n", "", "ProgrammintegritДt in fragwБrdig!\n", "Файл программы сжат либо поврежден\n"}
+ {FARMSGS}  {M_INTEGRITY_VIOLATED}   {MSG_REJ}                            {*}                     {}  {en, FR, de, ru}     {F} {"Program integrity is questionable!!\n", "", "ProgrammintegritДt in fragwБrdig!!\n", "Целостность программы под вопросом!\n"}
+ {FARMSGS}  {M_INTEGRITY_OK}         {MSG_REJ}                            {*}                     {}  {en, FR, de, ru}     {F} {"Program passes integrity check.\n", "", "Programm besteht IntegritДtsprБfung.\n", "Программа успешно прошла проверку на целостность.\n"}
+-{FARMSGS}  {M_REARJ_BANNER}         {MSG_REJ}                            {*}                     {}  {en, FR, de, ru}     {F} {"REARJ 2.43.02, Copyright (c) 1999-2004, ARJ Software Russia. %s\n", "", "REARJ 2.43.02, Copyright (c) 1999-2004, ARJ Software Russia. %s\n", "REARJ 2.43.02, (c) 1999-2004, ARJ Software Russia. %s\n"}
++{FARMSGS}  {M_REARJ_BANNER}         {MSG_REJ}                            {*}                     {}  {en, FR, de, ru}     {F} {"REARJ 2.43.02, Copyright (c) 1999-2004, ARJ Software Russia.\n", "", "REARJ 2.43.02, Copyright (c) 1999-2004, ARJ Software Russia.\n", "REARJ 2.43.02, (c) 1999-2004, ARJ Software Russia.\n"}
+ {FARMSGS}  {M_REARJ_COMMANDS}       {MSG_REJ}                            {*}                     {}  {en, FR, de, ru}     {F} {@hrej_en.txt, "", @hrej_de.txt, @hrej_ru.txt}
+ {FARMSGS}  {M_REARJ_RCODES}         {MSG_REJ}                            {*}                     {}  {en, FR, de, ru}     {F} {@hrejc_en.txt, "", @hrejc_de.txt, @hrejc_ru.txt}
+ {FARMSGS}  {M_CANTREAD}             {MSG_REJ}                            {*}                     {}  {en, FR, de, ru}     {F} {"End of file on input", "", "Eingabedatei zu Ende", "Преждевременный конец файла при чтении"}

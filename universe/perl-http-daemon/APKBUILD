@@ -1,0 +1,50 @@
+pkgname=perl-http-daemon
+pkgver=6.14
+pkgrel=1
+pkgdesc="HTTP::Daemon perl module"
+url="https://metacpan.org/release/HTTP-Daemon"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl perl-http-date perl-http-message"
+makedepends="perl-module-build-tiny"
+checkdepends="perl-test-needs"
+replaces="perl-libwww"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/O/OA/OALDERS/HTTP-Daemon-$pkgver.tar.gz
+	0100-CVE-2022-31081.patch
+	0101-CVE-2022-31081.patch
+	0102-CVE-2022-31081.patch
+	0103-CVE-2022-31081-test-1.patch
+	0104-CVE-2022-31081-test-2.patch
+	0105-CVE-2022-31081-test-3.patch
+	"
+
+builddir="$srcdir"/HTTP-Daemon-$pkgver
+
+# secfixes:
+#   6.14.0-r1:
+#     - CVE-2022-31081
+
+build() {
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+baae522b24211d04bc53d0f89f9e7b6b98681772eb79e28a72aa2b57c023a92e1264923abc2fefc24e28be265e17530541fd9d3a559d5bcfca00a8f5b0e9d85e  HTTP-Daemon-6.14.tar.gz
+6bf94f0e858e6854a11d82cfcee412d882b1436bab2b9c2352f7978d80a7bf2223e9c93aa777b5170c74139059ec89cbb9646a167ac7dea3ee1e68e4211d6e27  0100-CVE-2022-31081.patch
+ab523d823d87141dd07e4ee858e35290013d986aceece551a168aae42a16bdd44856c63dac43e92ab2a822b4486a63e2fcd9733a26689d274e441fb368dc1859  0101-CVE-2022-31081.patch
+dfc6f74e64dd25a33498e99b8b18de54191bf8be273a722a1fefa3301ff7e4caa804d185161dfa27e5c3010cb6d7974857b6f2bc30d172a9a80738040e434468  0102-CVE-2022-31081.patch
+65d5d2c93751b45418003d0fddd61b2e22c8f2b1aab95fc6ab0d6a01774bc2a46fb7a854733d4f250c65f9cd98f9f0c57da2757f0a36d7660d8fb2ebdf66a574  0103-CVE-2022-31081-test-1.patch
+a2a410c86888ac86ca283a0e1d821727157b96b63cd285cb4331571c4881273e9074d8970c01280c1d8ee413c08146c7582a0f32c9dad674cba35c2756374765  0104-CVE-2022-31081-test-2.patch
+79d4c3a63772c3c5a699c842116ac61622051c830cbb0eab99277b094f092df140650304584a1755c3b5a1beaa00e0c07987ef69a276aa619e50151bbffe10c0  0105-CVE-2022-31081-test-3.patch
+"

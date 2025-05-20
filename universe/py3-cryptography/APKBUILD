@@ -1,0 +1,84 @@
+# RESTRICTED: Any upgrade to this package must be tested against ALL architectures
+# supported by Alpine. It is not allowed to mask this package on ANY architecture.
+# At present, upgrade is not allowed because rustc is not yet available on ALL
+# supported architectures. Any upgrade which masks an architecture WILL be reverted.
+
+pkgname=py3-cryptography
+_pyname=cryptography
+pkgver=38.0.3
+pkgrel=3
+pkgdesc="Cryptographic recipes and primitives for Python"
+url="https://cryptography.io/"
+arch="all"
+license="Apache-2.0 OR BSD-3-Clause"
+depends="python3 py3-cffi"
+makedepends="
+	libffi-dev
+	openssl-dev>3
+	py3-gpep517
+	py3-setuptools
+	py3-setuptools-rust
+	py3-wheel
+	python3-dev
+	"
+checkdepends="
+	py3-hypothesis
+	py3-iso8601
+	py3-pretend
+	py3-pytest
+	py3-pytest-benchmark
+	py3-pytest-subtests
+	py3-pytest-xdist
+	py3-tz
+	"
+source="https://files.pythonhosted.org/packages/source/c/cryptography/cryptography-$pkgver.tar.gz
+	https://files.pythonhosted.org/packages/source/c/cryptography_vectors/cryptography_vectors-$pkgver.tar.gz
+	CVE-2023-23931.patch
+	0100-CVE-2023-49083.patch
+	"
+builddir="$srcdir/$_pyname-$pkgver"
+
+replaces="py-cryptography" # Backwards compatibility
+provides="py-cryptography=$pkgver-r$pkgrel" # Backwards compatibility
+
+# secfixes:
+#   38.0.3-r3:
+#     - CVE-2023-49083
+#   38.0.3-r1:
+#     - CVE-2023-23931
+#   3.2.2-r0:
+#     - CVE-2020-36242
+#   3.2.1-r0:
+#     - CVE-2020-25659
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir dist \
+		--output-fd 1
+
+	# prepare cryptography vectors for testing
+	cd "$srcdir/cryptography_vectors-$pkgver"
+	python3 setup.py build
+}
+
+check() {
+	python3 -m venv --system-site-packages test-env
+	test-env/bin/python3 -m installer dist/cryptography*.whl
+	(
+		cd "$srcdir"/cryptography_vectors-$pkgver
+		"$builddir"/test-env/bin/python3 setup.py install
+	)
+	test-env/bin/python3 -m pytest -n $JOBS -k 'not test_load_invalid_ec_key_from_pem'
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		dist/cryptography-*.whl
+}
+
+sha512sums="
+f133d83266f386cb0169a3cf2226d258b7d599e7aaad9913f8a4b01ee0841670586a21cee93fb4d4d9f61b0da53109c5dbcf7d91d470cfbb166aa04f4a1d7634  cryptography-38.0.3.tar.gz
+3155dc396298daccdeb24e7f86131f32818eb6264110540c2639c205e57b99bc3ffd12cc9eace337e0215042734c1318e83fc8f7b1adbe20b47b8192abd618b7  cryptography_vectors-38.0.3.tar.gz
+cbe27275cc1ab6200f1ad60138a84dc0be89e22e43ecbb18594e5c63886102568c4e8d3dd9fe58c1a7ef146d0dd1953561cada79435f0aca19d9cd5077aefaac  CVE-2023-23931.patch
+28b85223ac6bf5f7d5718c828ff29d1dcc90ebde80315c5fc05db6928703444a5461b68c068a93aff8f7333c56f464d553eaa4259f31cc7a0d1fb5777b2aa5f4  0100-CVE-2023-49083.patch
+"

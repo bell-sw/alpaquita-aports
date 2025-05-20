@@ -1,0 +1,25 @@
+From eb9c0d9864b076a9844b1e70bbf4c427fab7c59b Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Thu, 16 Nov 2023 13:34:36 +0000
+Subject: [PATCH] dracut: use grub to load early microcode by default
+
+---
+ dracut.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dracut.sh b/dracut.sh
+index a608c5cc..1286525e 100755
+--- a/dracut.sh
++++ b/dracut.sh
+@@ -986,7 +986,7 @@ stdloglvl=$((stdloglvl + verbosity_mod_l))
+ [[ $nofscks_l ]] && nofscks="yes"
+ [[ $ro_mnt_l ]] && ro_mnt="yes"
+ [[ $early_microcode_l ]] && early_microcode=$early_microcode_l
+-[[ $early_microcode ]] || early_microcode=yes
++[[ $early_microcode ]] || early_microcode=no
+ [[ $early_microcode_image_dir ]] || early_microcode_image_dir=('/boot')
+ [[ $early_microcode_image_name ]] \
+     || early_microcode_image_name=('intel-uc.img' 'intel-ucode.img' 'amd-uc.img' 'amd-ucode.img' 'early_ucode.cpio' 'microcode.cpio')
+-- 
+2.25.1
+

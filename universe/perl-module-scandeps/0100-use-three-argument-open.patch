@@ -1,0 +1,22 @@
+Patch-Source: https://salsa.debian.org/perl-team/modules/packages/libmodule-scandeps-perl/-/raw/bookworm/debian/patches/use-three-argument-open.patch?ref_type=heads
+
+From 9a46eab1c78656386ba9d18bc4b341f4b2561635 Mon Sep 17 00:00:00 2001
+From: rschupp <roderich.schupp@gmail.com>
+Date: Mon, 21 Oct 2024 14:03:19 +0200
+Subject: [PATCH] use three-argument open()
+
+---
+ lib/Module/ScanDeps.pm | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/lib/Module/ScanDeps.pm
++++ b/lib/Module/ScanDeps.pm
+@@ -810,7 +810,7 @@ sub scan_file{
+     my $file = shift;
+     my %found;
+     my $FH;
+-    open $FH, $file or die "Cannot open $file: $!";
++    open $FH, "<", $file or die "Cannot open $file: $!";
+ 
+     $SeenTk = 0;
+     # Line-by-line scanning

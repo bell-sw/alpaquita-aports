@@ -1,0 +1,37 @@
+From 97589ff7e6edc0455945a127df88ba589383b970 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Mon, 6 Sep 2021 15:01:20 +0300
+Subject: [PATCH] Makefile: link glibc-string lib
+
+---
+ Makefile | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index e8cc4436..bd4a7010 100644
+--- a/Makefile
++++ b/Makefile
+@@ -158,13 +158,16 @@ obj/%.lo: $(srcdir)/%.S
+ obj/%.lo: $(srcdir)/%.c $(GENH) $(IMPH)
+ 	$(CC_CMD)
+ 
+-lib/libc.so: $(LOBJS) $(LDSO_OBJS)
++unpack_glibc_string:
++	test -d glibc-string-ar || mkdir glibc-string-ar && cd glibc-string-ar && $(AR) -x ../libglibc-string.a
++
++lib/libc.so: $(LOBJS) $(LDSO_OBJS) unpack_glibc_string
+ 	$(CC) $(CFLAGS_ALL) $(LDFLAGS_ALL) -nostdlib -shared \
+-	-Wl,-e,_dlstart -o $@ $(LOBJS) $(LDSO_OBJS) $(LIBCC)
++	-Wl,-e,_dlstart -o $@ $(LOBJS) glibc-string-ar/* $(LDSO_OBJS) $(LIBCC)
+ 
+-lib/libc.a: $(AOBJS)
++lib/libc.a: $(AOBJS) unpack_glibc_string
+ 	rm -f $@
+-	$(AR) rc $@ $(AOBJS)
++	$(AR) rc $@ $(AOBJS) glibc-string-ar/*
+ 	$(RANLIB) $@
+ 
+ $(EMPTY_LIBS):
+-- 
+2.25.1
+
