@@ -1,5 +1,5 @@
 pkgname=mariadb
-pkgver=10.6.21
+pkgver=10.6.22
 pkgrel=0
 pkgdesc="A fast SQL database server"
 url="https://www.mariadb.org/"
@@ -80,9 +80,16 @@ source="https://rsync.osuosl.org/pub/mariadb/mariadb-$pkgver/source/mariadb-$pkg
 	$pkgname.initd
 	disable-failing-test.patch
 	have_stacktrace.patch
+
+	musl:0100-stdint.patch
 	"
 
 # secfixes:
+#   10.6.22-r0:
+#     - CVE-2023-52969
+#     - CVE-2023-52970
+#     - CVE-2025-30693
+#     - CVE-2025-30722
 #   10.6.21-r0:
 #     - CVE-2025-21490
 #   10.6.16-r0:
@@ -227,6 +234,7 @@ source="https://rsync.osuosl.org/pub/mariadb/mariadb-$pkgver/source/mariadb-$pkg
 build() {
 	# set MinSizeRel as otherwise project enables debugging for some parts
 	cmake . -G Ninja \
+		-D_LARGEFILE64_SOURCE=1 \
 		-DBUILD_CONFIG=mysql_release \
 		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DCMAKE_INSTALL_PREFIX=/usr \
@@ -554,8 +562,9 @@ _plugin_rocksdb() {
 }
 
 sha512sums="
-fe74a6fbf409723d69b35481a57d00fb04a2c560ad503ae50ff7b9d41b650dda32fe997c50303428e79a546e5c7fe91872fe3436cc3b7323f13a7138e04f5a53  mariadb-10.6.21.tar.gz
+418bf55d3bd2d8ec2dbe5cd626fa1a11419d6cd5a5241d8b26bfe368bf5ec5b4dcc505d59da1b4cf35f0f1cda3c42c3fdda9ae4be68cdc0402900d5443fe4f31  mariadb-10.6.22.tar.gz
 c352969f6665b0ffa387f7b185a5dea7751f4b16c12c809627857b27321efa09159369d7dd5c852d6159a9f173cb895fb601f0c52a1fa6e3527899520030964c  mariadb.initd
 b1ce75a4da2b94ba4903966d1c30f74d37e8f34ad4caf15f552463c7ae61026d9c5b7413568fb03ee6d4a7193bbf8213559b84d9489dc50478729c9abf153750  disable-failing-test.patch
 4965275371e6d5e08e32a16fcfff2e68dfdcf6f4c30e5beffe18dcf56b503cbf373feeda814694e048964b16165ad65156c32fe27e974bed47201e8cf60736c6  have_stacktrace.patch
+233b3d63d8bca031d767102fc9d198602878b1f63ef3a102ae82a0241ba4cda76885756dd0920ea90e2deede6f66ea50008da4dca1e19641a5608a17c2c7e6b4  0100-stdint.patch
 "
