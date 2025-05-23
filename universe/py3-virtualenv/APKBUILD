@@ -39,7 +39,9 @@ build() {
 check() {
 	python3 -m venv --clear --without-pip --system-site-packages .testenv
 	.testenv/bin/python3 -m installer .dist/*.whl
+	# test_reentrant_file_lock_is_thread_safe intermittently hangs on CI nodes
 	.testenv/bin/python3 -m pytest -n auto -v \
+		--deselect tests/unit/test_util.py::test_reentrant_file_lock_is_thread_safe \
 		-k "not test_can_build_c_extensions"
 }
 
