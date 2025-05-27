@@ -1,6 +1,6 @@
 pkgname=distro-base
 pkgver=23
-pkgrel=6
+pkgrel=7
 pkgdesc="Meta package for minimal $VENDOR_NAME $VENDOR_DISTRO_NAME base"
 url="$VENDOR_URL"
 arch="noarch"
@@ -36,22 +36,24 @@ release() {
 
 	mkdir -p "$subpkgdir"/etc
 
-	# create /etc/$VENDOR_DISTRO-release
-	local _ver=${pkgver%_*}
-	echo $_ver > "$subpkgdir/etc/$VENDOR_DISTRO-release"
+	local _ver
+	local _ver_pretty
 
 	local basic="$VENDOR_NAME $VENDOR_DISTRO_NAME Linux"
-	local pretty
 	case $pkgver in
 	    *.*)
-		basic="$basic LTS"
-		pretty="$basic $pkgver ($CLIBC)"
+		_ver=${pkgver%%.*}
+		_ver_pretty="$_ver LTS"
 		;;
 	    *)
-		basic="$basic Stream"
-		pretty="$basic ($CLIBC)"
+		_ver="stream"
+		_ver_pretty="Stream"
 		;;
 	esac
+	local pretty="$basic $_ver_pretty ($CLIBC)"
+
+	# create /etc/$VENDOR_DISTRO-release
+	echo $_ver > "$subpkgdir/etc/$VENDOR_DISTRO-release"
 
 	# create /etc/issue
 	cat >"$subpkgdir"/etc/issue<<EOF
@@ -66,6 +68,7 @@ EOF
 NAME="$basic"
 ID=$VENDOR_DISTRO
 ID_LIKE=alpine
+VERSION="$_ver_pretty"
 VERSION_ID=$_ver
 PRETTY_NAME="$pretty"
 HOME_URL="$VENDOR_URL"
