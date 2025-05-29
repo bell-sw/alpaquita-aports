@@ -16,6 +16,7 @@ _config=${config:-config-lts.${CARCH}}
 source="https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$_kernver.tar.xz
 	lts.x86_64.config
 	lts.aarch64.config
+	lts-64k.aarch64.config
 	extramods
 	extramods.x86_64
 	extramods.aarch64
@@ -42,7 +43,7 @@ for _i in $source; do
 		_f=${_i%."$CARCH".config}
 		_flavors="$_flavors $_f"
 		[ "linux-$_f" = "$pkgname" ] && continue
-		subpackages="$subpackages linux-${_f}:_${_f}:$CBUILD_ARCH \
+		subpackages="$subpackages linux-${_f}:_${_f//-/_}:$CBUILD_ARCH \
 			linux-${_f}-dev:_dev:$CBUILD_ARCH \
 			linux-${_f}-extra-modules:_extramods:$CBUILD_ARCH"
 		;;
@@ -296,6 +297,11 @@ package() {
 	return $_failed
 }
 
+_lts_64k() {
+	install="$subpkgname.post-deinstall $subpkgname.post-install $subpkgname.post-upgrade"
+	_package lts-64k "$subpkgdir"
+}
+
 _extramods() {
 	local _flavor=$(echo $subpkgname | sed -E 's/(^linux-|-extra-modules$)//g')
 	local _abi_release="$(make -C "$srcdir/build-${_flavor}.$CARCH" -s kernelrelease)"
@@ -384,6 +390,7 @@ b8dc0fe21468be7eaabd1e19a138791c9443917b6e92a475c7086bb45debe17a8f55bd862653434f
 458b2c34d46206f9b4ccbac54cc57aeca1eaecaf831bc441e59701bac6eadffc17f6ce24af6eadd0454964e843186539ac0d63295ad2cc32d112b60360c39a35  linux-6.6.tar.xz
 5f8b5cbc52dfb47b8cb9ea029b7b0771b72767f4adf6bd7fd0715e9d080d3eba6cfd3f347977b7e1c77aedceb8067c146ee8c6bb61e44a1c770a931e1c723672  lts.x86_64.config
 05d3806667efa365939541ec4b9ca2cd5272d3119382d90b19349f79361348a5ff770ada807e7d8969429b6991baf4499e952d4de1071e93011f3ec4f70f40d3  lts.aarch64.config
+f483a32f3eefcab92cdbd8b954778d6cc197483020cfe8969140e75bb08042751a581c63c876c19ee52d5ef9ebcdd921e283c6908674d41f88ac3e1f8549b67e  lts-64k.aarch64.config
 0f6ce347559c88850633e20311a2c61638dda3f29c3c1cbe05eefec8b77833a35b4b0c7def67794f114d093aef8f023aa1caaf7374323625ac6870dc8209f6f4  extramods
 ba44e77280ebff9f364b48aa2b52126941cb73290534390c9d2f866a26a19cc17c6e1e769305ff98ba4186b44fc7e1f3a438d7dae55432ff6cceb49de693d265  extramods.x86_64
 5e2b5eb280feaf15ced764117d052d8532096ab12d00674818814c954086549c81d38846043b7792663363b0588ff1279af6908282d322ff873434fe89ad860c  extramods.aarch64
