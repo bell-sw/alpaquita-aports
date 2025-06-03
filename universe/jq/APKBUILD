@@ -1,16 +1,22 @@
 pkgname=jq
 pkgver=1.6
-pkgrel=2
+pkgrel=3
 pkgdesc="A lightweight and flexible command-line JSON processor"
 url="https://stedolan.github.io/jq/"
 arch="all"
 license="MIT"
 makedepends="oniguruma-dev automake autoconf libtool"
 subpackages="$pkgname-doc $pkgname-dev"
-source="https://github.com/stedolan/jq/archive/jq-$pkgver.tar.gz"
+source="https://github.com/stedolan/jq/archive/jq-$pkgver.tar.gz
+	0100-CVE-2024-23337.patch
+	0101-CVE-2025-48060.patch
+	"
 builddir="$srcdir/$pkgname-$pkgname-$pkgver"
 
 # secfixes:
+#   1.6-r3:
+#     - CVE-2025-48060
+#     - CVE-2024-23337
 #   1.6_rc1-r0:
 #     - CVE-2016-4074
 
@@ -47,4 +53,6 @@ package() {
 
 sha512sums="
 e707682239c9a3e6c31c2ce0d433c35140d88881d25637cefa880e0ae288b7746497b73b25403ad11134707c755979bee455523fb32b77a716f101f1e07a1149  jq-1.6.tar.gz
+63d89c856f745c5b449fd363cfb4a3c2c17caeb0305e1e82e08be69b0dad3f076c2114eb2f7e5a1bdcbb9662c11382b8a5ea3394c55331c34e14f57396764930  0100-CVE-2024-23337.patch
+f2c4906ef36e12bd78d8089b6a082a0260faa87f06b7f1cd40637cbf0d466d46a934570ae4586c18bb1a0d7ea2a19171fb62fc3fee9611ecdb58d1096400e942  0101-CVE-2025-48060.patch
 "
