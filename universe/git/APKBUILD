@@ -106,7 +106,7 @@ source="https://www.kernel.org/pub/software/scm/git/git-$pkgver.tar.xz
 # not ok 11 - eol conversion for UTF-32 encoded files on checkout
 [ "$CLIBC" = "glibc" ] && options="$options !check"
 
-_gitcoredir=/usr/libexec/git-core
+_gitcoredir=usr/libexec/git-core
 
 if [ -z "$BOOTSTRAP" ] && [ -z "$APORTS_BOOTSTRAP" ]; then
 	# we need tcl and tk to be built before git due to git-gui and gitk
@@ -227,7 +227,7 @@ _perl_git_svn() {
 
 	local vendorlib=$(_perl_config vendorlib)
 
-	amove $vendorlib/Git/SVN*
+	amove ${vendorlib#/}/Git/SVN*
 }
 
 _perl_git() {
