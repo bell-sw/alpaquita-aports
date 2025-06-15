@@ -308,6 +308,10 @@ build() {
 		local args="$args /p:TargetRid=$ID.$VERSION_ID-$_dotnet_arch"
 	fi
 
+	# set maximum parallel jobs to reduce spurious build errors like
+	#   "error : Fatal error. Internal CLR error. (0x80131506)"
+	args="$args /maxcpucount:$(( (JOBS+1)/2 ))"
+
 	./build.sh \
 		--with-sdk "$_cli_root" \
 		--with-packages "$_artifactsdir" \
