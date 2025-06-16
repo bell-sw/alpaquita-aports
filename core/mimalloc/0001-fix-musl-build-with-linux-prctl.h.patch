@@ -1,4 +1,4 @@
-From ddec5a0c528a9b9be5a107de4954804809f78272 Mon Sep 17 00:00:00 2001
+From f1ea775d9c6de9bec8372ce9d305f60c7546a54c Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Fri, 4 Apr 2025 11:39:38 +0000
 Subject: [PATCH] fix musl build with linux/prctl.h
@@ -20,21 +20,17 @@ errors during build:
 Manually define PR_SET_VMA as a temporary workaround until musl's
 headers are updated.
 ---
- src/prim/unix/prim.c | 5 ++++-
- 1 file changed, 4 insertions(+), 1 deletion(-)
+ src/prim/unix/prim.c | 4 ++++
+ 1 file changed, 4 insertions(+)
 
 diff --git a/src/prim/unix/prim.c b/src/prim/unix/prim.c
-index 32004fe4..1dbf9ce0 100644
+index 780d254f..710515aa 100644
 --- a/src/prim/unix/prim.c
 +++ b/src/prim/unix/prim.c
-@@ -31,10 +31,13 @@ terms of the MIT license. A copy of the license can be found in the file
- 
- #if defined(__linux__)
-   #include <features.h>
--  #include <linux/prctl.h>  // PR_SET_VMA
-   //#if defined(MI_NO_THP)
-   #include <sys/prctl.h>    // THP disable
-   //#endif
+@@ -35,6 +35,10 @@ terms of the MIT license. A copy of the license can be found in the file
+   #if defined(__GLIBC__) && !defined(PR_SET_VMA)
+   #include <linux/prctl.h>
+   #endif
 +# ifndef PR_SET_VMA
 +#   define PR_SET_VMA		0x53564d41
 +#   define PR_SET_VMA_ANON_NAME		0
