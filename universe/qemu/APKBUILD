@@ -344,7 +344,11 @@ build() {
 	export CPPFLAGS="$CPPFLAGS -O2"
 
 	# musl and glibc message differs (too complicated to patch)
-	find tests/qemu-iotests -type f -exec sed -i -e 's#Input/output error#I/O error#' -- {} +
+	if [ "$CLIBC" = "musl" ]; then
+		find tests/qemu-iotests -type f \
+			-exec sed -i -e 's#Input/output error#I/O error#' -- {} +
+	fi
+
 	# fails
 	rm tests/qemu-iotests/tests/copy-before-write*
 
