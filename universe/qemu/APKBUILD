@@ -416,12 +416,12 @@ build() {
 check() {
 	case "$CARCH" in
 		s390x|arm*|riscv64) ;; # FIXME segfault
-		*) make -C build-static check V=1 ;;
+		*) env BASH_XTRACEFD= make -C build-static check V=1 ;;
 	esac
 	case "$CARCH" in
 		arm*|x86) ;; # FIXME OOM errors
 		loongarch64) ;; # FIXME unable to map backing store for guest RAM: Invalid argument
-		*) make -C build check TIMEOUT_MULTIPLIER=5 V=1 ;;
+		*) env BASH_XTRACEFD= make -C build check TIMEOUT_MULTIPLIER=5 V=1 ;;
 	esac
 }
 
