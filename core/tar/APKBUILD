@@ -7,7 +7,7 @@ pkgdesc="GNU Tar"
 url="https://www.gnu.org/software/tar/"
 arch="all"
 license="GPL-3.0-or-later"
-makedepends="acl-dev"
+makedepends_host="acl-dev"
 subpackages="$pkgname-doc"
 source="https://ftp.gnu.org/gnu/tar/tar-$pkgver.tar.xz
 	ignore-apk-tools-checksums.patch
@@ -44,7 +44,7 @@ build() {
 }
 
 check() {
-	make check || {
+	make check TESTSUITEFLAGS="-j$JOBS" || {
 		cat tests/testsuite.log
 		return 1
 	}
