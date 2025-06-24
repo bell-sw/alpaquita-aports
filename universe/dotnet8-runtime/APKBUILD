@@ -19,6 +19,8 @@ _patches="
 	runtime_re-enable-implicit-rejection.patch
 	runtime_clang-20.patch
 	vstest_intent-net8.0.patch
+
+	0100-REGULAR_TESTS-runtime-id-fix.diff
 	"
 
 _pkgver_macro=${pkgver%.*}
@@ -246,6 +248,10 @@ prepare() {
 	if [ ! -d "$_cli_root" ]; then
 		cp -r "$_bootstrapdir" "$_cli_root"
 	fi
+
+	# Apply a patch to the dotnet-regular-tests source
+	cd "$_testdir"
+	patch -p1 -i "$srcdir"/0100-REGULAR_TESTS-runtime-id-fix.diff
 }
 
 build() {
@@ -290,23 +296,12 @@ build() {
 	# TODO: investigate SourceLink failures
 	local args="$args /p:EnableSourceLink=false"
 
-	# Sets TargetRid manually on edge as dotnet cannot be trusted to reliably
-	# compute the machine's runtime ID
-	# shellcheck disable=SC2034
-	if grep stream /etc/os-release; then
-		. /etc/os-release
-		local VERSION_ID_DOT="${VERSION_ID//[^.]}"
-		while [ ${#VERSION_ID_DOT} -gt 1 ]; do
-			local VERSION_ID="${VERSION_ID%.*}"
-			local VERSION_ID_DOT="${VERSION_ID//[^.]}"
-		done
-		local VERSION_ID_DASH="${VERSION_ID//[^_]}"
-		while [ ${#VERSION_ID_DASH} -ge 1 ]; do
-			local VERSION_ID="${VERSION_ID%_*}"
-			local VERSION_ID_DASH="${VERSION_ID//[^_]}"
-		done
-		local args="$args /p:TargetRid=$ID.$VERSION_ID-$_dotnet_arch"
-	fi
+	# Skip setting TargetRid manually (/p:TargetRid=...)
+	# Alpine sets TargetRid for edge manually here via a command
+	# line switch because they have complex `VERSION_ID`. We are ok
+	# with the default rid formula, but we need to adjust the tests
+	# that use slighly different one.
+	# See `prepare`.
 
 	# set maximum parallel jobs to reduce spurious build errors like
 	#   "error : Fatal error. Internal CLR error. (0x80131506)"
@@ -633,4 +628,5 @@ d732df247c721c9f677baabdd7f36dbf4b564814ff64164361065bb1c196b767494a1d39f634eadf
 05d10af3642aef68b2a0caefe560a01345fab3340ba87d94d4852e7bd980717615a666b82332ec442bd3d4d47aa386fade2a5bda4203436b267d0b31df2219de  runtime_re-enable-implicit-rejection.patch
 0b6001c6556a37e81e2d0173ff62ea4038a811612465ad01fe0c63cffe7d15023864408e51831fa2efde58f2a0077612112d022cf5876a1bc56aaf591ae9d0e4  runtime_clang-20.patch
 5c74abbd7ea71ba6164f71b866c9da564db9ccd95f1a9a8b82f5b0b599fab6d59d64ba1157ec13d7ac36d23145f3d9de2189ed6c40f56e46555ab378c161948b  vstest_intent-net8.0.patch
+45665a315a82cddfb0a512c63e369a7f44a99090c43cbc2c3c2bc5a41b1476e660603b0aacb60160ffc5450ef60d61fc1d8b22d43f3195d7a1af371fc95fdc2e  0100-REGULAR_TESTS-runtime-id-fix.diff
 "
