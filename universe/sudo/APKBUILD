@@ -5,18 +5,24 @@ if [ "${pkgver%_*}" != "$pkgver" ]; then
 else
 	_realver=$pkgver
 fi
-pkgrel=0
+pkgrel=1
 pkgdesc="Give certain users the ability to run some commands as root"
 url="https://www.sudo.ws/sudo/"
 arch="all"
 license="custom ISC"
 makedepends="zlib-dev bash mandoc"
 subpackages="$pkgname-doc $pkgname-dev"
-source="https://www.sudo.ws/dist/sudo-$_realver.tar.gz"
+source="https://www.sudo.ws/dist/sudo-$_realver.tar.gz
+	0100-CVE-2025-32462.patch
+	0101-CVE-2025-32463.patch
+"
 options="suid"
 builddir="$srcdir/sudo-$_realver"
 
 # secfixes:
+#   1.9.15_p5-r1:
+#     - CVE-2025-32462
+#     - CVE-2025-32463
 #   1.9.15_p5-r0:
 #     - CVE-2023-28486
 #     - CVE-2023-28487
@@ -73,4 +79,6 @@ package() {
 
 sha512sums="
 ebac69719de2fe7bd587924701bdd24149bf376a68b17ec02f69b2b96d4bb6fa5eb8260a073ec5ea046d3ac69bb5b1c0b9d61709fe6a56f1f66e40817a70b15a  sudo-1.9.15p5.tar.gz
+fdcd537afbc184b8039b0a4f77b5839c0a55e51c6e42e44eb1ce6cb55d853f21d14adad3c9ebb678e9674bed70755baf19210aa2714d12a4061d7c8b28fad463  0100-CVE-2025-32462.patch
+f97cac069976e701e0d6f8c3c3d888111bf328822618fd7014f66563f4f10cad2f3bb385a75e8a0da3b7cac8a0edaae433a330a8443aa70dc148a008adcbc893  0101-CVE-2025-32463.patch
 "
