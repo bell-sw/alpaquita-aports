@@ -1,4 +1,0 @@
-Liberica Native Image Kit is a tool that converts a JVM-based application into a fully compiled native executable ahead-of-time under the closed-world assumption. The resulting file has all the needed statically linked native JDK code, includes the required runtime library and application code compiled into the native application, and preserves dependencies.
-
-Liberica NIK is released as archives with Liberica VM, native image (derived from GraalVM Community Edition) and language installables. It is built against JDK 11 and JDK 17 at the moment.
-To learn about system requirements needed for this utility and see the list of programming languages in correspondence to the operating systems, visit the Liberica NIK Supported System Configurations page on https://bell-sw.com/pages/nik-supported-configurations. To download updates visit https://bell-sw.com/pages/downloads/native-image.
