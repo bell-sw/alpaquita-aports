@@ -43,7 +43,6 @@ makedepends="
 	libxt-dev
 	libxtst-dev
 	linux-headers
-	openjdk23-bootstrap
 	sed
 	zip
 	zlib-dev
@@ -196,6 +195,14 @@ _jre_tools="
 	keytool
 	rmiregistry
 	"
+
+if [ "$BUILD_FROM_SOURCE" -ne 0 ]; then
+	# To build from sources - build with openjdk24-bootstrap, provided by a
+	# previous version of this package
+	makedepends="$makedepends
+		openjdk24-bootstrap
+		"
+fi
 
 unpack() {
 	mkdir -p "$builddir"
