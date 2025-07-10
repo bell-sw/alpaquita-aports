@@ -1,0 +1,44 @@
+Patch-Source: https://lore.kernel.org/stable/20250615185821.824140-1-fossdd@pwned.life/
+---
+From 41b8eded4d45693a6aa1f8b3f986d51f214b04c8 Mon Sep 17 00:00:00 2001
+From: Achill Gilgenast <fossdd@pwned.life>
+Date: Sun, 15 Jun 2025 20:58:17 +0200
+Subject: [PATCH] kallsyms: fix build without execinfo
+
+Some libc's like musl libc don't provide execinfo.h since it's not part
+of POSIX. In order to fix compilation on musl, only include execinfo.h
+if available (HAVE_BACKTRACE_SUPPORT)
+
+This was discovered with c104c16073b7 ("Kunit to check the longest symbol length")
+which starts to include linux/kallsyms.h with Alpine Linux' configs.
+
+Signed-off-by: Achill Gilgenast <fossdd@pwned.life>
+Cc: stable@vger.kernel.org
+---
+ tools/include/linux/kallsyms.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/tools/include/linux/kallsyms.h b/tools/include/linux/kallsyms.h
+index 5a37ccbec54f..f61a01dd7eb7 100644
+--- a/tools/include/linux/kallsyms.h
++++ b/tools/include/linux/kallsyms.h
+@@ -18,6 +18,7 @@ static inline const char *kallsyms_lookup(unsigned long addr,
+ 	return NULL;
+ }
+ 
++#ifdef HAVE_BACKTRACE_SUPPORT
+ #include <execinfo.h>
+ #include <stdlib.h>
+ static inline void print_ip_sym(const char *loglvl, unsigned long ip)
+@@ -30,5 +31,8 @@ static inline void print_ip_sym(const char *loglvl, unsigned long ip)
+ 
+ 	free(name);
+ }
++#else
++static inline void print_ip_sym(const char *loglvl, unsigned long ip) {}
++#endif
+ 
+ #endif
+-- 
+2.49.0
+
