@@ -7,10 +7,11 @@
 # build environment for open-source projects such as ITK and VTK.
 
 pkgname=cmake
-pkgver=4.0.3
+pkgver=4.1.0
 pkgrel=0
-pkgdesc="Cross-platform make system"
-url="https://www.cmake.org/"
+_pkgver=${pkgver/_rc/-rc}
+pkgdesc="Cross-platform, open-source make system"
+url="https://cmake.org/"
 arch="all"
 license="BSD-3-Clause"
 makedepends="
@@ -38,10 +39,11 @@ case $pkgver in
 *.*.*.*) _v=v${pkgver%.*.*};;
 *.*.*) _v=v${pkgver%.*};;
 esac
-source="https://www.cmake.org/files/$_v/cmake-$pkgver.tar.gz
+source="https://cmake.org/files/$_v/cmake-$_pkgver.tar.gz
 
 	0100-GNUInstallDirs-don-t-use-lib64.patch
 	"
+builddir="$srcdir/$pkgname-$_pkgver"
 options="!check"
 
 build() {
@@ -67,16 +69,18 @@ build() {
 		--system-libuv \
 		--system-zlib \
 		--generator=Ninja \
-		--parallel="${JOBS:-2}"
-	ninja
+		--parallel="${JOBS:-2}" \
+		-- \
+		-B build
+	ninja -C build
 }
 
 check() {
-	bin/ctest
+	./build/bin/ctest --test-dir build
 }
 
 package() {
-	DESTDIR="$pkgdir" ninja install
+	DESTDIR="$pkgdir" ninja -C build install
 
 	# Wrappers to ease the CMake 4 migration, aports that fail to build can
 	# switch to these while waiting for upstream to update CMakeLists.txt.
@@ -112,6 +116,6 @@ vim() {
 }
 
 sha512sums="
-d3fb9ef408a1b13cd6ef1c294b2515733d1c7220c2c639426bd8037d023ebb439f02e412dd8dd42e385b8e3553547d785eeedc47f2b0843e413b88bd5a7eab18  cmake-4.0.3.tar.gz
-3d32f077c4fe77e2dec14498ce223cf3fffd071d0f87cba626fa9a92e3381c5591a44a132e16bc3900f3a7a449c8749893ad160ea3204c81012a28fc548f6081  0100-GNUInstallDirs-don-t-use-lib64.patch
+644b6b13539ba0e7f35a7496e4240b1d3361606163f35b69006e47d03ffd9759d35c62a73826253ed168af4196df29983ec10c0f561ea74d7ed6ffee0c2cd8e4  cmake-4.1.0.tar.gz
+ab3c3ebc3d6fcb7475e879b8792cab45194b4cf720f6852feed8d0baaaf39a5b577e5f752c7c7602b88e6d53b52947487ecc187ebeb5dbf8e6ce910597e990a1  0100-GNUInstallDirs-don-t-use-lib64.patch
 "
