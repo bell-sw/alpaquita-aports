@@ -1,4 +1,4 @@
-From 450de18f0dd9bed6db8a33be3754e36bfdf8c817 Mon Sep 17 00:00:00 2001
+From 4879bce9f0d6cee263f406a201d3a829a7510240 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Sat, 5 Mar 2022 17:19:37 +0300
 Subject: [PATCH] solver: clean db when removing alternative pkg
@@ -8,11 +8,11 @@ Subject: [PATCH] solver: clean db when removing alternative pkg
  1 file changed, 2 insertions(+)
 
 diff --git a/src/commit.c b/src/commit.c
-index 0ef8d82..2cacb76 100644
+index 27b687d..7f1eab1 100644
 --- a/src/commit.c
 +++ b/src/commit.c
-@@ -387,6 +387,8 @@ int apk_solver_commit_changeset(struct apk_database *db,
- 						       progress_cb, &prog) != 0;
+@@ -471,6 +471,8 @@ int apk_solver_commit_changeset(struct apk_database *db,
+ 				apk_progress_item_end(&prog.prog);
  				if (r && change->new_pkg && change->new_pkg->alternative)
  					return -1;
 +				if (!change->new_pkg && change->old_pkg && change->old_pkg->alternative)

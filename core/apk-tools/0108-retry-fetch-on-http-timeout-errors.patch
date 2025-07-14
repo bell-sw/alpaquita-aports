@@ -1,4 +1,4 @@
-From b71f53e57db796ae0ccd61ff1c4a5b4a6c96b964 Mon Sep 17 00:00:00 2001
+From 96f6c93ccea07f8d4e63f6545ca2dc858afea1d6 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 28 Mar 2023 16:24:27 +0000
 Subject: [PATCH] retry fetch on http timeout errors
@@ -6,58 +6,36 @@ Subject: [PATCH] retry fetch on http timeout errors
 Also, reinitialize 'struct url' to avoid any side effects
 as fetchXGet() can change the struct members.
 ---
- libfetch/fetch.h     |  1 +
- libfetch/http.errors |  4 ++--
- src/io_url.c         | 11 +++++++++++
- 3 files changed, 14 insertions(+), 2 deletions(-)
+ libfetch/fetch.h      |  1 +
+ src/io_url_libfetch.c | 12 ++++++++++++
+ 2 files changed, 13 insertions(+)
 
 diff --git a/libfetch/fetch.h b/libfetch/fetch.h
-index 15c60e9..1a4a3ea 100644
+index 739cfc3..7637ced 100644
 --- a/libfetch/fetch.h
 +++ b/libfetch/fetch.h
-@@ -96,6 +96,7 @@ struct url_list {
- #define	FETCH_URL	18
- #define	FETCH_VERBOSE	19
- #define	FETCH_UNCHANGED	20
-+#define	FETCH_GWTIMEOUT	21
+@@ -86,6 +86,7 @@ enum {
+ 	FETCH_OK = 0,
+ 	FETCH_ERR_UNKNOWN,
+ 	FETCH_ERR_UNCHANGED,
++	FETCH_ERR_GWTIMEOUT,
  
- #if defined(__cplusplus)
- extern "C" {
-diff --git a/libfetch/http.errors b/libfetch/http.errors
-index 004aac2..0915c55 100644
---- a/libfetch/http.errors
-+++ b/libfetch/http.errors
-@@ -27,7 +27,7 @@
- 405 PROTO	Method Not Allowed
- 406 PROTO	Not Acceptable
- 407 AUTH	Proxy Authentication Required
--408 TIMEOUT	Request Time-out
-+408 GWTIMEOUT	Request Time-out
- 409 EXISTS	Conflict
- 410 UNAVAIL	Gone
- 411 PROTO	Length Required
-@@ -41,6 +41,6 @@
- 501 PROTO	Not Implemented
- 502 SERVER	Bad Gateway
- 503 TEMP	Service Unavailable
--504 TIMEOUT	Gateway Time-out
-+504 GWTIMEOUT	Gateway Time-out
- 505 PROTO	HTTP Version not supported
- 999 PROTO	Protocol error
-diff --git a/src/io_url.c b/src/io_url.c
-index 3f6a6b6..f98c093 100644
---- a/src/io_url.c
-+++ b/src/io_url.c
-@@ -59,6 +59,7 @@ static int fetch_maperror(int ec)
- 		[FETCH_UNKNOWN] = -EIO,
- 		[FETCH_URL] = -EAPKBADURL,
- 		[FETCH_UNCHANGED] = -EALREADY,
-+		[FETCH_GWTIMEOUT] = -ETIMEDOUT,
+ 	/* Error URL category codes */
+ 	FETCH_ERR_URL_MALFORMED = 1,
+diff --git a/src/io_url_libfetch.c b/src/io_url_libfetch.c
+index c77e3c2..f8ee891 100644
+--- a/src/io_url_libfetch.c
++++ b/src/io_url_libfetch.c
+@@ -41,6 +41,7 @@ static int fetch_maperror(struct fetch_error fe)
+ 		{ FETCH_OK,			0, },
+ 		{ FETCH_ERR_UNKNOWN,		EIO },
+ 		{ FETCH_ERR_UNCHANGED,		APKE_FILE_UNCHANGED },
++		{ FETCH_ERR_GWTIMEOUT,		ETIMEDOUT },
  	};
- 
- 	if (ec < 0 || ec >= ARRAY_SIZE(map) || !map[ec]) return -EIO;
-@@ -107,7 +108,9 @@ static struct apk_istream *apk_istream_fetch(const char *url, time_t since)
- 	struct url *u;
+ 	static const struct maperr tls_err[] = {
+ 		{ FETCH_ERR_TLS,			APKE_TLS_ERROR },
+@@ -134,7 +135,9 @@ struct apk_istream *apk_io_url_istream(const char *url, time_t since)
+ 	char *flags = "Ci";
  	fetchIO *io = NULL;
  	int rc = -EIO;
 +	int fetch_attempts = 5;
@@ -65,20 +43,21 @@ index 3f6a6b6..f98c093 100644
 +retry:
  	u = fetchParseURL(url);
  	if (!u) {
- 		rc = -EAPKBADURL;
-@@ -122,6 +125,14 @@ static struct apk_istream *apk_istream_fetch(const char *url, time_t since)
- 	u->last_modified = since;
- 	io = fetchXGet(u, &fis->urlstat, (apk_force & APK_FORCE_REFRESH) ? "Ci" : "i");
+ 		rc = -APKE_URL_FORMAT;
+@@ -153,6 +156,15 @@ struct apk_istream *apk_io_url_istream(const char *url, time_t since)
+ 
+ 	io = fetchXGet(u, &fis->urlstat, flags);
  	if (!io) {
 +		/* We may intermittently receive 408/504 (Request/Gateway-Proxy timeout)
 +		 * HTTP errors. So try to fetch again in this particular case.
 +		 */
-+		if (fetchLastErrCode == FETCH_GWTIMEOUT && fetch_attempts--) {
++		if (fetchLastErrCode.category == FETCH_ERRCAT_FETCH &&
++		    fetchLastErrCode.code == FETCH_ERR_GWTIMEOUT && fetch_attempts--) {
 +			fetchFreeURL(u);
 +			free(fis);
 +			goto retry;
 +		}
- 		rc = fetch_maperror(fetchLastErrCode);
+ 		rc = -fetch_maperror(fetchLastErrCode);
  		goto err;
  	}
 -- 

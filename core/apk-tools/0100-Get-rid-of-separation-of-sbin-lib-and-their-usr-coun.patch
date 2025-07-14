@@ -1,19 +1,25 @@
-From 0678003b16f89eddcf815082b959713eedfb6b03 Mon Sep 17 00:00:00 2001
+From e147ce4e163f53293789c0d263a147b7f40bba7d Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
 Date: Mon, 27 Dec 2021 14:10:24 +0000
 Subject: [PATCH] Get rid of separation of /sbin /lib and their /usr
  counterparts.
 
 ---
- Makefile       |  4 ++--
- src/database.c | 20 ++++++++++----------
- 2 files changed, 12 insertions(+), 12 deletions(-)
+ Makefile         |  4 ++--
+ doc/apk.8.scd    | 12 ++++++------
+ src/app_audit.c  |  4 ++--
+ src/app_convdb.c |  8 ++++----
+ src/database.c   |  8 ++++----
+ src/package.c    |  4 ++--
+ test/solver.sh   |  2 +-
+ test/testlib.sh  |  4 ++--
+ 8 files changed, 23 insertions(+), 23 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index facc66c..dcc3cc0 100644
+index 04481a4..c1cfcde 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -13,8 +13,8 @@ export VERSION SO_VERSION
+@@ -13,8 +13,8 @@ export PACKAGE VERSION SO_VERSION
  # Default directories
  
  DESTDIR		:=
@@ -24,51 +30,161 @@ index facc66c..dcc3cc0 100644
  CONFDIR		:= /etc/apk
  MANDIR		:= /usr/share/man
  DOCDIR		:= /usr/share/doc/apk
+diff --git a/doc/apk.8.scd b/doc/apk.8.scd
+index fd405b2..5819544 100644
+--- a/doc/apk.8.scd
++++ b/doc/apk.8.scd
+@@ -457,21 +457,21 @@ timeout 120
+ 	A lock file used to allow only one concurrent write transaction on
+ 	the system.
+ 
+-*/lib/apk/db/installed*
++*/var/lib/apk/db/installed*
+ 	Database of installed packages and their contents.
+ 
+-*/lib/apk/db/scripts.tar*
++*/var/lib/apk/db/scripts.tar*
+ 	Collection of all package scripts from currently installed packages.
+ 
+-*/lib/apk/db/triggers*
++*/var/lib/apk/db/triggers*
+ 	List of triggers rules for currently installed packages.
+ 
+-*/lib/apk/db-uvol*
+-	Database symlink or a directory with similar structure as */lib/apk/db/*,
++*/var/lib/apk/db-uvol*
++	Database symlink or a directory with similar structure as */var/lib/apk/db/*,
+ 	but which used for package content when managed using OpenWRT *uvol*
+ 	volume manager.
+ 
+-*/lib/apk/exec*
++*/var/lib/apk/exec*
+ 	Temporary directory for extraction and execution of package scripts
+ 	and triggers.
+ 
+diff --git a/src/app_audit.c b/src/app_audit.c
+index 5bffe83..bb6978a 100644
+--- a/src/app_audit.c
++++ b/src/app_audit.c
+@@ -78,8 +78,8 @@ static int audit_option_parse(void *applet_ctx, struct apk_ctx *ac, int opt, con
+ 					"@etc/init.d\n"
+ 					"-dev\n"
+ 					"-home\n"
+-					"-lib/apk\n"
+-					"-lib/rc/cache\n"
++					"-var/lib/apk\n"
++					"-usr/lib/rc/cache\n"
+ 					"-proc\n"
+ 					"-root\n"
+ 					"-run\n"
+diff --git a/src/app_convdb.c b/src/app_convdb.c
+index 3369ae9..aabfac5 100644
+--- a/src/app_convdb.c
++++ b/src/app_convdb.c
+@@ -209,18 +209,18 @@ static int conv_main(void *pctx, struct apk_ctx *ac, struct apk_string_array *ar
+ 	adb_wo_alloca(&ctx->pkgs, &schema_package_adb_array, &ctx->dbi);
+ 
+ 	apk_tar_parse(
+-		apk_istream_from_file(root_fd, "lib/apk/db/scripts.tar"),
++		apk_istream_from_file(root_fd, "var/lib/apk/db/scripts.tar"),
+ 		read_script, ctx, apk_ctx_get_id_cache(ac));
+ 
+-	read_triggers(ctx, apk_istream_from_file(root_fd, "lib/apk/db/triggers"));
++	read_triggers(ctx, apk_istream_from_file(root_fd, "var/lib/apk/db/triggers"));
+ 
+-	convert_idb(ctx, apk_istream_from_file(root_fd, "lib/apk/db/installed"));
++	convert_idb(ctx, apk_istream_from_file(root_fd, "var/lib/apk/db/installed"));
+ 
+ 	adb_wo_obj(&idb, ADBI_IDB_PACKAGES, &ctx->pkgs);
+ 	adb_w_rootobj(&idb);
+ 
+ 	r = adb_c_create(
+-		//apk_ostream_to_file(db->root_fd, "lib/apk/db/installed.adb", 0644),
++		//apk_ostream_to_file(db->root_fd, "var/lib/apk/db/installed.adb", 0644),
+ 		adb_compress(apk_ostream_to_file(AT_FDCWD, "installed.adb", 0644), &ac->compspec),
+ 		&ctx->dbi, apk_ctx_get_trust(ac));
+ 	if (r == 0) {
 diff --git a/src/database.c b/src/database.c
-index 71b67b0..7939c8d 100644
+index 8576b10..07c79ae 100644
 --- a/src/database.c
 +++ b/src/database.c
-@@ -59,16 +59,16 @@ static const char * const apk_world_file = "etc/apk/world";
- static const char * const apk_world_file_tmp = "etc/apk/world.new";
+@@ -45,7 +45,7 @@
+ static const char * const apk_static_cache_dir = "var/cache/apk";
+ static const char * const apk_world_file = "etc/apk/world";
  static const char * const apk_arch_file = "etc/apk/arch";
- 
 -static const char * const apk_lock_file = "lib/apk/db/lock";
 +static const char * const apk_lock_file = "var/lib/apk/db/lock";
  
--static const char * const apk_scripts_file = "lib/apk/db/scripts.tar";
--static const char * const apk_scripts_file_tmp = "lib/apk/db/scripts.tar.new";
-+static const char * const apk_scripts_file = "var/lib/apk/db/scripts.tar";
-+static const char * const apk_scripts_file_tmp = "var/lib/apk/db/scripts.tar.new";
- 
--static const char * const apk_triggers_file = "lib/apk/db/triggers";
--static const char * const apk_triggers_file_tmp = "lib/apk/db/triggers.new";
-+static const char * const apk_triggers_file = "var/lib/apk/db/triggers";
-+static const char * const apk_triggers_file_tmp = "var/lib/apk/db/triggers.new";
- 
--const char * const apk_installed_file = "lib/apk/db/installed";
--static const char * const apk_installed_file_tmp = "lib/apk/db/installed.new";
-+const char * const apk_installed_file = "var/lib/apk/db/installed";
-+static const char * const apk_installed_file_tmp = "var/lib/apk/db/installed.new";
- 
  static struct apk_db_acl *apk_default_acl_dir, *apk_default_acl_file;
  
-@@ -1297,13 +1297,13 @@ static int apk_db_create(struct apk_database *db)
- 	mknodat(db->root_fd, "dev/console", S_IFCHR | 0600, makedev(5, 1));
- 	mkdirat(db->root_fd, "etc", 0755);
- 	mkdirat(db->root_fd, "etc/apk", 0755);
--	mkdirat(db->root_fd, "lib", 0755);
--	mkdirat(db->root_fd, "lib/apk", 0755);
--	mkdirat(db->root_fd, "lib/apk/db", 0755);
- 	mkdirat(db->root_fd, "var", 0755);
- 	mkdirat(db->root_fd, "var/cache", 0755);
- 	mkdirat(db->root_fd, "var/cache/apk", 0755);
- 	mkdirat(db->root_fd, "var/cache/misc", 0755);
-+	mkdirat(db->root_fd, "var/lib", 0755);
-+	mkdirat(db->root_fd, "var/lib/apk", 0755);
-+	mkdirat(db->root_fd, "var/lib/apk/db", 0755);
+@@ -1856,8 +1856,8 @@ static int setup_cache(struct apk_database *db)
+ const char *apk_db_layer_name(int layer)
+ {
+ 	switch (layer) {
+-	case APK_DB_LAYER_ROOT: return "lib/apk/db";
+-	case APK_DB_LAYER_UVOL: return "lib/apk/db-uvol";
++	case APK_DB_LAYER_ROOT: return "var/lib/apk/db";
++	case APK_DB_LAYER_UVOL: return "var/lib/apk/db-uvol";
+ 	default:
+ 		assert(!"invalid layer");
+ 		return 0;
+@@ -2203,7 +2203,7 @@ int apk_db_write_config(struct apk_database *db)
+ 		return 0;
  
- 	fd = openat(db->root_fd, apk_world_file, O_CREAT|O_RDWR|O_TRUNC|O_CLOEXEC, 0644);
- 	if (fd < 0)
+ 	if (db->ctx->open_flags & APK_OPENF_CREATE) {
+-		apk_make_dirs(db->root_fd, "lib/apk/db", 0755, 0755);
++		apk_make_dirs(db->root_fd, "var/lib/apk/db", 0755, 0755);
+ 		apk_make_dirs(db->root_fd, "etc/apk", 0755, 0755);
+ 	} else if (db->lock_fd == 0) {
+ 		apk_err(out, "Refusing to write db without write lock!");
+diff --git a/src/package.c b/src/package.c
+index d9b3b16..e1545ac 100644
+--- a/src/package.c
++++ b/src/package.c
+@@ -734,9 +734,9 @@ int apk_ipkg_run_script(struct apk_installed_package *ipkg,
+ 			struct apk_database *db,
+ 			unsigned int type, char **argv)
+ {
+-	// When memfd_create is not available store the script in /lib/apk/exec
++	// When memfd_create is not available store the script in /var/lib/apk/exec
+ 	// and hope it allows executing.
+-	static const char script_exec_dir[] = "lib/apk/exec";
++	static const char script_exec_dir[] = "var/lib/apk/exec";
+ 	struct apk_out *out = &db->ctx->out;
+ 	struct apk_package *pkg = ipkg->pkg;
+ 	const char *reason = "failed to execute: ";
+diff --git a/test/solver.sh b/test/solver.sh
+index 0e46839..abed1b9 100755
+--- a/test/solver.sh
++++ b/test/solver.sh
+@@ -38,7 +38,7 @@ run_test() {
+ 			done > "$TEST_ROOT/etc/apk/world"
+ 			;;
+ 		"@INSTALLED "*)
+-			ln -snf "$testdir/${ln#* }" "$TEST_ROOT/lib/apk/db/installed"
++			ln -snf "$testdir/${ln#* }" "$TEST_ROOT/var/lib/apk/db/installed"
+ 			;;
+ 		"@REPO @"*)
+ 			tag="${ln#* }"
+diff --git a/test/testlib.sh b/test/testlib.sh
+index 11af4d3..0532a8e 100644
+--- a/test/testlib.sh
++++ b/test/testlib.sh
+@@ -40,12 +40,12 @@ setup_apkroot() {
+ 	APK="$APK --root $TEST_ROOT"
+ 
+ 	mkdir -p "$TEST_ROOT/etc/apk/cache" \
+-		"$TEST_ROOT/lib/apk/db" \
++		"$TEST_ROOT/var/lib/apk/db" \
+ 		"$TEST_ROOT/tmp" \
+ 		"$TEST_ROOT/var/log"
+ 
+ 	touch "$TEST_ROOT/etc/apk/world"
+-	touch "$TEST_ROOT/lib/apk/db/installed"
++	touch "$TEST_ROOT/var/lib/apk/db/installed"
+ 	ln -sf /dev/null "$TEST_ROOT/var/log/apk.log"
+ 	cd "$TEST_ROOT/tmp"
+ }
 -- 
 2.25.1
 

@@ -1,4 +1,4 @@
-From 18dd8108da2ea01f134a7dab108147874e210ac9 Mon Sep 17 00:00:00 2001
+From e44e80e7d7a73619f73f1b9b49cfa79db2cdf47e Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 1 Mar 2022 16:39:21 +0300
 Subject: [PATCH] commit: make the installing of alternative packages safer
@@ -7,36 +7,34 @@ Move the removal of old alternative packages to the end and
 exit at the first error when installing a new alternative
 package.
 ---
- src/commit.c | 29 +++++++++++++++++++++++++++++
- 1 file changed, 29 insertions(+)
+ src/commit.c | 27 +++++++++++++++++++++++++++
+ 1 file changed, 27 insertions(+)
 
 diff --git a/src/commit.c b/src/commit.c
-index 8d7e669..0ef8d82 100644
+index 9f77d08..27b687d 100644
 --- a/src/commit.c
 +++ b/src/commit.c
-@@ -260,6 +260,14 @@ static int run_commit_hooks(struct apk_database *db, int type)
- 				    run_commit_hook, &hook);
+@@ -336,6 +336,12 @@ int apk_solver_precache_changeset(struct apk_database *db, struct apk_changeset
+ 	return prog.done.packages;
  }
  
 +static void swap_pkg_change(struct apk_change_array **changes, struct apk_change *change)
 +{
-+	struct apk_change *new_change = apk_change_array_add(changes);
-+
-+	*new_change = *change;
++	apk_change_array_add(changes, *change);
 +	change->old_pkg = NULL;
 +}
 +
  int apk_solver_commit_changeset(struct apk_database *db,
  				struct apk_changeset *changeset,
  				struct apk_dependency_array *world)
-@@ -344,8 +352,27 @@ int apk_solver_commit_changeset(struct apk_database *db,
+@@ -429,9 +435,28 @@ int apk_solver_commit_changeset(struct apk_database *db,
  	if (run_commit_hooks(db, PRE_COMMIT_HOOK) == -2)
  		return -1;
  
 +	if (changeset->num_remove) {
 +		struct apk_change_array *remove_changes = NULL;
 +
-+		foreach_array_item(change, changeset->changes) {
++		apk_array_foreach(change, changeset->changes) {
 +			if (change->new_pkg || !change->old_pkg || !change->old_pkg->alternative)
 +				continue;
 +			if (!remove_changes)
@@ -44,23 +42,24 @@ index 8d7e669..0ef8d82 100644
 +			swap_pkg_change(&remove_changes, change);
 +		}
 +		if (remove_changes) {
-+			foreach_array_item(change, remove_changes)
++			apk_array_foreach(change, remove_changes)
 +				swap_pkg_change(&changeset->changes, change);
 +			apk_change_array_free(&remove_changes);
 +		}
 +	}
 +
  	/* Go through changes */
- 	foreach_array_item(change, changeset->changes) {
+ 	apk_progress_start(&prog.prog, out, "install", apk_progress_weight(prog.total.bytes, prog.total.packages));
+ 	apk_array_foreach(change, changeset->changes) {
 +		if (!change->old_pkg && !change->new_pkg)
 +			continue;
  		r = change->old_pkg &&
  			(change->old_pkg->ipkg->broken_files ||
  			 change->old_pkg->ipkg->broken_script);
-@@ -358,6 +385,8 @@ int apk_solver_commit_changeset(struct apk_database *db,
- 			     (change->reinstall && pkg_available(db, change->new_pkg)))) {
- 				r = apk_db_install_pkg(db, change->old_pkg, change->new_pkg,
- 						       progress_cb, &prog) != 0;
+@@ -444,6 +469,8 @@ int apk_solver_commit_changeset(struct apk_database *db,
+ 				apk_progress_item_start(&prog.prog, apk_progress_weight(prog.done.bytes, prog.done.packages), prog.pkg ? prog.pkg->size : 0);
+ 				r = apk_db_install_pkg(db, change->old_pkg, change->new_pkg, &prog.prog) != 0;
+ 				apk_progress_item_end(&prog.prog);
 +				if (r && change->new_pkg && change->new_pkg->alternative)
 +					return -1;
  			}

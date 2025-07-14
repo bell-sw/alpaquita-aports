@@ -1,4 +1,4 @@
-From 198ca8aa8cd73f810895017b998fbc1229596f4e Mon Sep 17 00:00:00 2001
+From 5b73ffe7fbd849c821df26c540f0553b1ffd7d18 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Mon, 16 May 2022 12:27:52 +0300
 Subject: [PATCH] apk-search: sorted output
@@ -65,14 +65,14 @@ After the patch:
     dracut-doc-055-r17 is required by:
     zfs-dracut-2.1.2-r0 is required by:
 ---
- src/app_search.c | 72 ++++++++++++++++++++++++++++++++++++++----------
- 1 file changed, 57 insertions(+), 15 deletions(-)
+ src/app_search.c | 65 ++++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 52 insertions(+), 13 deletions(-)
 
 diff --git a/src/app_search.c b/src/app_search.c
-index b02eb56..2d9b0cd 100644
+index 1561a66..d658382 100644
 --- a/src/app_search.c
 +++ b/src/app_search.c
-@@ -15,7 +15,7 @@
+@@ -15,48 +15,85 @@
  #include "apk_database.h"
  
  struct search_ctx {
@@ -80,11 +80,9 @@ index b02eb56..2d9b0cd 100644
 +	void (*process_result)(struct search_ctx *ctx, struct apk_package *pkg);
  	void (*print_package)(struct search_ctx *ctx, struct apk_package *pkg);
  
- 	int show_all : 1;
-@@ -26,42 +26,77 @@ struct search_ctx {
+ 	int verbosity;
  	unsigned int matches;
  	struct apk_string_array *filter;
- 	struct apk_package *prev_match;
 +	struct apk_package_array *rdep_pkg_array;
  };
  
@@ -92,10 +90,10 @@ index b02eb56..2d9b0cd 100644
 +static void print_package_name_common(struct search_ctx *ctx, struct apk_package *pkg)
  {
  	printf("%s", pkg->name->name);
- 	if (apk_verbosity > 0)
+ 	if (ctx->verbosity > 0)
  		printf("-" BLOB_FMT, BLOB_PRINTF(*pkg->version));
- 	if (apk_verbosity > 1)
- 		printf(" - %s", pkg->description);
+ 	if (ctx->verbosity > 1)
+ 		printf(" - " BLOB_FMT, BLOB_PRINTF(*pkg->description));
 +}
 +
 +static void print_package_name(struct search_ctx *ctx, struct apk_package *pkg)
@@ -107,13 +105,13 @@ index b02eb56..2d9b0cd 100644
  static void print_origin_name(struct search_ctx *ctx, struct apk_package *pkg)
  {
 +	print_package_name_common(ctx, pkg);
- 	if (pkg->origin != NULL)
+ 	if (pkg->origin->len)
 -		printf(BLOB_FMT, BLOB_PRINTF(*pkg->origin));
--	else
--		printf("%s", pkg->name->name);
--	if (apk_verbosity > 0)
--		printf("-" BLOB_FMT, BLOB_PRINTF(*pkg->version));
 +		printf(" {"BLOB_FMT"}", BLOB_PRINTF(*pkg->origin));
+ 	else
+ 		printf("%s", pkg->name->name);
+-	if (ctx->verbosity > 0)
+-		printf("-" BLOB_FMT, BLOB_PRINTF(*pkg->version));
  	printf("\n");
  }
  
@@ -123,36 +121,36 @@ index b02eb56..2d9b0cd 100644
  	struct search_ctx *ctx = (struct search_ctx *) pctx;
 -	ctx->print_package(ctx, pkg0);
 +
-+	*apk_package_array_add(&ctx->rdep_pkg_array) = pkg0;
++	apk_package_array_add(&ctx->rdep_pkg_array, pkg0);
 +}
 +
 +static int cmp_package(const void *a, const void *b)
 +{
 +	const struct apk_package * const* pa = a, * const* pb = b;
 +	return apk_pkg_cmp_display(*pa, *pb);
++}
++
++static void print_rdepends(struct search_ctx *ctx)
++{
++	struct apk_package *prev_pkg = NULL;
++
++	qsort(ctx->rdep_pkg_array->item, apk_array_len(ctx->rdep_pkg_array),
++	      sizeof ctx->rdep_pkg_array->item[0], cmp_package);
++
++	apk_array_foreach_item(rdep_pkg, ctx->rdep_pkg_array) {
++		if (ctx->verbosity > 0) printf("  ");
++		if (ctx->verbosity <= 0 && prev_pkg != NULL
++		    && prev_pkg->name == rdep_pkg->name)
++			continue;
++		ctx->print_package(ctx, rdep_pkg);
++		prev_pkg = rdep_pkg;
++	}
  }
  
 -static void print_rdepends(struct search_ctx *ctx, struct apk_package *pkg)
-+static void print_rdepends(struct search_ctx *ctx)
-+{
-+	struct apk_package **rdep_pkg, *prev_pkg = NULL;
-+
-+	qsort(ctx->rdep_pkg_array->item, ctx->rdep_pkg_array->num,
-+	      sizeof ctx->rdep_pkg_array->item[0], cmp_package);
-+
-+	foreach_array_item(rdep_pkg, ctx->rdep_pkg_array) {
-+		if (apk_verbosity > 0) printf("  ");
-+		if (apk_verbosity <= 0 && prev_pkg != NULL
-+		    && prev_pkg->name == (*rdep_pkg)->name)
-+			continue;
-+		ctx->print_package(ctx, *rdep_pkg);
-+		prev_pkg = *rdep_pkg;
-+	}
-+}
-+
 +static void process_rdepends(struct search_ctx *ctx, struct apk_package *pkg)
  {
- 	if (apk_verbosity > 0) {
+ 	if (ctx->verbosity > 0) {
  		ctx->matches = apk_foreach_genid() | APK_DEP_SATISFIES;
  		printf(PKG_VER_FMT " is required by:\n", PKG_VER_PRINTF(pkg));
 +
@@ -161,7 +159,7 @@ index b02eb56..2d9b0cd 100644
 +
 +	apk_pkg_foreach_reverse_dependency(pkg, ctx->matches, add_rdep_pkg, ctx);
 +
-+	if (apk_verbosity > 0) {
++	if (ctx->verbosity > 0) {
 +		print_rdepends(ctx);
 +		apk_package_array_free(&ctx->rdep_pkg_array);
  	}
@@ -169,7 +167,7 @@ index b02eb56..2d9b0cd 100644
  }
  
  #define SEARCH_OPTIONS(OPT) \
-@@ -93,7 +128,7 @@ static int option_parse_applet(void *ctx, struct apk_db_options *dbopts, int opt
+@@ -95,7 +132,7 @@ static int search_parse_option(void *ctx, struct apk_ctx *ac, int opt, const cha
  		ictx->print_package = print_origin_name;
  		break;
  	case OPT_SEARCH_rdepends:
@@ -177,17 +175,8 @@ index b02eb56..2d9b0cd 100644
 +		ictx->process_result = process_rdepends;
  		break;
  	case OPT_SEARCH_has_origin:
- 		ictx->search_origin = 1;
-@@ -132,7 +167,7 @@ static void print_result_pkg(struct search_ctx *ctx, struct apk_package *pkg)
- 		return;
- 	}
- match:
--	ctx->print_result(ctx, pkg);
-+	ctx->process_result(ctx, pkg);
- }
- 
- static int print_result(struct apk_database *db, const char *match, struct apk_package *pkg, void *pctx)
-@@ -169,8 +204,10 @@ static int search_main(void *pctx, struct apk_database *db, struct apk_string_ar
+ 		qs->match = BIT(APK_Q_FIELD_ORIGIN);
+@@ -121,14 +158,16 @@ static int search_main(void *pctx, struct apk_ctx *ac, struct apk_string_array *
  	ctx->matches = apk_foreach_genid() | APK_DEP_SATISFIES;
  	if (ctx->print_package == NULL)
  		ctx->print_package = print_package_name;
@@ -195,23 +184,18 @@ index b02eb56..2d9b0cd 100644
 -		ctx->print_result = ctx->print_package;
 +	if (ctx->process_result == NULL)
 +		ctx->process_result = ctx->print_package;
-+	if (ctx->process_result == process_rdepends && apk_verbosity <= 0)
++	if (ctx->process_result == process_rdepends && ctx->verbosity <= 0)
 +		apk_package_array_init(&ctx->rdep_pkg_array);
  
- 	if (ctx->search_description || ctx->search_origin) {
- 		// Just enumerate all names in sorted order, and do the
-@@ -188,6 +225,11 @@ static int search_main(void *pctx, struct apk_database *db, struct apk_string_ar
- 	apk_db_foreach_sorted_providers(db, args, print_result, ctx);
- 	if (ctx->prev_match) print_result_pkg(ctx, ctx->prev_match);
- 
-+	if (ctx->process_result == process_rdepends && apk_verbosity <= 0) {
-+		print_rdepends(ctx);
-+		apk_package_array_free(&ctx->rdep_pkg_array);
-+	}
-+
- 	return 0;
- }
- 
+ 	ac->query.match |= BIT(APK_Q_FIELD_NAME) | BIT(APK_Q_FIELD_PROVIDES);
+ 	apk_package_array_init(&pkgs);
+ 	r = apk_query_packages(ac, &ac->query, args, &pkgs);
+ 	if (r >= 0) {
+-		apk_array_foreach_item(pkg, pkgs) ctx->print_result(ctx, pkg);
++		apk_array_foreach_item(pkg, pkgs) ctx->process_result(ctx, pkg);
+ 	} else {
+ 		apk_err(out, "query failed: %s", apk_error_str(r));
+ 	}
 -- 
 2.25.1
 

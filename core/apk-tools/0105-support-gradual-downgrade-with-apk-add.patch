@@ -1,43 +1,43 @@
-From c1d455e0678257b20a819ad31f290edde0a0ff4e Mon Sep 17 00:00:00 2001
+From c92283a97fc57e851e3ed71712d10bb2cb3c7c2b Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 5 Apr 2022 14:37:27 +0300
 Subject: [PATCH] support gradual downgrade with apk add
 
 ---
- doc/apk-add.8.scd         |  3 ++
- src/apk_solver.h          |  3 ++
- src/apk_solver_data.h     |  1 +
- src/app_add.c             |  4 +++
- src/solver.c              | 52 ++++++++++++++++++++++++++----
- test/downgrade.installed1 | 15 +++++++++
- test/downgrade.installed2 | 22 +++++++++++++
- test/downgrade.installed4 | 22 +++++++++++++
- test/downgrade.installed5 | 22 +++++++++++++
- test/downgrade.repo       | 68 +++++++++++++++++++++++++++++++++++++++
- test/downgrade1.test      |  8 +++++
- test/downgrade2.test      |  9 ++++++
- test/downgrade3.test      |  8 +++++
- test/downgrade4.test      |  9 ++++++
- test/downgrade5.test      |  7 ++++
- 15 files changed, 247 insertions(+), 6 deletions(-)
- create mode 100644 test/downgrade.installed1
- create mode 100644 test/downgrade.installed2
- create mode 100644 test/downgrade.installed4
- create mode 100644 test/downgrade.installed5
- create mode 100644 test/downgrade.repo
- create mode 100644 test/downgrade1.test
- create mode 100644 test/downgrade2.test
- create mode 100644 test/downgrade3.test
- create mode 100644 test/downgrade4.test
- create mode 100644 test/downgrade5.test
+ doc/apk-add.8.scd                |  3 ++
+ src/apk_solver.h                 |  3 ++
+ src/apk_solver_data.h            |  1 +
+ src/app_add.c                    |  4 ++
+ src/solver.c                     | 49 ++++++++++++++++++++---
+ test/solver/downgrade.repo       | 68 ++++++++++++++++++++++++++++++++
+ test/solver/downgrade1.installed | 15 +++++++
+ test/solver/downgrade1.test      |  7 ++++
+ test/solver/downgrade2.installed | 22 +++++++++++
+ test/solver/downgrade2.test      |  8 ++++
+ test/solver/downgrade3.test      |  7 ++++
+ test/solver/downgrade4.installed | 22 +++++++++++
+ test/solver/downgrade4.test      |  8 ++++
+ test/solver/downgrade5.installed | 22 +++++++++++
+ test/solver/downgrade5.test      |  6 +++
+ 15 files changed, 239 insertions(+), 6 deletions(-)
+ create mode 100644 test/solver/downgrade.repo
+ create mode 100644 test/solver/downgrade1.installed
+ create mode 100644 test/solver/downgrade1.test
+ create mode 100644 test/solver/downgrade2.installed
+ create mode 100644 test/solver/downgrade2.test
+ create mode 100644 test/solver/downgrade3.test
+ create mode 100644 test/solver/downgrade4.installed
+ create mode 100644 test/solver/downgrade4.test
+ create mode 100644 test/solver/downgrade5.installed
+ create mode 100644 test/solver/downgrade5.test
 
 diff --git a/doc/apk-add.8.scd b/doc/apk-add.8.scd
-index 9ae4778..60df476 100644
+index 08a52fb..026a7ba 100644
 --- a/doc/apk-add.8.scd
 +++ b/doc/apk-add.8.scd
-@@ -40,6 +40,9 @@ following options:
- 	added _packages_ or their dependencies. This changes the default
- 	preference to upgrading the package to the latest installable version.
+@@ -54,6 +54,9 @@ following options:
+ 	However, this is useful mode for testing purposes or to create
+ 	chroot where some specific applications can run as non-root.
  
 +*-d, --downgrade*
 +	Downgrade _packages_ to the previous installable versions.
@@ -46,10 +46,10 @@ index 9ae4778..60df476 100644
  	Create virtual package _NAME_ with given dependencies. This new package
  	will get the _packages_ as dependencies instead of _world_. Finally the
 diff --git a/src/apk_solver.h b/src/apk_solver.h
-index e6f0ce6..4c7d1fa 100644
+index 6af5c86..98fb332 100644
 --- a/src/apk_solver.h
 +++ b/src/apk_solver.h
-@@ -36,6 +36,9 @@ struct apk_changeset {
+@@ -35,6 +35,9 @@ struct apk_changeset {
  #define APK_SOLVERF_INSTALLED	 	0x0020
  #define APK_SOLVERF_REMOVE		0x0040
  #define APK_SOLVERF_NEW_ADD	 	0x0080
@@ -60,10 +60,10 @@ index e6f0ce6..4c7d1fa 100644
  void apk_solver_set_name_flags(struct apk_name *name,
  			       unsigned short solver_flags,
 diff --git a/src/apk_solver_data.h b/src/apk_solver_data.h
-index 03726d6..4338c70 100644
+index 564dc0f..bf61721 100644
 --- a/src/apk_solver_data.h
 +++ b/src/apk_solver_data.h
-@@ -42,6 +42,7 @@ struct apk_solver_name_state {
+@@ -40,6 +40,7 @@ struct apk_solver_name_state {
  	unsigned has_virtual_provides : 1;
  	unsigned has_auto_selectable : 1;
  	unsigned new_alternative : 1;
@@ -72,18 +72,18 @@ index 03726d6..4338c70 100644
  
  struct apk_solver_package_state {
 diff --git a/src/app_add.c b/src/app_add.c
-index dfa0a68..145aa22 100644
+index 0c9986d..80859ec 100644
 --- a/src/app_add.c
 +++ b/src/app_add.c
 @@ -26,6 +26,7 @@ struct add_ctx {
- 	OPT(OPT_ADD_latest,	APK_OPT_SH("l") "latest") \
- 	OPT(OPT_ADD_no_chown,	"no-chown") \
+ 	OPT(OPT_ADD_no_chown,   "no-chown") \
  	OPT(OPT_ADD_upgrade,	APK_OPT_SH("u") "upgrade") \
+ 	OPT(OPT_ADD_usermode,	"usermode") \
 +	OPT(OPT_ADD_downgrade,	APK_OPT_SH("d") "downgrade") \
  	OPT(OPT_ADD_virtual,	APK_OPT_ARG APK_OPT_SH("t") "virtual")
  
- APK_OPT_APPLET(option_desc, ADD_OPTIONS);
-@@ -47,6 +48,9 @@ static int option_parse_applet(void *ctx, struct apk_db_options *dbopts, int opt
+ APK_OPTIONS(add_options_desc, ADD_OPTIONS);
+@@ -48,6 +49,9 @@ static int add_parse_option(void *ctx, struct apk_ctx *ac, int opt, const char *
  	case OPT_ADD_upgrade:
  		actx->solver_flags |= APK_SOLVERF_UPGRADE;
  		break;
@@ -94,10 +94,10 @@ index dfa0a68..145aa22 100644
  		actx->virtpkg = optarg;
  		break;
 diff --git a/src/solver.c b/src/solver.c
-index a0c6837..433d358 100644
+index 1a658d6..44796bc 100644
 --- a/src/solver.c
 +++ b/src/solver.c
-@@ -234,18 +234,24 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
+@@ -208,18 +208,24 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
  				!pkg->ipkg &&
  				(pkg->ss.solver_flags & APK_SOLVERF_NEW_ADD);
  
@@ -123,10 +123,10 @@ index a0c6837..433d358 100644
 +		name->ss.new_downgrade |= pkg->name->ss.new_downgrade;
  	}
  
- 	foreach_array_item(p, name->providers) {
-@@ -262,9 +268,9 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
- 
- 	name->ss.order_id = ++ss->order_id;
+ 	apk_array_foreach_item(name0, name->rinstall_if)
+@@ -240,9 +246,9 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
+ 			discover_name(ss, dep->name);
+ 	}
  
 -	dbg_printf("discover %s: no_iif=%d num_virtual=%d, order_id=%d new_alternative=%d\n",
 +	dbg_printf("discover %s: no_iif=%d num_virtual=%d, order_id=%d new_alternative=%d new_downgrade=%d\n",
@@ -136,7 +136,7 @@ index a0c6837..433d358 100644
  }
  
  static void name_requirers_changed(struct apk_solver_state *ss, struct apk_name *name)
-@@ -697,7 +703,7 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -662,7 +668,7 @@ static int compare_providers(struct apk_solver_state *ss,
  		}
  
  		/* Prefer installed */
@@ -145,15 +145,13 @@ index a0c6837..433d358 100644
  			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
  			if (r) {
  				dbg_printf("    prefer installed\n");
-@@ -819,15 +825,32 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
+@@ -786,14 +792,28 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
  		reevaluate_reverse_installif(ss, name);
  }
  
 +static struct apk_provider *apk_get_installed_provider(struct apk_name *name)
 +{
-+	struct apk_provider *p;
-+
-+	foreach_array_item(p, name->providers) {
++	apk_array_foreach(p, name->providers) {
 +		if (p->pkg->ipkg) {
 +			dbg_printf("found installed pkg "PKG_VER_FMT"\n", PKG_VER_PRINTF(p->pkg));
 +			return p;
@@ -164,28 +162,26 @@ index a0c6837..433d358 100644
 +
  static void select_package(struct apk_solver_state *ss, struct apk_name *name)
  {
--	struct apk_provider chosen = { NULL, &apk_atom_null }, *p;
-+	struct apk_provider chosen = { NULL, &apk_atom_null }, *p, *ip = NULL;
+-	struct apk_provider chosen = { NULL, &apk_atom_null };
++	struct apk_provider chosen = { NULL, &apk_atom_null }, *ip = NULL;
  	struct apk_package *pkg = NULL;
- 	struct apk_dependency *d;
  
  	dbg_printf("select_package: %s (requirers=%d, autosel=%d, iif=%d)\n", name->name, name->ss.requirers, name->ss.has_auto_selectable, name->ss.has_iif);
  
  	if (name->ss.requirers || name->ss.has_iif) {
-+
 +		if (name->ss.new_downgrade)
 +			ip = apk_get_installed_provider(name);
 +
- 		foreach_array_item(p, name->providers) {
+ 		apk_array_foreach(p, name->providers) {
  			dbg_printf("  consider "PKG_VER_FMT" iif_triggered=%d, tag_ok=%d, selectable=%d, available=%d, flags=0x%x, provider_priority=%d, installed=%d\n",
  				PKG_VER_PRINTF(p->pkg),
-@@ -847,11 +870,28 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
+@@ -813,11 +833,28 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
  				dbg_printf("    ignore: virtual package without provider_priority\n");
  				continue;
  			}
 +
 +			if (ip) {
-+				switch (apk_version_compare_blob(*p->pkg->version, *ip->pkg->version)) {
++				switch (apk_version_compare(*p->pkg->version, *ip->pkg->version)) {
 +				case APK_VERSION_GREATER:
 +				case APK_VERSION_EQUAL:
 +					dbg_printf("    downgrade: ignore "PKG_VER_FMT" version >= installed version\n",
@@ -208,116 +204,11 @@ index a0c6837..433d358 100644
  	}
  
  	pkg = chosen.pkg;
-diff --git a/test/downgrade.installed1 b/test/downgrade.installed1
-new file mode 100644
-index 0000000..d29c466
---- /dev/null
-+++ b/test/downgrade.installed1
-@@ -0,0 +1,15 @@
-+C:Q1EyNCAdpAOBJWKMR89pp/C66o+OE=
-+P:test-alt-b
-+V:3
-+S:1
-+I:1
-+p:test-alt so:foo.so.1=1
-+k:10
-+B:1
-+
-+C:Q1eVpkasfqZAukAXFYbgwt4xAMZWU=
-+P:a
-+V:2
-+S:1
-+I:1
-+D:so:foo.so.1
-diff --git a/test/downgrade.installed2 b/test/downgrade.installed2
-new file mode 100644
-index 0000000..6e7ecb9
---- /dev/null
-+++ b/test/downgrade.installed2
-@@ -0,0 +1,22 @@
-+C:Q1EyNCAdpAOBJWKMR89pp/C66o+OE=
-+P:test-alt-b
-+V:3
-+S:1
-+I:1
-+p:test-alt so:foo.so.1=1
-+k:10
-+B:1
-+
-+C:Q1eVpkasfqZAukAXFYbgwt4xAMZWU=
-+P:a
-+V:2
-+S:1
-+I:1
-+D:so:foo.so.1
-+
-+C:Q1hdUpqRv5mYgJEqW52UmVsvmyysE=
-+P:b
-+V:2
-+S:1
-+I:1
-+D:a=2 so:foo.so.1
-diff --git a/test/downgrade.installed4 b/test/downgrade.installed4
-new file mode 100644
-index 0000000..fdbefc4
---- /dev/null
-+++ b/test/downgrade.installed4
-@@ -0,0 +1,22 @@
-+C:Q1EyNCAdpAOBJWKMR89pp/C66o+OE=
-+P:test-alt-b
-+V:3
-+S:1
-+I:1
-+p:test-alt so:foo.so.1=1
-+k:10
-+B:1
-+
-+C:Q1EyN5AdpAOBJWKMR89pp/C66o+OE=
-+P:a
-+V:1
-+S:1
-+I:1
-+D:so:foo.so.1
-+
-+C:Q1C4uoV7SdMdDhYg4OCVmI71D8HIA=
-+P:b
-+V:1
-+S:1
-+I:1
-+D:a=1 so:foo.so.1
-diff --git a/test/downgrade.installed5 b/test/downgrade.installed5
-new file mode 100644
-index 0000000..7fde6a9
---- /dev/null
-+++ b/test/downgrade.installed5
-@@ -0,0 +1,22 @@
-+C:Q1EyNCAdpAOBJWKMR89pp/C66o+OE=
-+P:test-alt-b
-+V:3
-+S:1
-+I:1
-+p:test-alt so:foo.so.1=1
-+k:10
-+B:1
-+
-+C:Q1EyB5AdpAOBJWKMR89pp/C66o+OE=
-+P:a
-+V:0
-+S:1
-+I:1
-+D:so:foo.so.1
-+
-+C:Q1C4aoV7SdMdDhYg4OCVmI71D8HIA=
-+P:b
-+V:0
-+S:1
-+I:1
-+D:a=0 so:foo.so.1
-diff --git a/test/downgrade.repo b/test/downgrade.repo
+diff --git a/test/solver/downgrade.repo b/test/solver/downgrade.repo
 new file mode 100644
 index 0000000..7f7c917
 --- /dev/null
-+++ b/test/downgrade.repo
++++ b/test/solver/downgrade.repo
 @@ -0,0 +1,68 @@
 +C:Q1EyNAAdpAOBJWKMR89pp/C66o+OE=
 +P:test-alt-b
@@ -387,77 +278,177 @@ index 0000000..7f7c917
 +S:1
 +I:1
 +D:a=2 so:foo.so.1
-diff --git a/test/downgrade1.test b/test/downgrade1.test
+diff --git a/test/solver/downgrade1.installed b/test/solver/downgrade1.installed
 new file mode 100644
-index 0000000..42494e1
+index 0000000..d29c466
 --- /dev/null
-+++ b/test/downgrade1.test
-@@ -0,0 +1,8 @@
-+@ARGS
-+--test-repo downgrade.repo
-+--test-instdb downgrade.installed1
-+--test-world "a"
-+add -d a
++++ b/test/solver/downgrade1.installed
+@@ -0,0 +1,15 @@
++C:Q1EyNCAdpAOBJWKMR89pp/C66o+OE=
++P:test-alt-b
++V:3
++S:1
++I:1
++p:test-alt so:foo.so.1=1
++k:10
++B:1
++
++C:Q1eVpkasfqZAukAXFYbgwt4xAMZWU=
++P:a
++V:2
++S:1
++I:1
++D:so:foo.so.1
+diff --git a/test/solver/downgrade1.test b/test/solver/downgrade1.test
+new file mode 100644
+index 0000000..cd78ad9
+--- /dev/null
++++ b/test/solver/downgrade1.test
+@@ -0,0 +1,7 @@
++@ARGS add -d a
++@REPO downgrade.repo
++@INSTALLED downgrade1.installed
++@WORLD a
 +@EXPECT
 +(1/1) Downgrading a (2 -> 1)
 +OK: 0 MiB in 2 packages
-diff --git a/test/downgrade2.test b/test/downgrade2.test
+diff --git a/test/solver/downgrade2.installed b/test/solver/downgrade2.installed
 new file mode 100644
-index 0000000..bbf5b6d
+index 0000000..6e7ecb9
 --- /dev/null
-+++ b/test/downgrade2.test
-@@ -0,0 +1,9 @@
-+@ARGS
-+--test-repo downgrade.repo
-+--test-instdb downgrade.installed2
-+--test-world "b"
-+add -d b
++++ b/test/solver/downgrade2.installed
+@@ -0,0 +1,22 @@
++C:Q1EyNCAdpAOBJWKMR89pp/C66o+OE=
++P:test-alt-b
++V:3
++S:1
++I:1
++p:test-alt so:foo.so.1=1
++k:10
++B:1
++
++C:Q1eVpkasfqZAukAXFYbgwt4xAMZWU=
++P:a
++V:2
++S:1
++I:1
++D:so:foo.so.1
++
++C:Q1hdUpqRv5mYgJEqW52UmVsvmyysE=
++P:b
++V:2
++S:1
++I:1
++D:a=2 so:foo.so.1
+diff --git a/test/solver/downgrade2.test b/test/solver/downgrade2.test
+new file mode 100644
+index 0000000..7e0b281
+--- /dev/null
++++ b/test/solver/downgrade2.test
+@@ -0,0 +1,8 @@
++@ARGS add -d b
++@REPO downgrade.repo
++@INSTALLED downgrade2.installed
++@WORLD b
 +@EXPECT
 +(1/2) Downgrading a (2 -> 1)
 +(2/2) Downgrading b (2 -> 1)
 +OK: 0 MiB in 3 packages
-diff --git a/test/downgrade3.test b/test/downgrade3.test
+diff --git a/test/solver/downgrade3.test b/test/solver/downgrade3.test
 new file mode 100644
-index 0000000..9ce9b5a
+index 0000000..07af5ef
 --- /dev/null
-+++ b/test/downgrade3.test
-@@ -0,0 +1,8 @@
-+@ARGS
-+--test-repo downgrade.repo
-+--test-instdb downgrade.installed2
-+--test-world "b"
-+add -d test-alt-b
++++ b/test/solver/downgrade3.test
+@@ -0,0 +1,7 @@
++@ARGS add -d test-alt-b
++@REPO downgrade.repo
++@INSTALLED downgrade2.installed
++@WORLD b
 +@EXPECT
 +(1/1) Downgrading test-alt-b (3 -> 2)
 +OK: 0 MiB in 3 packages
-diff --git a/test/downgrade4.test b/test/downgrade4.test
+diff --git a/test/solver/downgrade4.installed b/test/solver/downgrade4.installed
 new file mode 100644
-index 0000000..41bb863
+index 0000000..fdbefc4
 --- /dev/null
-+++ b/test/downgrade4.test
-@@ -0,0 +1,9 @@
-+@ARGS
-+--test-repo downgrade.repo
-+--test-instdb downgrade.installed4
-+--test-world "b"
-+add -d b
++++ b/test/solver/downgrade4.installed
+@@ -0,0 +1,22 @@
++C:Q1EyNCAdpAOBJWKMR89pp/C66o+OE=
++P:test-alt-b
++V:3
++S:1
++I:1
++p:test-alt so:foo.so.1=1
++k:10
++B:1
++
++C:Q1EyN5AdpAOBJWKMR89pp/C66o+OE=
++P:a
++V:1
++S:1
++I:1
++D:so:foo.so.1
++
++C:Q1C4uoV7SdMdDhYg4OCVmI71D8HIA=
++P:b
++V:1
++S:1
++I:1
++D:a=1 so:foo.so.1
+diff --git a/test/solver/downgrade4.test b/test/solver/downgrade4.test
+new file mode 100644
+index 0000000..8b34e7b
+--- /dev/null
++++ b/test/solver/downgrade4.test
+@@ -0,0 +1,8 @@
++@ARGS add -d b
++@REPO downgrade.repo
++@INSTALLED downgrade4.installed
++@WORLD b
 +@EXPECT
 +(1/2) Downgrading a (1 -> 0)
 +(2/2) Downgrading b (1 -> 0)
 +OK: 0 MiB in 3 packages
-diff --git a/test/downgrade5.test b/test/downgrade5.test
+diff --git a/test/solver/downgrade5.installed b/test/solver/downgrade5.installed
 new file mode 100644
-index 0000000..d8f4814
+index 0000000..7fde6a9
 --- /dev/null
-+++ b/test/downgrade5.test
-@@ -0,0 +1,7 @@
-+@ARGS
-+--test-repo downgrade.repo
-+--test-instdb downgrade.installed5
-+--test-world "b"
-+add -d b
++++ b/test/solver/downgrade5.installed
+@@ -0,0 +1,22 @@
++C:Q1EyNCAdpAOBJWKMR89pp/C66o+OE=
++P:test-alt-b
++V:3
++S:1
++I:1
++p:test-alt so:foo.so.1=1
++k:10
++B:1
++
++C:Q1EyB5AdpAOBJWKMR89pp/C66o+OE=
++P:a
++V:0
++S:1
++I:1
++D:so:foo.so.1
++
++C:Q1C4aoV7SdMdDhYg4OCVmI71D8HIA=
++P:b
++V:0
++S:1
++I:1
++D:a=0 so:foo.so.1
+diff --git a/test/solver/downgrade5.test b/test/solver/downgrade5.test
+new file mode 100644
+index 0000000..d62b2f1
+--- /dev/null
++++ b/test/solver/downgrade5.test
+@@ -0,0 +1,6 @@
++@ARGS add -d b
++@REPO downgrade.repo
++@INSTALLED downgrade5.installed
++@WORLD b
 +@EXPECT
 +OK: 0 MiB in 3 packages
 -- 
-2.48.1
+2.25.1
 

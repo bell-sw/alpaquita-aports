@@ -1,80 +1,92 @@
-From 576544b8e74ac27a339b998878629a683e1c7c01 Mon Sep 17 00:00:00 2001
+From 75f9b58412e29830fd313377687eef3c5231c958 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Thu, 5 Dec 2024 12:11:18 +0000
 Subject: [PATCH] tests: add new test with symlinks
 
 ---
- Makefile                                    |  1 +
- test/Makefile                               | 11 ++++----
- test/repo_path_1/test-a/APKBUILD            | 29 ++++++++++++++++++++
- test/repo_path_symlink_1/test-a/APKBUILD    | 30 +++++++++++++++++++++
- test/repo_path_symlink_1/test-base/APKBUILD | 26 ++++++++++++++++++
- test/test9.sh                               | 25 +++++++++++++++++
- 6 files changed, 117 insertions(+), 5 deletions(-)
- create mode 100644 test/repo_path_1/test-a/APKBUILD
- create mode 100644 test/repo_path_symlink_1/test-a/APKBUILD
- create mode 100644 test/repo_path_symlink_1/test-base/APKBUILD
- create mode 100755 test/test9.sh
+ test/alpine/Makefile                          | 28 +++++++++--------
+ test/alpine/repo_path_1/test-a/APKBUILD       | 30 ++++++++++++++++++
+ .../repo_path_symlink_1/test-a/APKBUILD       | 31 +++++++++++++++++++
+ .../repo_path_symlink_1/test-base/APKBUILD    | 27 ++++++++++++++++
+ test/alpine/test9.sh                          | 25 +++++++++++++++
+ 5 files changed, 128 insertions(+), 13 deletions(-)
+ create mode 100644 test/alpine/repo_path_1/test-a/APKBUILD
+ create mode 100644 test/alpine/repo_path_symlink_1/test-a/APKBUILD
+ create mode 100644 test/alpine/repo_path_symlink_1/test-base/APKBUILD
+ create mode 100755 test/alpine/test9.sh
 
-diff --git a/Makefile b/Makefile
-index dcc3cc0..7350f00 100644
---- a/Makefile
-+++ b/Makefile
-@@ -43,6 +43,7 @@ install:
- check test: FORCE
- 	$(Q)$(MAKE) TEST=y compile
- 	$(Q)$(MAKE) -C test
-+	$(Q)$(MAKE) -C test root-tests
- 
- static:
- 	$(Q)$(MAKE) STATIC=y
-diff --git a/test/Makefile b/test/Makefile
-index 9834668..17a0937 100644
---- a/test/Makefile
-+++ b/test/Makefile
-@@ -1,14 +1,14 @@
- -include conf.mk
- 
+diff --git a/test/alpine/Makefile b/test/alpine/Makefile
+index cbe919e..b8a1730 100644
+--- a/test/alpine/Makefile
++++ b/test/alpine/Makefile
+@@ -1,7 +1,4 @@
+--include conf.mk
+-.PHONY:
+-
 -repos	:= repo1 repo2
 +repos	:= repo_path_symlink_1 repo_path_1
  
  tmproot := /tmp/apk-test
  testroot = $(tmproot)/$(basename $@)
+@@ -11,19 +8,21 @@ testroot = $(tmproot)/$(basename $@)
+ # emulation using QEMU and binfmt (apk --root uses chroot to run pre/post
+ # install scripts).
+ QEMU_EMULATOR	?=
+-SUDO		?= sudo
+-SYSREPO		?= https://dl-cdn.alpinelinux.org/alpine/edge/main
+-APK		?= ../../src/apk
+-LD_LIBRARY_PATH	?= ../../src
++SUDO		:=
++SYSREPO		:=
++APK		?= $(realpath ../../output/src/apk)
++LD_LIBRARY_PATH	?= ../../output/src
++CBUILD		:= $(arch)
++PWD		:= $(pwd)
  
--SUDO	:= sudo
-+SUDO	:=
- APK	:= ../src/apk --keys-dir /etc/apk/keys
+-export APK LD_LIBRARY_PATH SYSREPO
++export APK LD_LIBRARY_PATH SYSREPO CBUILD
  
--SYSREPO ?= http://nl.alpinelinux.org/alpine/edge/main
-+SYSREPO :=
+ all: alpine-tests
  
- # Absolute path to QEMU user-mode emulation binary to be copied into every
- # $testroot before running test. This is used when running root-tests in
-@@ -48,7 +48,8 @@ repos.stamp: $(repos)
- 		if [ -n "$(QEMU_EMULATOR)" ]; then \
- 			$(SUDO) install -Dm755 "$(QEMU_EMULATOR)" "$(testroot)$(QEMU_EMULATOR)"; \
- 		fi; \
--		if ! APK="$(APK)" ROOT="$(testroot)" SYSREPO="$(SYSREPO)" sh -ex ./$< > $(basename $@).out 2>&1; then\
-+		if ! APK="$(APK)" ROOT="$(testroot)" SYSREPO="$(SYSREPO)" \
-+			fakeroot sh -ex -c "LD_LIBRARY_PATH=../src ./$<" > $(basename $@).out 2>&1; then\
- 			echo " FAIL";\
- 			printf "------------- output -------------\n" >&2;\
- 			cat $(basename $@).out >&2;\
-@@ -61,7 +62,7 @@ repos.stamp: $(repos)
+ $(repos):
+-	@echo "Building $@"
++	echo "Building $@"
+ 	@cd "$@" && for i in */APKBUILD; do \
+-		cd $${i%/*} && REPODEST="$$PWD/../.." abuild -r || exit 1
++		(cd $${i%/*} && REPODEST="$$PWD/../.." abuild -r) || exit 1; \
+ 	done
  
- root-tests: repos.stamp
+ clean:
+@@ -41,7 +40,8 @@ repos.stamp: $(repos)
+ 	if [ -n "$(QEMU_EMULATOR)" ]; then \
+ 		install -Dm755 "$(QEMU_EMULATOR)" "$(testroot)$(QEMU_EMULATOR)"; \
+ 	fi; \
+-	if ! $(SUDO) LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" APK="$(APK) --keys-dir /etc/apk/keys" ROOT="$(testroot)" SYSREPO="$(SYSREPO)" sh -ex ./$< > $(basename $@).out 2>&1; then\
++	if ! $(SUDO) LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" APK="$(APK) --keys-dir /etc/apk/keys" ROOT="$(testroot)" SYSREPO="$(SYSREPO)" \
++		fakeroot sh -ex ./$< > $(basename $@).out 2>&1; then\
+ 		echo " FAIL";\
+ 		printf '%s\n' "------------- output -------------" >&2;\
+ 		cat $(basename $@).out >&2;\
+@@ -54,10 +54,12 @@ repos.stamp: $(repos)
+ 
+ alpine-tests: repos.stamp
  	@echo "== Testing `$(APK) --version` (tests that require root permission) =="
 -	@failed=0; for i in test*.sh; do \
 +	@failed=0; for i in test9.sh; do \
  		rm -f $${i%.sh}.ok ;\
- 		$(SUDO) $(MAKE) --no-print-directory $${i%.sh}.ok \
+ 		$(MAKE) --no-print-directory $${i%.sh}.ok \
  			SYSREPO=$(SYSREPO) \
-diff --git a/test/repo_path_1/test-a/APKBUILD b/test/repo_path_1/test-a/APKBUILD
+ 			QEMU_EMULATOR=$(QEMU_EMULATOR) || failed=1; \
+ 	done; \
+ 	return $$failed
++
++.PHONY: $(repos) repos
+diff --git a/test/alpine/repo_path_1/test-a/APKBUILD b/test/alpine/repo_path_1/test-a/APKBUILD
 new file mode 100644
-index 0000000..a37c86d
+index 0000000..13fa6c4
 --- /dev/null
-+++ b/test/repo_path_1/test-a/APKBUILD
-@@ -0,0 +1,29 @@
++++ b/test/alpine/repo_path_1/test-a/APKBUILD
+@@ -0,0 +1,30 @@
 +pkgname=test-a
 +pkgver=1.2
 +pkgrel=0
@@ -83,6 +95,7 @@ index 0000000..a37c86d
 +arch="noarch"
 +license="GPL"
 +builddir="$srcdir/$pkgname-$pkgver"
++options="!check"
 +
 +prepare() {
 +	mkdir -p "$builddir"
@@ -104,12 +117,12 @@ index 0000000..a37c86d
 +}
 +
 +sha512sums="" #generate with 'abuild checksum'
-diff --git a/test/repo_path_symlink_1/test-a/APKBUILD b/test/repo_path_symlink_1/test-a/APKBUILD
+diff --git a/test/alpine/repo_path_symlink_1/test-a/APKBUILD b/test/alpine/repo_path_symlink_1/test-a/APKBUILD
 new file mode 100644
-index 0000000..4130287
+index 0000000..840d637
 --- /dev/null
-+++ b/test/repo_path_symlink_1/test-a/APKBUILD
-@@ -0,0 +1,30 @@
++++ b/test/alpine/repo_path_symlink_1/test-a/APKBUILD
+@@ -0,0 +1,31 @@
 +pkgname=test-a
 +pkgver=1.1
 +pkgrel=0
@@ -118,6 +131,7 @@ index 0000000..4130287
 +arch="noarch"
 +license="GPL"
 +builddir="$srcdir/$pkgname-$pkgver"
++options="!check"
 +
 +prepare() {
 +	mkdir -p "$builddir"
@@ -140,12 +154,12 @@ index 0000000..4130287
 +}
 +
 +sha512sums="" #generate with 'abuild checksum'
-diff --git a/test/repo_path_symlink_1/test-base/APKBUILD b/test/repo_path_symlink_1/test-base/APKBUILD
+diff --git a/test/alpine/repo_path_symlink_1/test-base/APKBUILD b/test/alpine/repo_path_symlink_1/test-base/APKBUILD
 new file mode 100644
-index 0000000..27744b3
+index 0000000..a597d6b
 --- /dev/null
-+++ b/test/repo_path_symlink_1/test-base/APKBUILD
-@@ -0,0 +1,26 @@
++++ b/test/alpine/repo_path_symlink_1/test-base/APKBUILD
+@@ -0,0 +1,27 @@
 +pkgname=test-base
 +pkgver=1.1
 +pkgrel=0
@@ -154,6 +168,7 @@ index 0000000..27744b3
 +arch="noarch"
 +license="GPL"
 +builddir="$srcdir/$pkgname-$pkgver"
++options="!check"
 +
 +prepare() {
 +	mkdir -p "$builddir"
@@ -172,11 +187,11 @@ index 0000000..27744b3
 +}
 +
 +sha512sums="" #generate with 'abuild checksum'
-diff --git a/test/test9.sh b/test/test9.sh
+diff --git a/test/alpine/test9.sh b/test/alpine/test9.sh
 new file mode 100755
 index 0000000..173331d
 --- /dev/null
-+++ b/test/test9.sh
++++ b/test/alpine/test9.sh
 @@ -0,0 +1,25 @@
 +#!/bin/sh -e
 +
