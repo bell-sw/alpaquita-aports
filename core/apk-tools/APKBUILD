@@ -74,7 +74,7 @@ build() {
 
 	abuild-meson \
 		--auto-features=disabled \
-		--bindir=/sbin \
+		--bindir=/usr/sbin \
 		-Darch="$CARCH" \
 		-Ddocs=enabled \
 		-Dhelp=enabled \
@@ -92,8 +92,8 @@ check() {
 
 package() {
 	DESTDIR="$pkgdir" meson install --no-rebuild -C output
-	install -d "$pkgdir"/lib/apk/db \
-		"$pkgdir"/lib/apk/exec \
+	install -d "$pkgdir"/var/lib/apk/db \
+		"$pkgdir"/var/lib/apk/exec \
 		"$pkgdir"/etc/apk/keys \
 		"$pkgdir"/etc/apk/protected_paths.d
 
