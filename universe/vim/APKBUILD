@@ -2,7 +2,7 @@
 
 pkgname=vim
 pkgver=9.1.1533
-pkgrel=0
+pkgrel=1
 pkgdesc="Improved vi-style text editor"
 url="https://www.vim.org/"
 arch="all"
@@ -16,14 +16,15 @@ makedepends="
 	"
 subpackages="
 	$pkgname-doc
-	${pkgname}diff
-	$pkgname-tutor
-	$pkgname-common
+	${pkgname}diff::noarch
+	$pkgname-tutor::noarch
+	$pkgname-common::noarch
 	xxd
 	"
 source="$pkgname-$pkgver.tar.gz::https://github.com/vim/vim/archive/refs/tags/v$pkgver.tar.gz
 	vimrc
 	"
+options="$options ${pkgname}diff::!tracedeps"
 
 # secfixes:
 #   9.1.1202-r0:
@@ -200,14 +201,13 @@ source="$pkgname-$pkgver.tar.gz::https://github.com/vim/vim/archive/refs/tags/v$
 #     - CVE-2016-1248
 
 prepare() {
+	default_prepare
+
 	# Read vimrc from /etc/vim
 	echo '#define SYS_VIMRC_FILE "/etc/vim/vimrc"' >> src/feature.h
-
-	default_prepare
 }
 
-build() {
-	export CFLAGS="$CFLAGS -flto=auto"
+_build() {
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -215,14 +215,21 @@ build() {
 		--enable-luainterp=dynamic \
 		--enable-python3interp=dynamic \
 		--enable-rubyinterp=dynamic \
-		--without-x \
 		--disable-nls \
 		--enable-acl \
 		--enable-multibyte \
-		--enable-gui=no \
 		--with-lua-prefix=/usr/lua5.4 \
-		--with-compiledby="$VENDOR_DISTRO_NAME Linux"
+		--with-compiledby="$VENDOR_DISTRO_NAME Linux" \
+		"$@"
 	make
+}
+
+build() {
+	export CFLAGS="$CFLAGS -flto=auto"
+	_build \
+		--without-x \
+		--without-wayland \
+		--enable-gui=no
 }
 
 check() {
@@ -246,7 +253,7 @@ package() {
 
 common() {
 	replaces="vim"
-	arch="noarch"
+
 	amove etc/vim/vimrc
 	amove usr/share/vim
 }
@@ -255,8 +262,6 @@ vimdiff() {
 	pkgdesc="view file diffs in vim"
 	depends="diffutils vim=$pkgver-r$pkgrel"
 	replaces="vim"
-	arch="noarch"
-	options="!tracedeps"
 	provides="cmd:vimdiff=$pkgver-r$pkgrel"
 
 	amove usr/bin/vimdiff
@@ -266,7 +271,6 @@ tutor() {
 	pkgdesc="vim tutor and tutor files"
 	depends="vim=$pkgver-r$pkgrel"
 	replaces="vim"
-	arch="noarch"
 
 	amove usr/bin/vimtutor
 	amove usr/share/vim/vim*/tutor
