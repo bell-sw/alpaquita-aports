@@ -1,0 +1,65 @@
+From 6a0acd271109146bf52b944a0d8fae7515a3bea0 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 15 Jul 2025 16:09:46 +0000
+Subject: [PATCH] adjust user/* tests
+
+---
+ test/user/query.sh    | 3 ++-
+ test/user/replaces.sh | 2 +-
+ test/user/uvol.sh     | 6 +++---
+ 3 files changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/test/user/query.sh b/test/user/query.sh
+index afb2419..942347e 100755
+--- a/test/user/query.sh
++++ b/test/user/query.sh
+@@ -9,6 +9,7 @@ tar xzf "$query_db" -C "$TEST_ROOT"
+ rm "$TEST_ROOT"/etc/apk/repositories
+ 
+ APK="$APK --no-network"
++mv $TEST_ROOT/lib/apk/db/* $TEST_ROOT/var/lib/apk/db/
+ 
+ $APK info apk-tools 2>&1 | diff -u /dev/fd/4 4<<EOF - || assert "wrong result"
+ apk-tools-2.14.6-r3 description:
+@@ -143,7 +144,7 @@ $APK query --format yaml --installed --fields all "apk-tools" 2>&1 | diff -u /de
+     - so:libapk.so.2.14.0=2.14.0
+     - cmd:apk=2.14.6-r3
+   repositories:
+-    - lib/apk/db/installed
++    - var/lib/apk/db/installed
+   contents:
+     - sbin/apk
+     - usr/lib/libapk.so.2.14.0
+diff --git a/test/user/replaces.sh b/test/user/replaces.sh
+index 5311593..f8b4c6f 100755
+--- a/test/user/replaces.sh
++++ b/test/user/replaces.sh
+@@ -39,7 +39,7 @@ $APK query --format yaml --fields name,tags,repositories a  | diff -u /dev/fd/4
+     - tagA
+     - tagB
+   repositories:
+-    - lib/apk/db/installed
++    - var/lib/apk/db/installed
+ EOF
+ 
+ $APK add b-1.0.apk && assert "should error with conflicting file"
+diff --git a/test/user/uvol.sh b/test/user/uvol.sh
+index f5aec4e..adac5a4 100755
+--- a/test/user/uvol.sh
++++ b/test/user/uvol.sh
+@@ -14,9 +14,9 @@ EOF
+ }
+ 
+ reset_uvol_db() {
+-	rm -rf "$TEST_ROOT/lib/apk/db-uvol"
+-	mkdir -p "$TEST_ROOT/lib/apk/db-uvol"
+-	touch "$TEST_ROOT/lib/apk/db-uvol/world"
++	rm -rf "$TEST_ROOT/var/lib/apk/db-uvol"
++	mkdir -p "$TEST_ROOT/var/lib/apk/db-uvol"
++	touch "$TEST_ROOT/var/lib/apk/db-uvol/world"
+ }
+ 
+ setup_apkroot
+-- 
+2.25.1
+
