@@ -1,0 +1,46 @@
+From e17f6fe1300c8878b15d017eb947425abc90ca7d Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Mon, 21 Jul 2025 14:17:29 +0000
+Subject: [PATCH] tests: fix git config usage
+
+Fixes backport of commit 05e9cd64ee23 ("config: quote values containing CR character")
+---
+ t/t1300-config.sh           | 4 ++--
+ t/t7450-bad-git-dotfiles.sh | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/t/t1300-config.sh b/t/t1300-config.sh
+index 1010410b7e..ff33a5f86c 100755
+--- a/t/t1300-config.sh
++++ b/t/t1300-config.sh
+@@ -2595,8 +2595,8 @@ test_expect_success 'writing value with trailing CR not stripped on read' '
+ 
+ 	printf "bar\r\n" >expect &&
+ 	git init cr-test &&
+-	git -C cr-test config set core.foo $(printf "bar\r") &&
+-	git -C cr-test config get core.foo >actual &&
++	git -C cr-test config --add core.foo $(printf "bar\r") &&
++	git -C cr-test config --get core.foo >actual &&
+ 
+ 	test_cmp expect actual
+ '
+diff --git a/t/t7450-bad-git-dotfiles.sh b/t/t7450-bad-git-dotfiles.sh
+index 2026285566..fafba94693 100755
+--- a/t/t7450-bad-git-dotfiles.sh
++++ b/t/t7450-bad-git-dotfiles.sh
+@@ -362,10 +362,10 @@ test_expect_success SYMLINKS,!WINDOWS,!MINGW 'submodule must not checkout into d
+ 	git -C repo mv sub $(printf "sub\r") &&
+ 
+ 	# Ensure config values containing CR are wrapped in quotes.
+-	git config unset -f repo/.gitmodules submodule.sub.path &&
++	git config -f repo/.gitmodules --unset submodule.sub.path &&
+ 	printf "\tpath = \"sub\r\"\n" >>repo/.gitmodules &&
+ 
+-	git config unset -f repo/.git/modules/sub/config core.worktree &&
++	git config -f repo/.git/modules/sub/config --unset core.worktree &&
+ 	{
+ 		printf "[core]\n" &&
+ 		printf "\tworktree = \"../../../sub\r\"\n"
+-- 
+2.25.1
+
