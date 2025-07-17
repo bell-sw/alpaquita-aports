@@ -1,0 +1,52 @@
+# this package is to resolve the circular dependency libva -> mesa -> libva
+
+pkgname=libva-glx
+pkgver=2.20.0
+pkgrel=0
+pkgdesc="Video Acceleration (VA) API for Linux with MESA support"
+url="https://01.org/linuxmedia"
+arch="all"
+options="!check"  # No test suite.
+license="MIT"
+depends_dev="libva-dev mesa-dev libxfixes-dev"
+makedepends="$depends_dev meson wayland-dev"
+subpackages="$pkgname-dev"
+source="libva-$pkgver.tar.gz::https://github.com/intel/libva/archive/$pkgver.tar.gz"
+builddir="$srcdir"/libva-$pkgver
+
+prepare() {
+	( if [ -f "$startdir"/../libva/APKBUILD ]; then
+		_v=$pkgver
+		. "$startdir"/../libva/APKBUILD
+		if [ "$_v" != "$pkgver" ]; then
+			die "libva and libva-glx needs to be same version"
+		fi
+	fi )
+	default_prepare
+}
+
+build() {
+	abuild-meson \
+		-Db_lto=true \
+		-Dwith_glx=yes \
+		-Dwith_wayland=yes \
+		builddir
+	meson compile -C builddir
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C builddir
+
+	mkdir -p $builddir/temp/usr/lib/pkgconfig $builddir/temp/usr/include/va
+
+	mv $pkgdir/usr/lib/libva-glx* $builddir/temp/usr/lib
+	mv $pkgdir/usr/include/va/va_glx.h $builddir/temp/usr/include/va
+	mv $pkgdir/usr/include/va/va_backend_glx.h $builddir/temp/usr/include/va
+	mv $pkgdir/usr/lib/pkgconfig/libva-glx.pc $builddir/temp/usr/lib/pkgconfig
+	rm -rf $pkgdir/*
+	mv $builddir/temp/* $pkgdir
+}
+
+sha512sums="
+85f4aa6b6e9173d407ca3987745f985d0f898091f14c947a928b6db662a03b5cfe82483901690d81618697fe17a2c41ff6694a611f3654d5ab06840da987e40d  libva-2.20.0.tar.gz
+"
