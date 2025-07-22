@@ -1,0 +1,27 @@
+From aad41c58f946d0021384ccbe67d21fc7b63a72ea Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 22 Jul 2025 16:45:40 +0000
+Subject: [PATCH] tests: skip hppa seabios flaky test
+
+Similar issue: https://gitlab.com/qemu-project/qemu/-/issues/2921
+---
+ tests/functional/test_hppa_seabios.py | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/tests/functional/test_hppa_seabios.py b/tests/functional/test_hppa_seabios.py
+index a44d1a3eeb..6e323c4054 100755
+--- a/tests/functional/test_hppa_seabios.py
++++ b/tests/functional/test_hppa_seabios.py
+@@ -8,7 +8,9 @@
+ 
+ from qemu_test import QemuSystemTest
+ from qemu_test import wait_for_console_pattern
++from qemu_test import skipFlakyTest
+ 
++@skipFlakyTest(bug_url=None)
+ class HppaSeabios(QemuSystemTest):
+ 
+     timeout = 5
+-- 
+2.25.1
+
