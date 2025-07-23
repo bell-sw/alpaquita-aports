@@ -1,5 +1,5 @@
 pkgname=linux-tools
-pkgver=6.6.100
+pkgver=6.12.40
 case $pkgver in
 	*.*.*)	_kernver=${pkgver%.*};;
 	*.*) _kernver=$pkgver;;
@@ -11,7 +11,7 @@ arch="all"
 license="GPL-2.0-only"
 depends="perf cpupower $pkgname-gpio $pkgname-iio"
 depends_dev="pciutils-dev readline-dev gettext-dev"
-_llvmver=19
+_llvmver=20
 makedepends="
 	$depends_dev
 	asciidoc
@@ -72,8 +72,6 @@ source="https://kernel.org/pub/linux/kernel/v6.x/linux-$_kernver.tar.xz
 	cpupower.confd
 	usbip.initd
 	usbip.confd
-
-	0100-bpftool-Be-more-portable-by-using-POSIX-s-basename.patch
 	"
 # append patch for non .0
 case $pkgver in
@@ -81,8 +79,8 @@ case $pkgver in
 	;;
 *.*.*)
 	source="
+		patch-$pkgver.patch.xz::https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/patch-$pkgver.xz
 		$source
-		https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/patch-$pkgver.xz
 		"
 	;;
 esac
@@ -90,12 +88,6 @@ esac
 builddir="$srcdir"/linux-$_kernver
 
 prepare() {
-	cd "$srcdir"/linux-$_kernver
-	if [ "${pkgver%.0}" = "$pkgver" ]; then
-		msg "Applying patch-$pkgver.xz"
-		unxz -c < "$srcdir"/patch-$pkgver.xz | patch -p1 -N
-	fi
-
 	# tools/perf/Makefile is just a wrapper around tools/perf/Makefile.perf
 	# which calls the latter with a -j make(1) option set. However, it discards
 	# variables set via the command-line in the process (e.g. mandir or prefix).
@@ -290,8 +282,8 @@ doc() {
 }
 
 sha512sums="
-e940e0af543eddaad381c6bbb9327f25850fbc91a0c1e555d8f570ef10558ab9fad25019d1fad68eca5285ca087667f0dbd43766857d0b039078d769d792aa98  patch-6.6.100.xz
-458b2c34d46206f9b4ccbac54cc57aeca1eaecaf831bc441e59701bac6eadffc17f6ce24af6eadd0454964e843186539ac0d63295ad2cc32d112b60360c39a35  linux-6.6.tar.xz
+fdedbe0e4f7f997e808b1e26dc715a3b5065839d38ef46aaeac298073448ae14591b92e95ee5c438e11b9b166a0d322c802aca1462e4632737000f4b697e6b9e  patch-6.12.40.patch.xz
+a37b1823df7b4f72542f689b65882634740ba0401a42fdcf6601d9efd2e132e5a7650e70450ba76f6cd1f13ca31180f2ccee9d54fe4df89bc0000ade4380a548  linux-6.12.tar.xz
 a46e3a84b00a39a356618831d0ddfb7f0d10f0a3799d1307ba2cc832e73c01f8d637a4e801a6dd25025f6f13155c6ad8b836422ff72d365e51063ac0bf907f52  cpupower-libs.patch
 0657b461659e79c1926379aab30e7b7ab2d59eaf3e686f1dce468b79eb1320c188c14a0507361660abd2553bccffa9e149fa5b6e4d770d10c99bf5dafd2e05ee  dt_lnk.patch
 2092b96d64e6c379ae52700b3c1bf459581afea69622a296821381e74ecafa4a08cea24eab002ad2152878a4508918de7807ac98ba72faf2d4dea18cc275933f  perf-doc.patch
@@ -299,5 +291,4 @@ a46e3a84b00a39a356618831d0ddfb7f0d10f0a3799d1307ba2cc832e73c01f8d637a4e801a6dd25
 63cd12a4d8782198c71662e9205e346e064b65bae5e3e175b5bc43bdf7ec6ddf675b60349750afe3c37c8a925f9ae9a93530671821342581bd282a69e0773b8c  cpupower.confd
 1f80c95500c0a4d79e7cdd21598827cf9710d72911ade3dd88f045740249cbb43cf3be584e4acbdcbd3171b094fae8ac9a49102d08ec490d9734ee9a275af88e  usbip.initd
 eb8de617e27c4d5fdfee9c442e8f74b0afb4d0fe7b59eca3a19629eb70fea7e09b3c125bc968aa8810d845ce661c829bd0f3fdb2288664f2cccf423bc0ae6ae8  usbip.confd
-0deaf9ef9bb586806fe8c79d631203c301bce9bee29254b7a7635a13aeb401d92d89ff02ff58226de575e77fbbfc37930a845ec2ff3dd249318ffbb7e6e1fda3  0100-bpftool-Be-more-portable-by-using-POSIX-s-basename.patch
 "
