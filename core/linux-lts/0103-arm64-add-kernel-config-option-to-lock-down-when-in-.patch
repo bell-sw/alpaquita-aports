@@ -1,4 +1,4 @@
-From cbb82849a0afb0fc080246fe494973e1e7e612e5 Mon Sep 17 00:00:00 2001
+From de3256142bc1eede9ced7d6e2a61d2b696163a49 Mon Sep 17 00:00:00 2001
 From: Linn Crosetto <linn@hpe.com>
 Date: Tue, 30 Aug 2016 11:54:38 -0600
 Subject: [PATCH] arm64: add kernel config option to lock down when in Secure
@@ -39,10 +39,10 @@ arm-init to efi-init common for all arch") renamed arm-init.c to efi-init.c]
  4 files changed, 23 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/firmware/efi/efi-init.c b/drivers/firmware/efi/efi-init.c
-index 59b0d7197b68..e63f8a82d9f4 100644
+index a00e07b853f2..8a0390d8da98 100644
 --- a/drivers/firmware/efi/efi-init.c
 +++ b/drivers/firmware/efi/efi-init.c
-@@ -204,9 +204,10 @@ void __init efi_init(void)
+@@ -213,9 +213,10 @@ void __init efi_init(void)
  {
  	struct efi_memory_map_data data;
  	u64 efi_system_table;
@@ -54,7 +54,7 @@ index 59b0d7197b68..e63f8a82d9f4 100644
  	if (!efi_system_table)
  		return;
  
-@@ -228,6 +229,8 @@ void __init efi_init(void)
+@@ -237,6 +238,8 @@ void __init efi_init(void)
  		return;
  	}
  
@@ -64,7 +64,7 @@ index 59b0d7197b68..e63f8a82d9f4 100644
  	/*
  	 * For memblock manipulation, the cap should come after the memblock_add().
 diff --git a/drivers/firmware/efi/fdtparams.c b/drivers/firmware/efi/fdtparams.c
-index 0ec83ba58097..81a0ac408cf5 100644
+index b815d2a754ee..69a2eb539d38 100644
 --- a/drivers/firmware/efi/fdtparams.c
 +++ b/drivers/firmware/efi/fdtparams.c
 @@ -16,6 +16,7 @@ enum {
@@ -146,13 +146,13 @@ index 6a337f1f8787..6c679da644dd 100644
  	fdt_pack(fdt);
  
 diff --git a/include/linux/efi.h b/include/linux/efi.h
-index d267ddba8369..fbce526768d3 100644
+index 7cfe7291c1a2..d3773212882d 100644
 --- a/include/linux/efi.h
 +++ b/include/linux/efi.h
-@@ -756,7 +756,8 @@ extern void efi_mem_reserve(phys_addr_t addr, u64 size);
+@@ -765,7 +765,8 @@ extern int efi_mem_desc_lookup(u64 phys_addr, efi_memory_desc_t *out_md);
+ extern int __efi_mem_desc_lookup(u64 phys_addr, efi_memory_desc_t *out_md);
+ extern void efi_mem_reserve(phys_addr_t addr, u64 size);
  extern int efi_mem_reserve_persistent(phys_addr_t addr, u64 size);
- extern void efi_initialize_iomem_resources(struct resource *code_resource,
- 		struct resource *data_resource, struct resource *bss_resource);
 -extern u64 efi_get_fdt_params(struct efi_memory_map_data *data);
 +extern u64 efi_get_fdt_params(struct efi_memory_map_data *data,
 +			      u32 *secure_boot);
