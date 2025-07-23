@@ -1,6 +1,6 @@
 pkgname=dracut
-pkgver=055
-pkgrel=34
+pkgver=059
+pkgrel=0
 pkgdesc="Event-driven initramfs infrastructure that is used to create an initramfs image"
 url="https://github.com/dracutdevs/dracut"
 arch="all"
@@ -18,9 +18,9 @@ depends="
 	blkid
 	kmod
 "
-makedepends="musl:musl-fts-dev kmod-dev coreutils"
+makedepends="asciidoc musl:musl-fts-dev kmod-dev coreutils"
 subpackages="$pkgname-doc $pkgname-bash-completion"
-source="https://github.com/dracutdevs/dracut/releases/download/$pkgver/$pkgname-$pkgver.tar.xz
+source="$pkgname-$pkgver.tar.gz::https://github.com/dracutdevs/dracut/archive/refs/tags/$pkgver.tar.gz
 	distro.conf
 	0001-dracut.sh-skip-ldconfig-on-musl-systems.patch
 	0002-make-using-cp-readlink-compatible-with-busybox.patch
@@ -36,17 +36,15 @@ source="https://github.com/dracutdevs/dracut/releases/download/$pkgver/$pkgname-
 	0012-distro-iso-enable-auto-login-and-start-the-installer.patch
 	0013-dracut-distro-iso-enable-getty-on-the-serial-port.patch
 	0014-modules.d-add-kernel-netmods-load.patch
-	0015-busybox-sed-workaround.patch
-	0016-fix-base-do-not-quote-CLINE-and-initargs-for-switch_.patch
-	0017-dracut-use-grub-to-load-early-microcode-by-default.patch
-	0018-dracut-make-cpio-options-busybox-compatible.patch
-	0019-fix-install-extend-hwcaps-library-handling-to-librar.patch
-	0020-98-distro-iso-install-missing-umount.patch
-	0021-fix-dracut-install-use-stripped-kernel-module-path-a.patch
-	0022-distro-iso-also-support-root-PARTLABEL-UUID-PARTUUID.patch
-	0023-distro-iso-auto-detect-serial-consoles-and-allow-to-.patch
-	0024-distro-iso-enable-installer-on-serial-consoles.patch
-	0025-distro-iso-fix-init-s-askfirst-serial-console-speed.patch
+	0015-fix-base-do-not-quote-CLINE-and-initargs-for-switch_.patch
+	0016-dracut-use-grub-to-load-early-microcode-by-default.patch
+	0017-dracut-make-cpio-options-busybox-compatible.patch
+	0018-98-distro-iso-install-missing-umount.patch
+	0019-distro-iso-also-support-root-PARTLABEL-UUID-PARTUUID.patch
+	0020-distro-iso-auto-detect-serial-consoles-and-allow-to-.patch
+	0021-distro-iso-enable-installer-on-serial-consoles.patch
+	0022-distro-iso-fix-init-s-askfirst-serial-console-speed.patch
+	0023-busybox-sed-workaround.patch
 	"
 triggers="$pkgname.trigger=/usr/share/kernel/*"
 
@@ -68,7 +66,7 @@ package()
 
 	for m in 00bash 00dash 00mksh \
 		 06dbus-broker 06dbus-daemon 06rngd 09dbus \
-		 30convertfs 35network-* 45ifcfg 50gensplash \
+		 30convertfs 35network-* 45ifcfg \
 		 62bluetooth 80cms 81cio_ignore 90dmsquash-live* 90livenet \
 		 90ppcmac 91tpm2-tss 91zipl 95dasd 95dasd_mod \
 		 95dasd_rules 95dcssblk 95qeth_rules 95zfcp \
@@ -80,31 +78,29 @@ package()
 }
 
 sha512sums="
-2d2ea2889d9013bc94245bd7d1a2154f24d02bd9c2f7dbb28e5968e17d918e6598c68d85b0f551f968218980a80b19361ca0c9e8e94997ba54f4c09afcd6d866  dracut-055.tar.xz
+196bc8bf18703c72bffb51a7e0493719c58173ad2da7d121eb42f9a8de47e953af36d109214dc4a10b2dc2d3bd19e844f7f51c2bdec087e064ea11f75124032d  dracut-059.tar.gz
 4a54a761e0ba15365a0f6770a614814055b58c37d6ee24783ca1dcd17692bef78e8a237173b0baf97a5d9a2f566561e3706d952e73c5171178552d6c475cac2b  distro.conf
-6a3f1ffe53856dfd25cbd0e191931fa67218ead0d40fc27069fc4cdff41bea5edd37fd65acc58752862159e179b58ef505a9778ee051bfc0ddf4ad1481338d58  0001-dracut.sh-skip-ldconfig-on-musl-systems.patch
-ff66e4341907423a88a880b253257d27712044d9ff58b817912726b0680bf23b6554adc860434f4705eabd839404ac41b54c67e51cfb9c7c0ce51a396562b944  0002-make-using-cp-readlink-compatible-with-busybox.patch
-7c4bfb512e97406e309de922f12e29981f4419a0ccb3b5afa48a73b6ddf71517782c860114c616e571afb57528a54e9d3bd7509507eb921603b2fb1aa2d09fec  0003-make-using-realpath-compatible-with-busybox.patch
-924b102cb69882d3b72271466b4ddfbc2d0d2a6b721be530f73a73ce6ce35b15759a339ce8dd778ff309629ef812d29ec89ea96c54dbdc8e81350a3cdfea6565  0004-read-busybox-ln-help-from-stderr.patch
-d009937e09a2cc668d15c097948e1442c73a62297ee92d5203ec2ed93cca4542f1c0a2b82229a7cfa117f10d26d473bfe3ae1cc91d1138ee03e9e25adf1524d4  0005-remove-cp-t-option-usage-no-support-in-busybox.patch
-052fbd19a3df29de5046cc27b80e7a801076e7a8e3fe6d8fcb86e764401d1e85af43eca27e253e59676bcadf5a39548a6e512d4610dabc48bcd5f9b4858c3c64  0006-modules.d-add-new-module-for-busybox-shell.patch
-b13777bb79ebca0dc675d262a55ec275e6f3778d99c5783471f1ef5b06685ef776f53f1cebbf29c7f952a99433e848238d70be80c4c75848fb3919b18a9ecbd4  0007-dracut-functions.sh-replace-grep-perl-regexp-with-aw.patch
-7ec91780ca33cd7a7543e7f5eb1f09c87dbeb3cd34b615a1bbca70205f68efae0c8ad4e16f3bc5d58fdc3e267d6aa5e780723fa1c2b29a9f2201361a8defc3a8  0008-modules.d-add-new-module-distro-iso.patch
-0663e08ca1c3d3fad5a943eb18798c0794dddff229cfad9902bedfb032a4cb70bd931931523959425b4c784f4f7413bcb083f0f24ddb01356826db880ceb6dce  0009-Makefile-always-use-APKBUILD-version.patch
-9b1e8cd7443126b8339ef89ff55b12d6098b1315ea7cfb83f99216e0985ce4a76c2d29b4f36334b5cd5f67da1c8d5ee62b14554a89b613e8bd662f0becab711d  0010-don-t-search-libs-in-usr-lib64-use-usr-lib.patch
-0b9bce7bbe9b469464fba8a94b270d886b771e8b258255626b79fa3a5934885aba80dcffdf90f9946de8ae0e89b59acc28d1cc26dcf59e02cb8b72a95355abf0  0011-init.sh-move-dev-sys-proc-to-new-root.patch
-23d044caa772339f593bef92fdcd48942c8d76c4796184a6a5ec32fefc0d64a0bc68b9e5376ea98932416a34bf281111c73c53fee6c275ee2941cc16847e9020  0012-distro-iso-enable-auto-login-and-start-the-installer.patch
-ba7d70a88280973f0beb3072cdd5ddfb17ec8d483569d6304da966e7dafd3b0b52b17ccf4358265d355f38ba61e5e5d0a5fea920f9d053049a66c9f34b999fab  0013-dracut-distro-iso-enable-getty-on-the-serial-port.patch
-828182bdd7aa6c7c744ec6e869d7f56ca45e05249d34b3ec06ead52e57d9a7e4474d3d92fac9b690147b3643c24bc6c92bc872e2cc08d147f2bbc8be474b4070  0014-modules.d-add-kernel-netmods-load.patch
-3210723e6ea572fe35fb90841f66f6207da47935760079ac190fec2623f4867654692496e31a646271d08e05898e275ad6b560407601c033502d9209814584c8  0015-busybox-sed-workaround.patch
-5589bf346e14a66311edf60cb49565cbf6fe3265739c7a792311abb4191b29aa33ef2a2605cbb73efb43d50d886f4306e55352bc71236ef01ca04dee513b2d0e  0016-fix-base-do-not-quote-CLINE-and-initargs-for-switch_.patch
-91f695c7feb0caefaf3c6305af6200094104bd6c86118b3c33e519342b99e097fcbcd8c83bc08a69942059dd5d3132cc3cd4245a01221ce598f04d1346c4e422  0017-dracut-use-grub-to-load-early-microcode-by-default.patch
-40604e13e391915eeebfb71bfa1e6a27b185fce8c7f5dd90afbdf74ef530720068608b5b175f57b0943d8c7613f1ea477fd27951a43d62feedbd4a4c83b1fd2f  0018-dracut-make-cpio-options-busybox-compatible.patch
-96923124fc5244549508c847d1694537203062d4327a16adffb3e646dd1a897346d5de71fa7da6c28402da1ecf8e1e8370b9f52dc095c73c5952e78723c243c1  0019-fix-install-extend-hwcaps-library-handling-to-librar.patch
-ae09ca9b7bbdc45f6bc0aaa8f7093561f1aaad6b82aa4c0e570bfac2117120492fca42f6a23eaeb260246678ed74f09a5444b69087594eb66938846db4deacd6  0020-98-distro-iso-install-missing-umount.patch
-8a38f07471be07a28fc167bb5690cc7147992cb242ad6e81b9055c59c739e146d9ade5575ea1990761f6ae13e7de685bf8963cab47c638a7f6223a2f649664f9  0021-fix-dracut-install-use-stripped-kernel-module-path-a.patch
-cfbdd2ccd0b0a484608446a6d4dda67e813e71264c8733d583a68ccaa9b0a6d7b17444d1d7c8a355ffa5b75a66c6318832c243509edd488378dc25bf46fb4dc7  0022-distro-iso-also-support-root-PARTLABEL-UUID-PARTUUID.patch
-0d2c2b95cabd10e6a15927842abe8876338953b9c5ba12fe15c592ffbc7e59463235a69f7ee1310df5794cbb577110945e9678c9e670814d6515967961736e54  0023-distro-iso-auto-detect-serial-consoles-and-allow-to-.patch
-c3954f13ddf690e98827765978b2143f9aad7f3e7e1742e709169a9c90157524d2f318b81552d79c8f61c134b17ab5a8301280a994ab82191343d5660b86dab2  0024-distro-iso-enable-installer-on-serial-consoles.patch
-c26637080b2cf41249e5df27f0e0a86c5cdd2212fdf33b151ec8ebe981e3737e1ee1d435f5c8208e41fec22595abfe63f0f7980dc8880f3270b476c27fd7d261  0025-distro-iso-fix-init-s-askfirst-serial-console-speed.patch
+d08386e21ab101e9b1d29eba8daba2f4887b92bdfc4e3cadcb6034baa975af925dd2422d882b9ed8ee33cc4f1fe6269c6abec8f5455d1ce09420551afee2789d  0001-dracut.sh-skip-ldconfig-on-musl-systems.patch
+81ce7dba23d142c472d49f188ccd71f494c0bcec93cfd71459edba13ab6b3062b3d379c317076fdfc39c24d9df4d55fd520224b13d3df589e6b68ab647c0fed1  0002-make-using-cp-readlink-compatible-with-busybox.patch
+bf543228ace94a2a64971ec785cbada5fe97ff0bea4527277c60092ff13fe7bb3cb93f31576a74b3411ae7878474d1571148aae1b5122986f067330d6ace33d1  0003-make-using-realpath-compatible-with-busybox.patch
+330bfbbb0e3690437e9607327297ca39bcc9bfe82733ed967fc347d8320e644e60c5a69d3796c50545a968afc2b8b3b82297fec4c8cec9a533fe8a161a92a4d7  0004-read-busybox-ln-help-from-stderr.patch
+397b12e164257fb7ed876fc11dbbb99ee9590ba22e572481ccbe466df38cdd550b4f95c543a6135ba9daed393b7e58f0011e8c3d29924552a9f78eabe5e72c96  0005-remove-cp-t-option-usage-no-support-in-busybox.patch
+bcb574c7caab2d9d4c221b7a15d5078367fc408bda88a2a69b70d607f091f5ca5594ce8df4f8f89ce351e5d9d66e08985731333ad8646d6a5090e61375c96ceb  0006-modules.d-add-new-module-for-busybox-shell.patch
+e6c43cd78e22cd23a6a3d45c0e5d6e64cfb9c729d124e2340c7c2e85c17f0de6688cc1aeaa7e89a19a24f62fc4ff97d155e521fd801f00794541d4e2b71eb6ff  0007-dracut-functions.sh-replace-grep-perl-regexp-with-aw.patch
+886fa227884e0fe31a890fa0ba195a35116b6fc3c6b34aa8646359ea1ab802376ec1a77634900eb8429263a2d4687835d31e8b5c6f141e33fe444e8901a0904d  0008-modules.d-add-new-module-distro-iso.patch
+fd0c13fea09b38a88ca84ec0c49c76d5f09d8bf641326e3331b231668dcd2bf46172fcc1f62d14084639850d233fc1b6c363ca3385e5326fedade4633d0f7a0c  0009-Makefile-always-use-APKBUILD-version.patch
+e2083669fa11e7fc9e4ae93b6aed058e4a729c652b3007ad96fc69d846aa698f96b8b51a8b21ee6d76436d63cdbdb5d698a73ba19d9739ed2f85f7c7d302aca7  0010-don-t-search-libs-in-usr-lib64-use-usr-lib.patch
+d9a1276e87c896b1b6c56abb05dd0dc18dcc6a6ad535a6b886446c30998308231b59188ad662044baf9884495554b6598b804564ab2ed7af93fe78d32286ca30  0011-init.sh-move-dev-sys-proc-to-new-root.patch
+711e70c3860ce6e967fcfb326e4a7058dcaeee9adc8b33099eef909b9ef682196637f81ab7a3578a69ebc8dde37b06e0418965047a2c05ab3acfbe99e5e735ea  0012-distro-iso-enable-auto-login-and-start-the-installer.patch
+3bbb80f1bf251236ed397f3fa59ce50fb87851fce62e4174965e9e07f3dc51e8ed26ce9abc67132bbc8da31a124c25b684d0c3db52de2a84ac4d8f406f40d503  0013-dracut-distro-iso-enable-getty-on-the-serial-port.patch
+4d182d572e137731255f270592bca7d900bf0aac7f9176d363123aa6848246d6b8bf9816bf2cc7da0e4c2d8676822ba895fd56ad28016bd92b157577ca434cb8  0014-modules.d-add-kernel-netmods-load.patch
+173f502c2157817771084da2f9a112ea77416af5318a6477ef6b533d1589b9d834f7b7a5c6a18392860c049a5bdc20a0ed26b42d13b8c7ae0d3bf469b93cd7ec  0015-fix-base-do-not-quote-CLINE-and-initargs-for-switch_.patch
+35476de3262ba3dff19a96d1e4620e05d18d71683a81687e230f21a3aa320530b5a02de6b359696888430dadcc13ea968357c53f3bc72567f6fd2c67989f65c5  0016-dracut-use-grub-to-load-early-microcode-by-default.patch
+b1bd961448323d65b3c7592f4d30dae04e9f8c9aa08c4b03ace2246ec1cd8e9b7f93944fa9f20893e3831b8fa71d0f99ebd48f82733849fa4d057ecc8f9079b5  0017-dracut-make-cpio-options-busybox-compatible.patch
+bcbb57784c251f0006055195d8413e3fca979c6918c23a23dfccced52dbaa613f8c9d8f59ea2defaee213bd839de97d7c84a1996c1e8d9df81cf3e493890fc8b  0018-98-distro-iso-install-missing-umount.patch
+820814dc6529fc9489abc4f31deaba64c3b741fc5f0185665a47e618e40aea6e922297543bd3fa79334f7db8876704d9efa113e393c069b475432ba26d66ddc7  0019-distro-iso-also-support-root-PARTLABEL-UUID-PARTUUID.patch
+b3a33802afaf1d0938541ed398d414691a48c7748ccb2947ef5414db3ea3a9e9ad60620fd38ab67f1fa872b213d31498bddf96018346b8a070365b5ac3daf8f6  0020-distro-iso-auto-detect-serial-consoles-and-allow-to-.patch
+8f93b36c55539ed304e1cec8528d57aa3495e090190b0b6c57081d20621832aef4870310516831683ff9616d5510e02e9b2ffcf3ac070d4107513e937f4826cc  0021-distro-iso-enable-installer-on-serial-consoles.patch
+391e475141b16c2be65221ab07ee342d36e6ebb27f140f6025f8f50502775fba564df642f4b08771c3790a8523c96902574d8ec1b29e4502ee04602f3af96509  0022-distro-iso-fix-init-s-askfirst-serial-console-speed.patch
+3210723e6ea572fe35fb90841f66f6207da47935760079ac190fec2623f4867654692496e31a646271d08e05898e275ad6b560407601c033502d9209814584c8  0023-busybox-sed-workaround.patch
 "
