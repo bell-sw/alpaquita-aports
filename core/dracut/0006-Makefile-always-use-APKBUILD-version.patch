@@ -1,4 +1,4 @@
-From 9408fc75bcf832eda416fee03a27686e6492c0ae Mon Sep 17 00:00:00 2001
+From 65a4936885578a53bcd0c984e25863314001193b Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Wed, 2 Feb 2022 15:15:51 +0300
 Subject: [PATCH] Makefile: always use APKBUILD version
@@ -8,17 +8,17 @@ Subject: [PATCH] Makefile: always use APKBUILD version
  1 file changed, 2 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index 4bf96036..9a553073 100644
+index 5ce30d5f..5a1d9c7f 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -1,10 +1,8 @@
  -include dracut-version.sh
  
--DRACUT_MAIN_VERSION := $(shell env GIT_CEILING_DIRECTORIES=$(CURDIR)/.. git describe --abbrev=0 --tags --always 2>/dev/null || :)
+-DRACUT_MAIN_VERSION ?= $(shell env GIT_CEILING_DIRECTORIES=$(CURDIR)/.. git describe --abbrev=0 --tags --always 2>/dev/null || :)
  ifeq ($(DRACUT_MAIN_VERSION),)
  DRACUT_MAIN_VERSION = $(DRACUT_VERSION)
  endif
--DRACUT_FULL_VERSION := $(shell env GIT_CEILING_DIRECTORIES=$(CURDIR)/.. git describe --tags --always 2>/dev/null || :)
+-DRACUT_FULL_VERSION ?= $(shell env GIT_CEILING_DIRECTORIES=$(CURDIR)/.. git describe --tags --always 2>/dev/null || :)
  ifeq ($(DRACUT_FULL_VERSION),)
  DRACUT_FULL_VERSION = $(DRACUT_VERSION)
  endif

@@ -1,0 +1,48 @@
+From 7926a58d8e5174743a3e88ddf8a111134d119517 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Wed, 20 Aug 2025 15:34:12 +0000
+Subject: [PATCH] dracut-install: ignore musl/ldd reloc errors
+
+---
+ src/install/dracut-install.c | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/src/install/dracut-install.c b/src/install/dracut-install.c
+index 111ceda6..3494c916 100644
+--- a/src/install/dracut-install.c
++++ b/src/install/dracut-install.c
+@@ -619,6 +619,7 @@ static int resolve_deps(const char *src)
+         close(fds[1]);
+ 
+         ret = 0;
++        int skip_reloc_err = 0;
+ 
+         while (getline(&buf, &linesize, fptr) >= 0) {
+                 char *p;
+@@ -641,6 +642,14 @@ static int resolve_deps(const char *src)
+                 /* musl ldd */
+                 if (strstr(buf, "Not a valid dynamic program"))
+                         break;
++                /* musl ldd can report relocation errors for some plugins (e.g. libnfsidmap/*)
++                 * These issues can be resolved later when another library is loaded or
++                 * within the app.
++                 */
++                if (strstr(buf, "Error relocating")) {
++                        skip_reloc_err = 1;
++                        continue;
++                }
+ 
+                 /* glibc */
+                 if (strstr(buf, "cannot execute binary file"))
+@@ -694,7 +703,7 @@ static int resolve_deps(const char *src)
+         err = WIFSIGNALED(err) ? 128 + WTERMSIG(err) : WEXITSTATUS(err);
+         /* ldd has error conditions we largely don't care about ("not a dynamic executable", &c.):
+            only error out on hard errors (ENOENT, ENOEXEC, signals) */
+-        if (err >= 126) {
++        if (err >= 126 && !skip_reloc_err) {
+                 log_error("ERROR: '%s %s' failed with %d", ldd, fullsrcpath, err);
+                 return err;
+         } else
+-- 
+2.25.1
+

@@ -1,0 +1,28 @@
+From 076af2daab45b99ffb86342c50d391dd88ab18be Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Thu, 21 Aug 2025 11:28:34 +0000
+Subject: [PATCH] partially revert commit 8519dcdb154b "fix: improve hostonly
+ sloppy mode"
+
+'nfs' module may not be necessary for booting and increases the size of
+initramfs by around 3 MB.
+---
+ modules.d/95nfs/module-setup.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/modules.d/95nfs/module-setup.sh b/modules.d/95nfs/module-setup.sh
+index 3ca2d69c..b34c75c0 100755
+--- a/modules.d/95nfs/module-setup.sh
++++ b/modules.d/95nfs/module-setup.sh
+@@ -23,7 +23,7 @@ check() {
+     require_any_binary rpcbind portmap || return 1
+     require_binaries rpc.statd mount.nfs mount.nfs4 umount sed chmod chown || return 1
+ 
+-    [[ $hostonly_mode == "strict" ]] || [[ $mount_needs ]] && {
++    [[ $hostonly ]] || [[ $mount_needs ]] && {
+         [[ "$(get_nfs_type)" ]] && return 0
+         return 255
+     }
+-- 
+2.25.1
+

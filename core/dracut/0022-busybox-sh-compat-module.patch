@@ -1,0 +1,31 @@
+From a71116f3e554b8c233e269bee8e097de3506f923 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Wed, 20 Aug 2025 16:54:36 +0000
+Subject: [PATCH] busybox-sh: compat module
+
+---
+ modules.d/99busybox-sh/module-setup.sh | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+ create mode 100755 modules.d/99busybox-sh/module-setup.sh
+
+diff --git a/modules.d/99busybox-sh/module-setup.sh b/modules.d/99busybox-sh/module-setup.sh
+new file mode 100755
+index 00000000..bca4a3e8
+--- /dev/null
++++ b/modules.d/99busybox-sh/module-setup.sh
+@@ -0,0 +1,12 @@
++#!/bin/bash
++
++check() {
++    # This module is deprecated. Please use busybox module.
++    return 255
++}
++
++depends() {
++    # Redirect dependency to the new module
++    echo "busybox"
++    return 0
++}
+-- 
+2.25.1
+
