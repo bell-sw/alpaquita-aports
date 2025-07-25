@@ -1,4 +1,4 @@
-From a974c3a4b78ea38d3d38466ea19bccd175bd808d Mon Sep 17 00:00:00 2001
+From d481b4cd4b9daad91b5d05ccffd51505920a8806 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Fri, 14 Jan 2022 21:38:49 +0300
 Subject: [PATCH] dracut-functions.sh: replace grep perl-regexp with awk
@@ -9,14 +9,14 @@ busybox/grep doesn't support -P option.
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/dracut-functions.sh b/dracut-functions.sh
-index 280e4e78..d147d289 100755
+index 94f0228f..821d29bb 100755
 --- a/dracut-functions.sh
 +++ b/dracut-functions.sh
-@@ -244,7 +244,7 @@ get_maj_min() {
+@@ -243,7 +243,7 @@ get_maj_min() {
      local _out
  
      if [[ $get_maj_min_cache_file ]]; then
--        _out="$(grep -m1 -oP "^$1 \K\S+$" "$get_maj_min_cache_file")"
+-        _out="$(grep -m1 -oE "^${1//\\/\\\\} \S+$" "$get_maj_min_cache_file" | grep -oE "\S+$")"
 +        _out="$(awk -v pt="^$1 [^[:space:]]+$" '$0 ~ pt {print $2;exit}' "$get_maj_min_cache_file")"
      fi
  

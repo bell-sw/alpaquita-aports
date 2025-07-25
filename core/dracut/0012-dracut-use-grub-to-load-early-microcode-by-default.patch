@@ -1,4 +1,4 @@
-From dfd22916f9051898175a8c01529c3e1d5c390821 Mon Sep 17 00:00:00 2001
+From c4af80ce1cbeb7da55dec2b4c3519a15f339bd25 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Thu, 16 Nov 2023 13:34:36 +0000
 Subject: [PATCH] dracut: use grub to load early microcode by default
@@ -8,16 +8,16 @@ Subject: [PATCH] dracut: use grub to load early microcode by default
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/dracut.sh b/dracut.sh
-index ea50026f..9f242a37 100755
+index 625b416d..7e1b2d5f 100755
 --- a/dracut.sh
 +++ b/dracut.sh
-@@ -1067,7 +1067,7 @@ drivers_dir="${drivers_dir%%+(/)}"
+@@ -1110,7 +1110,7 @@ drivers_dir="${drivers_dir%"${drivers_dir##*[!/]}"}"
  [[ $nofscks_l ]] && nofscks="yes"
  [[ $ro_mnt_l ]] && ro_mnt="yes"
  [[ $early_microcode_l ]] && early_microcode=$early_microcode_l
 -[[ $early_microcode ]] || early_microcode=yes
 +[[ $early_microcode ]] || early_microcode=no
- [[ $early_microcode_image_dir ]] || early_microcode_image_dir=('/boot')
+ [[ $early_microcode_image_dir ]] || early_microcode_image_dir=("$dracutsysrootdir"/boot)
  [[ $early_microcode_image_name ]] \
      || early_microcode_image_name=('intel-uc.img' 'intel-ucode.img' 'amd-uc.img' 'amd-ucode.img' 'early_ucode.cpio' 'microcode.cpio')
 -- 
