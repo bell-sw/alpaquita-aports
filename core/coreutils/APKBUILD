@@ -3,7 +3,7 @@
 
 pkgname=coreutils
 pkgver=9.7
-pkgrel=1
+pkgrel=2
 pkgdesc="GNU core utilities"
 url="https://www.gnu.org/software/coreutils/"
 arch="all"
@@ -13,10 +13,15 @@ subpackages="$pkgname-doc $pkgname-env $pkgname-fmt $pkgname-sha512sum:_sha512su
 install="$pkgname.post-deinstall"
 source="https://ftp.gnu.org/gnu/coreutils/coreutils-$pkgver.tar.xz
 	musl:renameat2-fakeroot.patch
+
+	0100-CVE-2025-5278.patch
+	0101-CVE-2025-5278-autotools.patch
 	"
 options="!check" # FAIL: tests/cp/reflink-auto
 
 # secfixes:
+#   9.7-r2:
+#     - CVE-2025-5278
 #   9.4-r2:
 #     - CVE-2024-0684
 #   8.30-r0:
@@ -94,4 +99,6 @@ _sha512sum() {
 sha512sums="
 fe81e6ba4fb492095153d5baac1eca8f07ece0957849de746a2a858cf007893cc2ded595a31a5e5d43d13216cc44b9d74a3245d9f23221ecc8cd00f428f27414  coreutils-9.7.tar.xz
 a0317f6f42a0f821c6ec6745ff0f6be4ed9d2330ef1f886947a80a0f24dcddc6a28660c1d661da996577cc26b02c095a8aa058e553050acf90bce445ab07136a  renameat2-fakeroot.patch
+1d1c83f091d76c59f1151d8d2d9bdde612b93f1c33f9ddd62506c25344429f543af735b98ad4b6bda23b823b1e3d40aed029d5ffa485c12fe20e89081a784b62  0100-CVE-2025-5278.patch
+ed96377b619cfe7cb41201a84f7b331eacf2f45718d423ccd977d5dc2d9bac556f38890d16e4ab2e7e2020048effafba228f1107dee95c2cde17163d8d328cd6  0101-CVE-2025-5278-autotools.patch
 "
