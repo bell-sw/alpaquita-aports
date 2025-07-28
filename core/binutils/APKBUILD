@@ -3,7 +3,7 @@
 
 pkgname=binutils
 pkgver=2.40
-pkgrel=3
+pkgrel=4
 pkgdesc="GNU tools for programs building"
 url="https://www.gnu.org/software/binutils/"
 makedepends_build="bison flex texinfo linux-headers"
@@ -18,6 +18,8 @@ source="https://ftp.gnu.org/gnu/binutils/binutils-$pkgver.tar.xz
 	binutils-ld-fix-static-linking.patch
 
 	0100-CVE-2025-0840.patch
+	0101-CVE-2025-5244.patch
+	0102-CVE-2025-5245.patch
 	"
 builddir="$srcdir/$pkgname-$pkgver"
 
@@ -32,6 +34,9 @@ if [ "$CHOST" != "$CTARGET" ]; then
 fi
 
 # secfixes:
+#   2.40-r4:
+#     - CVE-2025-5244
+#     - CVE-2025-5245
 #   2.40-r3:
 #     - CVE-2025-0840
 #   2.40-r2:
@@ -157,4 +162,6 @@ a37e042523bc46494d99d5637c3f3d8f9956d9477b748b3b1f6d7dfbb8d968ed52c932e88a4e946c
 b434e126c4c3f70c02b0a5597a0d75a4ea99b1498552c2d0676005ac0ae171c56cf07a6f6e2faa1381f1f4d4a37043a07d177dd4912f09b61109f103853594b2  CVE-2023-1972.patch
 ecee33b0e435aa704af1c334e560f201638ff79e199aa11ed78a72f7c9b46f85fbb227af5748e735fd681d1965fcc42ac81b0c8824e540430ce0c706c81e8b49  binutils-ld-fix-static-linking.patch
 6e97d09cfbd5f7dd6ae286554075dd1b0d9fc41ba78932b823c16387e75cfd7291873a08136c71745676b184d0ac3507f9e1d2dfa95633c2a9169b5855a4095e  0100-CVE-2025-0840.patch
+321e1b905bd5612826ac0866a82433af77df29dcbe8e646f9960de7028a9f3e60be05c844b21e661eacc09d119a5f53d1db6266e9956518957fa5b95aae7bc1f  0101-CVE-2025-5244.patch
+484a3fbcb0bdc56feea726047cbcc7f596a9a9d633b999c56e08bdc0d86044743a2b47702406afbdc074ead59d21c9508b1620ca8a662931a61d3187ecf7dcef  0102-CVE-2025-5245.patch
 "
