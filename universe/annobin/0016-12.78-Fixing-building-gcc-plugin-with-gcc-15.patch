@@ -1,0 +1,33 @@
+From 9e8c540616c7074adab53eccc7c0999471b207ec Mon Sep 17 00:00:00 2001
+From: Nick Clifton <nickc@redhat.com>
+Date: Mon, 9 Dec 2024 15:44:25 +0000
+Subject: [PATCH] 12.78: Fixing building gcc plugin with gcc 15
+
+---
+ gcc-plugin/annobin.cc | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/gcc-plugin/annobin.cc b/gcc-plugin/annobin.cc
+index eea53c3..b292d52 100644
+--- a/gcc-plugin/annobin.cc
++++ b/gcc-plugin/annobin.cc
+@@ -2443,10 +2443,15 @@ emit_global_notes (const char * suffix)
+ static void
+ annobin_active_check (const char * message)
+ {
++#if GCCPLUGIN_VERSION_MAJOR < 15
+   // FIXME - for some reason the prototype of warning() in diagnostic-core.h
+   // does not match the implementation.  So we use our own prototype here.
++  //
++  // PR 32429: The problem was fixed with GCC 15, which also changed the
++  // prototype to take a diagnostic_option_id rather than an int as the first
++  // parameter.  Fortunately 0 is valid value for a diagnostic_option_id.
+   extern bool warning (int, const char *, ...);
+-
++#endif
+   if (annobin_active_checks < 1)
+     return;
+ 
+-- 
+2.49.0
+

@@ -1,0 +1,50 @@
+From 7ee4a103a0f8ad5bd046f656cc040227bd288133 Mon Sep 17 00:00:00 2001
+From: Nick Clifton <nickc@redhat.com>
+Date: Tue, 10 Dec 2024 10:50:54 +0000
+Subject: [PATCH] 12.79: GCC Plugin: Tidy up use of gcc's diagnostic headers.
+
+---
+ gcc-plugin/annobin.cc | 9 ---------
+ gcc-plugin/annobin.h  | 5 +++--
+ 2 files changed, 3 insertions(+), 11 deletions(-)
+
+diff --git a/gcc-plugin/annobin.cc b/gcc-plugin/annobin.cc
+index b292d52..8b0c6ff 100644
+--- a/gcc-plugin/annobin.cc
++++ b/gcc-plugin/annobin.cc
+@@ -2443,15 +2443,6 @@ emit_global_notes (const char * suffix)
+ static void
+ annobin_active_check (const char * message)
+ {
+-#if GCCPLUGIN_VERSION_MAJOR < 15
+-  // FIXME - for some reason the prototype of warning() in diagnostic-core.h
+-  // does not match the implementation.  So we use our own prototype here.
+-  //
+-  // PR 32429: The problem was fixed with GCC 15, which also changed the
+-  // prototype to take a diagnostic_option_id rather than an int as the first
+-  // parameter.  Fortunately 0 is valid value for a diagnostic_option_id.
+-  extern bool warning (int, const char *, ...);
+-#endif
+   if (annobin_active_checks < 1)
+     return;
+ 
+diff --git a/gcc-plugin/annobin.h b/gcc-plugin/annobin.h
+index 130e967..e2f2c22 100644
+--- a/gcc-plugin/annobin.h
++++ b/gcc-plugin/annobin.h
+@@ -45,9 +45,10 @@ extern struct plugin_gcc_version gcc_version ATTRIBUTE_UNUSED;
+ #include "cgraph.h"
+ #include "target.h"
+ #if GCCPLUGIN_VERSION_MAJOR >= 5
+-#include "errors.h"
+-#else
++/* PR 32429: Do not use errors.h here.  That is for gcc internals only.  */
+ #include "diagnostic-core.h"
++#else
++#include "diagnostic.h"
+ #endif
+ #if GCCPLUGIN_VERSION_MAJOR >= 12
+ #include "flag-types.h"
+-- 
+2.49.0
+
