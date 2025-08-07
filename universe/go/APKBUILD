@@ -233,6 +233,11 @@ prepare() {
 	if [ "$CARCH" = "ppc64le" ]; then
 		rm test/fixedbugs/bug513.go
 	fi
+
+	# ThreadSanitizer does not seem to be fully supported on musl.
+	if [ "$CLIBC" = "musl" ]; then
+		rm src/cmd/cgo/internal/testsanitizers/tsan_test.go
+	fi
 }
 
 builddir="$srcdir"/go
