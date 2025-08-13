@@ -4,7 +4,7 @@
 
 pkgname=busybox
 pkgver=1.37.0
-pkgrel=26
+pkgrel=27
 pkgdesc="Modular toolbox of common UNIX utilities"
 url="https://busybox.net/"
 arch="all"
@@ -21,7 +21,7 @@ makedepends_host="
 # Only build with utmps support if we are not bootstraping.
 [ -z "$BOOTSTRAP" ] && makedepends_host="$makedepends_host musl:utmps-dev musl:utmps-static"
 makedepends="$makedepends_build $makedepends_host"
-checkdepends="zip"
+checkdepends="zip expect"
 install="$pkgname.post-install $pkgname.post-upgrade
 	$pkgname-extras.post-install $pkgname-extras.pre-deinstall"
 subpackages="
@@ -107,9 +107,13 @@ source="https://busybox.net/downloads/busybox-$pkgver.tar.bz2
 	0103-init-re-exec-init-before-shutdown-reboot.patch
 	0104-last-fix-ignoring-the-first-login-entry.patch
 	0105-CVE-2023-39810.patch
+	0106-fix-16018-masking-of-potentially-malicious-tar-cpio-.patch
+	0107-testsuite-tar.tests-add-a-test-for-raw-control-chara.patch
 "
 
 # secfixes:
+#   1.37.0-r27:
+#     - CVE-2025-46394
 #   1.37.0-r24:
 #     - CVE-2023-39810
 #   1.36.1-r35:
@@ -433,4 +437,6 @@ bef67b208b94c0deed9efbd8a23a786ceb9357da31a0068592e7380061251a6b503ee338ada4d420
 15d38a97fff50f5e9366c9a2953ceac062c03000a8cc0328c6f810b239ba67af6ee3bb59f2495b91c28238e3515dad18eb5266d92a750626cf392ecbcc1fae0a  0103-init-re-exec-init-before-shutdown-reboot.patch
 35bf1ad5eb364e09a63833dc5cd59ed5f75d067082326cc8d37feabd07a330777c8cca2247a620ca90b20a7733ec3a1e130d3ef642b147697c28960c0d2399c7  0104-last-fix-ignoring-the-first-login-entry.patch
 f065d188bedec9389390e53c623eaed734d5f5e067be29163f38f878e5b60803f4e43879c55b510bd2267116a828ebc0c1661172332491a04719c67b3bbd8946  0105-CVE-2023-39810.patch
+1dfabbd3d6227c72360a3f79133eb4fb1ff514c238c8668ff477405b8dba97eac32e173a005875947df3ab36b7855ce04f56a7fbb36197c179fefdf695783219  0106-fix-16018-masking-of-potentially-malicious-tar-cpio-.patch
+4266c08610c4b087c002c6ef6ce03bf48ecd6d8b6ea90c99bf15a5a0094e1053465f6ec335f352dc59db522d37257c356cab86c29ce95c17602ef28191bfeb3a  0107-testsuite-tar.tests-add-a-test-for-raw-control-chara.patch
 "
