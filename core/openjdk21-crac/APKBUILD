@@ -1,17 +1,18 @@
-# Description: $VENDOR_NAME $VENDOR_JAVA_NAME is a build of OpenJDK verified by the OpenJDK
-# Technology Compatibility Kit test suite to be compliant with the Java SE
-# specifications.
+# Description: $VENDOR_NAME $VENDOR_JAVA_NAME with CRaC provides an API
+# for creating and restoring application snapshots.  This version of
+# $VENDOR_NAME $VENDOR_JAVA_NAME is UNTESTED and presumed incompatible
+# with the Java SE Specification.
 
 : ${BUILD_FROM_SOURCE:=0}
 
 _java_pkg_name=$(echo $VENDOR_JAVA_NAME | tr [:upper:] [:lower:])
-_java_ver=21.0.7+12
-_java_rel_date=2025-04-15
+_java_ver=21.0.8+13
+_java_rel_date=2025-07-15
 _java_name="$VENDOR_NAME $VENDOR_JAVA_NAME JDK 21 CRaC"
 
 pkgname=${_java_pkg_name}21-crac
 pkgver=${_java_ver/+/_p}
-pkgrel=1
+pkgrel=0
 pkgdesc="$_java_name (Coordinated Restore at Checkpoint)"
 url="$VENDOR_URL"
 license="GPL-2.0 WITH Classpath-Exception-2.0"
@@ -71,74 +72,74 @@ if [ "$BUILD_FROM_SOURCE" -eq 0 ]; then
 	case "$CARCH:$CLIBC" in
 		x86_64:glibc )
 			JDK_BIN="
-			jdk-21.0.7+12_linux-x64_bin-static-libs-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-x86_64/jdk-21.0.7+12_linux-x64_bin-static-libs.tar.gz
-			jdk-21.0.7+12_linux-x64_bin-symbols-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-x86_64/jdk-21.0.7+12_linux-x64_bin-symbols.tar.gz
-			jdk-21.0.7+12_linux-x64_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-x86_64/jdk-21.0.7+12_linux-x64_bin.tar.gz
-			jdk-21.0.7+12_linux-x64_bin-tests-demos-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-x86_64/jdk-21.0.7+12_linux-x64_bin-tests-demos.tar.gz
-			jdk-21.0.7+12_linux-x64_bin-tests-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-x86_64/jdk-21.0.7+12_linux-x64_bin-tests.tar.gz
-			jre-21.0.7+12_linux-x64_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-x86_64/jre-21.0.7+12_linux-x64_bin.tar.gz
+			jdk-21.0.8+13_linux-x64_bin-static-libs-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-x86_64/jdk-21.0.8+13_linux-x64_bin-static-libs.tar.gz
+			jdk-21.0.8+13_linux-x64_bin-symbols-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-x86_64/jdk-21.0.8+13_linux-x64_bin-symbols.tar.gz
+			jdk-21.0.8+13_linux-x64_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-x86_64/jdk-21.0.8+13_linux-x64_bin.tar.gz
+			jdk-21.0.8+13_linux-x64_bin-tests-demos-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-x86_64/jdk-21.0.8+13_linux-x64_bin-tests-demos.tar.gz
+			jdk-21.0.8+13_linux-x64_bin-tests-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-x86_64/jdk-21.0.8+13_linux-x64_bin-tests.tar.gz
+			jre-21.0.8+13_linux-x64_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-x86_64/jre-21.0.8+13_linux-x64_bin.tar.gz
 "
 			JDK_SHA="
-d48df766567c0d2acff45d50f0508f16e1b0bfa7af736617b2c0688c967cd45122625b4910881e48a7d3ad722f30086b4b6349d6ed24376bf18d297349258725  jdk-21.0.7+12_linux-x64_bin-static-libs-r$pkgrel.tar.gz
-499e58f08328eb58b22f2d5c83a01e2fd54bad6e203ff0bc7660f2bbf3154f33ece3408a4bb50fc4ff2e56d63d8b169f49c8da7e5117f6f22a464fd878e95992  jdk-21.0.7+12_linux-x64_bin-symbols-r$pkgrel.tar.gz
-0281dbc45a734044cffa76ef624caa3bf671dd4ad43a3ba8ca966e56ecc4a59012d3dc1976f546f7715aec532d5a1dc2f4cf54e14509489e5a2aae36b3ad2f02  jdk-21.0.7+12_linux-x64_bin-r$pkgrel.tar.gz
-e6d06bd17c017fa5ba824953f7c752a0a00f398a912407368a893087e584e22304a2f54f3b06c8bbbb140ed8b5aa3745e6ff2cf7e02ebee92923041345b798d1  jdk-21.0.7+12_linux-x64_bin-tests-demos-r$pkgrel.tar.gz
-463115a5e7a6c043cd87da479244302ff494cfde1e71d34e5324ea226a00be78da5dd26e138a73dfafd4f596e70b81187bbc4543ef32465a433dea9b47a4a388  jdk-21.0.7+12_linux-x64_bin-tests-r$pkgrel.tar.gz
-5bce04ff8496ee0c2af2b78c2ad7b29c70c47fd238aff4893dd8c954a1a4d3bb1b170883a7f08caefb7e14e830a27a1669c9f3dec6aa8670c8bab5587de4862c  jre-21.0.7+12_linux-x64_bin-r$pkgrel.tar.gz
+f098ede3161e9c12bd91d47c82df140c059999c1b3aa519a008800cd70016234cb46b9fa06e515d4c8a1637ba9966326bb94dee76e22527b6186389bc1df29ce  jdk-21.0.8+13_linux-x64_bin-static-libs-r$pkgrel.tar.gz
+64d8613f546a21c96d7fa919da25ab3739d6c1ea37047d24ae3cc00f12bd17a11c01aed7dc560f218deb90087df05753dec72113dde4cef26392d074e2a5c5c1  jdk-21.0.8+13_linux-x64_bin-symbols-r$pkgrel.tar.gz
+31d921ad7f0b4227928936f3c5f1307a1094f34007ff6380ccc68d724e3a7d03c542af3d59de99ebac4d9c72c4f2e405fd84ba4b489eaeee4ffc447387d8adb2  jdk-21.0.8+13_linux-x64_bin-r$pkgrel.tar.gz
+62796d39814ad7b10845047a23efd931e47f4df4e02d31c4df52434aad9a78ed20ada604d57a37fcdacece4d5b2da80c7e1ad4f858e825d20407d811f6bd708e  jdk-21.0.8+13_linux-x64_bin-tests-demos-r$pkgrel.tar.gz
+d2d40002252eb780c61c3e331c4d523dfba4ab317ec680d5ce5ff2a446e5c1e4953bb8197d3875c4311f7c4aeccda14dc0b692c9686e4f059fe11413283fc920  jdk-21.0.8+13_linux-x64_bin-tests-r$pkgrel.tar.gz
+04e64d6ce507023e73180999fb1372d1afce42c4c3be3e8e9469a2ae0a9edf98a0eb992605954552fb3156622ad843b6ef4a400421862b68007ba08226e4467b  jre-21.0.8+13_linux-x64_bin-r$pkgrel.tar.gz
 "
 		;;
 		x86_64:musl )
 			JDK_BIN="
-			jdk-21.0.7+12_linux-x64-musl_bin-static-libs-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-x86_64/jdk-21.0.7+12_linux-x64-musl_bin-static-libs.tar.gz
-			jdk-21.0.7+12_linux-x64-musl_bin-symbols-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-x86_64/jdk-21.0.7+12_linux-x64-musl_bin-symbols.tar.gz
-			jdk-21.0.7+12_linux-x64-musl_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-x86_64/jdk-21.0.7+12_linux-x64-musl_bin.tar.gz
-			jdk-21.0.7+12_linux-x64-musl_bin-tests-demos-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-x86_64/jdk-21.0.7+12_linux-x64-musl_bin-tests-demos.tar.gz
-			jdk-21.0.7+12_linux-x64-musl_bin-tests-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-x86_64/jdk-21.0.7+12_linux-x64-musl_bin-tests.tar.gz
-			jre-21.0.7+12_linux-x64-musl_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-x86_64/jre-21.0.7+12_linux-x64-musl_bin.tar.gz
+			jdk-21.0.8+13_linux-x64-musl_bin-static-libs-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-x86_64/jdk-21.0.8+13_linux-x64-musl_bin-static-libs.tar.gz
+			jdk-21.0.8+13_linux-x64-musl_bin-symbols-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-x86_64/jdk-21.0.8+13_linux-x64-musl_bin-symbols.tar.gz
+			jdk-21.0.8+13_linux-x64-musl_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-x86_64/jdk-21.0.8+13_linux-x64-musl_bin.tar.gz
+			jdk-21.0.8+13_linux-x64-musl_bin-tests-demos-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-x86_64/jdk-21.0.8+13_linux-x64-musl_bin-tests-demos.tar.gz
+			jdk-21.0.8+13_linux-x64-musl_bin-tests-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-x86_64/jdk-21.0.8+13_linux-x64-musl_bin-tests.tar.gz
+			jre-21.0.8+13_linux-x64-musl_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-x86_64/jre-21.0.8+13_linux-x64-musl_bin.tar.gz
 "
 			JDK_SHA="
-e2a3702bb2d91957163283ead4b5aacfaf594f7c15a626a6392389a4287f35149509c3cc6d4929f13c7b541c4dc41e9826894574e54449e8e31f137c185556d1  jdk-21.0.7+12_linux-x64-musl_bin-static-libs-r$pkgrel.tar.gz
-38f38ebf76030f6774d266ae0ce6e1d7dcb41f57e844008b654cc7b5bb2491b2ba0ac6f8ca778f81cbeaa5ecb74000d48a76fb0da19112c2768b0bb2fed4a88e  jdk-21.0.7+12_linux-x64-musl_bin-symbols-r$pkgrel.tar.gz
-02203cfa924dcd87efcafce091c375a663d8f0757a8eb5660a12499d4c962d31790b4ee81c6f7b1f1158eab725943aa05462967e48264e8f2a5faed4cf1bb70b  jdk-21.0.7+12_linux-x64-musl_bin-r$pkgrel.tar.gz
-0bfc4b15a8778af2da6691797bc6e51d01900bb585a1677e04b2700f387210b7a7e0ce5f3b6fa8997ae0818b61dd7e3f22b0fa5dd94bcfa54c913c4c19dbbf80  jdk-21.0.7+12_linux-x64-musl_bin-tests-demos-r$pkgrel.tar.gz
-524560a92d25d7853a67848a948bcaa96467ae7e806e4f0aacf21eb8ac100c712943c1c326cbf257c2d438f44443a5efafbeff3ba2f3615253a14754509133ed  jdk-21.0.7+12_linux-x64-musl_bin-tests-r$pkgrel.tar.gz
-345e39e78f2f910ece039cb9c71d1edc22604dae9b1a8cbf9d306be42dcbf6d03376f760c8ae72f2d528c8fbf76f6c9831279e4bacb5dffc84dbeb65c8a9571a  jre-21.0.7+12_linux-x64-musl_bin-r$pkgrel.tar.gz
+814aea165b1e2db621b42b50c60960bf52a808b186c9c02ec97d55ba5b616d31cfeaf843f49400109cb66d67b1a84771a02f2f4e126ecfbae3c3c06b87486936  jdk-21.0.8+13_linux-x64-musl_bin-static-libs-r$pkgrel.tar.gz
+f5ff4fca9984eeb9b56c431d7cce1ff3a95feaf1f5d66bc8d2b53420cbdc5a76ab0ecda36e9f99e95fa44cd1fb61619413a872a0edb4d4a9cb928e098ae163a2  jdk-21.0.8+13_linux-x64-musl_bin-symbols-r$pkgrel.tar.gz
+36d0db601b58c36b4e5116ad16e3c6bd5c077d07060f68bd590062433397dc78055bbba4742fbe6ff81fabadf38f6772aeeb18fec4ef22e7aad369395d28360b  jdk-21.0.8+13_linux-x64-musl_bin-r$pkgrel.tar.gz
+fac067281094dcb4f7e28e95b4d0936f72f2535ac4f7bbb6a4ffbd9b86c57a26e438510f15b4bff262860ef786bd507fba6a884da4f43e5ee0a9b397b13ba14d  jdk-21.0.8+13_linux-x64-musl_bin-tests-demos-r$pkgrel.tar.gz
+2ae13bcaaa614a3fb4294715db07e6e72439953f226057dce241b34c96989c109e13fa322fdfc97a00345d06b84007cff43a28d7a2f619307ee62c8ec9a1e1e3  jdk-21.0.8+13_linux-x64-musl_bin-tests-r$pkgrel.tar.gz
+06b4bb896c1860291c8e29be99f9ebee6e0e47924c3dd50dbcb9264bef437605dc696667c53d10d5287885b501f13178bc48b3ad2256e54ea2e29210d34dd07a  jre-21.0.8+13_linux-x64-musl_bin-r$pkgrel.tar.gz
 "
 		;;
 		aarch64:glibc )
 			JDK_BIN="
-			jdk-21.0.7+12_linux-aarch64_bin-static-libs-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-aarch64/jdk-21.0.7+12_linux-aarch64_bin-static-libs.tar.gz
-			jdk-21.0.7+12_linux-aarch64_bin-symbols-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-aarch64/jdk-21.0.7+12_linux-aarch64_bin-symbols.tar.gz
-			jdk-21.0.7+12_linux-aarch64_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-aarch64/jdk-21.0.7+12_linux-aarch64_bin.tar.gz
-			jdk-21.0.7+12_linux-aarch64_bin-tests-demos-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-aarch64/jdk-21.0.7+12_linux-aarch64_bin-tests-demos.tar.gz
-			jdk-21.0.7+12_linux-aarch64_bin-tests-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-aarch64/jdk-21.0.7+12_linux-aarch64_bin-tests.tar.gz
-			jre-21.0.7+12_linux-aarch64_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-aarch64/jre-21.0.7+12_linux-aarch64_bin.tar.gz
+			jdk-21.0.8+13_linux-aarch64_bin-static-libs-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-aarch64/jdk-21.0.8+13_linux-aarch64_bin-static-libs.tar.gz
+			jdk-21.0.8+13_linux-aarch64_bin-symbols-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-aarch64/jdk-21.0.8+13_linux-aarch64_bin-symbols.tar.gz
+			jdk-21.0.8+13_linux-aarch64_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-aarch64/jdk-21.0.8+13_linux-aarch64_bin.tar.gz
+			jdk-21.0.8+13_linux-aarch64_bin-tests-demos-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-aarch64/jdk-21.0.8+13_linux-aarch64_bin-tests-demos.tar.gz
+			jdk-21.0.8+13_linux-aarch64_bin-tests-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-aarch64/jdk-21.0.8+13_linux-aarch64_bin-tests.tar.gz
+			jre-21.0.8+13_linux-aarch64_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-aarch64/jre-21.0.8+13_linux-aarch64_bin.tar.gz
 "
 			JDK_SHA="
-caa184c7497031ebe48ba07c5341e012858fbb703f0f3835c3dbbed2112bb948cb62739e9b265c431e760b394d6772c190cc90926d19ad654d1a30e0136296f1  jdk-21.0.7+12_linux-aarch64_bin-static-libs-r$pkgrel.tar.gz
-746d6db0e980adf484480c225fd6c563dca7e847045431069c84516084aa17c69377819bc791493b8188d1348689258d574e74651c586ad54c1f68268d77d6a3  jdk-21.0.7+12_linux-aarch64_bin-symbols-r$pkgrel.tar.gz
-55a104df8d9c91d6a7600eea755844b2997ec9473d87d29ca7419b11bb58b17cf0a15ff82079a7f7b5de737a52b056881b411b6fdf1823b9bfbc553ee12326ea  jdk-21.0.7+12_linux-aarch64_bin-r$pkgrel.tar.gz
-95dccc1e141887381d38d4fc37d092da077b1cf01250cc8f95ec2f519b664791f50ae35c3d84004ce9aee0df5fd05791069684de914a1e245a484d9380a5ec29  jdk-21.0.7+12_linux-aarch64_bin-tests-demos-r$pkgrel.tar.gz
-256acf3062a3957fa8f39d419603b6fa83e8a9210af932633ead3baf00d70ae7ef2d235066bc7f1207243f06d992a1a69295f2a2d003117f4355c9bb090b122f  jdk-21.0.7+12_linux-aarch64_bin-tests-r$pkgrel.tar.gz
-1fb237f209c8843e93c431aa73d831b6bb586790d6c6e667d13df2fea8ca454fbc0e371aa47da455b8310272963d5a60c660f3bcb18687da0897695d3383e7a7  jre-21.0.7+12_linux-aarch64_bin-r$pkgrel.tar.gz
+335339f617a57d739f9716a5968ac74dc5c0500c08cdc12333d597f1b0ca36eea41b466204794adc385be9b40afa22220c7f4c30810dbc5f2d5c0f0fec24aa20  jdk-21.0.8+13_linux-aarch64_bin-static-libs-r$pkgrel.tar.gz
+69c542b85fcd1e1ab9f4e2c78a9170965612718879d5e21cce6b98213cbf2d08107d607a529f87610b2ad9c10169802b2a113e331bf56d61f3f798250047f117  jdk-21.0.8+13_linux-aarch64_bin-symbols-r$pkgrel.tar.gz
+51eaf91c3ecf7044e4bd423145ec79af13eda1cea76b021914e2c3a33e522b11d3569ea4e0684e8e0b1cfdd60cf990c3e537827447fd0d4af1dffe09093340f7  jdk-21.0.8+13_linux-aarch64_bin-r$pkgrel.tar.gz
+91fa0a65ac9c2dbc099835a8e9baccc556142e8121a98e6f2b0559b5bdaa64d60e29a3e4635a9c1dfac2f5f12e046d3f8c33c5239a6d7f7d9d50027d09c485f3  jdk-21.0.8+13_linux-aarch64_bin-tests-demos-r$pkgrel.tar.gz
+ee22d3b402b5544ec1e67f5ba82f5afa901117710d734a034ea63055e82e1b5d95bc7cbc0c8673cfac4dd116409f9be863a0bdc682d5175c7d205b02007a61f1  jdk-21.0.8+13_linux-aarch64_bin-tests-r$pkgrel.tar.gz
+fe626b68d36af5af6f043e0f83aba5131c9da1b758095288f95bee656b6b744d5f817b0a27e61b1364eea36258b92d88d28aba51b4e2a103ff22a2820106aa08  jre-21.0.8+13_linux-aarch64_bin-r$pkgrel.tar.gz
 "
 		;;
 		aarch64:musl )
 			JDK_BIN="
-			jdk-21.0.7+12_linux-aarch64-musl_bin-static-libs-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-aarch64/jdk-21.0.7+12_linux-aarch64-musl_bin-static-libs.tar.gz
-			jdk-21.0.7+12_linux-aarch64-musl_bin-symbols-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-aarch64/jdk-21.0.7+12_linux-aarch64-musl_bin-symbols.tar.gz
-			jdk-21.0.7+12_linux-aarch64-musl_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-aarch64/jdk-21.0.7+12_linux-aarch64-musl_bin.tar.gz
-			jdk-21.0.7+12_linux-aarch64-musl_bin-tests-demos-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-aarch64/jdk-21.0.7+12_linux-aarch64-musl_bin-tests-demos.tar.gz
-			jdk-21.0.7+12_linux-aarch64-musl_bin-tests-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-aarch64/jdk-21.0.7+12_linux-aarch64-musl_bin-tests.tar.gz
-			jre-21.0.7+12_linux-aarch64-musl_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-aarch64/jre-21.0.7+12_linux-aarch64-musl_bin.tar.gz
+			jdk-21.0.8+13_linux-aarch64-musl_bin-static-libs-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-aarch64/jdk-21.0.8+13_linux-aarch64-musl_bin-static-libs.tar.gz
+			jdk-21.0.8+13_linux-aarch64-musl_bin-symbols-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-aarch64/jdk-21.0.8+13_linux-aarch64-musl_bin-symbols.tar.gz
+			jdk-21.0.8+13_linux-aarch64-musl_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-aarch64/jdk-21.0.8+13_linux-aarch64-musl_bin.tar.gz
+			jdk-21.0.8+13_linux-aarch64-musl_bin-tests-demos-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-aarch64/jdk-21.0.8+13_linux-aarch64-musl_bin-tests-demos.tar.gz
+			jdk-21.0.8+13_linux-aarch64-musl_bin-tests-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-aarch64/jdk-21.0.8+13_linux-aarch64-musl_bin-tests.tar.gz
+			jre-21.0.8+13_linux-aarch64-musl_bin-r$pkgrel.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-aarch64/jre-21.0.8+13_linux-aarch64-musl_bin.tar.gz
 "
 			JDK_SHA="
-282b77af20a22a16fc69b5ccb79e4369a70144ef519052e585735f62ff33884f6630144b7e64c5d325b2a03e0505731c620471be1473d0b6be4e616327ce7677  jdk-21.0.7+12_linux-aarch64-musl_bin-static-libs-r$pkgrel.tar.gz
-edabacad2adee833370b7e5afe8e104468c00518a5801ad0d959f1c5ded5dc303e96aebdba2efe23aa033342a53ee7f690a7c473987adc2c3effcf57f2aad736  jdk-21.0.7+12_linux-aarch64-musl_bin-symbols-r$pkgrel.tar.gz
-7704ace37d353a46963be6d5d6036a90b8501629b7f96c64dd16024a508efd77f9b78f396906ae604ee5b870e8e5e5c0c04e89fe70ebd1b3d7bdfaab863b9f6b  jdk-21.0.7+12_linux-aarch64-musl_bin-r$pkgrel.tar.gz
-e0153b8f346a4f67a2030e9030bb666537d32f04620ff1918a6b2d89a1caa45c3d31300f516503bfbcdc72c4c29c18dbb637d45fcd3e622ca21a2a029842dac9  jdk-21.0.7+12_linux-aarch64-musl_bin-tests-demos-r$pkgrel.tar.gz
-cfaad75e6cd97bea1f499dbbee4fe12c26332c1a538a8bc22b165acaaf871bbcd1f3315282a14f2d2cfc7338de810a0f210d2af7a7dcb35da8250f265c5d231c  jdk-21.0.7+12_linux-aarch64-musl_bin-tests-r$pkgrel.tar.gz
-8db2c2b63e9432d68793fde4d608323f2150a08ed3a1a1374f843c190090b5286804617379c4e9aa87fd0855c6cf82154a1a1d099d835f8e7d2d8815fdada619  jre-21.0.7+12_linux-aarch64-musl_bin-r$pkgrel.tar.gz
+c9274a557eab768ac97d7fe134593a2c9a1b0c7f315dd4638e7a5ba2e29775efd09cf138a07d569d53ab6611ce2a817fc4927a70163a571ac0559253d7f0dde4  jdk-21.0.8+13_linux-aarch64-musl_bin-static-libs-r$pkgrel.tar.gz
+02d38500efacc29f0eb8a7e9902f3435c73963005ef9c5c46ae262c6483e29eedfca81431e2b666bf15d63fe77028e815a21f673d690024f0fa8d7add6606af0  jdk-21.0.8+13_linux-aarch64-musl_bin-symbols-r$pkgrel.tar.gz
+67006800b4b640a8f3432efcf90b08c21aeb00b595f236a85ad15eabb84ae77c1750025dd8a69cf3af0ac0943787a77e6bc0b8d91e5914dc52781c8c2a1f395a  jdk-21.0.8+13_linux-aarch64-musl_bin-r$pkgrel.tar.gz
+d1c1bb7ed7b30834ed9af2af8da239acd1cc142523045ae974e5189c31e79b3cb7b49e53b04bec04e08468f409ed5a582cf401405f8f39b4ee4e97afb3791d98  jdk-21.0.8+13_linux-aarch64-musl_bin-tests-demos-r$pkgrel.tar.gz
+17239ed6e8a390c2e1ec500f640759b6e2a028b85d81b5a43e48cac1d153c4e4060929e209d2ea00b1829eef73ba9cdd002feb8f18fb24a5e8f141c2972c8564  jdk-21.0.8+13_linux-aarch64-musl_bin-tests-r$pkgrel.tar.gz
+4da3391bdc22a9ffaaeb225e68d986bf6c30f09b443d6b751706b7408e380dd6a9e82cfe2fada0b4bc7960d5ac075b74174f178fb8caf834869b783a362fe317  jre-21.0.8+13_linux-aarch64-musl_bin-r$pkgrel.tar.gz
 "
 		;;
 	esac
@@ -146,34 +147,34 @@ else
 	case "$CARCH:$CLIBC" in
 		x86_64:glibc)
 			JDK_BIN="
-			src-linux-alpaquita-x86_64-21.0.7+12-r0-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-x86_64/src.tar.gz
+			src-linux-alpaquita-x86_64-21.0.8+13-r$pkgrel-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-x86_64/src.tar.gz
 "
 			JDK_SHA="
-cb1e1ba504796c612198bc932de0eb5d1fa71f0b73f57b9a0293199213ffdc5563143b02aa51065e99d4cc129ad4cad6e00bf962037f37b10c00df358452630e  src-linux-alpaquita-x86_64-21.0.7+12-r0-lite.tar.gz
+a23409db8fd9bbac54d1db7912b665881a139a21bde0e5914d531190b3c04dd73cbda9bae9b468113aa235365a3f003b9b754fb9763db901be948bbeafb9b7e0  src-linux-alpaquita-x86_64-21.0.8+13-r$pkgrel-lite.tar.gz
 "
 		;;
 		x86_64:musl)
 			JDK_BIN="
-			src-linux-alpaquita-musl-x86_64-21.0.7+12-r0-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-x86_64/src.tar.gz
+			src-linux-alpaquita-musl-x86_64-21.0.8+13-r$pkgrel-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-x86_64/src.tar.gz
 "
 			JDK_SHA="
-f465d5d27c1d14120db6d62d1caa5af6ac7cbbc9d1158bf37509c200311f0306c9f7f7f8dc52bd1a1a4013db4098611b3e4d51d86c3f8a16d50e56f7e3232d00  src-linux-alpaquita-musl-x86_64-21.0.7+12-r0-lite.tar.gz
+27bc5aafc65d2bc1aad282ea2b0b5135665844374f28e444a882bd1bb48c8900cf2372d39d6c4dd808993bc5e8223458c8a20a76c85ca9c03abf609c39c5bde4  src-linux-alpaquita-musl-x86_64-21.0.8+13-r$pkgrel-lite.tar.gz
 "
 		;;
 		aarch64:glibc)
 			JDK_BIN="
-			src-linux-alpaquita-aarch64-21.0.7+12-r0-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-aarch64/src.tar.gz
+			src-linux-alpaquita-aarch64-21.0.8+13-r$pkgrel-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-aarch64/src.tar.gz
 "
 			JDK_SHA="
-ba7bc58924de5243c6513fc58b985ad66d038734b0cabc2ca80d876918142683f04edb3ec2711f449918c1ad6ee81287761232df2e5554c7f91c7b272c2972d4  src-linux-alpaquita-aarch64-21.0.7+12-r0-lite.tar.gz
+ae1398229d78b84ca1815087560029eae9841bb2c60e50d13144650fd84680fe6cb01933b1cd0a686cf594fcca9389e373db36de674e200390d776333e876fff  src-linux-alpaquita-aarch64-21.0.8+13-r$pkgrel-lite.tar.gz
 "
 		;;
 		aarch64:musl)
 			JDK_BIN="
-			src-linux-alpaquita-musl-aarch64-21.0.7+12-r0-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.7+12-crac-r0/linux-alpaquita-musl-aarch64/src.tar.gz
+			src-linux-alpaquita-musl-aarch64-21.0.8+13-r$pkgrel-lite.tar.gz::https://download.bell-sw.com/linux-alpaquita/java-sources/java/21.0.8+13-crac-r0/linux-alpaquita-musl-aarch64/src.tar.gz
 "
 			JDK_SHA="
-5f8d3532d77f0c1a467c40d324dd3b1225b48f7553af22f5a3c0ccce7f4025741607e550c2ca224b7cca4ab9703c62ac4d02f5281fc0e22476e131b1c73125cb  src-linux-alpaquita-musl-aarch64-21.0.7+12-r0-lite.tar.gz
+ccb9cbc2a90831a44db89f976e57e2b42a7710f3f17deb9cfa1bc3276acbda5bfcf1c2d2a3e190ffca6be1513e6d594b99ee2ec3739f7e6d18c2c3135726aea6  src-linux-alpaquita-musl-aarch64-21.0.8+13-r$pkgrel-lite.tar.gz
 "
 		;;
 	esac
@@ -204,6 +205,15 @@ if [ "$BUILD_FROM_SOURCE" -ne 0 ]; then
 		openjdk21-bootstrap
 		"
 fi
+
+# secfixes:
+#   21.0.8_p13-r0:
+#     - CVE-2025-50059
+#     - CVE-2025-30749
+#     - CVE-2025-50106
+#     - CVE-2025-30754
+#     - CVE-2025-27113
+#     - CVE-2025-2485
 
 unpack() {
 	mkdir -p "$builddir"
