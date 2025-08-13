@@ -1,0 +1,46 @@
+From 962fef0ac5f95e1a2e2ea59d206c0e7626a90d12 Mon Sep 17 00:00:00 2001
+From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
+Date: Tue, 12 Aug 2025 17:05:17 +0000
+Subject: [PATCH] testsuite/tar.tests: add a test for raw control characters in
+ file names
+
+This basically reproduces the same scenario as in:
+https://web.archive.org/web/20240704120247/https://bugs.busybox.net/show_bug.cgi?id=16018
+---
+ testsuite/tar.tests | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/testsuite/tar.tests b/testsuite/tar.tests
+index 0f2e89112..9d0f80765 100755
+--- a/testsuite/tar.tests
++++ b/testsuite/tar.tests
+@@ -386,4 +386,26 @@ dir/c
+ SKIP=
+ cd .. || exit 1; rm -rf tar.tempdir 2>/dev/null
+ 
++# unbuffer is needed to simulate tty output
++>/dev/null 2>&1 type unbuffer || SKIP=1
++mkdir tar.tempdir && cd tar.tempdir || exit 1
++testing "tar No raw control characters in file names in tty" '\
++>x
++>$(printf "\033[1A\033[1Ka")
++>b
++tar -cf test.tar x $(printf "\033[1A\033[1Ka") b
++unbuffer tar tf test.tar
++unbuffer tar tf test.tar -v | awk "{ print \$NF }"
++' "\
++x
++?[1A?[1Ka
++b
++x
++?[1A?[1Ka
++b
++" \
++"" ""
++SKIP=
++cd .. || exit 1; rm -rf tar.tempdir 2>/dev/null
++
+ exit $FAILCOUNT
+-- 
+2.49.0
+
