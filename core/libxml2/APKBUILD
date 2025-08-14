@@ -2,7 +2,7 @@
 
 pkgname=libxml2
 pkgver=2.13.8
-pkgrel=0
+pkgrel=1
 pkgdesc="GNOME XML parsing library"
 url="https://gitlab.gnome.org/GNOME/libxml2"
 arch="all"
@@ -18,9 +18,20 @@ if [ -z "$BOOTSTRAP" ]; then
 else
 	_py_configure="--with-python=no"
 fi
-source="https://download.gnome.org/sources/libxml2/${pkgver%.*}/libxml2-$pkgver.tar.xz"
+source="https://download.gnome.org/sources/libxml2/${pkgver%.*}/libxml2-$pkgver.tar.xz
+
+	0100-CVE-2025-6021.patch
+	0100-CVE-2025-6021-aux.patch
+	0101-CVE-2025-6170.patch
+	0102-CVE-2025-49794,49796.patch
+	"
 
 # secfixes:
+#   2.13.8-r1:
+#     - CVE-2025-6021
+#     - CVE-2025-6170
+#     - CVE-2025-49794
+#     - CVE-2025-49796
 #   2.13.8-r0:
 #     - CVE-2025-32414
 #     - CVE-2025-32415
@@ -115,4 +126,8 @@ utils() {
 
 sha512sums="
 668e556404693f17e074bc31e2caa5e50bf003ee3cd81b61a51ea25e76efd7eff7ec70ff603eed87b9d9e9b2299673e6e8871798264113e660e703b74b58458f  libxml2-2.13.8.tar.xz
+a5f8753d3615851689ce59f2d31c3aafb8cbb2b9d7542b32abb81d89b8ed834bb6e523068c50c737e83100718163a958f64dfedbf9e38ca263e57cb3767a90c2  0100-CVE-2025-6021.patch
+ef66124a6a6ffb132bbdb6d2b75e61120b2695fe5897ad959d16583509d9b829d4ff0f317af6641d32cc5ac6d40bb780b94a1e1f16a0bd4b991d841094afa7dd  0100-CVE-2025-6021-aux.patch
+7d3f436cbde3ff57d96b9218e55b1b2cadaa5929cd6aa544ed23e76a89870c33f9efd27c2724b698ef9f3728bac759a26cc32580629e0fed57c91266973ade64  0101-CVE-2025-6170.patch
+452dc3421beb367eb15f911b51112099c02817358ab5d764de4517dc1cbe6926351d34dc669b8c5201514b3a5acf1398fc0f29876355e6ea554e75e35ae62a01  0102-CVE-2025-49794,49796.patch
 "
