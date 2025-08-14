@@ -60,7 +60,7 @@ extern int __aligned_alloc_replaced;
 void * const __malloc_tls_default = (void *)&_mi_heap_empty;
 
 void __malloc_init(pthread_t p) {
-    _mi_process_load();
+    _mi_auto_process_init();
 }
 
 void __malloc_tls_teardown(pthread_t p) {
