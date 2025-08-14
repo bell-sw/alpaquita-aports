@@ -7,7 +7,7 @@
 
 pkgname=musl-perf
 pkgver=1.2.5
-pkgrel=17
+pkgrel=18
 _mimalloc_ver=2.2.3
 pkgdesc="the musl c library (libc) implementation (optimized for performance)"
 url="https://musl.libc.org/"
@@ -106,6 +106,10 @@ prepare() {
 	default_prepare
 
 	echo "$pkgver" > VERSION
+
+	# delete hand-optimized x86-64 string manipulation functions
+	# as modern GCC generates faster code
+	rm src/string/x86_64/memcpy.s src/string/x86_64/memmove.s
 }
 
 build() {
