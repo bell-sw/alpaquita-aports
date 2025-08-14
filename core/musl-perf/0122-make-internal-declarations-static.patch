@@ -1,4 +1,4 @@
-From 09051bfd81d80b3d8d99e8329819d59055caedc5 Mon Sep 17 00:00:00 2001
+From 58d6f939f2289027e0bc2367c57cf40a1cc85cf6 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Fri, 17 Jan 2025 14:02:10 +0000
 Subject: [PATCH] make internal declarations static
@@ -6,21 +6,20 @@ Subject: [PATCH] make internal declarations static
 Patch based on https://github.com/chimera-linux/cports/blob/master/main/musl/patches/0001-implement-necessary-bits-for-musl-integration.patch
 ---
  mimalloc/include/mimalloc/atomic.h   |   2 +-
- mimalloc/include/mimalloc/internal.h | 297 ++++++++++++++-------------
+ mimalloc/include/mimalloc/internal.h | 298 ++++++++++++++-------------
  mimalloc/include/mimalloc/prim.h     |  43 ++--
  mimalloc/include/mimalloc/types.h    |   8 +-
  mimalloc/src/arena.c                 |   2 +-
  mimalloc/src/bitmap.h                |  26 +--
  mimalloc/src/init.c                  |   9 +
- mimalloc/src/os.c                    |   3 +
  mimalloc/src/page.c                  |   2 +-
- 9 files changed, 208 insertions(+), 184 deletions(-)
+ 8 files changed, 205 insertions(+), 185 deletions(-)
 
 diff --git a/mimalloc/include/mimalloc/atomic.h b/mimalloc/include/mimalloc/atomic.h
-index 39ff5c90..ad0fd935 100644
+index e8bac316..d8c448d1 100644
 --- a/mimalloc/include/mimalloc/atomic.h
 +++ b/mimalloc/include/mimalloc/atomic.h
-@@ -477,7 +477,7 @@ static inline void mi_lock_done(mi_lock_t* lock) {
+@@ -480,7 +480,7 @@ static inline void mi_lock_done(mi_lock_t* lock) {
  
  #elif defined(MI_USE_PTHREADS)
  
@@ -30,10 +29,10 @@ index 39ff5c90..ad0fd935 100644
  #define mi_lock_t  pthread_mutex_t
  
 diff --git a/mimalloc/include/mimalloc/internal.h b/mimalloc/include/mimalloc/internal.h
-index eae85ab6..9e7e035d 100644
+index ca5be930..8055edfc 100644
 --- a/mimalloc/include/mimalloc/internal.h
 +++ b/mimalloc/include/mimalloc/internal.h
-@@ -14,6 +14,12 @@ terms of the MIT license. A copy of the license can be found in the file
+@@ -13,6 +13,12 @@ terms of the MIT license. A copy of the license can be found in the file
  // functions and macros.
  // --------------------------------------------------------------------------
  
@@ -46,7 +45,7 @@ index eae85ab6..9e7e035d 100644
  #include "types.h"
  #include "track.h"
  
-@@ -64,100 +70,100 @@ terms of the MIT license. A copy of the license can be found in the file
+@@ -101,104 +107,104 @@ terms of the MIT license. A copy of the license can be found in the file
  
  // "libc.c"
  #include    <stdarg.h>
@@ -107,10 +106,10 @@ index eae85ab6..9e7e035d 100644
  static inline uintptr_t _mi_random_shuffle(uintptr_t x);
  
  // init.c
--extern mi_decl_cache_align mi_stats_t       _mi_stats_main;
+-extern mi_decl_hidden mi_decl_cache_align mi_stats_t       _mi_stats_main;
 -extern mi_decl_hidden mi_decl_cache_align const mi_page_t  _mi_page_empty;
--void        _mi_process_load(void);
--void mi_cdecl _mi_process_done(void);
+-void        _mi_auto_process_init(void);
+-void mi_cdecl _mi_auto_process_done(void) mi_attr_noexcept;
 -bool        _mi_is_redirected(void);
 -bool        _mi_allocator_init(const char** message);
 -void        _mi_allocator_done(void);
@@ -124,10 +123,10 @@ index eae85ab6..9e7e035d 100644
 -mi_heap_t*    _mi_heap_main_get(void);     // statically allocated main backing heap
 -mi_subproc_t* _mi_subproc_from_id(mi_subproc_id_t subproc_id);
 -void        _mi_heap_guarded_init(mi_heap_t* heap);
-+mi_decl_internal  mi_decl_cache_align mi_stats_t       _mi_stats_main;
-+mi_decl_internal  mi_decl_cache_align const mi_page_t  _mi_page_empty;
-+mi_decl_internal void        _mi_process_load(void);
-+mi_decl_internal void mi_cdecl _mi_process_done(void);
++mi_decl_internal mi_decl_cache_align mi_stats_t       _mi_stats_main;
++mi_decl_internal mi_decl_cache_align const mi_page_t  _mi_page_empty;
++mi_decl_internal void        _mi_auto_process_init(void);
++mi_decl_internal void mi_cdecl _mi_auto_process_done(void) mi_attr_noexcept;
 +mi_decl_internal bool        _mi_is_redirected(void);
 +mi_decl_internal bool        _mi_allocator_init(const char** message);
 +mi_decl_internal void        _mi_allocator_done(void);
@@ -145,6 +144,7 @@ index eae85ab6..9e7e035d 100644
  // os.c
 -void        _mi_os_init(void);                                            // called from process init
 -void*       _mi_os_alloc(size_t size, mi_memid_t* memid);
+-void*       _mi_os_zalloc(size_t size, mi_memid_t* memid);
 -void        _mi_os_free(void* p, size_t size, mi_memid_t memid);
 -void        _mi_os_free_ex(void* p, size_t size, bool still_committed, mi_memid_t memid);
 -
@@ -154,13 +154,14 @@ index eae85ab6..9e7e035d 100644
 -bool        _mi_os_has_virtual_reserve(void);
 -
 -bool        _mi_os_reset(void* addr, size_t size);
--bool        _mi_os_commit(void* p, size_t size, bool* is_zero);
--bool        _mi_os_commit_ex(void* addr, size_t size, bool* is_zero, size_t stat_size);
 -bool        _mi_os_decommit(void* addr, size_t size);
--bool        _mi_os_protect(void* addr, size_t size);
 -bool        _mi_os_unprotect(void* addr, size_t size);
 -bool        _mi_os_purge(void* p, size_t size);
 -bool        _mi_os_purge_ex(void* p, size_t size, bool allow_reset, size_t stat_size);
+-void        _mi_os_reuse(void* p, size_t size);
+-mi_decl_nodiscard bool _mi_os_commit(void* p, size_t size, bool* is_zero);
+-mi_decl_nodiscard bool _mi_os_commit_ex(void* addr, size_t size, bool* is_zero, size_t stat_size);
+-bool        _mi_os_protect(void* addr, size_t size);
 -
 -void*       _mi_os_alloc_aligned(size_t size, size_t alignment, bool commit, bool allow_large, mi_memid_t* memid);
 -void*       _mi_os_alloc_aligned_at_offset(size_t size, size_t alignment, size_t align_offset, bool commit, bool allow_large, mi_memid_t* memid);
@@ -168,10 +169,10 @@ index eae85ab6..9e7e035d 100644
 -void*       _mi_os_get_aligned_hint(size_t try_alignment, size_t size);
 -bool        _mi_os_use_large_page(size_t size, size_t alignment);
 -size_t      _mi_os_large_page_size(void);
--
 -void*       _mi_os_alloc_huge_os_pages(size_t pages, int numa_node, mi_msecs_t max_secs, size_t* pages_reserved, size_t* psize, mi_memid_t* memid);
 +mi_decl_internal void        _mi_os_init(void);                                            // called from process init
 +mi_decl_internal void*       _mi_os_alloc(size_t size, mi_memid_t* memid);
++mi_decl_internal void*       _mi_os_zalloc(size_t size, mi_memid_t* memid);
 +mi_decl_internal void        _mi_os_free(void* p, size_t size, mi_memid_t memid);
 +mi_decl_internal void        _mi_os_free_ex(void* p, size_t size, bool still_committed, mi_memid_t memid);
 +
@@ -181,13 +182,14 @@ index eae85ab6..9e7e035d 100644
 +mi_decl_internal bool        _mi_os_has_virtual_reserve(void);
 +
 +mi_decl_internal bool        _mi_os_reset(void* addr, size_t size);
-+mi_decl_internal bool        _mi_os_commit(void* p, size_t size, bool* is_zero);
-+mi_decl_internal bool        _mi_os_commit_ex(void* addr, size_t size, bool* is_zero, size_t stat_size);
 +mi_decl_internal bool        _mi_os_decommit(void* addr, size_t size);
-+mi_decl_internal bool        _mi_os_protect(void* addr, size_t size);
 +mi_decl_internal bool        _mi_os_unprotect(void* addr, size_t size);
 +mi_decl_internal bool        _mi_os_purge(void* p, size_t size);
 +mi_decl_internal bool        _mi_os_purge_ex(void* p, size_t size, bool allow_reset, size_t stat_size);
++mi_decl_internal void        _mi_os_reuse(void* p, size_t size);
++mi_decl_internal mi_decl_nodiscard bool _mi_os_commit(void* p, size_t size, bool* is_zero);
++mi_decl_internal mi_decl_nodiscard bool _mi_os_commit_ex(void* addr, size_t size, bool* is_zero, size_t stat_size);
++mi_decl_internal bool        _mi_os_protect(void* addr, size_t size);
 +
 +mi_decl_internal void*       _mi_os_alloc_aligned(size_t size, size_t alignment, bool commit, bool allow_large, mi_memid_t* memid);
 +mi_decl_internal void*       _mi_os_alloc_aligned_at_offset(size_t size, size_t alignment, size_t align_offset, bool commit, bool allow_large, mi_memid_t* memid);
@@ -195,8 +197,10 @@ index eae85ab6..9e7e035d 100644
 +mi_decl_internal void*       _mi_os_get_aligned_hint(size_t try_alignment, size_t size);
 +mi_decl_internal bool        _mi_os_use_large_page(size_t size, size_t alignment);
 +mi_decl_internal size_t      _mi_os_large_page_size(void);
-+
 +mi_decl_internal void*       _mi_os_alloc_huge_os_pages(size_t pages, int numa_node, mi_msecs_t max_secs, size_t* pages_reserved, size_t* psize, mi_memid_t* memid);
+ 
+ int         _mi_os_numa_node_count(void);
+ int         _mi_os_numa_node(void);
  
  // arena.c
 -mi_arena_id_t _mi_arena_id_none(void);
@@ -228,7 +232,7 @@ index eae85ab6..9e7e035d 100644
  
  typedef struct mi_arena_field_cursor_s { // abstract struct
    size_t         os_list_count;           // max entries to visit in the OS abandoned list
-@@ -168,89 +174,90 @@ typedef struct mi_arena_field_cursor_s { // abstract struct
+@@ -209,91 +215,92 @@ typedef struct mi_arena_field_cursor_s { // abstract struct
    bool           visit_all;               // ensure all abandoned blocks are seen (blocking)
    bool           hold_visit_lock;         // if the subproc->abandoned_os_visit_lock is held
  } mi_arena_field_cursor_t;
@@ -314,8 +318,10 @@ index eae85ab6..9e7e035d 100644
 +mi_decl_internal void        _mi_page_free_collect(mi_page_t* page,bool force);
 +mi_decl_internal void        _mi_page_reclaim(mi_heap_t* heap, mi_page_t* page);   // callback from segments
  
+-size_t      _mi_page_bin(const mi_page_t* page); // for stats
 -size_t      _mi_bin_size(size_t bin);            // for stats
 -size_t      _mi_bin(size_t size);                // for stats
++mi_decl_internal size_t      _mi_page_bin(const mi_page_t* page); // for stats
 +mi_decl_internal size_t      _mi_bin_size(size_t bin);            // for stats
 +mi_decl_internal size_t      _mi_bin(size_t size);                // for stats
  
@@ -341,10 +347,12 @@ index eae85ab6..9e7e035d 100644
  
  // "stats.c"
 -void        _mi_stats_done(mi_stats_t* stats);
+-void        _mi_stats_merge_thread(mi_tld_t* tld);
 -mi_msecs_t  _mi_clock_now(void);
 -mi_msecs_t  _mi_clock_end(mi_msecs_t start);
 -mi_msecs_t  _mi_clock_start(void);
 +mi_decl_internal void        _mi_stats_done(mi_stats_t* stats);
++mi_decl_internal void        _mi_stats_merge_thread(mi_tld_t* tld);
 +mi_decl_internal mi_msecs_t  _mi_clock_now(void);
 +mi_decl_internal mi_msecs_t  _mi_clock_end(mi_msecs_t start);
 +mi_decl_internal mi_msecs_t  _mi_clock_start(void);
@@ -378,7 +386,7 @@ index eae85ab6..9e7e035d 100644
  #endif
  
  
-@@ -835,8 +842,8 @@ static inline bool mi_commit_mask_is_full(const mi_commit_mask_t* cm) {
+@@ -884,8 +891,8 @@ static inline bool mi_commit_mask_is_full(const mi_commit_mask_t* cm) {
  }
  
  // defined in `segment.c`:
@@ -389,22 +397,16 @@ index eae85ab6..9e7e035d 100644
  
  #define mi_commit_mask_foreach(cm,idx,count) \
    idx = 0; \
-@@ -900,10 +907,10 @@ static inline uintptr_t _mi_random_shuffle(uintptr_t x) {
- // Optimize numa node access for the common case (= one node)
- // -------------------------------------------------------------------
+@@ -948,7 +955,6 @@ static inline uintptr_t _mi_random_shuffle(uintptr_t x) {
+ }
  
--int    _mi_os_numa_node_get(void);
--size_t _mi_os_numa_node_count_get(void);
-+mi_decl_internal int    _mi_os_numa_node_get(void);
-+mi_decl_internal size_t _mi_os_numa_node_count_get(void);
  
--extern mi_decl_hidden _Atomic(size_t) _mi_numa_node_count;
-+mi_decl_internal _Atomic(size_t) _mi_numa_node_count;
- static inline int _mi_os_numa_node(void) {
-   if mi_likely(mi_atomic_load_relaxed(&_mi_numa_node_count) == 1) { return 0; }
-   else return _mi_os_numa_node_get();
+-
+ // -----------------------------------------------------------------------
+ // Count bits: trailing or leading zeros (with MI_INTPTR_BITS on all zero)
+ // -----------------------------------------------------------------------
 diff --git a/mimalloc/include/mimalloc/prim.h b/mimalloc/include/mimalloc/prim.h
-index e59e8908..afd4c2e1 100644
+index 12573fed..488c25f8 100644
 --- a/mimalloc/include/mimalloc/prim.h
 +++ b/mimalloc/include/mimalloc/prim.h
 @@ -8,6 +8,11 @@ terms of the MIT license. A copy of the license can be found in the file
@@ -432,7 +434,7 @@ index e59e8908..afd4c2e1 100644
  
  // Allocate OS memory. Return NULL on error.
  // The `try_alignment` is just a hint and the returned pointer does not have to be aligned.
-@@ -46,40 +51,40 @@ int _mi_prim_free(void* addr, size_t size );
+@@ -46,22 +51,22 @@ int _mi_prim_free(void* addr, size_t size );
  // The `hint_addr` address is either `NULL` or a preferred allocation address but can be ignored.
  // pre: !commit => !allow_large
  //      try_alignment >= _mi_os_page_size() and a power of 2
@@ -452,10 +454,15 @@ index e59e8908..afd4c2e1 100644
 -int _mi_prim_decommit(void* addr, size_t size, bool* needs_recommit);
 +mi_prim_internal int _mi_prim_decommit(void* addr, size_t size, bool* needs_recommit);
  
- // Reset memory. The range keeps being accessible but the content might be reset.
+ // Reset memory. The range keeps being accessible but the content might be reset to zero at any moment.
  // Returns error code or 0 on success.
 -int _mi_prim_reset(void* addr, size_t size);
 +mi_prim_internal int _mi_prim_reset(void* addr, size_t size);
+ 
+ // Reuse memory. This is called for memory that is already committed but
+ // may have been reset (`_mi_prim_reset`) or decommitted (`_mi_prim_decommit`) where `needs_recommit` was false.
+@@ -69,22 +74,22 @@ int _mi_prim_reset(void* addr, size_t size);
+ int _mi_prim_reuse(void* addr, size_t size);
  
  // Protect memory. Returns error code or 0 on success.
 -int _mi_prim_protect(void* addr, size_t size, bool protect);
@@ -482,7 +489,7 @@ index e59e8908..afd4c2e1 100644
  
  // Return process information (only for statistics)
  typedef struct mi_process_info_s {
-@@ -93,29 +98,29 @@ typedef struct mi_process_info_s {
+@@ -98,29 +103,29 @@ typedef struct mi_process_info_s {
    size_t      page_faults;
  } mi_process_info_t;
  
@@ -518,22 +525,22 @@ index e59e8908..afd4c2e1 100644
 +mi_prim_internal void _mi_prim_thread_associate_default_heap(mi_heap_t* heap);
  
  
- 
-@@ -273,8 +278,8 @@ static inline void mi_prim_tls_slot_set(size_t slot, void* value) mi_attr_noexce
+ //-------------------------------------------------------------------
+@@ -275,8 +280,8 @@ static inline void mi_prim_tls_slot_set(size_t slot, void* value) mi_attr_noexce
  // defined in `init.c`; do not use these directly
  #ifndef MI_LIBC_BUILD
- extern mi_decl_thread mi_heap_t* _mi_heap_default;  // default heap to allocate from
+ extern mi_decl_hidden mi_decl_thread mi_heap_t* _mi_heap_default;  // default heap to allocate from
 -#endif
- extern bool _mi_process_is_initialized;             // has mi_process_init been called?
+ extern mi_decl_hidden bool _mi_process_is_initialized;             // has mi_process_init been called?
 +#endif
  
  static inline mi_threadid_t _mi_prim_thread_id(void) mi_attr_noexcept;
  
 diff --git a/mimalloc/include/mimalloc/types.h b/mimalloc/include/mimalloc/types.h
-index 5a3f5fe2..3d30cbb1 100644
+index a15d9cba..158367df 100644
 --- a/mimalloc/include/mimalloc/types.h
 +++ b/mimalloc/include/mimalloc/types.h
-@@ -681,11 +681,11 @@ void _mi_assert_fail(const char* assertion, const char* fname, unsigned int line
+@@ -659,11 +659,11 @@ struct mi_tld_s {
  #endif
  
  // add to stat keeping track of the peak
@@ -550,7 +557,7 @@ index 5a3f5fe2..3d30cbb1 100644
  #if (MI_STAT)
  #define mi_stat_increase(stat,amount)         _mi_stat_increase( &(stat), amount)
 diff --git a/mimalloc/src/arena.c b/mimalloc/src/arena.c
-index 01102c27..c44ea18b 100644
+index e97ca885..2aa632f8 100644
 --- a/mimalloc/src/arena.c
 +++ b/mimalloc/src/arena.c
 @@ -99,7 +99,7 @@ bool _mi_arena_memid_is_suitable(mi_memid_t memid, mi_arena_id_t request_arena_i
@@ -629,7 +636,7 @@ index 0f4744f4..46ec8f4e 100644
  
  #endif
 diff --git a/mimalloc/src/init.c b/mimalloc/src/init.c
-index cfed7866..f60d1fbb 100644
+index 95819ecd..d2d1230a 100644
 --- a/mimalloc/src/init.c
 +++ b/mimalloc/src/init.c
 @@ -13,6 +13,9 @@ terms of the MIT license. A copy of the license can be found in the file
@@ -657,30 +664,16 @@ index cfed7866..f60d1fbb 100644
  mi_stats_t _mi_stats_main = { MI_STAT_VERSION, MI_STATS_NULL };
  
  #if MI_GUARDED
-diff --git a/mimalloc/src/os.c b/mimalloc/src/os.c
-index 2472b803..f5f6d025 100644
---- a/mimalloc/src/os.c
-+++ b/mimalloc/src/os.c
-@@ -684,6 +684,9 @@ static void mi_os_free_huge_os_pages(void* p, size_t size) {
- Support NUMA aware allocation
- -----------------------------------------------------------------------------*/
- 
-+#ifdef MI_LIBC_BUILD
-+static
-+#endif
- _Atomic(size_t)  _mi_numa_node_count; // = 0   // cache the node count
- 
- size_t _mi_os_numa_node_count_get(void) {
 diff --git a/mimalloc/src/page.c b/mimalloc/src/page.c
-index 8db2463f..5969fcc4 100644
+index a5a10503..53dd58ae 100644
 --- a/mimalloc/src/page.c
 +++ b/mimalloc/src/page.c
 @@ -112,7 +112,7 @@ static bool mi_page_is_valid_init(mi_page_t* page) {
    return true;
  }
  
--extern bool _mi_process_is_initialized;             // has mi_process_init been called?
-+mi_decl_internal bool _mi_process_is_initialized;             // has mi_process_init been called?
+-extern mi_decl_hidden bool _mi_process_is_initialized;             // has mi_process_init been called?
++mi_decl_internal mi_decl_hidden bool _mi_process_is_initialized;             // has mi_process_init been called?
  
  bool _mi_page_is_valid(mi_page_t* page) {
    mi_assert_internal(mi_page_is_valid_init(page));

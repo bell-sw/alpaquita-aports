@@ -1,4 +1,4 @@
-From 70a5760fb5b0d16666a03b2a78664a363c947c1d Mon Sep 17 00:00:00 2001
+From 7264e01240749f030197d61d46faaf98440cc5e8 Mon Sep 17 00:00:00 2001
 From: q66 <q66@chimera-linux.org>
 Date: Sat, 10 Aug 2024 10:49:11 +0200
 Subject: [PATCH] implement necessary bits for musl integration
@@ -14,7 +14,7 @@ Patch-Source: https://github.com/chimera-linux/cports/blob/master/main/musl/patc
  6 files changed, 39 insertions(+), 5 deletions(-)
 
 diff --git a/mimalloc/include/mimalloc.h b/mimalloc/include/mimalloc.h
-index ff6f0568..7b55a7f9 100644
+index f887278a..813c14b6 100644
 --- a/mimalloc/include/mimalloc.h
 +++ b/mimalloc/include/mimalloc.h
 @@ -60,7 +60,9 @@ terms of the MIT license. A copy of the license can be found in the file
@@ -29,10 +29,10 @@ index ff6f0568..7b55a7f9 100644
    #else
      #define mi_decl_export
 diff --git a/mimalloc/include/mimalloc/prim.h b/mimalloc/include/mimalloc/prim.h
-index bddd66e9..e59e8908 100644
+index 1087d9b8..12573fed 100644
 --- a/mimalloc/include/mimalloc/prim.h
 +++ b/mimalloc/include/mimalloc/prim.h
-@@ -251,6 +251,7 @@ static inline void mi_prim_tls_slot_set(size_t slot, void* value) mi_attr_noexce
+@@ -253,6 +253,7 @@ static inline void mi_prim_tls_slot_set(size_t slot, void* value) mi_attr_noexce
  //-------------------------------------------------------------------
  
  
@@ -40,7 +40,7 @@ index bddd66e9..e59e8908 100644
  // Do we have __builtin_thread_pointer? This would be the preferred way to get a unique thread id
  // but unfortunately, it seems we cannot test for this reliably at this time (see issue #883)
  // Nevertheless, it seems needed on older graviton platforms (see issue #851).
-@@ -265,11 +266,14 @@ static inline void mi_prim_tls_slot_set(size_t slot, void* value) mi_attr_noexce
+@@ -267,11 +268,14 @@ static inline void mi_prim_tls_slot_set(size_t slot, void* value) mi_attr_noexce
      #define MI_USE_BUILTIN_THREAD_POINTER  1
    #endif
  #endif
@@ -50,12 +50,12 @@ index bddd66e9..e59e8908 100644
  
  // defined in `init.c`; do not use these directly
 +#ifndef MI_LIBC_BUILD
- extern mi_decl_thread mi_heap_t* _mi_heap_default;  // default heap to allocate from
+ extern mi_decl_hidden mi_decl_thread mi_heap_t* _mi_heap_default;  // default heap to allocate from
 +#endif
- extern bool _mi_process_is_initialized;             // has mi_process_init been called?
+ extern mi_decl_hidden bool _mi_process_is_initialized;             // has mi_process_init been called?
  
  static inline mi_threadid_t _mi_prim_thread_id(void) mi_attr_noexcept;
-@@ -310,6 +314,13 @@ static inline mi_threadid_t _mi_prim_thread_id(void) mi_attr_noexcept {
+@@ -312,6 +316,13 @@ static inline mi_threadid_t _mi_prim_thread_id(void) mi_attr_noexcept {
    #endif
  }
  
@@ -69,7 +69,7 @@ index bddd66e9..e59e8908 100644
  #else
  
  // otherwise use portable C, taking the address of a thread local variable (this is still very fast on most platforms).
-@@ -404,6 +415,13 @@ static inline mi_heap_t* mi_prim_get_default_heap(void) {
+@@ -406,6 +417,13 @@ static inline mi_heap_t* mi_prim_get_default_heap(void) {
    return (mi_unlikely(heap == NULL) ? (mi_heap_t*)&_mi_heap_empty : heap);
  }
  
@@ -97,7 +97,7 @@ index 0fed5e75..e955c925 100644
    return NULL;
  }
 diff --git a/mimalloc/src/init.c b/mimalloc/src/init.c
-index ddded152..cfed7866 100644
+index 3fc8b033..95819ecd 100644
 --- a/mimalloc/src/init.c
 +++ b/mimalloc/src/init.c
 @@ -146,7 +146,9 @@ mi_threadid_t _mi_thread_id(void) mi_attr_noexcept {
@@ -110,7 +110,7 @@ index ddded152..cfed7866 100644
  
  extern mi_decl_hidden mi_heap_t _mi_heap_main;
  
-@@ -558,6 +560,9 @@ void _mi_heap_set_default_direct(mi_heap_t* heap)  {
+@@ -548,6 +550,9 @@ void _mi_heap_set_default_direct(mi_heap_t* heap)  {
    *mi_prim_tls_pthread_heap_slot() = heap;
    #elif defined(MI_TLS_PTHREAD)
    // we use _mi_heap_default_key
@@ -120,9 +120,9 @@ index ddded152..cfed7866 100644
    #else
    _mi_heap_default = heap;
    #endif
-@@ -589,7 +594,7 @@ mi_decl_nodiscard bool mi_is_redirected(void) mi_attr_noexcept {
+@@ -579,7 +584,7 @@ mi_decl_nodiscard bool mi_is_redirected(void) mi_attr_noexcept {
  // Called once by the process loader from `src/prim/prim.c`
- void _mi_process_load(void) {
+ void _mi_auto_process_init(void) {
    mi_heap_main_init();
 -  #if defined(__APPLE__) || defined(MI_TLS_RECURSE_GUARD)
 +  #if !defined(MI_LIBC_BUILD) && (defined(__APPLE__) || defined(MI_TLS_RECURSE_GUARD))
@@ -130,7 +130,7 @@ index ddded152..cfed7866 100644
    if (dummy == NULL) return;                    // use dummy or otherwise the access may get optimized away (issue #697)
    #endif
 diff --git a/mimalloc/src/options.c b/mimalloc/src/options.c
-index 4759e0b0..1a1fb0ee 100644
+index af2a0e70..428fc27e 100644
 --- a/mimalloc/src/options.c
 +++ b/mimalloc/src/options.c
 @@ -403,6 +403,7 @@ static void mi_add_stderr_output(void) {
@@ -154,12 +154,12 @@ index 4759e0b0..1a1fb0ee 100644
 +#endif
  
  static bool mi_recurse_enter(void) {
-   #if defined(__APPLE__) || defined(MI_TLS_RECURSE_GUARD)
+   #if defined(__APPLE__) || defined(__ANDROID__) || defined(MI_TLS_RECURSE_GUARD)
 diff --git a/mimalloc/src/prim/unix/prim.c b/mimalloc/src/prim/unix/prim.c
-index ad6ca2a9..8293806a 100644
+index 650aa657..b4238b9e 100644
 --- a/mimalloc/src/prim/unix/prim.c
 +++ b/mimalloc/src/prim/unix/prim.c
-@@ -239,7 +239,8 @@ static void* unix_mmap_prim_aligned(void* addr, size_t size, size_t try_alignmen
+@@ -241,7 +241,8 @@ static void* unix_mmap_prim_aligned(void* addr, size_t size, size_t try_alignmen
      // fall back to regular mmap
    }
    #endif
@@ -169,7 +169,7 @@ index ad6ca2a9..8293806a 100644
    // on 64-bit systems, use the virtual address area after 2TiB for 4MiB aligned allocations
    if (addr == NULL) {
      void* hint = _mi_os_get_aligned_hint(try_alignment, size);
-@@ -861,7 +862,7 @@ bool _mi_prim_random_buf(void* buf, size_t buf_len) {
+@@ -888,7 +889,7 @@ bool _mi_prim_random_buf(void* buf, size_t buf_len) {
  // Thread init/done
  //----------------------------------------------------------------
  
