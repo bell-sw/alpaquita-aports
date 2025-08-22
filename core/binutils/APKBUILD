@@ -9,6 +9,7 @@ pkgdesc="GNU tools for programs building"
 url="https://www.gnu.org/software/binutils/"
 makedepends_build="bison flex texinfo linux-headers"
 makedepends_host="zlib-dev"
+checkdepends="dejagnu"
 arch="all"
 license="GPL-2.0-or-later AND LGPL-2.1-or-later AND BSD-3-Clause"
 subpackages="$pkgname-dev $pkgname-doc"
@@ -18,7 +19,6 @@ source="https://ftp.gnu.org/gnu/binutils/binutils-$pkgver.tar.xz
 	binutils-ld-fix-static-linking.patch
 	s390x-pie.patch
 	"
-options="!check"
 builddir="$srcdir/$pkgname-$pkgver"
 
 if [ "$CBUILD" = "$CTARGET" ]; then
@@ -176,6 +176,18 @@ _configure() {
 		--with-pic \
 		--with-system-zlib
 	make configure-host configure-target
+}
+
+check() {
+	(
+		# A 'replacing_non_deterministic_member' test from 'ar.exp'
+		# expects SOURCE_DATE_EPOCH to not be set in the environment.
+		unset SOURCE_DATE_EPOCH
+
+		# for now run tests only from the 'binutils' subdirectory
+		make -C "$srcdir/build-$CTARGET_ARCH/binutils" \
+			RUNTESTFLAGS='--all --log_dialog' check
+	)
 }
 
 package() {
