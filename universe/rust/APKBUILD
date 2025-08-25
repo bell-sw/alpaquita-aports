@@ -108,7 +108,6 @@ source="https://static.rust-lang.org/dist/rustc-$pkgver-src.tar.xz
 	check-rustc
 
 	0100-Add-Alpaquita-targets.patch
-	0101-fno-stack-protector.patch
 	"
 builddir="$srcdir/rustc-$pkgver-src"
 
@@ -172,10 +171,6 @@ _unpack_build_dist() {
 }
 
 build() {
-	# Fixing checksum after 0101-fno-stack-protector.patch
-	sed -i -e 's/"files":{[^}]*}/"files":{}/' \
-		vendor/compiler_builtins-*/.cargo-checksum.json
-
 	local extra_conf_opts=
 
 	export PATH="/usr/lib/llvm$_llvmver/bin:$PATH"
@@ -572,5 +567,4 @@ b283d31cc8d6559aa639d44f776e97c2a1e0f23c717b6784e549861b881555bd467fa6023180866a
 f3ddb29ef6055eae2112836242123eb2d2643662827a38c789d608526dc15201fe6b2e1f32a4023b86a89831497045910ca5b0f0b831e78d080169c3ef60abd5  system-uefi-ld.patch
 c31fdfe8a9b3411576c75da46645cf0465b9053000a2ab49cf9b2f2733f679d6d33acbf236d67a20e14935d094a685453b7f1840180249f39d610fd0902c3125  check-rustc
 ccfbcc91b01a1488f944b2a77b9d9f430f79d8839f9d483639714838e263fd8277a54f9855faf752bf617f47550c64be5e55c4dfbf7fa21293500f26f1309306  0100-Add-Alpaquita-targets.patch
-31c8c0b440ed1d6c563c6213812e851a2ad5a0e44451f57712292ff3b4e3edc3486f502dc096353ad3dcac3b440afd6ed70deeb2e8272501928a339a5615689a  0101-fno-stack-protector.patch
 "
