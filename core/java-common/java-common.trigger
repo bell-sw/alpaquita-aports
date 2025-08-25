@@ -51,7 +51,9 @@ if [ -x $jvmpath/forced-jvm ]; then
 fi
 
 # update default-jvm symlink (the newly installed jvm becomes latest)
-latest=$(find $jvmpath -maxdepth 1 -type d -a -not -path $jvmpath -exec stat -c '%Y,%n' {} \; \
+latest=$(find $jvmpath -maxdepth 1 -type d -a -not -path $jvmpath \
+	-exec test -x '{}/bin/java' \; \
+	-exec stat -c '%Y,%n' {} \; \
 	| sort -rn | head -1 | cut -f2- -d,)
 if [ "$latest" ]; then
 	ln -sfn $latest default-jvm
