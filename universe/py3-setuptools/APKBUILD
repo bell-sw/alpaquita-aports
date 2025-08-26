@@ -3,7 +3,7 @@
 pkgname=py3-setuptools
 _pkgname=${pkgname#py3-}
 pkgver=70.3.0
-pkgrel=0
+pkgrel=1
 pkgdesc="Collection of enhancements to the Python3 distutils"
 options="!check" # Tests require packages out of main/
 url="https://pypi.python.org/pypi/setuptools"
@@ -23,7 +23,10 @@ depends="
 # 	python3
 # 	"
 makedepends="py3-setuptools-stage0"
-source="$_pkgname-$pkgver.tar.gz::https://github.com/pypa/$_pkgname/archive/v$pkgver.tar.gz"
+source="$_pkgname-$pkgver.tar.gz::https://github.com/pypa/$_pkgname/archive/v$pkgver.tar.gz
+
+	0100-CVE-2025-47273.patch
+	"
 builddir="$srcdir"/$_pkgname-$pkgver
 
 provides="py-setuptools=$pkgver-r$pkgrel" # Backwards compatibility
@@ -40,6 +43,8 @@ fi
 export SETUPTOOLS_INSTALL_WINDOWS_SPECIFIC_FILES=0
 
 # secfixes:
+#   70.3.0-r1:
+#     - CVE-2025-47273
 #   70.3.0-r0:
 #     - CVE-2024-6345
 
@@ -86,4 +91,5 @@ package() {
 
 sha512sums="
 59d06f544b5e27b1a47d94b6a775118507317b166bef703bd0ad7ec60311ebf78b2c7f906783496f34adea3dfe57553b37cf913456c9b7261e3ed28ae975717b  setuptools-70.3.0.tar.gz
+efe2743a011d8820ca927308766fd0fd205d9f2e1ca8c76f4c3e0036a7d4df966f2111a1a06fd7e6ed4090422b06a91e1ff7cd8253b54acd7b58aa871058a2b2  0100-CVE-2025-47273.patch
 "
