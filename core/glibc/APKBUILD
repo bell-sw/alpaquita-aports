@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.39.0
-pkgrel=4
+pkgrel=5
 _glibcver=${pkgver%.*}
 _patch_ver="glibc-2.39-212-gb027d5b145"
 pkgdesc="GNU C Library"
@@ -32,6 +32,7 @@ subpackages="
 	$pkgname-locales::noarch
 	$pkgname-doc
 	$pkgname-dev
+	$pkgname-gconv-extra:gconv_extra
 "
 
 # secfixes:
@@ -246,6 +247,25 @@ dev() {
 	fi
 
 	${CROSS_COMPILE}strip --strip-debug "$subpkgdir"/usr/lib/*crt*.o
+}
+
+gconv_extra() {
+	pkgdesc="$pkgdesc (extra gconv modules)"
+
+	local conf_dir_path="usr/lib/gconv/gconv-modules.d"
+	local conf_path="${conf_dir_path}/gconv-modules-extra.conf"
+
+	awk '/^module/ {print $4}' "${pkgdir}/${conf_path}" | sort -u |
+		while read -r mod; do
+			amove usr/lib/gconv/"${mod}.so"
+		done
+	# These .so are dependencies of certain extra gconv modules.
+	# Details are in iconvdata/Makefile in glibc sources
+	for mod in libCNS libGB libISOIR165 libJIS libJISX0213 libKSC; do
+		amove usr/lib/gconv/"${mod}.so"
+	done
+	install -dm755 "${subpkgdir}/${conf_dir_path}"
+	mv "${pkgdir}/${conf_path}" "${subpkgdir}/${conf_dir_path}"
 }
 
 sha512sums="
