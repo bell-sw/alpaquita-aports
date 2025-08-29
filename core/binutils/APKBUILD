@@ -9,6 +9,7 @@ url="https://www.gnu.org/software/binutils/"
 makedepends_build="bison flex texinfo linux-headers"
 makedepends_host="zlib-dev"
 makedepends="$makedepends_build $makedepends_host"
+checkdepends="dejagnu"
 arch="all"
 license="GPL-2.0-or-later AND LGPL-2.1-or-later AND BSD-3-Clause"
 subpackages="$pkgname-dev $pkgname-doc"
@@ -139,6 +140,11 @@ build() {
 		--with-mmap \
 		--with-system-zlib
 	make
+}
+
+check() {
+	# for now run tests only from the 'binutils' subdirectory
+	make -C binutils RUNTESTFLAGS='--all --log_dialog' check
 }
 
 package() {
