@@ -4,7 +4,7 @@
 pkgname=ncurses
 pkgver=6.3_p20221119
 _pkgver=${pkgver/_p/-}
-pkgrel=1
+pkgrel=2
 pkgdesc="Shared libraries for terminal handling"
 url="https://invisible-island.net/ncurses/"
 arch="all"
@@ -24,10 +24,14 @@ source="https://invisible-mirror.net/archives/ncurses/archive/ncurses-$_pkgver.t
 	xterm-kitty-$_kitty_ver::https://github.com/kovidgoyal/kitty/raw/v$_kitty_ver/terminfo/x/xterm-kitty
 	fix-configure-root-args-option.patch
 	root-environ-only-setuid.patch
+
+	0100-CVE-2025-6141.patch
 	"
 builddir="$srcdir/$pkgname-$_pkgver"
 
 # secfixes:
+#   6.3_p20221119-r2:
+#     - CVE-2025-6141
 #   6.3_p20221119-r1:
 #     - CVE-2023-29491
 #   6.3_p20220416-r0:
@@ -174,4 +178,5 @@ sha512sums="
 76da551cffa16313933310c71eb7363ef0e35e14cd9c4547f5130484e0001195d2fad08978c9369e2519958c799226ebe14d6018b837bf6c6d75f2ad114cf9ba  xterm-kitty-0.25.2
 a075e0f0ed1778466f8da58bed279f5603ce3676afeb5345c228d4c89a42a28755d6a6f9ddcce5c4a364e6b020bf021a8aa63802fa781829c63ef0fdb9fd41c1  fix-configure-root-args-option.patch
 cd0bcf43cb8bc54b2a0189ae20b106a8545e6e3008782f1faa9ea341ac8b05305f5870d6217dbd33009876d32ce3dcc14fc454df4be234187528db27d1351432  root-environ-only-setuid.patch
+64027aa14ba9f4b8d418d0b53bf11036e8a4202287a9aa1abaa75f2858c1f19bbe4a7764f241d26325a7170318cf97066dd2fe1a5221c9cb8f213d2116c6f4e0  0100-CVE-2025-6141.patch
 "
