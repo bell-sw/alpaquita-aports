@@ -1,0 +1,31 @@
+From 644249a07013ecc941927bd4799adad995adb571 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Mon, 8 Sep 2025 12:53:38 +0000
+Subject: [PATCH] make prctl() non-fatal and return EACCES instead
+
+musl-perf allocator (mimalloc) can tag memory via prctl(PR_SET_VMA,
+PR_SET_VMA_ANON_NAME,...). If that returns EACCES, the library just
+skips the feature.
+
+Otherwise, the sshd child process may crash by SIGSYS.
+---
+ sandbox-seccomp-filter.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/sandbox-seccomp-filter.c b/sandbox-seccomp-filter.c
+index b31062c2b..d33a80d28 100644
+--- a/sandbox-seccomp-filter.c
++++ b/sandbox-seccomp-filter.c
+@@ -236,6 +236,9 @@ static const struct sock_filter preauth_insns[] = {
+ #ifdef __NR_newfstatat
+ 	SC_DENY(__NR_newfstatat, EACCES),
+ #endif
++#ifdef __NR_prctl
++	SC_DENY(__NR_prctl, EACCES),
++#endif
+ #ifdef __NR_stat
+ 	SC_DENY(__NR_stat, EACCES),
+ #endif
+-- 
+2.25.1
+
