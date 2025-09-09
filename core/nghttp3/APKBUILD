@@ -1,0 +1,39 @@
+pkgname=nghttp3
+pkgver=1.9.0
+pkgrel=0
+pkgdesc="HTTP/3 library written in C"
+url="https://github.com/ngtcp2/nghttp3"
+arch="all"
+license="MIT"
+makedepends="cmake samurai"
+subpackages="$pkgname-static $pkgname-dev"
+source="https://github.com/ngtcp2/nghttp3/releases/download/v$pkgver/nghttp3-$pkgver.tar.gz"
+
+build() {
+	local crossopts=
+	if [ "$CBUILD" != "$CHOST" ]; then
+		crossopts="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+	cmake -G Ninja -B build \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_SHARED_LIBS=True \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		$crossopts .
+	cmake --build build
+}
+
+check() {
+	cmake --build build --target check
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+
+	# Contains just README.rst.
+	rm -rf "$pkgdir"/usr/share/doc
+}
+
+sha512sums="
+54799f5ed453f1e0d73f9e93fe25edd60674217f0c41c5d26699700bb13d974d8ff3496f5dece9f63a45018a5396553a439e749441f721c0331974400c24e3f0  nghttp3-1.9.0.tar.gz
+"
