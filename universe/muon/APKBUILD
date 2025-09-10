@@ -1,0 +1,123 @@
+pkgname=muon
+pkgver=0.5.0
+pkgrel=0
+pkgdesc="Meson-compatible build system"
+url="https://muon.build"
+arch="all"
+license="GPL-3.0-only AND Apache-2.0"
+depends="samurai"
+makedepends="
+	curl-dev
+	libarchive-dev
+	linux-headers
+	pkgconf-dev
+	py3-yaml
+	scdoc
+	"
+subpackages="
+	$pkgname-doc
+	$pkgname-wrap
+	abuild-muon:_abuild_helper:noarch
+	"
+source="https://muon.build/releases/v$pkgver/muon-v$pkgver.tar.gz
+	pkgconfig-gen-test.patch
+	test-using-samurai.patch
+	abuild-muon
+	"
+builddir="$srcdir/muon-v$pkgver"
+
+prepare() {
+	default_prepare
+
+	# workaround "wrap downloading disabled" error when -Dmeson-tests/docs=enabled
+	mv -v subprojects/meson-tests.wrap subprojects/meson-tests.wrap2
+	mv -v subprojects/meson-docs.wrap subprojects/meson-docs.wrap2
+
+	# copy meson-tests to allow running tests for both muon and muon-wrap
+	cp -a subprojects/meson-tests subprojects/meson-tests.orig
+}
+
+build() {
+	CFLAGS=-DBOOTSTRAP_NO_SAMU ./bootstrap.sh build-boot
+	build-boot/muon-bootstrap setup \
+		-Dauto_features=disabled \
+		-Dwrap_mode=nodownload \
+		-Dlibcurl=disabled \
+		-Dlibarchive=disabled \
+		-Dlibpkgconf=enabled \
+		-Dsamurai=disabled \
+		-Dtracy=disabled \
+		-Dman-pages=disabled \
+		-Dmeson-docs=disabled \
+		-Dmeson-tests=disabled \
+		-Dwebsite=disabled \
+		build-boot
+	samu -C build-boot
+
+	PATH="$PATH:$builddir/build-boot" \
+	../abuild-muon \
+		-Dlibcurl=disabled \
+		-Dlibarchive=disabled \
+		-Dlibpkgconf=enabled \
+		-Dsamurai=disabled \
+		-Dtracy=disabled \
+		-Dman-pages=disabled \
+		-Dmeson-docs=disabled \
+		-Dmeson-tests="$(want_check && echo enabled || echo disabled)" \
+		-Dwebsite=disabled \
+		build .
+	samu -C build
+
+	PATH="$PATH:$builddir/build" \
+	../abuild-muon \
+		-Dlibcurl=enabled \
+		-Dlibarchive=enabled \
+		-Dlibpkgconf=enabled \
+		-Dsamurai=disabled \
+		-Dtracy=disabled \
+		-Dman-pages=enabled \
+		-Dmeson-docs=enabled \
+		-Dmeson-tests="$(want_check && echo enabled || echo disabled)" \
+		-Dwebsite=disabled \
+		build-wrap .
+	samu -C build-wrap
+}
+
+check() {
+	local d; for d in build-wrap build; do
+		$d/muon -C $d test -j "${JOBS:-0}" -R -d dots
+		rm -r subprojects/meson-tests
+		cp -a subprojects/meson-tests.orig subprojects/meson-tests
+	done
+}
+
+package() {
+	DESTDIR="$pkgdir" build/muon -C build-wrap install
+	DESTDIR="$pkgdir" build/muon -C build install
+
+	install -Dvm755 "$srcdir"/abuild-muon -t "$pkgdir"/usr/bin/
+}
+
+wrap() {
+	pkgdesc="$pkgdesc (with wrap-file support)"
+	provides="muon=0"
+	replaces="muon"
+
+	install -Dvm755 "$builddir"/build-wrap/muon -t "$subpkgdir"/usr/bin/
+}
+
+_abuild_helper() {
+	pkgdesc="$pkgdesc (abuild helper)"
+	depends="cmd:$pkgname=$pkgver-r$pkgrel abuild"
+	install_if="cmd:$pkgname=$pkgver-r$pkgrel abuild"
+
+	amove usr/bin/abuild-muon
+}
+
+
+sha512sums="
+1575aa928b88fd5f17c1cdf9f46359b4dde407ec11800813eb1c9d4b4a4d201f6ee0a715d2e6f693bf6dda63073980a7207086d4195e51eda96dd27af3319078  muon-v0.5.0.tar.gz
+e1da901efb5e54cce7bf3a8f9546f0701395d5ad7a4d717e5ab16d685b6d5b59310710228eb85f2f0a8eea58c500cc1b5049c9c32be5d0f4613cb7deb4827536  pkgconfig-gen-test.patch
+fd4f8dea989f3ab4187c9255d21f5c492c3040ec61be3ca06947679caee44030f14d52ea6fde95c127c4589f0c72ffd5d25da9d673c1d29bab217b4e3c6c69cb  test-using-samurai.patch
+a11018204f29b9a6d5fb7871872e8f360290b4fb5a9208a105d75776ae6e43e7b586d6cf56557f63cebe206880a20e5a5b0ca7860737cd74da855fd39c286e5e  abuild-muon
+"
