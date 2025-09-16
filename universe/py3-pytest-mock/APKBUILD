@@ -1,6 +1,6 @@
 pkgname=py3-pytest-mock
 pkgver=3.10.0
-pkgrel=3
+pkgrel=4
 pkgdesc="Thin-wrapper around the mock package for easier use with py.test"
 options="!check" # Fails
 url="https://github.com/pytest-dev/pytest-mock"
@@ -11,6 +11,7 @@ depends="
 	py3-pytest
 	"
 makedepends="
+	py3-gpep517
 	py3-setuptools
 	py3-setuptools_scm
 	"
@@ -22,7 +23,9 @@ replaces="pytest-mock" # Backwards compatibility
 provides="pytest-mock=$pkgver-r$pkgrel" # Backwards compatibility
 
 build() {
-	python3 setup.py build
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
 }
 
 check() {
@@ -30,7 +33,8 @@ check() {
 }
 
 package() {
-	python3 setup.py install --skip-build --root="$pkgdir"
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
 }
 
 sha512sums="
