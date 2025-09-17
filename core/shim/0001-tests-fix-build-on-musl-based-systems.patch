@@ -1,0 +1,140 @@
+From 24ce715dc06c0d256e6c4383a46103c9d69a4d41 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Fri, 19 Sep 2025 08:27:04 +0000
+Subject: [PATCH] tests: fix build on musl-based systems
+
+Musl libc does not provide the backtrace functions in its implementation.
+These functions are typically provided by glibc's <execinfo.h>.
+
+As a fallback for musl-based systems, support linking against the external
+libunwind library and using dladdr() to obtain similar stack trace info.
+
+Note that the usage of dladdr() is similar to that of backtrace_symbols in
+glibc, and it can be used with glibc as well.
+
+Signed-off-by: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+---
+ include/test.mk     |  9 ++++++++-
+ test-load-options.c |  1 -
+ test.c              | 46 ++++++++++++++++++++++++++++++++++-----------
+ 3 files changed, 43 insertions(+), 13 deletions(-)
+
+diff --git a/include/test.mk b/include/test.mk
+index 93e3818..ddb0575 100644
+--- a/include/test.mk
++++ b/include/test.mk
+@@ -13,6 +13,8 @@ DEBUG_PRINTS ?= 0
+ OPTIMIZATIONS=-O2 -ggdb
+ CFLAGS_LTO =
+ CFLAGS_GCOV =
++LIBS = -lefivar
++
+ CFLAGS = $(OPTIMIZATIONS) -std=gnu11 \
+ 	 -isystem $(TOPDIR)/include/system \
+ 	 $(EFI_INCLUDES) \
+@@ -46,6 +48,11 @@ CFLAGS = $(OPTIMIZATIONS) -std=gnu11 \
+ 	 -DSHIM_UNIT_TEST \
+ 	 "-DDEFAULT_DEBUG_PRINT_STATE=$(DEBUG_PRINTS)"
+ 
++ifneq ($(origin ENABLE_LIBUNWIND), undefined)
++CFLAGS += -DENABLE_LIBUNWIND
++LIBS += -lunwind
++endif
++
+ # On some systems (e.g. Arch Linux), limits.h is in the "include-fixed" instead
+ # of the "include" directory
+ CFLAGS += -isystem $(shell $(CC) $(ARCH_CFLAGS) -print-file-name=include-fixed)
+@@ -109,7 +116,7 @@ tests := $(patsubst %.c,%,$(wildcard test-*.c))
+ $(tests) :: test-% : | libefi-test.a
+ 
+ $(tests) :: test-% : test.c test-%.c $(test-%_FILES)
+-	$(CC) $(CFLAGS) -o $@ $(sort $^ $(wildcard $*.c) $(test-$*_FILES)) libefi-test.a -lefivar
++	$(CC) $(CFLAGS) -o $@ $(sort $^ $(wildcard $*.c) $(test-$*_FILES)) libefi-test.a $(LIBS)
+ 	$(VALGRIND) ./$@
+ 
+ test : $(tests)
+diff --git a/test-load-options.c b/test-load-options.c
+index dfabe86..de22c55 100644
+--- a/test-load-options.c
++++ b/test-load-options.c
+@@ -14,7 +14,6 @@
+ 
+ #include "shim.h"
+ 
+-#include <execinfo.h>
+ #include <stdio.h>
+ #include <efivar/efivar.h>
+ 
+diff --git a/test.c b/test.c
+index c7978fa..e64e8ec 100644
+--- a/test.c
++++ b/test.c
+@@ -6,10 +6,20 @@
+ 
+ #include "shim.h"
+ 
+-#include <execinfo.h>
+ #include <stdio.h>
+ #include <string.h>
+ 
++#if defined(ENABLE_LIBUNWIND)
++#include <stddef.h>
++#include <dlfcn.h>
++/* no backtrace() prototype in libunwind.h, however the library adds the symbol */
++extern int backtrace(void **buffer, int size);
++#elif defined(__GLIBC__)
++#include <execinfo.h>
++#else
++static int backtrace(void **buffer, int size) { (void)buffer; (void)size; return 0; }
++#endif
++
+ #define BT_BUF_SIZE (4096/sizeof(void *))
+ 
+ static void *frames[BT_BUF_SIZE] = { 0, };
+@@ -20,19 +30,33 @@ int debug = DEFAULT_DEBUG_PRINT_STATE;
+ void
+ print_traceback(int skip)
+ {
+-	int nptrs;
+-	char **strings;
+-
+-	nptrs = backtrace(frames, BT_BUF_SIZE);
+-	if (nptrs < skip)
++	int nptrs = backtrace(frames, BT_BUF_SIZE);
++	if (nptrs <= skip)
+ 		return;
+ 
+-	strings = backtrace_symbols(frames, nptrs);
+-	for (int i = skip; strings != NULL && i < nptrs; i++) {
+-		printf("%p %s\n", (void *)frames[i], strings[i]);
++#if defined(ENABLE_LIBUNWIND)
++	for (int i = skip; i < nptrs; ++i) {
++		void *addr = frames[i];
++		Dl_info dlinfo;
++
++		if (!dladdr(addr, &dlinfo)) {
++			printf("%p\n", addr);
++			continue;
++		}
++
++		ptrdiff_t offset = addr - dlinfo.dli_saddr;
++		printf("%p %s(%s%c%#tx)\n", addr,
++			dlinfo.dli_fname ?: "",
++			dlinfo.dli_sname ?: "",
++			offset < 0 ? '-' : '+',
++			offset < 0 ? -offset : offset);
+ 	}
+-	if (strings)
+-		free(strings);
++#elif defined(__GLIBC__)
++	char **strings = backtrace_symbols(frames, nptrs);
++	for (int i = skip; strings != NULL && i < nptrs; i++)
++		printf("%p %s\n", (void *)frames[i], strings[i]);
++	free(strings);
++#endif
+ }
+ 
+ #pragma GCC diagnostic ignored "-Wunused-parameter"
+-- 
+2.25.1
+

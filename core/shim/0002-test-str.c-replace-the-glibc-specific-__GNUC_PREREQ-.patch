@@ -1,0 +1,38 @@
+From 6f6e71c2a805eb7318b8d99218069b5c9d42d717 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Fri, 19 Sep 2025 09:35:31 +0000
+Subject: [PATCH] test-str.c: replace the glibc-specific __GNUC_PREREQ with
+ GNUC_PREREQ
+
+GNUC_PREREQ macro is provided by shim.h and implements the same functionality.
+
+Signed-off-by: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+---
+ test-str.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/test-str.c b/test-str.c
+index 30f8dd0..e2c55b5 100644
+--- a/test-str.c
++++ b/test-str.c
+@@ -931,7 +931,7 @@ test_strncpy(void)
+ 
+ 	memset(s0, 0, sizeof(s0));
+ 	memcpy(s0, s, sizeof(s));
+-#if __GNUC_PREREQ(8, 1)
++#if GNUC_PREREQ(8, 1)
+ # pragma GCC diagnostic push
+ # pragma GCC diagnostic ignored "-Wstringop-truncation"
+ #endif
+@@ -1033,7 +1033,7 @@ test_strncpy(void)
+ 	assert_equal_return(s1[16], '\000', -1, "got %#02hhx expected %02hhx\n");
+ 	assert_equal_return(s1[17], '0', -1, "got %#02hhx expected %02hhx\n");
+ 	assert_equal_return(s1[18], '1', -1, "got %#02hhx expected %02hhx\n");
+-#if __GNUC_PREREQ(8, 1)
++#if GNUC_PREREQ(8, 1)
+ # pragma GCC diagnostic pop
+ #endif
+ 	return 0;
+-- 
+2.25.1
+
