@@ -195,17 +195,27 @@ options="net" # Required for running tests
 #   0:
 #     - CVE-2021-22897
 
-build() {
-	local cross_configure=
+_build() {
+	local new_builddir=$1
+	local extra_configure=$2
+
+	mkdir -p "$new_builddir"
+	cd "$new_builddir"
 
 	# the ca-cert path detection is skipped when cross-compiling
 	[ "$CBUILD" != "$CHOST" ] \
-		&& cross_configure='--with-ca-bundle=/etc/ssl/certs/ca-certificates.crt'
+		&& extra_configure="$extra_configure --with-ca-bundle=/etc/ssl/certs/ca-certificates.crt"
 
-	./configure \
+	msg "Building the following:"
+	echo ""
+	echo "  new_builddir=$new_builddir"
+	echo "  extra_configure=$extra_configure"
+	echo ""
+
+	"$builddir"/configure \
 		--build=$CBUILD \
 		--host=$CHOST \
-		$cross_configure \
+		$extra_configure \
 		--prefix=/usr \
 		--enable-ipv6 \
 		--enable-unix-sockets \
@@ -227,11 +237,29 @@ build() {
 	fi
 }
 
+build() {
+	_build "$srcdir/build"
+	# we need a debug-enabled curl to be able to run WebSockets tests
+	_build "$srcdir/build-debug" '--enable-debug'
+}
+
+_check() {
+	local new_builddir=$1
+	local extra_tflags=$2
+
+	cd "$new_builddir"
+
+	make -C tests TFLAGS="$extra_tflags" nonflaky-test
+}
+
 check() {
-	make -C tests nonflaky-test
+	_check "$srcdir/build"
+	_check "$srcdir/build-debug" 'WebSockets'
 }
 
 package() {
+	cd "$srcdir/build"
+
 	make install DESTDIR="$pkgdir"
 	if [ -z "$BOOTSTRAP" ]; then
 		install -Dm644 scripts/_curl -t \
