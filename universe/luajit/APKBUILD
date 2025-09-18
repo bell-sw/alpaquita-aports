@@ -2,7 +2,7 @@ pkgname=luajit
 _pkgname=luajit2
 pkgver=2.1_p20210510
 _pkgver=${pkgver/_p/-}
-pkgrel=3
+pkgrel=4
 _gitrev_tests=485311ff265763c2aecce155ad697a974838857c
 pkgdesc="OpenResty's branch of LuaJIT"
 url="https://github.com/openresty/luajit2"
@@ -27,8 +27,15 @@ source="https://github.com/openresty/luajit2/archive/v$_pkgver/$_pkgname-$_pkgve
 	0001-load-libz-to-fix-test-on-glibc.patch
 
 	glibc:0100-glibc-fix-tests.patch
+	0101-CVE-2024-25177.patch
+	0102-CVE-2024-25176.patch
 	"
 builddir="$srcdir/$_pkgname-$_pkgver"
+
+# secfixes:
+#   2.1_p20210510-r4:
+#     - CVE-2024-25176
+#     - CVE-2024-25177
 
 prepare() {
 	cp -Rl ../luajit2-test-suite-$_gitrev_tests test-suite
@@ -86,4 +93,6 @@ c94b2c000f923f53bab88f5f90da74b3ac813fcf153d989a03b816654a26c5d50b7e5a2a70a86a0e
 9c6c410e142838c5128c70570e66beb53cc5422df5ecfb8ab0b5f362637b21ab5978c00f19bc1759165df162fd6438a2ed43e25020400011b7bb14014d87c62e  module-paths.patch
 e1893f51b22babffd8d794a56b419044473d1a01fde2a81d4904a638807ce852a2cd4782cc1caa0bbba075e14e85d8b3a11867335953a31e893daca64b1b1d65  0001-load-libz-to-fix-test-on-glibc.patch
 0cd6e87778f29ea36051f4e60e8e5eafa7ca9971ad10fdcbd8df49ce11a031fb3d23cb1d0727c66199ca72049314a6145571e63da4b3ef5ffb5a9515509f5a34  0100-glibc-fix-tests.patch
+70bc48356eb12796d844305f0aa9f1130bd6c6c3e43e484f771c4ab208dee7774f99a244212da1c372bdf4292bcdecd85ae8ed3a03e138e3f21849068dc8d7b0  0101-CVE-2024-25177.patch
+32653378bcd3d25500bc416230d0357583cc926ffe3a9646b6c06fa19d419ca54ebd085383b1b7c84780c76c84afa1b3053e11a51b0ee414e599cb3e558c72b4  0102-CVE-2024-25176.patch
 "
