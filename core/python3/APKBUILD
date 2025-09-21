@@ -3,7 +3,7 @@
 
 pkgname=python3
 # the python3-tkinter's pkgver needs to be synchronized with this.
-pkgver=3.12.13
+pkgver=3.14.0
 _basever="${pkgver%.*}"
 pkgrel=1
 pkgdesc="Python programming language"
@@ -46,8 +46,8 @@ makedepends="
 source="https://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz
 	externally-managed
 	musl:musl-find_library.patch
-	musl:test_posix-nodev-disable.patch
-	fix-run_fileexflags-test.patch
+	s390x-c-stack-size.patch
+
 
 	0100-test_urllib-skip-test_url_host_with_-test-cases.patch
 	0101-Unset-BASH_XTRACEFD-in-tests.patch
@@ -324,11 +324,10 @@ pyc2() {
 }
 
 sha512sums="
-e1eb66f0b34581f0155e3ce25ba72cf0b4b1107672ed0ad3e86bcfe616945c9204c41ffc492f32b1066b9154913ff88343038967ad8711dd05e6f2332fdb735b  Python-3.12.13.tar.xz
+46e9e205c3a084cba68bf7f267ab2fd0862a05430165e0eb713f2d6b3a1a4452f72f563de5de55caea824be9df56f66dd568f4814941667a9bb0954229772c53  Python-3.14.0.tar.xz
 46dd8230ee2ab66e9c4157c10b2bd9c414fd7f30be0bee73e21a9eea88f63fff362d47828e0fc77ddc59df097b414b21505f8b5f98bc866381115c58ae3f4862  externally-managed
 ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e960c4889568d25753b9e4a1494834fea48291b33f07000ec2  musl-find_library.patch
-606cf7b3df0c81c90571c6bc65e4f07e065867739fa0d36e9c8e1ad2d6bcd64d265f90c4a7881880fc7e0c85eed94d1f72655a5c70d92ca63e5cc4bd3be8f145  test_posix-nodev-disable.patch
-0e1155b1976be46d68fe50161b9644ac272d95c51f44ada51a0fd67a0154df89833752e97cfc85e977b384fca82b58907c30405a103f3a33a1483b9f76ce632f  fix-run_fileexflags-test.patch
+29ed51cbdc30b7e40e517b02854ebce891e865e2a9a4755d2d8be70ad3973205766b6019a2761e20839ccbea979cd7f5311b7dd2b97b494fe1a137ef02c288c9  s390x-c-stack-size.patch
 942f13ecef2efa251b948b5ad4a58cb9b7237e399a05b184ddbfad62419d60f2f810478097d2fb58997543540c55035469b3df394ff0cb87c99da11007454d2e  0100-test_urllib-skip-test_url_host_with_-test-cases.patch
 77d3a4cfe57f9ca8cfae748f9164a8977b7c6af4d6de06d2593945716b9c71a7cdc5e4425b4019c8c2c5730bf84f1c207d2d2e8efae8afe9d782920c2275f220  0101-Unset-BASH_XTRACEFD-in-tests.patch
 009cb7f9d4c018e785690b756cdd3c37fc910f18247ae4c7606eb48355537a20c6ca7c057a426adf4449d0909347d4ef745d0177ecc31d2731b04d4bfcc5e2c0  0102-ensurepip-upgrade-the-bundled-version-to-25.3.patch
