@@ -1,6 +1,6 @@
 pkgname=distro-keys
 pkgver=1.0
-pkgrel=3
+pkgrel=4
 pkgdesc="Public keys for $VENDOR_NAME $VENDOR_DISTRO_NAME Linux packages"
 url="$VENDOR_URL"
 # we install arch specific keys to /etc so we cannot do arch=noarch
@@ -41,10 +41,9 @@ package() {
 				mkdir -p "$pkgdir"/usr/share/apk/keys/$_arch
 				ln -s ../$_key "$pkgdir"/usr/share/apk/keys/$_arch/
 
-				case "$CARCH" in
-				x86*) _ins_key $_arch $_key ;;
-				arm*|aarch64) _ins_key $_arch $_key ;;
-				esac
+				if [ "$_arch" = "$CARCH" ]; then
+					_ins_key $_arch $_key
+				fi
 			done
 		fi
 
