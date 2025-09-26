@@ -40,11 +40,29 @@ source="$pkgname-$pkgver.tar.gz::https://github.com/bell-sw/alpaquero/archive/re
 	https://raw.githubusercontent.com/bell-sw/alpaquita-aports/stream/core/distro-keys/info@bell-sw.com-66b9cb81.rsa.pub
 	"
 
-build() {
+_set_vendor() {
 	local distro_file='alpaquero/app/distro.py'
-	sed -i -E -e "s/^[[:space:]]*(DISTRO)[[:space:]]*=.*/\1='$VENDOR_DISTRO'/" \
-		-e "s/^[[:space:]]*(DISTRO_NAME)[[:space:]]*=.*/\1='$VENDOR_DISTRO_NAME Linux'/" \
-		-e "s,^[[:space:]]*(DISTRO_REPO_BASE_URL)[[:space:]]*=.*,\1='${VENDOR_REPO_BASE_URL%/}'," "$distro_file"
+	local readme_file='README.md'
+	local setup_file='setup.py'
+
+	sed -i -E \
+		-e "s/^[[:space:]]*(DISTRO)[[:space:]]*=.*/\\1='$VENDOR_DISTRO'/" \
+		-e "s/^[[:space:]]*(DISTRO_NAME)[[:space:]]*=.*/\\1='$VENDOR_DISTRO_NAME Linux'/" \
+		-e "s,^[[:space:]]*(DISTRO_REPO_BASE_URL)[[:space:]]*=.*,\\1='${VENDOR_REPO_BASE_URL%/}'," \
+		"$distro_file"
+
+	sed -i -E \
+		-e "s/\\w+(-like Linux)/$VENDOR_DISTRO_NAME\\1/" \
+		-e "s/(configured to work with )\\w+/\\1$VENDOR_DISTRO_NAME/" \
+		"$readme_file"
+
+	sed -i -E \
+		-e "/description=/s/\\w+(-like Linux)/$VENDOR_DISTRO_NAME\\1/" \
+		"$setup_file"
+}
+
+build() {
+	_set_vendor
 
 	local apk_keys_glibc=""
 	local apk_keys_musl=""
