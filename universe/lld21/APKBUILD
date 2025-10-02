@@ -1,0 +1,95 @@
+pkgver=21.1.2
+pkgrel=1
+_llvmver=${pkgver%%.*}
+_prevllvmver=$((_llvmver - 1))
+pkgname=lld$_llvmver
+pkgdesc="The LLVM Linker"
+url="https://llvm.org/"
+arch="all"
+license="Apache-2.0"
+depends_dev="$pkgname=$pkgver-r$pkgrel"
+makedepends="
+	clang$_llvmver
+	cmake
+	compiler-rt
+	libedit-dev
+	libxml2-dev
+	llvm$_llvmver-dev
+	llvm$_llvmver-gtest
+	llvm$_llvmver-static
+	llvm$_llvmver-test-utils
+	llvm-libunwind-dev
+	patchelf
+	samurai
+	scudo-malloc
+	zlib-dev
+	"
+checkdepends="gtest-dev bash llvm$_llvmver-test-utils"
+subpackages="$pkgname-dbg $pkgname-libs $pkgname-dev $pkgname-doc"
+source="https://github.com/llvm/llvm-project/releases/download/llvmorg-${pkgver//_/-}/lld-${pkgver//_/-}.src.tar.xz
+	https://github.com/llvm/llvm-project/releases/download/llvmorg-${pkgver//_/-}/cmake-${pkgver//_/-}.src.tar.xz
+	https://github.com/llvm/llvm-project/releases/download/llvmorg-${pkgver//_/-}/llvm-${pkgver//_/-}.src.tar.xz
+	"
+builddir="$srcdir/lld-${pkgver//_/-}.src"
+
+# whether this is the default lld version (keep in sync with llvm)
+_default_lld="yes"
+
+if [ "$_default_lld" = yes ]; then
+	provides="lld=$pkgver-r$pkgrel"
+	replaces="lld"
+
+	dev() {
+		default_dev
+		provides="lld-dev=$pkgver-r$pkgrel"
+		replaces="lld-dev"
+	}
+fi
+
+replaces="lld$_prevllvmver"
+
+prepare() {
+	default_prepare
+	mv "$srcdir"/cmake-${pkgver//_/-}.src "$srcdir"/cmake
+	mv "$srcdir"/llvm-${pkgver//_/-}.src "$srcdir"/llvm
+}
+
+build() {
+	CFLAGS="$CFLAGS -O2 -DNDEBUG -g1" \
+	CXXFLAGS="$CXXFLAGS -O2 -DNDEBUG -g1" \
+	CC=clang-$_llvmver CXX=clang++-$_llvmver \
+	cmake -B build -G Ninja -Wno-dev \
+		-DCMAKE_BUILD_TYPE=None \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_SKIP_INSTALL_RPATH=ON \
+		-DBUILD_SHARED_LIBS=ON \
+		-DLLVM_INCLUDE_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DLLVM_EXTERNAL_LIT=/usr/lib/llvm$_llvmver/bin/lit \
+		-DLLD_BUILT_STANDALONE=ON \
+		-DCMAKE_EXE_LINKER_FLAGS="$LDFLAGS -Wl,-z,stack-size=2097152"
+	cmake --build build
+}
+
+check() {
+	ninja -C build check-lld
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+	install -Dm644 docs/ld.lld.1 -t "$pkgdir"/usr/share/man/man1/
+
+	# we have the scudo allocator available, so link lld to it to
+	# significantly improve performance, especially in LTO contexts
+	patchelf --add-needed libscudo.so "$pkgdir"/usr/bin/lld
+}
+
+doc() {
+	default_doc
+	replaces="lld-doc lld$_prevllvmver-doc"
+}
+
+sha512sums="
+d2057ee3c053081742eea5f3b4b92516c14e8b290a52fd5893dc0b4d681df75cffd29a579b808055c00bad0999af191f44a4b0866c63c51bad4ca93c8d0aa83c  lld-21.1.2.src.tar.xz
+465226115d9913b1ba81a3d784f79db1672bb06712917fd63d68782d34dc460e306bbcc37a6975bb27696a934789dda1d777dc42b9a9b11a71c88ccf08d2acf5  cmake-21.1.2.src.tar.xz
+53d36efdbb7696cd4afc524a11ae46672e3664ba80389c1903212344a1680279314a8e870a91bb91598695a1f90727a307d388a6df11f6787746c58c263440b0  llvm-21.1.2.src.tar.xz
+"
