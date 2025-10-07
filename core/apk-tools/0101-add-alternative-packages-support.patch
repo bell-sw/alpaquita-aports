@@ -1,4 +1,4 @@
-From 13f08169a1f65383c5813ccdea9a08a5f30e6f09 Mon Sep 17 00:00:00 2001
+From 63b19efa9c7e91b7588aaf453d630bb53c515c3e Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 22 Feb 2022 18:18:06 +0300
 Subject: [PATCH] add alternative packages support
@@ -9,8 +9,8 @@ Subject: [PATCH] add alternative packages support
  src/apk_solver_data.h |   2 +
  src/app_add.c         |   2 +-
  src/package.c         |   8 +++
- src/solver.c          | 122 ++++++++++++++++++++++++++++++++++++++----
- 6 files changed, 125 insertions(+), 11 deletions(-)
+ src/solver.c          | 131 ++++++++++++++++++++++++++++++++++++++----
+ 6 files changed, 134 insertions(+), 11 deletions(-)
 
 diff --git a/src/apk_package.h b/src/apk_package.h
 index 929a61e..94f9d95 100644
@@ -101,7 +101,7 @@ index e1545ac..13d8f02 100644
  
  	if (APK_BLOB_IS_NULL(bbuf))
 diff --git a/src/solver.c b/src/solver.c
-index ed38e7f..a2375e1 100644
+index eb39bb1..08b9972 100644
 --- a/src/solver.c
 +++ b/src/solver.c
 @@ -238,11 +238,19 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
@@ -227,7 +227,7 @@ index ed38e7f..a2375e1 100644
  static int compare_providers(struct apk_solver_state *ss,
  			     struct apk_provider *pA, struct apk_provider *pB)
  {
-@@ -605,7 +667,7 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -596,7 +658,7 @@ static int compare_providers(struct apk_solver_state *ss,
  		    (solver_flags & APK_SOLVERF_INSTALLED)) {
  			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
  			if (r) {
@@ -236,7 +236,7 @@ index ed38e7f..a2375e1 100644
  				return r;
  			}
  		}
-@@ -633,6 +695,15 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -624,6 +686,15 @@ static int compare_providers(struct apk_solver_state *ss,
  			return r;
  		}
  
@@ -250,12 +250,21 @@ index ed38e7f..a2375e1 100644
 +		}
 +
  		/* Prefer installed */
- 		if (!(solver_flags & APK_SOLVERF_UPGRADE)) {
+ 		if (!(solver_flags & (APK_SOLVERF_REMOVE|APK_SOLVERF_UPGRADE))) {
  			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
-@@ -672,6 +743,14 @@ static int compare_providers(struct apk_solver_state *ss,
- 		return r;
+@@ -656,6 +727,23 @@ static int compare_providers(struct apk_solver_state *ss,
+ 		}
  	}
  
++	/* Prefer installed alternatives before provider priority check */
++	if (pkgA->alternative || pkgB->alternative) {
++		r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
++		if (r) {
++			dbg_printf("    prefer installed alternatives\n");
++			return r;
++		}
++	}
++
 +	if (pkgA->name->ss.new_alternative && pkgB->name->ss.new_alternative) {
 +		r = check_installed_deps(pkgA) - check_installed_deps(pkgB);
 +		if (r) {
@@ -267,7 +276,7 @@ index ed38e7f..a2375e1 100644
  	/* Prefer highest declared provider priority. */
  	r = pkgA->provider_priority - pkgB->provider_priority;
  	if (r) {
-@@ -694,10 +773,15 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -687,10 +775,15 @@ static int compare_providers(struct apk_solver_state *ss,
  static void assign_name(struct apk_solver_state *ss, struct apk_name *name, struct apk_provider p)
  {
  	if (name->ss.locked) {
@@ -283,7 +292,7 @@ index ed38e7f..a2375e1 100644
  		if (ss->ignore_conflict)
  			return;
  		/* Conflict: providing same name */
-@@ -726,8 +810,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
+@@ -719,8 +812,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
  		apk_array_foreach(p0, name->providers) {
  			if (p0->pkg == p.pkg) continue;
  			if (p.version == &apk_atom_null &&
@@ -300,7 +309,7 @@ index ed38e7f..a2375e1 100644
  			disqualify_package(ss, p0->pkg, "conflicting provides");
  		}
  	}
-@@ -775,6 +866,13 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
+@@ -768,6 +868,13 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
  
  	pkg = chosen.pkg;
  	if (pkg) {
@@ -314,7 +323,7 @@ index ed38e7f..a2375e1 100644
  		if (!pkg->ss.pkg_selectable || !pkg->ss.tag_ok) {
  			/* Selecting broken or unallowed package */
  			mark_error(ss, pkg, "broken package / tag not ok");
-@@ -826,6 +924,10 @@ static void cset_track_deps_added(struct apk_package *pkg)
+@@ -819,6 +926,10 @@ static void cset_track_deps_added(struct apk_package *pkg)
  	apk_array_foreach(d, pkg->depends) {
  		if (apk_dep_conflict(d) || !d->name->ss.installed_name) continue;
  		d->name->ss.installed_name->ss.requirers++;

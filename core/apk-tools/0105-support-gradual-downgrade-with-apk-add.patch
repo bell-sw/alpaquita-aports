@@ -1,4 +1,4 @@
-From d3b8be7e5e93b66d01e411589246fe073744a879 Mon Sep 17 00:00:00 2001
+From 676972c53e3b59c6ea7adf91f4f77b184deca6e5 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 5 Apr 2022 14:37:27 +0300
 Subject: [PATCH] support gradual downgrade with apk add
@@ -94,7 +94,7 @@ index 0c9986d..80859ec 100644
  		actx->virtpkg = optarg;
  		break;
 diff --git a/src/solver.c b/src/solver.c
-index a2375e1..c630351 100644
+index 08b9972..c990f9f 100644
 --- a/src/solver.c
 +++ b/src/solver.c
 @@ -243,18 +243,24 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
@@ -136,16 +136,16 @@ index a2375e1..c630351 100644
  }
  
  static void name_requirers_changed(struct apk_solver_state *ss, struct apk_name *name)
-@@ -705,7 +711,7 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -696,7 +702,7 @@ static int compare_providers(struct apk_solver_state *ss,
  		}
  
  		/* Prefer installed */
--		if (!(solver_flags & APK_SOLVERF_UPGRADE)) {
-+		if (!(solver_flags & APK_SOLVERF_UP_OR_DOWNGRADE)) {
+-		if (!(solver_flags & (APK_SOLVERF_REMOVE|APK_SOLVERF_UPGRADE))) {
++		if (!(solver_flags & (APK_SOLVERF_REMOVE|APK_SOLVERF_UP_OR_DOWNGRADE))) {
  			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
  			if (r) {
  				dbg_printf("    prefer installed\n");
-@@ -829,15 +835,29 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
+@@ -831,15 +837,29 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
  		reevaluate_reverse_installif(ss, name);
  }
  
@@ -176,7 +176,7 @@ index a2375e1..c630351 100644
  		apk_array_foreach(p, name->providers) {
  			dbg_printf("  consider "PKG_VER_FMT" iif_triggered=%d, tag_ok=%d, selectable=%d, available=%d, flags=0x%x, provider_priority=%d, installed=%d\n",
  				PKG_VER_PRINTF(p->pkg),
-@@ -857,11 +877,28 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
+@@ -859,11 +879,28 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
  				dbg_printf("    ignore: virtual package without provider_priority\n");
  				continue;
  			}
