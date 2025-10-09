@@ -1,27 +1,31 @@
-From 5c160da7df66123fc70652c3dd44f20fc78bcba5 Mon Sep 17 00:00:00 2001
+From 69a316e17f4072347fc9b2c8580b3664ada63377 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 15 Jul 2025 16:09:46 +0000
 Subject: [PATCH] adjust user/* tests
 
 ---
- test/user/query.sh    | 3 ++-
+ test/user/query.sh    | 5 +++--
  test/user/replaces.sh | 2 +-
  test/user/uvol.sh     | 6 +++---
- 3 files changed, 6 insertions(+), 5 deletions(-)
+ 3 files changed, 7 insertions(+), 6 deletions(-)
 
 diff --git a/test/user/query.sh b/test/user/query.sh
-index afb2419..942347e 100755
+index bab490a..c48f883 100755
 --- a/test/user/query.sh
 +++ b/test/user/query.sh
-@@ -9,6 +9,7 @@ tar xzf "$query_db" -C "$TEST_ROOT"
- rm "$TEST_ROOT"/etc/apk/repositories
+@@ -5,9 +5,10 @@ TESTDIR=$(realpath "${TESTDIR:-"$(dirname "$0")"/..}")
+ 
+ installed_db="$(realpath "$(dirname "$0")/query-installed.data")"
+ setup_apkroot
+-cp "$installed_db" "$TEST_ROOT"/lib/apk/db/installed
++cp "$installed_db" "$TEST_ROOT"/var/lib/apk/db/installed
  
  APK="$APK --no-network"
-+mv $TEST_ROOT/lib/apk/db/* $TEST_ROOT/var/lib/apk/db/
++mv $TEST_ROOT/var/lib/apk/db/* $TEST_ROOT/var/lib/apk/db/
  
  $APK info apk-tools 2>&1 | diff -u /dev/fd/4 4<<EOF - || assert "wrong result"
  apk-tools-2.14.6-r3 description:
-@@ -143,7 +144,7 @@ $APK query --format yaml --installed --fields all "apk-tools" 2>&1 | diff -u /de
+@@ -142,7 +143,7 @@ $APK query --format yaml --installed --fields all "apk-tools" 2>&1 | diff -u /de
      - so:libapk.so.2.14.0=2.14.0
      - cmd:apk=2.14.6-r3
    repositories:
