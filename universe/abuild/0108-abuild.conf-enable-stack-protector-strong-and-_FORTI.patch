@@ -1,6 +1,6 @@
-From dd0e6684ec1e53020f79bd706d0276ded8f1588c Mon Sep 17 00:00:00 2001
+From 407425d7d12a750f78f2a2a265b0625c5b36c14a Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
-Date: Fri, 3 Oct 2025 14:08:35 +0500
+Date: Tue, 16 Aug 2022 16:31:08 +0300
 Subject: [PATCH] abuild.conf: enable stack-protector-strong and
  _FORTIFY_SOURCE=2
 
@@ -13,10 +13,10 @@ can be set to disable the test and building with the plugin.
  3 files changed, 86 insertions(+), 5 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index 8ff101d..bf9a079 100644
+index 0e19b0b..0174714 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -2106,7 +2106,9 @@ default_dbg() {
+@@ -2053,7 +2053,9 @@ default_dbg() {
  		if ! [ -e "$pkgbasedir/.dbg-tmp/$ino" ]; then
  			local tmp=$pkgbasedir/.dbg-tmp/${src##*/}
  			${CROSS_COMPILE}objcopy --only-keep-debug "$src" "$dst"
@@ -27,7 +27,7 @@ index 8ff101d..bf9a079 100644
  			# preserve attributes, links
  			cat "$tmp" > "$src"
  			rm "$tmp"
-@@ -2320,6 +2322,7 @@ rootpkg() {
+@@ -2291,6 +2293,7 @@ rootpkg() {
  	do_fakeroot "$abuild_path" $forceroot $color_opt $keep_build $verbose \
  		set_source_date \
  		package \
@@ -35,7 +35,7 @@ index 8ff101d..bf9a079 100644
  		prepare_subpackages \
  		prepare_package \
  		create_apks
-@@ -2759,7 +2762,7 @@ stripbin() {
+@@ -2748,7 +2751,7 @@ stripbin() {
  
  		[ "$osabi" != "STANDALONE" ] || continue
  		local tmp="$pkgbasedir/.strip-tmp/${filename##*/}"
@@ -44,7 +44,7 @@ index 8ff101d..bf9a079 100644
  		# only replace content to preserve attributes
  		cat "$tmp" > "$filename"
  		rm "$tmp"
-@@ -2767,6 +2770,59 @@ stripbin() {
+@@ -2756,6 +2759,59 @@ stripbin() {
  	rmdir "$pkgbasedir/.strip-tmp"
  }
  
@@ -104,9 +104,9 @@ index 8ff101d..bf9a079 100644
  # simply list target apks
  listpkg() {
  	local name
-@@ -3084,6 +3140,26 @@ if [ -n "$DEBUG" ] || subpackage_types_has "dbg"; then
- 	fi
- fi
+@@ -3091,6 +3147,26 @@ export GOMODCACHE="${GOCACHE:-"$tmpdir/gomod"}"
+ export GOTMPDIR="${GOTMPDIR:-"$tmpdir"}"
+ export CARGO_HOME="${CARGO_HOME:-"$tmpdir/cargo"}"
  
 +remove_cflags()
 +{
@@ -132,7 +132,7 @@ index 8ff101d..bf9a079 100644
  	# If we are handling a sub package then reset subpackages and install
  	subpackages=
 diff --git a/default.conf b/default.conf
-index 872ee90..216a20c 100644
+index 681a88f..1cc2e88 100644
 --- a/default.conf
 +++ b/default.conf
 @@ -1,5 +1,5 @@
@@ -162,5 +162,5 @@ index 25bb1c6..12a9a83 100644
  
  check() {
 -- 
-2.51.0
+2.34.1
 

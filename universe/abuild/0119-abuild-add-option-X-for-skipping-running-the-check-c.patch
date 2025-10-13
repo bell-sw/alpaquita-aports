@@ -1,4 +1,4 @@
-From 5d4a4499ae06be232e2788ba04c3219ea978fa2d Mon Sep 17 00:00:00 2001
+From 3b9ec5a96cae00812aa6412eb079e580973f6275 Mon Sep 17 00:00:00 2001
 From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
 Date: Thu, 7 Dec 2023 19:43:25 +0300
 Subject: [PATCH] abuild: add option -X for skipping running the check command
@@ -9,28 +9,28 @@ Subject: [PATCH] abuild: add option -X for skipping running the check command
  1 file changed, 6 insertions(+), 4 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index c544444..6af43d4 100644
+index 29ff24a..14b0d61 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -1993,7 +1993,7 @@ build_abuildrepo() {
+@@ -1955,7 +1955,7 @@ build_abuildrepo() {
  	if options_has "checkroot"; then
  		_check=check_fakeroot
  	fi
 -	if ! want_check; then
 +	if ! want_check || [ -n "$skip_check" ]; then
- 		_check=true
+ 		_check=
  	fi
  	if ! apk_up2date || [ -n "$force" ]; then
-@@ -2585,7 +2585,7 @@ rootbld_actions() {
+@@ -2563,7 +2563,7 @@ rootbld_actions() {
  	if options_has "checkroot"; then
  		_check=check_fakeroot
  	fi
 -	if ! want_check; then
 +	if ! want_check || [ -n "$skip_check" ]; then
- 		_check=true
+ 		_check=
  	fi
  	for part in symlinksrc unpack prepare build $_check check_fmv rootpkg; do
-@@ -3039,6 +3039,7 @@ usage() {
+@@ -3038,6 +3038,7 @@ usage() {
  		 -r  Install missing dependencies from system repository (using \$SUDO_APK)
  		 -s  Set source package destination directory
  		 -v  Verbose: show every command as it is run (very noisy)
@@ -38,18 +38,18 @@ index c544444..6af43d4 100644
  
  		Commands:
  		  build       Compile and install package into \$pkgdir
-@@ -3073,8 +3074,8 @@ usage() {
+@@ -3071,8 +3072,8 @@ usage() {
  }
  
  APKBUILD="${APKBUILD:-./APKBUILD}"
 -unset color_opt force forceroot install_deps keep keep_build nodeps quiet verbose
--while getopts ":AcC:dD:fFhkKmnP:qrRs:uvV" opt; do
+-while getopts ":AcC:dD:fFhkKmnP:qrs:vV" opt; do
 +unset color_opt force forceroot install_deps keep keep_build nodeps quiet verbose skip_check
-+while getopts ":AcC:dD:fFhkKmnP:qrRs:uvVX" opt; do
++while getopts ":AcC:dD:fFhkKmnP:qrs:vVX" opt; do
  	case $opt in
  		'A') echo "$CARCH"; exit 0;;
  		'c') enable_colors
-@@ -3096,6 +3097,7 @@ while getopts ":AcC:dD:fFhkKmnP:qrRs:uvV" opt; do
+@@ -3094,6 +3095,7 @@ while getopts ":AcC:dD:fFhkKmnP:qrs:vV" opt; do
  		's') SRCDEST=$OPTARG;;
  		'v') verbose="-v"; set -x;;
  		'V') echo "$program $program_version"; exit 0;;
@@ -58,5 +58,5 @@ index c544444..6af43d4 100644
  	esac
  done
 -- 
-2.49.0
+2.34.1
 

@@ -1,16 +1,17 @@
-From e3a85bf9af63362dd5ebed3160ddc46657cbf8cb Mon Sep 17 00:00:00 2001
+From 86018dc35819ed82e6a945a925397e977970c35d Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
 Date: Thu, 20 Jan 2022 09:25:14 +0000
 Subject: [PATCH] Added support for glibc toolchains
 
 ---
- Makefile        |  3 +++
- abuild.in       | 35 ++++++++++++++++++++++++++++-------
- functions.sh.in | 44 ++------------------------------------------
- 3 files changed, 33 insertions(+), 49 deletions(-)
+ Makefile             |  3 +++
+ abuild.in            | 37 ++++++++++++++++++++++++++--------
+ functions.sh.in      | 47 +++-----------------------------------------
+ tests/functions_test |  2 +-
+ 4 files changed, 36 insertions(+), 53 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index 143a1b0..140e08d 100644
+index 72eb270..6210766 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -7,6 +7,8 @@ sysconfdir	?= /etc
@@ -22,7 +23,7 @@ index 143a1b0..140e08d 100644
  SCRIPTS		:= abuild abuild-keygen abuild-sign newapkbuild \
  		   abump apkgrel buildlab apkbuild-cpan apkbuild-pypi checkapk \
  		   apkbuild-gem-resolver
-@@ -40,6 +42,7 @@ SED_REPLACE	:= -e 's:@VERSION@:$(FULL_VERSION):g' \
+@@ -41,6 +43,7 @@ SED_REPLACE	:= -e 's:@VERSION@:$(FULL_VERSION):g' \
  			-e 's:@prefix@:$(prefix):g' \
  			-e 's:@sysconfdir@:$(sysconfdir):g' \
  			-e 's:@sharedir@:$(sharedir):g' \
@@ -31,7 +32,7 @@ index 143a1b0..140e08d 100644
  SSL_CFLAGS	?= $(shell pkg-config --cflags openssl)
  SSL_LDFLAGS	?= $(shell pkg-config --cflags openssl)
 diff --git a/abuild.in b/abuild.in
-index f0385f6..02d10f6 100644
+index fc53d18..7061919 100644
 --- a/abuild.in
 +++ b/abuild.in
 @@ -68,6 +68,25 @@ error() {
@@ -60,7 +61,7 @@ index f0385f6..02d10f6 100644
  amove() {
  	[ -n "$subpkgdir" ] || return 1
  
-@@ -273,7 +292,7 @@ default_validate() {
+@@ -279,7 +298,7 @@ default_validate() {
  
  		[ -e "$startdir"/$f ] || die "trigger script $f is missing"
  	done
@@ -69,25 +70,25 @@ index f0385f6..02d10f6 100644
  		if install_has "$i"; then
  			warning "You should not have \$install in source"
  			continue
-@@ -356,7 +375,7 @@ sumcheck() {
- 	set -- $sums
- 	local numsums=$(( $# / 2 ))
+@@ -324,7 +343,7 @@ default_validate() {
  
+ 	# verify that things listed in checksum also is listed in source
+ 	# get number of checksums
 -	set -- $source
 +	set -- $source_all
- 	if [ $# -ne $numsums ]; then
- 		die "Number of ${algo}sums($numsums) does not correspond to number of sources($#)"
- 	fi
-@@ -471,7 +490,7 @@ symlinksrc() {
- default_fetch() {
- 	local s
+ 	local numsources=$#
+ 	set -- ${sha512sums:-$sha256sums}
+ 	if [ $# -ne $((numsources * 2)) ]; then
+@@ -449,7 +468,7 @@ default_fetch() {
  	mkdir -p "$srcdir"
+ 	set -- ${sha512sums:-$sha256sums}
+ 
 -	for s in $source; do
 +	for s in $source_all; do
+ 		local file="$startdir/$s"
  		if is_remote "$s"; then
  			uri_fetch_mirror "$s" || return 1
- 			ln -sf "$SRCDEST/$(filename_from_uri $s)" "$srcdir"/
-@@ -567,7 +586,7 @@ clean() {
+@@ -561,7 +580,7 @@ clean() {
  # cleanup fetched sources
  cleancache() {
  	local s
@@ -96,7 +97,7 @@ index f0385f6..02d10f6 100644
  		if is_remote "$s"; then
  			s=$(filename_from_uri $s)
  			msg "Cleaning downloaded $s ..."
-@@ -2464,7 +2483,7 @@ builddeps() {
+@@ -2439,7 +2458,7 @@ builddeps() {
  # replace the sha512sums in the APKBUILD
  checksum() {
  	local s files name
@@ -105,16 +106,20 @@ index f0385f6..02d10f6 100644
  		&& msg "Removing checksums from $APKBUILD"
  	sed -E -i \
  		-e '/^sha[0-9]+sums=".*"$/d' \
-@@ -2476,7 +2495,7 @@ checksum() {
+@@ -2451,10 +2470,10 @@ checksum() {
  
- 	[ -z "$source" ] && return 0
- 	fetch
+ 	sha256sums=
+ 	sha512sums=
+-	[ -z "$source" ] && return 0
++	[ -z "$source_all" ] && return 0
+ 
+ 	sumalgo=none fetch
 -	for s in $source; do
 +	for s in $source_all; do
  		name="$(filename_from_uri $s)"
  		case " $files " in
  		*" $name "*) die "duplicate found in \$source: $name";;
-@@ -2721,7 +2740,7 @@ listpkg() {
+@@ -2712,7 +2731,7 @@ listpkg() {
  
  source_has() {
  	local i
@@ -123,7 +128,7 @@ index f0385f6..02d10f6 100644
  		[ "$1" = "${i##*/}" ] && return 0
  		[ "$1" = "${i%%::*}" ] && return 0
  	done
-@@ -2997,6 +3016,8 @@ cd "$startdir" || die
+@@ -2995,6 +3014,8 @@ cd "$startdir" || die
  
  builddir=${builddir:-"$srcdir/$pkgname-$pkgver"}
  
@@ -133,14 +138,15 @@ index f0385f6..02d10f6 100644
  if [ -z "$REPODEST" ]; then
  	warning "REPODEST is not set and is now required. Defaulting to $HOME/packages"
 diff --git a/functions.sh.in b/functions.sh.in
-index 801db06..5c43963 100644
+index 5096a06..37578aa 100644
 --- a/functions.sh.in
 +++ b/functions.sh.in
-@@ -6,28 +6,8 @@ program=${0##*/}
+@@ -6,29 +6,8 @@ program=${0##*/}
  
- arch_to_hostspec() {
+ arch_to_triplet() {
  	case "$1" in
 -	aarch64)	echo "aarch64-alpine-linux-musl" ;;
+-	aarch64_be)	echo "aarch64_be-alpine-linux-musl" ;;
 -	armel)		echo "armv5-alpine-linux-musleabi" ;;
 -	armhf)		echo "armv6-alpine-linux-musleabihf" ;;
 -	armv7)		echo "armv7-alpine-linux-musleabihf" ;;
@@ -167,10 +173,11 @@ index 801db06..5c43963 100644
  	*)		echo "unknown" ;;
  	esac
  }
-@@ -35,26 +15,6 @@ arch_to_hostspec() {
- hostspec_to_arch() {
+@@ -41,27 +20,7 @@ arch_to_hostspec() {
+ triplet_to_arch() {
  	case "$1" in
- 	aarch64*-*-*-*)		echo "aarch64" ;;
+ 	aarch64-*-*-*)		echo "aarch64" ;;
+-	aarch64_be-*-*-*)	echo "aarch64_be" ;;
 -	arm*-*-*-*eabi)		echo "armel" ;;
 -	armv6*-*-*-*eabihf)	echo "armhf" ;;
 -	armv7*-*-*-*eabihf)	echo "armv7" ;;
@@ -191,9 +198,23 @@ index 801db06..5c43963 100644
 -	sh2eb-*-*-*)		echo "sh2eb" ;;
 -	sh3-*-*-*)		echo "sh3" ;;
 -	sh4-*-*-*)		echo "sh4" ;;
++	#aarch64_be-*-*-*)	echo "aarch64_be" ;;
  	x86_64-*-*-*)		echo "x86_64" ;;
- 	*)			echo "unknown" ;;
- 	esac
+ 	*)
+ 		echo "Couldn't determine arch from triplet: $1" >&2
+diff --git a/tests/functions_test b/tests/functions_test
+index fd6e594..8d738b0 100755
+--- a/tests/functions_test
++++ b/tests/functions_test
+@@ -37,7 +37,7 @@ funcs_check_missing_git_body() {
+ }
+ 
+ funcs_check_env_set_but_empty_body() {
+-	for arch in aarch64 armv7 armhf ppc64le s390x x86 x86_64; do
++	for arch in aarch64 x86_64; do
+ 		for var in CC CXX HOSTCC HOSTCXX HOSTLD BUILDCC BUILDCXX BUILDLD; do
+ 			cat >script<<-EOF
+ 				unset $var
 -- 
-2.49.0
+2.34.1
 
