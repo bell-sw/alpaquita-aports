@@ -1,6 +1,6 @@
 pkgname=poppler
 pkgver=25.04.0
-pkgrel=0
+pkgrel=1
 pkgdesc="PDF rendering library based on xpdf 3.0"
 url="https://poppler.freedesktop.org/"
 arch="all"
@@ -24,10 +24,14 @@ makedepends="
 	zlib-dev
 	"
 subpackages="$pkgname-dev $pkgname-doc $pkgname-glib $pkgname-utils"
-source="https://poppler.freedesktop.org/poppler-$pkgver.tar.xz"
+source="https://poppler.freedesktop.org/poppler-$pkgver.tar.xz
+	0100-CVE-2025-52885.patch
+	"
 options="!check" # Requires dl of testfiles and only checks qt5 libs
 
 # secfixes:
+#   25.04.0-r1:
+#     - CVE-2025-52885
 #   24.02.0-r2:
 #     - CVE-2024-6239
 #   0.80.0-r0:
@@ -104,4 +108,5 @@ _cpp() {
 
 sha512sums="
 2f05cd757405ee08ace2a73abe122dd95cb225ea90c1891403bf12ca07f6c0d1dccdf504e0183ed6fa1c208228231aa892f71b573dccbe5e26489e51c6825390  poppler-25.04.0.tar.xz
+5aec5ef1f0db5aba4c7fcdfde0af35c23eacf680af95b1fc4361fc9fd50cb9bc81459bfe0032b3d342381fe249684c23dc74a774da68bd7d4ba345e948343b4a  0100-CVE-2025-52885.patch
 "
