@@ -1,0 +1,42 @@
+From cf9d987a65a7eb720a93fe2466d3873c5f70fd77 Mon Sep 17 00:00:00 2001
+From: "copilot-swe-agent[bot]" <198982749+Copilot@users.noreply.github.com>
+Date: Mon, 25 Aug 2025 18:36:56 +0000
+Subject: [PATCH] Replace neverssl.com with example.com in t/live.t to fix #84
+
+Co-authored-by: oalders <96205+oalders@users.noreply.github.com>
+---
+ t/live.t | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/t/live.t b/t/live.t
+index 45b2ba8..81c51cc 100644
+--- a/t/live.t
++++ b/t/live.t
+@@ -6,13 +6,13 @@ BEGIN {
+     eval {
+         require IO::Socket::INET;
+         my $s = IO::Socket::INET->new(
+-            PeerHost => "www.neverssl.com:80",
++            PeerHost => "example.com:80",
+             Timeout  => 5,
+         );
+         die "Can't connect: $@" unless $s;
+     };
+     if ($@) {
+-        print "1..0 # SKIP Can't connect to www.neverssl.com\n";
++        print "1..0 # SKIP Can't connect to example.com\n";
+         print $@;
+         exit;
+     }
+@@ -26,7 +26,7 @@ plan tests => 6;
+ use Net::HTTP;
+ 
+ my $s = Net::HTTP->new(
+-    Host            => "www.neverssl.com",
++    Host            => "example.com",
+     KeepAlive       => 1,
+     Timeout         => 15,
+     PeerHTTPVersion => "1.1",
+-- 
+2.49.0
+
