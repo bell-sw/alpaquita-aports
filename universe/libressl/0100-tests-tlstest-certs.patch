@@ -1,0 +1,22 @@
+Test certificates used by `tests/tlstest.sh` expired in 2024.  Pick up
+the update from libressl-3.9.1 (March 27th, 2024) that was released in
+that time frame and had to address this issue.  The test code itself
+(tlstest.c) remained the same, only the test data were changed (to
+existing files).
+
+The expired certificates are also used by other tests, but these tests
+are not affected by the their expired status, so do only the minimal
+required change.
+
+https://github.com/libressl/openbsd/commit/0d9d9a5d218e051c66bca6e7d844cd95b2ede626.patch
+https://github.com/libressl/portable/commit/372aff7c569ba3f471f48041ed1934459557ded6.patch
+
+
+--- libressl-3.6.3/tests/tlstest.sh	2021-09-28 19:05:18.000000000 +0000
++++ libressl-3.9.1/tests/tlstest.sh	2024-03-25 02:31:19.000000000 +0000
+@@ -10,4 +10,4 @@
+ 	srcdir=.
+ fi
+ 
+-$tlstest_bin $srcdir/ca.pem $srcdir/server.pem $srcdir/server.pem
++$tlstest_bin $srcdir/ca-root-rsa.pem $srcdir/server1-rsa-chain.pem $srcdir/server1-rsa.pem
