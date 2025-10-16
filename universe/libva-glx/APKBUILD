@@ -2,34 +2,25 @@
 
 pkgname=libva-glx
 pkgver=2.22.0
-pkgrel=0
+pkgrel=1
 pkgdesc="Video Acceleration (VA) API for Linux with MESA support"
 url="https://01.org/linuxmedia"
 arch="all"
 options="!check"  # No test suite.
 license="MIT"
-depends_dev="libva-dev mesa-dev libxfixes-dev"
+depends_dev="libva-dev~$pkgver mesa-dev libxfixes-dev"
 makedepends="$depends_dev meson wayland-dev"
 subpackages="$pkgname-dev"
 source="libva-$pkgver.tar.gz::https://github.com/intel/libva/archive/$pkgver.tar.gz"
 builddir="$srcdir"/libva-$pkgver
 
-prepare() {
-	( if [ -f "$startdir"/../libva/APKBUILD ]; then
-		_v=$pkgver
-		. "$startdir"/../libva/APKBUILD
-		if [ "$_v" != "$pkgver" ]; then
-			die "libva and libva-glx needs to be same version"
-		fi
-	fi )
-	default_prepare
-}
-
 build() {
 	abuild-meson \
 		-Db_lto=true \
+		-Dwith_x11=yes \
 		-Dwith_glx=yes \
 		-Dwith_wayland=yes \
+		-Dwith_win32=no \
 		builddir
 	meson compile -C builddir
 }
