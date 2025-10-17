@@ -14,7 +14,6 @@ makedepends="
 	py3-yaml
 	scdoc
 	"
-checkdepends="git"
 subpackages="
 	$pkgname-doc
 	$pkgname-wrap
@@ -36,6 +35,13 @@ prepare() {
 
 	# copy meson-tests to allow running tests for both muon and muon-wrap
 	cp -a subprojects/meson-tests subprojects/meson-tests.orig
+
+	if want_check; then
+		# Avoid circular dependency between git without $BOOTSTRAP, libsecret, vala, graphviz, pango, fribidi
+		mkdir -p "$tmpdir"/bin
+		printf "#!/bin/sh\nexec true \"\$@\"\n" > "$tmpdir"/bin/git
+		chmod +x "$tmpdir"/bin/git
+	fi
 }
 
 build() {
@@ -86,6 +92,7 @@ build() {
 
 check() {
 	local d; for d in build-wrap build; do
+		PATH="$tmpdir/bin:$PATH" \
 		$d/muon -C $d test -j "${JOBS:-0}" -R -d dots
 		rm -r subprojects/meson-tests
 		cp -a subprojects/meson-tests.orig subprojects/meson-tests
