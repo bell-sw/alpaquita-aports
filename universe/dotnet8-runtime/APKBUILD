@@ -307,15 +307,26 @@ build() {
 	# that use slighly different one.
 	# See `prepare`.
 
-	# set maximum parallel jobs to reduce spurious build errors like
-	#   "error : Fatal error. Internal CLR error. (0x80131506)"
-	args="$args /maxcpucount:$(( (JOBS+1)/2 ))"
+	local retry_count=5 rc_fail=
+	while true; do
+		rc_fail=
 
-	./build.sh \
-		--with-sdk "$_cli_root" \
-		--with-packages "$_artifactsdir" \
-		--release-manifest "$srcdir"/dotnet-release-$_gittag.json \
-		-- $args
+		./build.sh \
+			--with-sdk "$_cli_root" \
+			--with-packages "$_artifactsdir" \
+			--release-manifest "$srcdir"/dotnet-release-$_gittag.json \
+			-- $args \
+			|| rc_fail=$?
+
+		[ -z "$rc_fail" ] && break
+
+		if [ "$((--retry_count))" -gt 0 ] && grep -Fq "Fatal error. Internal CLR error. (0x80131506)" artifacts/logs/*.log; then
+			msg "Build failed because of CLR error, retrying ($retry_count attempts left)"
+			continue
+		fi
+
+		exit "$rc_fail"
+	done
 }
 
 check() {
