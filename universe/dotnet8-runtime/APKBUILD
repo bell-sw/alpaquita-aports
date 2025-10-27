@@ -278,10 +278,12 @@ build() {
 		;;
 	esac
 
-	# sets LIBC_SO for /usr-merge setups
-	# see https://github.com/dotnet/runtime/commit/fdb53355e47398aad620b308ec1a5c0807e66a67
-	export CFLAGS="$CFLAGS -DLIBC_SO=\\\"libc.musl-$CARCH.so.1\\\""
-	export CXXFLAGS="$CXXFLAGS -DLIBC_SO=\\\"libc.musl-$CARCH.so.1\\\""
+	if [ "$CLIBC" = 'musl' ]; then
+		# sets LIBC_SO for /usr-merge setups
+		# see https://github.com/dotnet/runtime/commit/fdb53355e47398aad620b308ec1a5c0807e66a67
+		export CFLAGS="$CFLAGS -DLIBC_SO=\\\"libc.musl-$CARCH.so.1\\\""
+		export CXXFLAGS="$CXXFLAGS -DLIBC_SO=\\\"libc.musl-$CARCH.so.1\\\""
+	fi
 
 	# looks for most recent recent version of _artifactsdir
 	local _artifactsdir=$(find $_libdir/dotnet/artifacts/$_pkgver_macro* -maxdepth 0 | sort -r | head -n 1)
