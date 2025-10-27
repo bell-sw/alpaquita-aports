@@ -205,7 +205,7 @@ _init() {
 	export EXTRA_CFLAGS="${CFLAGS/--sysroot=$CBUILDROOT}"
 	export EXTRA_LDFLAGS="$LDFLAGS"
 	# sets LIBC_SO for /usr-merge setups
-	export EXTRA_CFLAGS="$EXTRA_CFLAGS -DLIBC_SO=\\\"libc.musl-$CARCH.so.1\\\""
+	[ "$CLIBC" = "musl" ] && export EXTRA_CFLAGS="$EXTRA_CFLAGS -DLIBC_SO=\\\"libc.musl-$CARCH.so.1\\\""
 	unset CXXFLAGS CFLAGS LDFLAGS CPPFLAGS
 
 	ulimit -n 4096
