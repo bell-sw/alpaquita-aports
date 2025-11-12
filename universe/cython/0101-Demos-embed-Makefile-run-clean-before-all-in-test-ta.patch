@@ -1,0 +1,31 @@
+From 9e17d195ec604d01f14e81ca2392c1bbcaa62b4f Mon Sep 17 00:00:00 2001
+From: Takha Polat <takha.polat@bell-sw.com>
+Date: Wed, 12 Nov 2025 21:41:58 +0500
+Subject: [PATCH] Demos/embed/Makefile: run clean before all in test target
+ when run in parallel
+
+When running `make -j<N> test` with N > 1, `clean` and `all` could run in
+parallel. Since `clean` removes embedded.c , the compiler fails with "No such
+file or directory". Adding .WAIT ensures `clean` completes before `all` starts:
+
+cc -c embedded.c -I/usr/include/python3.12 -I/usr/include/python3.12
+cc1: fatal error: embedded.c: No such file or directory
+---
+ Demos/embed/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Demos/embed/Makefile b/Demos/embed/Makefile
+index 9bad0df9b..43662b1c1 100644
+--- a/Demos/embed/Makefile
++++ b/Demos/embed/Makefile
+@@ -48,6 +48,6 @@ clean:
+ 	@echo Cleaning Demos/embed
+ 	@rm -f *~ *.o *.so core core.* *.c embedded test.output
+ 
+-test: clean all
++test: clean .WAIT all
+ 	LD_LIBRARY_PATH=$(LIBDIR1):$$LD_LIBRARY_PATH ./embedded > test.output
+ 	$(PYTHON) assert_equal.py embedded.output test.output
+-- 
+2.51.2
+
