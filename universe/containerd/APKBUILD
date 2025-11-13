@@ -2,8 +2,8 @@ pkgname=containerd
 
 # NOTE: containerd's Makefile tries to get REVISION from git, but we're building from a tarball.
 _commit=2456e983eb9e37e47538f59ea18f2043c9a73640
-pkgver=1.6.18
-pkgrel=13
+pkgver=1.7.29
+pkgrel=0
 pkgdesc="An open and reliable container runtime"
 url="https://containerd.io/"
 arch="all"
@@ -22,6 +22,9 @@ source="containerd-$pkgver.tar.gz::https://github.com/containerd/containerd/arch
 options="net"
 
 # secfixes:
+#   1.7.29-r0:
+#     - CVE-2025-64329
+#     - CVE-2024-25621
 #   1.6.18-r0:
 #     - CVE-2023-25153
 #     - CVE-2023-25173
@@ -100,7 +103,7 @@ stress() {
 }
 
 sha512sums="
-3a8d1a4f892d251fde7098f99c3dc620d7eb077d64e8f98fe82ec4dd8c88067a9a5e13e9ec6b38abdf624e67dbf53a1d24fe50f64065a742d2276becc789fdc8  containerd-1.6.18.tar.gz
+af2dda3942b15cec69966854818b0d624ff64a68131bb966bc65f2749f5d668d8e515454f9616d5242ec272e9556ab2837dfa74b119ed80598b1d508df21edbd  containerd-1.7.29.tar.gz
 21a9888b684913138ec4a342b0b69e40e9c773ecd329c4e2401a807365586468cb19035583a4fc8b0f86138f5ee4c7fb911c75495263e4b43d2886ea11e0e271  containerd.confd
 43db40e4ba6e0bcc0959ec9f7accafea369a2ac63bfb7be11d87d07bd5545c2a6cf27daf6625520a80b0ab63297a461343391398a5845a3038df60a988e5c3b2  containerd.initd
 "
