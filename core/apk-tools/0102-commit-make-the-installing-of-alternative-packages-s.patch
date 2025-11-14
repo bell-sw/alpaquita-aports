@@ -1,4 +1,4 @@
-From cde7cb79812c21f371c4ffd76bf8e8d32cb22f73 Mon Sep 17 00:00:00 2001
+From 81e1e2d8beb71a8b3feb5b89668f42d5812518ea Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 1 Mar 2022 16:39:21 +0300
 Subject: [PATCH] commit: make the installing of alternative packages safer
@@ -11,10 +11,10 @@ package.
  1 file changed, 27 insertions(+)
 
 diff --git a/src/commit.c b/src/commit.c
-index e36e167..a5e7741 100644
+index fabc2d47..abb7ea1c 100644
 --- a/src/commit.c
 +++ b/src/commit.c
-@@ -336,6 +336,12 @@ int apk_solver_precache_changeset(struct apk_database *db, struct apk_changeset
+@@ -339,6 +339,12 @@ int apk_solver_precache_changeset(struct apk_database *db, struct apk_changeset
  	return prog.done.packages;
  }
  
@@ -27,7 +27,7 @@ index e36e167..a5e7741 100644
  int apk_solver_commit_changeset(struct apk_database *db,
  				struct apk_changeset *changeset,
  				struct apk_dependency_array *world)
-@@ -429,9 +435,28 @@ int apk_solver_commit_changeset(struct apk_database *db,
+@@ -432,9 +438,28 @@ int apk_solver_commit_changeset(struct apk_database *db,
  	if (run_commit_hooks(db, PRE_COMMIT_HOOK) == -2)
  		return -1;
  
@@ -56,7 +56,7 @@ index e36e167..a5e7741 100644
  		r = change->old_pkg &&
  			(change->old_pkg->ipkg->broken_files ||
  			 change->old_pkg->ipkg->broken_script);
-@@ -442,6 +467,8 @@ int apk_solver_commit_changeset(struct apk_database *db,
+@@ -445,6 +470,8 @@ int apk_solver_commit_changeset(struct apk_database *db,
  				if (!(db->ctx->flags & APK_SIMULATE))
  					r = apk_db_install_pkg(db, change->old_pkg, change->new_pkg, &prog.prog) != 0;
  				apk_progress_item_end(&prog.prog);

@@ -1,4 +1,4 @@
-From 235f5fb75f4d025a3cfe59ad9ead9fb982fc440a Mon Sep 17 00:00:00 2001
+From 4b66aa37362233bd5c7d37fb43fd920541f709c7 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 22 Feb 2022 18:18:06 +0300
 Subject: [PATCH] add alternative packages support
@@ -13,10 +13,10 @@ Subject: [PATCH] add alternative packages support
  6 files changed, 134 insertions(+), 11 deletions(-)
 
 diff --git a/src/apk_package.h b/src/apk_package.h
-index 929a61e..94f9d95 100644
+index 1754b33b..7580f0b1 100644
 --- a/src/apk_package.h
 +++ b/src/apk_package.h
-@@ -95,6 +95,7 @@ struct apk_package {
+@@ -96,6 +96,7 @@ struct apk_package {
  	unsigned char cached_non_repository : 1;
  	unsigned char cached : 1;
  	unsigned char layer : 3;
@@ -25,7 +25,7 @@ index 929a61e..94f9d95 100644
  	uint8_t digest[];
  };
 diff --git a/src/apk_solver.h b/src/apk_solver.h
-index 37f85b7..6af5c86 100644
+index 37f85b70..6af5c86f 100644
 --- a/src/apk_solver.h
 +++ b/src/apk_solver.h
 @@ -34,6 +34,7 @@ struct apk_changeset {
@@ -37,10 +37,10 @@ index 37f85b7..6af5c86 100644
  void apk_solver_set_name_flags(struct apk_name *name,
  			       unsigned short solver_flags,
 diff --git a/src/apk_solver_data.h b/src/apk_solver_data.h
-index 78441cc..d65708c 100644
+index 5c7f2973..a0317e51 100644
 --- a/src/apk_solver_data.h
 +++ b/src/apk_solver_data.h
-@@ -41,6 +41,7 @@ struct apk_solver_name_state {
+@@ -42,6 +42,7 @@ struct apk_solver_name_state {
  	unsigned has_auto_selectable : 1;
  	unsigned iif_needed : 1;
  	unsigned resolvenow : 1;
@@ -48,14 +48,14 @@ index 78441cc..d65708c 100644
  };
  
  struct apk_solver_package_state {
-@@ -60,4 +61,5 @@ struct apk_solver_package_state {
+@@ -61,4 +62,5 @@ struct apk_solver_package_state {
  	unsigned char iif_triggered : 1;
  	unsigned char iif_failed : 1;
  	unsigned char error : 1;
 +	unsigned char old_alternative : 1;
  };
 diff --git a/src/app_add.c b/src/app_add.c
-index fd0dcdf..0c9986d 100644
+index fd0dcdfc..0c9986d2 100644
 --- a/src/app_add.c
 +++ b/src/app_add.c
 @@ -176,7 +176,7 @@ static int add_main(void *ctx, struct apk_ctx *ac, struct apk_string_array *args
@@ -68,10 +68,10 @@ index fd0dcdf..0c9986d 100644
  		}
  	}
 diff --git a/src/package.c b/src/package.c
-index e1545ac..13d8f02 100644
+index 8a868e81..31519c55 100644
 --- a/src/package.c
 +++ b/src/package.c
-@@ -516,6 +516,9 @@ int apk_pkgtmpl_add_info(struct apk_database *db, struct apk_package_tmpl *tmpl,
+@@ -518,6 +518,9 @@ int apk_pkgtmpl_add_info(struct apk_database *db, struct apk_package_tmpl *tmpl,
  	case 'k':
  		pkg->provider_priority = apk_blob_pull_uint(&value, 10);
  		break;
@@ -81,7 +81,7 @@ index e1545ac..13d8f02 100644
  	case 'F': case 'M': case 'R': case 'Z': case 'r': case 'q':
  	case 'a': case 's': case 'f': case 'g':
  		/* installed db entries which are handled in database.c */
-@@ -601,6 +604,7 @@ static int read_info_line(struct read_info_ctx *ri, apk_blob_t line)
+@@ -603,6 +606,7 @@ static int read_info_line(struct read_info_ctx *ri, apk_blob_t line)
  		{ "builddate",	't' },
  		{ "commit",	'c' },
  		{ "provider_priority", 'k' },
@@ -89,7 +89,7 @@ index e1545ac..13d8f02 100644
  	};
  	apk_blob_t l, r;
  	int i;
-@@ -863,6 +867,10 @@ int apk_pkg_write_index_header(struct apk_package *info, struct apk_ostream *os)
+@@ -865,6 +869,10 @@ int apk_pkg_write_index_header(struct apk_package *info, struct apk_ostream *os)
  		apk_blob_push_blob(&bbuf, APK_BLOB_STR("\nk:"));
  		apk_blob_push_uint(&bbuf, info->provider_priority, 10);
  	}
@@ -101,7 +101,7 @@ index e1545ac..13d8f02 100644
  
  	if (APK_BLOB_IS_NULL(bbuf))
 diff --git a/src/solver.c b/src/solver.c
-index eb39bb1..08b9972 100644
+index 445f1e65..baebe8bc 100644
 --- a/src/solver.c
 +++ b/src/solver.c
 @@ -238,11 +238,19 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)

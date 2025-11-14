@@ -1,4 +1,4 @@
-From 58dafc00b70b5ec9f8a5d821568e9f85e7db903d Mon Sep 17 00:00:00 2001
+From da133773118e567401871ec7fab8744d86f695b2 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 5 Apr 2022 14:37:27 +0300
 Subject: [PATCH] support gradual downgrade with apk add
@@ -32,7 +32,7 @@ Subject: [PATCH] support gradual downgrade with apk add
  create mode 100644 test/solver/downgrade5.test
 
 diff --git a/doc/apk-add.8.scd b/doc/apk-add.8.scd
-index 08a52fb..026a7ba 100644
+index 08a52fb6..026a7ba7 100644
 --- a/doc/apk-add.8.scd
 +++ b/doc/apk-add.8.scd
 @@ -54,6 +54,9 @@ following options:
@@ -46,7 +46,7 @@ index 08a52fb..026a7ba 100644
  	Create virtual package _NAME_ with given dependencies. This new package
  	will get the _packages_ as dependencies instead of _world_. Finally the
 diff --git a/src/apk_solver.h b/src/apk_solver.h
-index 6af5c86..98fb332 100644
+index 6af5c86f..98fb332b 100644
 --- a/src/apk_solver.h
 +++ b/src/apk_solver.h
 @@ -35,6 +35,9 @@ struct apk_changeset {
@@ -60,10 +60,10 @@ index 6af5c86..98fb332 100644
  void apk_solver_set_name_flags(struct apk_name *name,
  			       unsigned short solver_flags,
 diff --git a/src/apk_solver_data.h b/src/apk_solver_data.h
-index d65708c..91c4e81 100644
+index a0317e51..51c61648 100644
 --- a/src/apk_solver_data.h
 +++ b/src/apk_solver_data.h
-@@ -42,6 +42,7 @@ struct apk_solver_name_state {
+@@ -43,6 +43,7 @@ struct apk_solver_name_state {
  	unsigned iif_needed : 1;
  	unsigned resolvenow : 1;
  	unsigned new_alternative : 1;
@@ -72,7 +72,7 @@ index d65708c..91c4e81 100644
  
  struct apk_solver_package_state {
 diff --git a/src/app_add.c b/src/app_add.c
-index 0c9986d..80859ec 100644
+index 0c9986d2..80859ec6 100644
 --- a/src/app_add.c
 +++ b/src/app_add.c
 @@ -26,6 +26,7 @@ struct add_ctx {
@@ -94,7 +94,7 @@ index 0c9986d..80859ec 100644
  		actx->virtpkg = optarg;
  		break;
 diff --git a/src/solver.c b/src/solver.c
-index 08b9972..c990f9f 100644
+index baebe8bc..2e7357ef 100644
 --- a/src/solver.c
 +++ b/src/solver.c
 @@ -243,18 +243,24 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
@@ -207,7 +207,7 @@ index 08b9972..c990f9f 100644
  	pkg = chosen.pkg;
 diff --git a/test/solver/downgrade.repo b/test/solver/downgrade.repo
 new file mode 100644
-index 0000000..7f7c917
+index 00000000..7f7c917e
 --- /dev/null
 +++ b/test/solver/downgrade.repo
 @@ -0,0 +1,68 @@
@@ -281,7 +281,7 @@ index 0000000..7f7c917
 +D:a=2 so:foo.so.1
 diff --git a/test/solver/downgrade1.installed b/test/solver/downgrade1.installed
 new file mode 100644
-index 0000000..d29c466
+index 00000000..d29c4663
 --- /dev/null
 +++ b/test/solver/downgrade1.installed
 @@ -0,0 +1,15 @@
@@ -302,7 +302,7 @@ index 0000000..d29c466
 +D:so:foo.so.1
 diff --git a/test/solver/downgrade1.test b/test/solver/downgrade1.test
 new file mode 100644
-index 0000000..cd78ad9
+index 00000000..cd78ad96
 --- /dev/null
 +++ b/test/solver/downgrade1.test
 @@ -0,0 +1,7 @@
@@ -315,7 +315,7 @@ index 0000000..cd78ad9
 +OK: 0 MiB in 2 packages
 diff --git a/test/solver/downgrade2.installed b/test/solver/downgrade2.installed
 new file mode 100644
-index 0000000..6e7ecb9
+index 00000000..6e7ecb9e
 --- /dev/null
 +++ b/test/solver/downgrade2.installed
 @@ -0,0 +1,22 @@
@@ -343,7 +343,7 @@ index 0000000..6e7ecb9
 +D:a=2 so:foo.so.1
 diff --git a/test/solver/downgrade2.test b/test/solver/downgrade2.test
 new file mode 100644
-index 0000000..7e0b281
+index 00000000..7e0b281d
 --- /dev/null
 +++ b/test/solver/downgrade2.test
 @@ -0,0 +1,8 @@
@@ -357,7 +357,7 @@ index 0000000..7e0b281
 +OK: 0 MiB in 3 packages
 diff --git a/test/solver/downgrade3.test b/test/solver/downgrade3.test
 new file mode 100644
-index 0000000..07af5ef
+index 00000000..07af5ef3
 --- /dev/null
 +++ b/test/solver/downgrade3.test
 @@ -0,0 +1,7 @@
@@ -370,7 +370,7 @@ index 0000000..07af5ef
 +OK: 0 MiB in 3 packages
 diff --git a/test/solver/downgrade4.installed b/test/solver/downgrade4.installed
 new file mode 100644
-index 0000000..fdbefc4
+index 00000000..fdbefc40
 --- /dev/null
 +++ b/test/solver/downgrade4.installed
 @@ -0,0 +1,22 @@
@@ -398,7 +398,7 @@ index 0000000..fdbefc4
 +D:a=1 so:foo.so.1
 diff --git a/test/solver/downgrade4.test b/test/solver/downgrade4.test
 new file mode 100644
-index 0000000..8b34e7b
+index 00000000..8b34e7b8
 --- /dev/null
 +++ b/test/solver/downgrade4.test
 @@ -0,0 +1,8 @@
@@ -412,7 +412,7 @@ index 0000000..8b34e7b
 +OK: 0 MiB in 3 packages
 diff --git a/test/solver/downgrade5.installed b/test/solver/downgrade5.installed
 new file mode 100644
-index 0000000..7fde6a9
+index 00000000..7fde6a90
 --- /dev/null
 +++ b/test/solver/downgrade5.installed
 @@ -0,0 +1,22 @@
@@ -440,7 +440,7 @@ index 0000000..7fde6a9
 +D:a=0 so:foo.so.1
 diff --git a/test/solver/downgrade5.test b/test/solver/downgrade5.test
 new file mode 100644
-index 0000000..d62b2f1
+index 00000000..d62b2f15
 --- /dev/null
 +++ b/test/solver/downgrade5.test
 @@ -0,0 +1,6 @@
