@@ -7,7 +7,7 @@
 
 pkgname=curl
 pkgver=8.9.1
-pkgrel=3
+pkgrel=4
 pkgdesc="Command line tool for data transfer with URL syntax"
 url="https://curl.se/"
 arch="all"
@@ -26,11 +26,14 @@ source="
 	0102-CVE-2025-0167.patch
 	0103-CVE-2025-9086.patch
 	0104-CVE-2025-10148.patch
+	0105-CVE-2025-10966.patch
 	"
 options="net" # Required for running tests
 [ -n "$BOOTSTRAP" ] && options="$options !check" # remove python3 dependency
 
 # secfixes:
+#   8.9.1-r4:
+#     - CVE-2025-10966
 #   8.9.1-r3:
 #     - CVE-2025-9086
 #     - CVE-2025-10148
@@ -195,6 +198,11 @@ options="net" # Required for running tests
 #   0:
 #     - CVE-2021-22897
 
+prepare() {
+	default_prepare
+	autoreconf -vif
+}
+
 _build() {
 	local new_builddir=$1
 	local extra_configure=$2
@@ -290,4 +298,5 @@ a0fe234402875db194aad4e4208b7e67e7ffc1562622eea90948d4b9b0122c95c3dde8bbe2f7445a
 8f9af6c5619ea3726569b50fc98a503e657b4fe4555c8c444ea027e603dd1121e19cf7671bed4ae157b95b7ea55f71760e4cbcc823e4ed3a52c322faf6f2e6d2  0102-CVE-2025-0167.patch
 5ca981c30a8ad496c380b7169783e947d40a9f2c67c01220be5b6ed76d4bb872a7f4d6cebd25f23bb2dfe49e258e34155fc32c26566b92c2fd6654fbe014dcf7  0103-CVE-2025-9086.patch
 d1d6678284b557b5bd16e8f13feb0607b588b3b53ea5a11b83507884cadbe22cd280900d3e0ee7f533a2e6f9391754979820e8a9ace70050483755bdf9d44f9b  0104-CVE-2025-10148.patch
+32848c02a5d9307c2fc4ce83cd7b3b2f433d08b9eed09b2c1dfe865c1b63dac78f309d0c4cca9f2541667687ae61249e5b59b3b1360a1b4a073118cb5ac59155  0105-CVE-2025-10966.patch
 "
