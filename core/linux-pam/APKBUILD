@@ -6,7 +6,7 @@
 
 pkgname=linux-pam
 pkgver=1.7.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Linux PAM (Pluggable Authentication Modules for Linux)"
 url="https://www.kernel.org/pub/linux/libs/pam"
 arch="all"
@@ -21,7 +21,7 @@ makedepends="
 	docbook-xsl-nons
 	"
 options="suid !check"
-subpackages="$pkgname-dev $pkgname-manual::noarch $pkgname-doc"
+subpackages="$pkgname-dev $pkgname-manual::noarch $pkgname-doc $pkgname-systemd"
 source="https://github.com/linux-pam/linux-pam/releases/download/v$pkgver/Linux-PAM-$pkgver.tar.xz
 
 	base-auth.pamd
@@ -73,9 +73,6 @@ package() {
 	# make "unix_chkpwd" shadow group and enable g+s
 	chgrp shadow "$pkgdir"/usr/sbin/unix_chkpwd \
 		&& chmod g+s "$pkgdir"/usr/sbin/unix_chkpwd
-
-	# we don't ship systemd
-	rm -r "$pkgdir"/usr/lib/systemd
 }
 
 manual() {
