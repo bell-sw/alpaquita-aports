@@ -88,6 +88,7 @@ source="https://busybox.net/downloads/busybox-$pkgver.tar.bz2
 	0001-init-add-support-for-separate-reboot-action.patch
 	0001-blkdiscard-ship-link-to-sbin-instead-of-usr-bin.patch
 	0001-tar-fix-TOCTOU-symlink-race-condition.patch
+	0001-tar-fix-16018-masking-of-potentially-malicious-tar-cpio-content.patch
 
 	acpid.logrotate
 	busyboxconfig
@@ -107,7 +108,6 @@ source="https://busybox.net/downloads/busybox-$pkgver.tar.bz2
 	0103-init-re-exec-init-before-shutdown-reboot.patch
 	0104-last-fix-ignoring-the-first-login-entry.patch
 	0105-CVE-2023-39810.patch
-	0106-fix-16018-masking-of-potentially-malicious-tar-cpio-.patch
 	0107-testsuite-tar.tests-add-a-test-for-raw-control-chara.patch
 	0108-netstat-CVE-2024-58251-sanitize-argv0-for-p.patch
 	0109-read_cmdline-wrap-in-printable_string.patch
@@ -411,6 +411,7 @@ ac026f8b289d1431c46d51a8c512eb0184aa81de1c41971a87c99bcdc5c63c2d9abed412cad20d30
 211d8a70b7e40d885e2961bb1a1143af3666901dd81c79d1a5b1ddb1d3c069bd1083417188e35513f9a678791d9cd2a08373c6151596a5162904131e489baf46  0001-init-add-support-for-separate-reboot-action.patch
 b8b408974dbcf803889786500d37970c3c3fc3ff7b651998616301691c29287e786ecca07a5b959ed31cf22b0c54b9da82385650c3961afb9f7c09233f46f864  0001-blkdiscard-ship-link-to-sbin-instead-of-usr-bin.patch
 906d6c9ff1a9b911997f8ca9debfc07c48c7f5ac8eac51860b076e8483979ea175028f7207cbe878769e58213e8293ada155b03c9691077ce2f6a91820ab319a  0001-tar-fix-TOCTOU-symlink-race-condition.patch
+fa200c556a8b79506aa398e0d81eb2690726860ab15e48ba80c1680abab2a48e9093bf3c5a67dc5d8eef90a3e15e5a873a9eef1047cef0c031b233f8a211ee68  0001-tar-fix-16018-masking-of-potentially-malicious-tar-cpio-content.patch
 aa93095e20de88730f526c6f463cef711b290b9582cdbd8c1ba2bd290019150cbeaa7007c2e15f0362d5b9315dd63f60511878f0ea05e893f4fdfb4a54af3fb1  acpid.logrotate
 a68b2636990b946c41effe5851c713213ec384c28e5a068267c1964a2ad2a79c4e6004e419e364d09d6b25f98a3d9db7a94d406fd762c52b29d8690f7cec566c  busyboxconfig
 6e445db4f6b83fdffba0bac5bd47f6ff06b91ae5a5f23a730f049ec960b99f05d5d60ba075bcb8bc0f3ffa5b24ee20742a278f52722b7c1d8cb000e51dfbb6c5  busyboxconfig-extras
@@ -445,7 +446,6 @@ bef67b208b94c0deed9efbd8a23a786ceb9357da31a0068592e7380061251a6b503ee338ada4d420
 15d38a97fff50f5e9366c9a2953ceac062c03000a8cc0328c6f810b239ba67af6ee3bb59f2495b91c28238e3515dad18eb5266d92a750626cf392ecbcc1fae0a  0103-init-re-exec-init-before-shutdown-reboot.patch
 35bf1ad5eb364e09a63833dc5cd59ed5f75d067082326cc8d37feabd07a330777c8cca2247a620ca90b20a7733ec3a1e130d3ef642b147697c28960c0d2399c7  0104-last-fix-ignoring-the-first-login-entry.patch
 f065d188bedec9389390e53c623eaed734d5f5e067be29163f38f878e5b60803f4e43879c55b510bd2267116a828ebc0c1661172332491a04719c67b3bbd8946  0105-CVE-2023-39810.patch
-1dfabbd3d6227c72360a3f79133eb4fb1ff514c238c8668ff477405b8dba97eac32e173a005875947df3ab36b7855ce04f56a7fbb36197c179fefdf695783219  0106-fix-16018-masking-of-potentially-malicious-tar-cpio-.patch
 4266c08610c4b087c002c6ef6ce03bf48ecd6d8b6ea90c99bf15a5a0094e1053465f6ec335f352dc59db522d37257c356cab86c29ce95c17602ef28191bfeb3a  0107-testsuite-tar.tests-add-a-test-for-raw-control-chara.patch
 c55b278633c483a222412eae1c391b9314604fcbfa6f84d119eefc3b693aedd1d90bd7fce3268867e27ef83f8a2cf0d4b8b1a6d0435f7d6b8dbe8e0b40a2c82c  0108-netstat-CVE-2024-58251-sanitize-argv0-for-p.patch
 cef286701b4cd2a016e25d4399aaa9eabe2f2c45f634b1a4569aa5cd26ec8b944a9e7eae66af520666c065650713599d2da7056986e76d5e3f98aa60297838d3  0109-read_cmdline-wrap-in-printable_string.patch

@@ -1,7 +1,5 @@
-From b09a137dd56b7a29fefa1af2748cbf9531fd3b4b Mon Sep 17 00:00:00 2001
-From: Ian Norton <Ian.Norton@entrust.com>
-Date: Wed, 23 Apr 2025 13:39:42 +0000
-Subject: [PATCH] fix 16018 masking of potentially malicious tar/cpio content
+Patch-Source: https://lists.busybox.net/pipermail/busybox/2025-April/091461.html
+Subject: fix 16018 masking of potentially malicious tar/cpio content
 
 Prevent unprintable bytes including terminal escapes being printed when
 listing tar file contents in a terminal as this can be used to hide
@@ -11,7 +9,7 @@ Fixes #16018
 
 Also added bb_safe_dump_str() to include/libbb.h
 
-Patch-Source: https://lists.busybox.net/pipermail/busybox/2025-April/091461.html
+
 ---
  archival/libarchive/header_list.c         |  3 ++-
  archival/libarchive/header_verbose_list.c | 14 +++++++-------
@@ -19,7 +17,7 @@ Patch-Source: https://lists.busybox.net/pipermail/busybox/2025-April/091461.html
  3 files changed, 17 insertions(+), 8 deletions(-)
 
 diff --git a/archival/libarchive/header_list.c b/archival/libarchive/header_list.c
-index 0621aa406..9ee69aae2 100644
+index 0621aa4..9ee69aa 100644
 --- a/archival/libarchive/header_list.c
 +++ b/archival/libarchive/header_list.c
 @@ -8,5 +8,6 @@
@@ -31,7 +29,7 @@ index 0621aa406..9ee69aae2 100644
 +	bb_putchar('\n');
  }
 diff --git a/archival/libarchive/header_verbose_list.c b/archival/libarchive/header_verbose_list.c
-index a575a08a0..956589a1b 100644
+index a575a08..956589a 100644
 --- a/archival/libarchive/header_verbose_list.c
 +++ b/archival/libarchive/header_verbose_list.c
 @@ -29,7 +29,7 @@ void FAST_FUNC header_verbose_list(const file_header_t *file_header)
@@ -80,10 +78,10 @@ index a575a08a0..956589a1b 100644
  	bb_putchar('\n');
  }
 diff --git a/include/libbb.h b/include/libbb.h
-index 4b3319824..7824e4bbe 100644
+index 01cdb1b..71cccc7 100644
 --- a/include/libbb.h
 +++ b/include/libbb.h
-@@ -2583,6 +2583,14 @@ static ALWAYS_INLINE unsigned char bb_ascii_tolower(unsigned char a)
+@@ -2524,6 +2524,14 @@ static ALWAYS_INLINE unsigned char bb_ascii_tolower(unsigned char a)
  #define isgraph_asciionly(a) ((unsigned)((a) - 0x21) <= 0x7e - 0x21)
  #define isprint_asciionly(a) ((unsigned)((a) - 0x20) <= 0x7e - 0x20)
  
@@ -91,13 +89,10 @@ index 4b3319824..7824e4bbe 100644
 +static ALWAYS_INLINE void bb_safe_dump_str(FILE* fd, const char* msg) {
 +	int fdno = fileno(fd);
 +	if (isatty(fdno)) {
-+		 msg = printable_string(msg);
++		msg = printable_string(msg);
 +	}
 +	fprintf(fd, "%s", msg);
 +}
  
  /* Simple unit-testing framework */
  
--- 
-2.49.0
-
