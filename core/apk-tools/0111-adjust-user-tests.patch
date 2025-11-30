@@ -1,19 +1,19 @@
-From 62373297bfb54469fd040d695acf7c53c7c068d6 Mon Sep 17 00:00:00 2001
+From 1504538e18a5c39c6ce21b5fa6325a15303c1eb9 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 15 Jul 2025 16:09:46 +0000
 Subject: [PATCH] adjust user/* tests
 
 ---
- test/user/query.sh    | 5 +++--
+ test/user/query.sh    | 4 ++--
  test/user/replaces.sh | 2 +-
  test/user/uvol.sh     | 6 +++---
- 3 files changed, 7 insertions(+), 6 deletions(-)
+ 3 files changed, 6 insertions(+), 6 deletions(-)
 
 diff --git a/test/user/query.sh b/test/user/query.sh
-index bab490a3..c48f883a 100755
+index 0766820..1209678 100755
 --- a/test/user/query.sh
 +++ b/test/user/query.sh
-@@ -5,9 +5,10 @@ TESTDIR=$(realpath "${TESTDIR:-"$(dirname "$0")"/..}")
+@@ -5,7 +5,7 @@ TESTDIR=$(realpath "${TESTDIR:-"$(dirname "$0")"/..}")
  
  installed_db="$(realpath "$(dirname "$0")/query-installed.data")"
  setup_apkroot
@@ -21,21 +21,18 @@ index bab490a3..c48f883a 100755
 +cp "$installed_db" "$TEST_ROOT"/var/lib/apk/db/installed
  
  APK="$APK --no-network"
-+mv $TEST_ROOT/var/lib/apk/db/* $TEST_ROOT/var/lib/apk/db/
  
- $APK info apk-tools 2>&1 | diff -u /dev/fd/4 4<<EOF - || assert "wrong result"
- apk-tools-2.14.6-r3 description:
-@@ -142,7 +143,7 @@ $APK query --format yaml --installed --fields all "apk-tools" 2>&1 | diff -u /de
+@@ -142,7 +142,7 @@ $APK query --format yaml --installed --fields all "apk-tools" 2>&1 | diff -u /de
      - so:libapk.so.2.14.0=2.14.0
      - cmd:apk=2.14.6-r3
    repositories:
 -    - lib/apk/db/installed
 +    - var/lib/apk/db/installed
-   contents:
-     - sbin/apk
-     - usr/lib/libapk.so.2.14.0
+   reverse-depends:
+     - alpine-base
+   reverse-install-if:
 diff --git a/test/user/replaces.sh b/test/user/replaces.sh
-index 53115930..f8b4c6fd 100755
+index 5311593..f8b4c6f 100755
 --- a/test/user/replaces.sh
 +++ b/test/user/replaces.sh
 @@ -39,7 +39,7 @@ $APK query --format yaml --fields name,tags,repositories a  | diff -u /dev/fd/4
@@ -48,7 +45,7 @@ index 53115930..f8b4c6fd 100755
  
  $APK add b-1.0.apk && assert "should error with conflicting file"
 diff --git a/test/user/uvol.sh b/test/user/uvol.sh
-index f5aec4ea..adac5a4b 100755
+index f5aec4e..adac5a4 100755
 --- a/test/user/uvol.sh
 +++ b/test/user/uvol.sh
 @@ -14,9 +14,9 @@ EOF
@@ -65,5 +62,5 @@ index f5aec4ea..adac5a4b 100755
  
  setup_apkroot
 -- 
-2.25.1
+2.51.0
 

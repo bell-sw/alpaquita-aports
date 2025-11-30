@@ -1,4 +1,4 @@
-From 8185964d14cf2fd89e4e0045feff79ec3f45b87b Mon Sep 17 00:00:00 2001
+From 1bef2de0e5131b0d8a924632efb3752fc6bfa219 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Mon, 16 May 2022 12:27:52 +0300
 Subject: [PATCH] apk-search: sorted output
@@ -69,7 +69,7 @@ After the patch:
  1 file changed, 52 insertions(+), 13 deletions(-)
 
 diff --git a/src/app_search.c b/src/app_search.c
-index 1561a667..d6583820 100644
+index 80eb7b1..5b6e469 100644
 --- a/src/app_search.c
 +++ b/src/app_search.c
 @@ -15,48 +15,85 @@
@@ -151,7 +151,7 @@ index 1561a667..d6583820 100644
 +static void process_rdepends(struct search_ctx *ctx, struct apk_package *pkg)
  {
  	if (ctx->verbosity > 0) {
- 		ctx->matches = apk_foreach_genid() | APK_DEP_SATISFIES;
+ 		ctx->matches = apk_foreach_genid() | APK_DEP_SATISFIES | APK_FOREACH_NO_CONFLICTS;
  		printf(PKG_VER_FMT " is required by:\n", PKG_VER_PRINTF(pkg));
 +
 +		apk_package_array_init(&ctx->rdep_pkg_array);
@@ -177,7 +177,7 @@ index 1561a667..d6583820 100644
  	case OPT_SEARCH_has_origin:
  		qs->match = BIT(APK_Q_FIELD_ORIGIN);
 @@ -121,14 +158,16 @@ static int search_main(void *pctx, struct apk_ctx *ac, struct apk_string_array *
- 	ctx->matches = apk_foreach_genid() | APK_DEP_SATISFIES;
+ 	ctx->matches = apk_foreach_genid() | APK_DEP_SATISFIES | APK_FOREACH_NO_CONFLICTS;
  	if (ctx->print_package == NULL)
  		ctx->print_package = print_package_name;
 -	if (ctx->print_result == NULL)
@@ -197,5 +197,5 @@ index 1561a667..d6583820 100644
  		apk_err(out, "query failed: %s", apk_error_str(r));
  	}
 -- 
-2.25.1
+2.51.0
 

@@ -1,4 +1,4 @@
-From dd6eb227bbd1cb500cb3325dedfebddf05527a6c Mon Sep 17 00:00:00 2001
+From 79f73bf50c7cc65f514e67ef732be6a42117c8ec Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 28 Mar 2023 16:24:27 +0000
 Subject: [PATCH] retry fetch on http timeout errors
@@ -11,7 +11,7 @@ as fetchXGet() can change the struct members.
  2 files changed, 13 insertions(+)
 
 diff --git a/libfetch/fetch.h b/libfetch/fetch.h
-index 739cfc3b..7637cedf 100644
+index 8ef6a98..f161c05 100644
 --- a/libfetch/fetch.h
 +++ b/libfetch/fetch.h
 @@ -86,6 +86,7 @@ enum {
@@ -23,7 +23,7 @@ index 739cfc3b..7637cedf 100644
  	/* Error URL category codes */
  	FETCH_ERR_URL_MALFORMED = 1,
 diff --git a/src/io_url_libfetch.c b/src/io_url_libfetch.c
-index c77e3c2f..f8ee8914 100644
+index e481c60..ccacb44 100644
 --- a/src/io_url_libfetch.c
 +++ b/src/io_url_libfetch.c
 @@ -41,6 +41,7 @@ static int fetch_maperror(struct fetch_error fe)
@@ -61,5 +61,5 @@ index c77e3c2f..f8ee8914 100644
  		goto err;
  	}
 -- 
-2.25.1
+2.51.0
 
