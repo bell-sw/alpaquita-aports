@@ -2,9 +2,8 @@
 # install, upgrade, or delete them.
 
 pkgname=apk-tools
-pkgver=3.0.0_rc9
-_commit=cb0136590a07478f173642fc2aa5980ddc0f6821
-pkgrel=2
+pkgver=3.0.0
+pkgrel=0
 pkgdesc="APK Package Manager (Derivative from Alpine Package Keeper)"
 arch="all"
 url="https://gitlab.alpinelinux.org/alpine/apk-tools"
@@ -41,9 +40,8 @@ if [ -z "$BOOTSTRAP" ]; then
 	# ca-certificates-bundle needed for https certificate validation
 	depends="$depends ca-certificates-bundle"
 fi
-source="https://gitlab.alpinelinux.org/alpine/apk-tools/-/archive/$_commit/apk-tools-v$pkgver.tar.gz
+source="https://gitlab.alpinelinux.org/alpine/apk-tools/-/archive/v$pkgver/apk-tools-v$pkgver.tar.gz
 	repo-hash-sha1.patch
-	unshare.patch
 	_apk
 
 	0100-Get-rid-of-separation-of-sbin-lib-and-their-usr-coun.patch
@@ -59,7 +57,7 @@ source="https://gitlab.alpinelinux.org/alpine/apk-tools/-/archive/$_commit/apk-t
 	0110-tests-run-abuild-with-exported-APKBUILD.patch
 	0111-adjust-user-tests.patch
 	"
-builddir="$srcdir/apk-tools-$_commit"
+builddir="$srcdir/apk-tools-v$pkgver"
 
 # secfixes:
 #   2.12.6-r0:
@@ -120,9 +118,8 @@ pyapk() {
 }
 
 sha512sums="
-35e0fc72d8db037087710f2e6c5100308810e1afad0cfca986adbac9ff023e8d407df183aedfb57a693491a38554679dcd4734395c7f8a35b9aa992c1e83d18d  apk-tools-v3.0.0_rc9.tar.gz
+84b7c601fed5d5cab68d6b058addbcd857307e964a8209f6289c51224ecdd6c388e88af77a968bcac7dd79a7c078591c9680a9199460728a7008f05afd2dc0d4  apk-tools-v3.0.0.tar.gz
 6f6442d73d994964d78f06433a611902cbb066a457f3532544278b1422aa0aa276ccec1f2438ea7e93a8a048d3fdbf72ccd9a79d210f44870fda467bc43cb9fd  repo-hash-sha1.patch
-74cf0f50e0efc3cccd17a8e37a9da188c805b3ad47980a57677ebc1bd52533723e319796d013a98a42f92b47e847f4bcb81fb92f77adacfb769f5dd25ae7ad7e  unshare.patch
 993518cafcc5a932c9a418f7aac48012fc48f03c55964ad99d04b034bfa185d550c38dab46f1046adfaa1d65b422b4095b5a54d9a2504dee9278f25e76f9e3ed  _apk
 ff2150f5bf86dd1eb3e9756ebf57388d18364894efc361135c1f74195bd40a1ebe0a644175557903a1b3805115467265d397edbf5dff265236e1f790b9fd826b  0100-Get-rid-of-separation-of-sbin-lib-and-their-usr-coun.patch
 4381ec53f4fa3f73646f33eca0ffed2a4af8ccff8e97f831136cb4abc5b7ba0fff7282ff50605c89c53f45559a4d6a6178f7092608fd61156f43fa8cb8f2257d  0101-add-alternative-packages-support.patch
