@@ -3,7 +3,7 @@
 
 pkgname=elfutils
 pkgver=0.194
-pkgrel=0
+pkgrel=1
 pkgdesc="Utilities and DSOs to handle ELF files and DWARF data"
 url="https://sourceware.org/elfutils/"
 arch="all"
@@ -17,7 +17,9 @@ makedepends="
 	bison
 	bsd-compat-headers
 	bzip2-dev
+	curl-dev
 	flex-dev
+	json-c-dev
 	libtool
 	linux-headers
 	xz-dev
@@ -40,6 +42,7 @@ subpackages="
 	libasm
 	libdw
 	libelf
+	libdebuginfod
 	$pkgname-dev
 	$pkgname-doc
 	"
@@ -86,7 +89,7 @@ build() {
 		--program-prefix=eu- \
 		--enable-deterministic-archives \
 		--disable-nls \
-		--disable-libdebuginfod \
+		--enable-libdebuginfod \
 		--disable-debuginfod \
 		--with-zstd
 	make
@@ -121,6 +124,19 @@ libelf() {
 
 	amove usr/lib/libelf-*.so
 	amove usr/lib/libelf.so.*
+}
+
+libdebuginfod() {
+	pkgdesc="Library to retrieve debug infos"
+	depends=""
+
+	amove usr/lib/libdebuginfod-*.so
+	amove usr/lib/libdebuginfod.so.*
+
+	amove etc/debuginfod
+	amove etc/profile.d
+	amove usr/bin/debuginfod-find
+	amove usr/share/fish
 }
 
 dev() {
