@@ -1,4 +1,4 @@
-From 86018dc35819ed82e6a945a925397e977970c35d Mon Sep 17 00:00:00 2001
+From 42bd19ccbacf71a9ecbaecb8e33180730ef1c32e Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
 Date: Thu, 20 Jan 2022 09:25:14 +0000
 Subject: [PATCH] Added support for glibc toolchains
@@ -11,11 +11,11 @@ Subject: [PATCH] Added support for glibc toolchains
  4 files changed, 36 insertions(+), 53 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index 72eb270..6210766 100644
+index 6fb973d..2fea5d5 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -7,6 +7,8 @@ sysconfdir	?= /etc
- sharedir		?= $(prefix)/share/$(PACKAGE)
+@@ -8,6 +8,8 @@ sharedir		?= $(prefix)/share/$(PACKAGE)
+ zshdir		?= $(prefix)/share/zsh/site-functions
  mandir		?= $(prefix)/share/man
  
 +libc		?= $(if $(findstring gnu, $(shell $(CC) -dumpmachine)),gnu,musl)
@@ -23,7 +23,7 @@ index 72eb270..6210766 100644
  SCRIPTS		:= abuild abuild-keygen abuild-sign newapkbuild \
  		   abump apkgrel buildlab apkbuild-cpan apkbuild-pypi checkapk \
  		   apkbuild-gem-resolver
-@@ -41,6 +43,7 @@ SED_REPLACE	:= -e 's:@VERSION@:$(FULL_VERSION):g' \
+@@ -42,6 +44,7 @@ SED_REPLACE	:= -e 's:@VERSION@:$(FULL_VERSION):g' \
  			-e 's:@prefix@:$(prefix):g' \
  			-e 's:@sysconfdir@:$(sysconfdir):g' \
  			-e 's:@sharedir@:$(sharedir):g' \
@@ -32,7 +32,7 @@ index 72eb270..6210766 100644
  SSL_CFLAGS	?= $(shell pkg-config --cflags openssl)
  SSL_LDFLAGS	?= $(shell pkg-config --cflags openssl)
 diff --git a/abuild.in b/abuild.in
-index fc53d18..7061919 100644
+index 9dc17b6..cd70e48 100644
 --- a/abuild.in
 +++ b/abuild.in
 @@ -68,6 +68,25 @@ error() {
@@ -119,7 +119,7 @@ index fc53d18..7061919 100644
  		name="$(filename_from_uri $s)"
  		case " $files " in
  		*" $name "*) die "duplicate found in \$source: $name";;
-@@ -2712,7 +2731,7 @@ listpkg() {
+@@ -2710,7 +2729,7 @@ listpkg() {
  
  source_has() {
  	local i
@@ -128,7 +128,7 @@ index fc53d18..7061919 100644
  		[ "$1" = "${i##*/}" ] && return 0
  		[ "$1" = "${i%%::*}" ] && return 0
  	done
-@@ -2995,6 +3014,8 @@ cd "$startdir" || die
+@@ -2993,6 +3012,8 @@ cd "$startdir" || die
  
  builddir=${builddir:-"$srcdir/$pkgname-$pkgver"}
  
@@ -216,5 +216,5 @@ index fd6e594..8d738b0 100755
  			cat >script<<-EOF
  				unset $var
 -- 
-2.34.1
+2.52.0
 
