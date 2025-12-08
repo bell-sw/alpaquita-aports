@@ -1,7 +1,7 @@
 pkgname=libvirt
 pkgver=11.3.0
 _ver="${pkgver/_rc/-rc}"
-pkgrel=1
+pkgrel=2
 pkgdesc="Virtualization API for several hypervisor and container systems"
 url="https://libvirt.org/"
 arch="all"
@@ -84,10 +84,22 @@ source="https://libvirt.org/sources/libvirt-$pkgver.tar.xz
 	libvirt-guests.initd
 	virtlogd.initd
 	virtlockd.initd
+
+	0100-CVE-2025-12748-conf-Add-virDomainDefIDsParseString.patch
+	0101-CVE-2025-12748-bhyve-Check-ACLs-before-parsing-the-whole-domain-XML.patch
+	0102-CVE-2025-12748-libxl-Check-ACLs-before-parsing-the-whole-domain-XML.patch
+	0103-CVE-2025-12748-lxc-Check-ACLs-before-parsing-the-whole-domain-XML.patch
+	0104-CVE-2025-12748-vz-Check-ACLs-before-parsing-the-whole-domain-XML.patch
+	0105-CVE-2025-12748-ch-Check-ACLs-before-parsing-the-whole-domain-XML.patch
+	0106-CVE-2025-12748-qemu-Check-ACLs-before-parsing-the-whole-domain-XML.patch
+	0107-CVE-2025-13193.patch
 	"
 subpackages="$subpackages $pkgname-common-drivers:_common_drivers"
 
 # secfixes:
+#   11.3.0-r2:
+#     - CVE-2025-12748
+#     - CVE-2025-13193
 #   10.7.0-r0:
 #     - CVE-2024-8235
 #   10.2.0-r0:
@@ -233,4 +245,12 @@ c3647366e589f2134599baefcbd7ec480cbc0830c71f95cd903cacb28e463d4cd8d972fbd1db81aa
 4ece28373ea9e00ccb884493a8489922c8155bc991c1679d956d77a9aaafc99253645ca9a3cdb397ad101356361003a6a2b5f43af5088a3c8c0f8103dfa434ac  libvirt-guests.initd
 e1e092a67294488457064cdc709729814d7dc82482075c7584aeb625d79d6c2c0d0e196e98aef9240f2dd0f15c3c7e9bfcd0876b5671fdbb454bfe87092ba477  virtlogd.initd
 4b8626ac39a4e6c2cc3a8883d6f9fe3234d3a948c000a525a9c8571500989e40e3eb466fce45f1f600235ee282ad6dd05fc14aa689ce108f475dc0dc79bd0268  virtlockd.initd
+af4e4d2ae606567d58818809c0f61a7a961af33ca8a11bcbb1b97438b4713d93150a5605d58538f765089f98a10a7fe3d416ef5e80dac0dd28c063ea6cebe43c  0100-CVE-2025-12748-conf-Add-virDomainDefIDsParseString.patch
+bbf2c249b960383e2790198f469f4d23acf2baff7db97d7809a29b475ba63258c09fc6d71a93278a74325d909269cf0dbe7c057288c3bfdf90f1b0acf09a01a4  0101-CVE-2025-12748-bhyve-Check-ACLs-before-parsing-the-whole-domain-XML.patch
+6ab7ebfda2ebf11004c93094916a20f7295e1b4b86cba8e39a4aab822b8608c994117595787a4bc1d982c08b1ae668b4be78eef14e98a82e58d707322740a47e  0102-CVE-2025-12748-libxl-Check-ACLs-before-parsing-the-whole-domain-XML.patch
+8c017e412d50495242d84bf1f8ee53b103132c03ecb1807e603f2a08c0f44cdfb23eb055c1dc59d3f7e29867a5fabf7484a213ed4a0fdfe5d8673f4bc86574e7  0103-CVE-2025-12748-lxc-Check-ACLs-before-parsing-the-whole-domain-XML.patch
+0f8c863d81fae76990b889606d4925ca3c1f68b3d74aa19ae25e1f1f149300e0c1970fe433bbdfd8385eaad18761314cfeb872649fcddc9aaac415725ac1004d  0104-CVE-2025-12748-vz-Check-ACLs-before-parsing-the-whole-domain-XML.patch
+2e84c474b1ff2661dc78a7576621124fce590b1fdb7e883e5774dcc8491270a479774ec17f84bb0de2ad0c08a65b679bf39ddc048e340a728db9407a283593ad  0105-CVE-2025-12748-ch-Check-ACLs-before-parsing-the-whole-domain-XML.patch
+ae6fb3b8f094fd6eba82a2497c5c87c04557913021274d65b988683fbd84e48e2457ef0d96e3a65de5d4c30e9aaf01324780f9e323b809f6dd1995e7bdb711ca  0106-CVE-2025-12748-qemu-Check-ACLs-before-parsing-the-whole-domain-XML.patch
+f8bd9c190afc83c92f618cdc14b2dcaf52844309f8fa5f58c548a05d1a71d59f37464db9a88f0637d13a4e0968a8c52b9cdf48cff12d5bf411b342c3946405a3  0107-CVE-2025-13193.patch
 "
