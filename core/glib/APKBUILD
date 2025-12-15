@@ -4,7 +4,7 @@
 pkgname=glib
 pkgver=2.84.4
 _gi_version=1.82.0
-pkgrel=0
+pkgrel=1
 pkgdesc="Common C routines used by GTK+ and others"
 url="https://developer.gnome.org/glib/"
 arch="all"
@@ -46,6 +46,9 @@ source="https://download.gnome.org/sources/glib/${pkgver%.*}/glib-$pkgver.tar.xz
 	https://download.gnome.org/sources/gobject-introspection/${_gi_version%.*}/gobject-introspection-$_gi_version.tar.xz
 	tests-machine-id.patch
 	flaky-tests.patch
+
+	0100-CVE-2025-14087.patch
+	0101-CVE-2025-14512.patch
 	"
 
 # 2.80 moves gir here
@@ -54,6 +57,9 @@ replaces="gobject-introspection<1.80.0"
 [ "$CARCH" = "ppc64le" ] && options="$options !check" # https://gitlab.gnome.org/GNOME/glib/-/issues/3474
 
 # secfixes:
+#   2.84.4-r1:
+#     - CVE-2025-14087
+#     - CVE-2025-14512
 #   2.80.1-r0:
 #     - CVE-2024-34397
 #   2.66.6-r0:
@@ -149,4 +155,6 @@ sha512sums="
 e139fadb4174c72b648914f3774d89fc0e5eaee45bba0c13edf05de883664dad8276dbc34006217bb09871ed4bad23adab51ff232a17b9eb131329b2926cafb7  gobject-introspection-1.82.0.tar.xz
 4f561bfede4a559b314195aa4b7b5923a52c62063e6dd33b4933ad53b29c32ef789d69b9f7b17d8d701323006366e6b7acbb083a68674c1c535c185d35cc5d1f  tests-machine-id.patch
 268cf6f089274f29285242f1e29bf5650e85f9fcb5744df884deb139493cc25792ad78487113732665f1c5393c94b2f76f97093a1a003e3caaf65c07960a1bf9  flaky-tests.patch
+db5f2f1fcf77544e58c969f407ea29b15ada8daf8f9a510f138af4c332e25c9fc56f374a8ea44d1225d7ea595b5f0b11f57238dafc9e1e0aa7f452409d797885  0100-CVE-2025-14087.patch
+77332de200ee4ce838839e473bec26bbd75dc51343a8108a17d2d5569557f60cc7aa1f865d2b6afc6556461adaa58d7b4b33b9a73d96fd4cc4d1fb428762ecee  0101-CVE-2025-14512.patch
 "
