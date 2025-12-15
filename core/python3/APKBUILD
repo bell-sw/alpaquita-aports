@@ -5,7 +5,7 @@ pkgname=python3
 # the python3-tkinter's pkgver needs to be synchronized with this.
 pkgver=3.12.12
 _basever="${pkgver%.*}"
-pkgrel=0
+pkgrel=1
 pkgdesc="Python programming language"
 url="https://www.python.org/"
 arch="all"
@@ -51,6 +51,9 @@ source="https://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz
 
 	0100-test_urllib-skip-test_url_host_with_-test-cases.patch
 	0101-Unset-BASH_XTRACEFD-in-tests.patch
+	0102-ensurepip-upgrade-the-bundled-version-to-25.3.patch
+	0103-Add-missing-sys-import-to-test_cppext.patch
+	https://files.pythonhosted.org/packages/44/3c/d717024885424591d5376220b5e836c2d5293ce2011523c9de23ff7bf068/pip-25.3-py3-none-any.whl
 	"
 options="net" # Required for tests
 builddir="$srcdir/Python-$pkgver"
@@ -118,6 +121,9 @@ prepare() {
 
 	# force system libs
 	rm -r Modules/expat
+
+	rm Lib/ensurepip/_bundled/pip*.whl
+	install -m644 "$srcdir"/pip-25.3-py3-none-any.whl Lib/ensurepip/_bundled
 }
 
 build() {
@@ -301,4 +307,7 @@ ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e9
 0e1155b1976be46d68fe50161b9644ac272d95c51f44ada51a0fd67a0154df89833752e97cfc85e977b384fca82b58907c30405a103f3a33a1483b9f76ce632f  fix-run_fileexflags-test.patch
 942f13ecef2efa251b948b5ad4a58cb9b7237e399a05b184ddbfad62419d60f2f810478097d2fb58997543540c55035469b3df394ff0cb87c99da11007454d2e  0100-test_urllib-skip-test_url_host_with_-test-cases.patch
 77d3a4cfe57f9ca8cfae748f9164a8977b7c6af4d6de06d2593945716b9c71a7cdc5e4425b4019c8c2c5730bf84f1c207d2d2e8efae8afe9d782920c2275f220  0101-Unset-BASH_XTRACEFD-in-tests.patch
+009cb7f9d4c018e785690b756cdd3c37fc910f18247ae4c7606eb48355537a20c6ca7c057a426adf4449d0909347d4ef745d0177ecc31d2731b04d4bfcc5e2c0  0102-ensurepip-upgrade-the-bundled-version-to-25.3.patch
+de587425c698dca267875f70118226058c05a9077bc7bd71ea4ab9200157cade66a5a74ffe4242b5bd02493440b5acb507c67a9cdd08db5f479147ad04bdf012  0103-Add-missing-sys-import-to-test_cppext.patch
+53c9f8482beb3bb71e83924159523b3320afc35e2bdbaae5dd349e1375f1c956017cf07a698ce9803b76049d2daa3833a1d08c17df27cb3ec5b1acaf93c6e07f  pip-25.3-py3-none-any.whl
 "
