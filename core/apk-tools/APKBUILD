@@ -30,7 +30,6 @@ makedepends_host="
 	linux-headers
 	openssl-dev
 	zlib-dev
-	zstd-dev
 	"
 checkdepends="cmocka-dev"
 if [ -z "$BOOTSTRAP" ]; then
@@ -77,7 +76,7 @@ build() {
 		-Ddocs=enabled \
 		-Dhelp=enabled \
 		-Dlua_version=$_lua \
-		-Dzstd=enabled \
+		-Dzstd=disabled \
 		-Dlua="$([ -z "$BOOTSTRAP" ] && echo enabled || echo disabled)" \
 		-Dpython="$([ -z "$BOOTSTRAP" ] && echo enabled || echo disabled)" \
 		-Dtests="$(want_check && echo enabled || echo disabled)" \
