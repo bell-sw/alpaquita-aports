@@ -1,45 +1,39 @@
 pkgname=edk2
-pkgver=0.0.202508
+pkgver=0.0.202208
 _realver=edk2-stable${pkgver##*.}
-_libfdtver=1.7.2
-_libspdmver=3.6.0
-_mbedtlsver=3.3.0
-_sslver=3.5.1
+_sslver=1.1.1q
+_sfver=3e
 pkgrel=0
 pkgdesc="EFI Development Kit II"
 url="https://github.com/tianocore/tianocore.github.io/wiki/EDK-II/"
 arch="x86_64 aarch64"
 license="BSD-2-Clause-Patent"
 makedepends="bash python3 iasl nasm util-linux-dev util-linux-misc"
-options="!archcheck !check" # has no checks
-subpackages="$pkgname-pyc $pkgname-shell:_shell"
-_mipisyst_commit=370b5944c046bab043dd8b133727b2135af7747a
+options="!check" # has no checks
+subpackages=""
 source="$pkgname-$pkgver.tar.gz::https://github.com/tianocore/edk2/archive/$_realver.tar.gz
-	libfdt-$_libfdtver.tar.gz::https://github.com/devicetree-org/pylibfdt/archive/refs/tags/v$_libfdtver.tar.gz
-	libspdm-$_libspdmver.tar.gz::https://github.com/DMTF/libspdm/archive/refs/tags/$_libspdmver.tar.gz
-	mbedtls-$_mbedtlsver.tar.gz::https://github.com/ARMmbed/mbedtls/archive/v$_mbedtlsver.tar.gz
-	mipisyst-$_mipisyst_commit.tar.gz::https://github.com/MIPI-Alliance/public-mipi-sys-t/archive/$_mipisyst_commit.tar.gz
 	https://www.openssl.org/source/openssl-$_sslver.tar.gz
+	http://www.jhauser.us/arithmetic/SoftFloat-$_sfver.zip
 	build-hack.patch
+	disable-werror.patch
 	0008-BaseTools-do-not-build-BrotliCompress-RH-only.patch
 	0009-MdeModulePkg-remove-package-private-Brotli-include-p.patch
 	"
 builddir="$srcdir/$pkgname-$_realver"
 
-PLATFORM="ShellPkg/ShellPkg.dsc"
 case "$CARCH" in
 	x86)
 		TARGET_ARCH=IA32
-		PLATFORM="$PLATFORM OvmfPkg/OvmfPkgIa32X64.dsc"
+		PLATFORM=OvmfPkg/OvmfPkgIa32X64.dsc
 		;;
 	x86_64)
 		TARGET_ARCH=X64
-		PLATFORM="$PLATFORM OvmfPkg/OvmfPkgX64.dsc OvmfPkg/OvmfXen.dsc"
-		subpackages="$subpackages ovmf:_ovmf:noarch ovmf-xen:_xen:noarch"
+		PLATFORM=OvmfPkg/OvmfPkgX64.dsc
+		subpackages="$subpackages ovmf::noarch"
 		;;
 	aarch64)
 		TARGET_ARCH=AARCH64
-		PLATFORM="$PLATFORM ArmVirtPkg/ArmVirtQemu.dsc"
+		PLATFORM=ArmVirtPkg/ArmVirtQemu.dsc
 		subpackages="$subpackages aavmf::noarch"
 		;;
 esac
@@ -51,22 +45,11 @@ prepare() {
 	# unix line endings for the files to be patched
 	sed -e 's/\r$//' -i BaseTools/Source/C/VfrCompile/VfrUtilityLib.cpp \
 		BaseTools/Source/C/VolInfo/VolInfo.c
-	if [ "$CARCH" = "aarch64" ]; then
-		rm -rf MdePkg/Library/BaseFdtLib/libfdt
-		ln -s "$srcdir"/pylibfdt-$_libfdtver \
-			MdePkg/Library/BaseFdtLib/libfdt
-	fi
-	rm -rf SecurityPkg/DeviceSecurity/SpdmLib/libspdm
-	ln -s "$srcdir"/libspdm-$_libspdmver SecurityPkg/DeviceSecurity/SpdmLib/libspdm
-	rm -rf CryptoPkg/Library/MbedTlsLib/mbedtls
-	ln -s "$srcdir"/mbedtls-$_mbedtlsver CryptoPkg/Library/MbedTlsLib/mbedtls
 	rm -rf CryptoPkg/Library/OpensslLib/openssl
 	ln -s "$srcdir"/openssl-$_sslver CryptoPkg/Library/OpensslLib/openssl
-
-	rm -rf MdePkg/Library/MipiSysTLib/mipisyst
-	ln -s  "$srcdir"/public-mipi-sys-t-$_mipisyst_commit \
-		MdePkg/Library/MipiSysTLib/mipisyst
-
+	rm -rf ArmPkg/Library/ArmSoftFloatLib/berkeley-softfloat-3
+	ln -s "$srcdir"/SoftFloat-$_sfver \
+		ArmPkg/Library/ArmSoftFloatLib/berkeley-softfloat-3
 	default_prepare
 }
 
@@ -82,16 +65,14 @@ build() {
 	bash -c ". edksetup.sh"
 	make -C BaseTools
 
-	for _p in $PLATFORM; do
-		msg "Building Plaform Files $_p"
-		command build -b $RELEASE \
-			-a $TARGET_ARCH  \
-			-t $TOOLCHAIN \
-			-p $_p \
-			-n ${JOBS:-2} \
-			-DSECURE_BOOT_ENABLE=TRUE \
-			-DTPM2_ENABLE=TRUE
-	done
+	msg "Building Plaform Files"
+	command build -b $RELEASE \
+		-a $TARGET_ARCH  \
+		-t $TOOLCHAIN \
+		-p $PLATFORM \
+		-n ${JOBS:-2} \
+		-DSECURE_BOOT_ENABLE=TRUE \
+		-DTPM2_ENABLE=TRUE
 }
 
 package() {
@@ -118,28 +99,12 @@ package() {
 	done
 }
 
-_shell() {
-	pkgdesc="EDK2 UEFI Shell"
-
-	# taken from arch
-	# minimal UEFI shell, as defined in ShellPkg/Application/Shell/Shell.inf
-	local _min='7C04A583-9E3E-4f1c-AD65-E05268D0B4D1'
-	# full UEFI shell, as defined in ShellPkg/ShellPkg.dsc
-	local _full='EA4BB293-2D7F-4456-A681-1F22F42CD0BC'
-
-	install -Dm644 "$builddir"/Build/Shell/"$RELEASE"_"$TOOLCHAIN"/$TARGET_ARCH/Shell_$_min.efi \
-		"$subpkgdir"/usr/share/edk2-shell/Shell.efi
-
-	install -Dm644 "$builddir"/Build/Shell/"$RELEASE"_"$TOOLCHAIN"/$TARGET_ARCH/Shell_$_full.efi \
-		"$subpkgdir"/usr/share/edk2-shell/ShellFull.efi
-}
-
-_ovmf() {
+ovmf() {
 	pkgdesc="Open Virtual Machine Firmware (OVMF) BIOS"
 	license="BSD MIT"
 
-	for fw in "$builddir"/Build/OvmfX64/"$RELEASE"_"$TOOLCHAIN"/FV/*.fd; do
-		install -Dm644 $fw "$subpkgdir"/usr/share/OVMF/${fw##*/}
+	for fw in "$builddir"/Build/*/"$RELEASE"_"$TOOLCHAIN"/FV/*.fd; do
+		install -D $fw "$subpkgdir"/usr/share/OVMF/${fw##*/}
 	done
 
 	# dont ship memfd for now to save space
@@ -147,14 +112,6 @@ _ovmf() {
 
 	install -d "$subpkgdir"/usr/share/ovmf
 	ln -sf ../OVMF/OVMF.fd "$subpkgdir"/usr/share/ovmf/bios.bin
-}
-
-_xen() {
-	pkgdesc="Open Virtual Machine Firmware (OVMF) - Xen build"
-	license="BSD MIT"
-
-	install -Dm644 "$builddir"/Build/OvmfXen/"$RELEASE"_"$TOOLCHAIN"/FV/OVMF.fd \
-		"$subpkgdir"/usr/lib/xen/boot/ovmf.bin
 }
 
 aavmf() {
@@ -172,25 +129,16 @@ aavmf() {
 		bs=1M seek=64 count=0
 
 	for fw in "$builddir"/Build/*/"$RELEASE"_"$TOOLCHAIN"/FV/*.fd; do
-		install -Dm644 $fw "$subpkgdir"/usr/share/AAVMF/${fw##*/}
+		install -D $fw "$subpkgdir"/usr/share/AAVMF/${fw##*/}
 	done
 }
 
-pyc() {
-	default_pyc
-
-	local IFS=$'\n'
-	amove $(find usr/share/edk2/Python -type d -name __pycache__)
-}
-
 sha512sums="
-822a6fda97a4ed15d11afb36d923cc518de2aeacc47bdbeed38ba3544c0d44a0843274f150f06c0515df75a1c9566b21d98ed46bcb15026146ac1c27db5bd22e  edk2-0.0.202508.tar.gz
-e1e2779cee83c918eea67af0ffcfadc4905788a88a62723d1e7329b6f25ecad570200f838ea6da9764b203ed463dd546b15878833b736db67b8dc24a00ff7509  libfdt-1.7.2.tar.gz
-5ea3dbe2d8a83d8f6fd594f58f62cc81380841d22e0cb5bdd7bbdc60653475649edf68f1516d51b0cbcb694d3d8b8e54ab9a987b6801eb81d77ac0a345dfaffa  libspdm-3.6.0.tar.gz
-c7f59973a77566f5ffc20cb315af5dce774e51c8cb90ad28b1d48bfa4714165617c46aba307523b4f3efa765fb7b8e0f0855d91d52ce7b8607d4a5aa85f5f71a  mbedtls-3.3.0.tar.gz
-de6888577ceab7ab6915d792f3c48248cfa53357ccd310fc7f7eae4d25a932de8c7c23e5b898c9ebf61cf86cb538277273f2eb131a628b3bf0d46c9a3b9b6686  mipisyst-370b5944c046bab043dd8b133727b2135af7747a.tar.gz
-0fa152ae59ab5ea066319de039dfb1d24cbb247172d7512feb5dd920db3740f219d76b0195ea562f84fe5eae36c23772302eddfbb3509df13761452b4dafb9d3  openssl-3.5.1.tar.gz
+6a09d90c2e7f9b762dd8a22d61acf94ef740b5250532c50bc1a56b4df3cc11937457b3aff5494b85c41d9567de1f7718855e3801b8ba4b6762d35f524118245e  edk2-0.0.202208.tar.gz
+cb9f184ec4974a3423ef59c8ec86b6bf523d5b887da2087ae58c217249da3246896fdd6966ee9c13aea9e6306783365239197e9f742c508a0e35e5744e3e085f  openssl-1.1.1q.tar.gz
+3fedcd0060affb2d8fc7995894133cfed6a495c8717df0d30c89885223c38749f25743598383736036332dad6353c6a3f027f5a94a696660f7c4b607e33e534c  SoftFloat-3e.zip
 a7d4ab2c82b62ba01c86e59f53bd3896d661c9bfbb9db9598734155b66d5fe03eca4a2a9993a14d3bf555992c6d01ba5d7a15868ff9ec6ed98b8a9b3895bb7df  build-hack.patch
+a7c566f2347ee08ee062be45c340f38dc047c31b1541b8eca994692c8d04f48fea45830dce5933699e9bf9207deeaf22e09639c605a896171f01d9bcd68878ce  disable-werror.patch
 ecbfc1ec3b732580c33c477191b71553247af1a68f1754bd363d179e0f5aabde93e3c5ec7f2574f9a9ffefef34e75787a2a87b1057b02cd206e8f0618a252871  0008-BaseTools-do-not-build-BrotliCompress-RH-only.patch
 ecad98ff84ab307bda751c8a9a321e064ef880dc66b4d107e66aedbc4e14d00eed76770437e25fa9153dc30803f5cbbf1299329f56865a3b75d2c19f6615e68b  0009-MdeModulePkg-remove-package-private-Brotli-include-p.patch
 "
