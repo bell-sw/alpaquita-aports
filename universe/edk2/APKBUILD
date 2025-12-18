@@ -6,7 +6,7 @@ _libspdmver=3.6.0
 _mbedtlsver=3.3.0
 _sslver=3.5.1
 _janssonver=2.13.1
-pkgrel=0
+pkgrel=1
 pkgdesc="EFI Development Kit II"
 url="https://github.com/tianocore/tianocore.github.io/wiki/EDK-II/"
 arch="x86_64 aarch64 loongarch64 riscv64"
@@ -201,13 +201,13 @@ aavmf() {
 	license="BSD MIT"
 
 	dd if=/dev/zero \
-		of="$builddir"/Build/ArmVirtQemu-AARCH64/"$RELEASE"_$TOOLCHAIN/FV/AAVMF_CODE.fd \
+		of="$builddir"/Build/ArmVirtQemu-AArch64/"$RELEASE"_$TOOLCHAIN/FV/AAVMF_CODE.fd \
 		bs=1M seek=64 count=0
-	dd if="$builddir"/Build/ArmVirtQemu-AARCH64/"$RELEASE"_$TOOLCHAIN/FV/QEMU_EFI.fd \
-		of="$builddir"/Build/ArmVirtQemu-AARCH64/"$RELEASE"_$TOOLCHAIN/FV/AAVMF_CODE.fd \
+	dd if="$builddir"/Build/ArmVirtQemu-AArch64/"$RELEASE"_$TOOLCHAIN/FV/QEMU_EFI.fd \
+		of="$builddir"/Build/ArmVirtQemu-AArch64/"$RELEASE"_$TOOLCHAIN/FV/AAVMF_CODE.fd \
 		conv=notrunc
 	dd if=/dev/zero \
-	of="$builddir"/Build/ArmVirtQemu-AARCH64/"$RELEASE"_$TOOLCHAIN/FV/AAVMF_VARS.fd \
+	of="$builddir"/Build/ArmVirtQemu-AArch64/"$RELEASE"_$TOOLCHAIN/FV/AAVMF_VARS.fd \
 		bs=1M seek=64 count=0
 
 	for fw in "$builddir"/Build/*/"$RELEASE"_"$TOOLCHAIN"/FV/*.fd; do
