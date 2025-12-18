@@ -12,7 +12,7 @@ arch="x86_64 aarch64"
 license="BSD-2-Clause-Patent"
 makedepends="bash python3 iasl nasm util-linux-dev util-linux-misc"
 options="!archcheck !check" # has no checks
-subpackages="$pkgname-shell:_shell"
+subpackages="$pkgname-pyc $pkgname-shell:_shell"
 _mipisyst_commit=370b5944c046bab043dd8b133727b2135af7747a
 source="$pkgname-$pkgver.tar.gz::https://github.com/tianocore/edk2/archive/$_realver.tar.gz
 	libfdt-$_libfdtver.tar.gz::https://github.com/devicetree-org/pylibfdt/archive/refs/tags/v$_libfdtver.tar.gz
@@ -174,6 +174,13 @@ aavmf() {
 	for fw in "$builddir"/Build/*/"$RELEASE"_"$TOOLCHAIN"/FV/*.fd; do
 		install -Dm644 $fw "$subpkgdir"/usr/share/AAVMF/${fw##*/}
 	done
+}
+
+pyc() {
+	default_pyc
+
+	local IFS=$'\n'
+	amove $(find usr/share/edk2/Python -type d -name __pycache__)
 }
 
 sha512sums="
