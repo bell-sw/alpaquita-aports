@@ -5,7 +5,7 @@ pkgname=python3
 # the python3-tkinter's pkgver needs to be synchronized with this.
 pkgver=3.12.12
 _basever="${pkgver%.*}"
-pkgrel=1
+pkgrel=2
 pkgdesc="Python programming language"
 url="https://www.python.org/"
 arch="all"
@@ -53,12 +53,19 @@ source="https://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz
 	0101-Unset-BASH_XTRACEFD-in-tests.patch
 	0102-ensurepip-upgrade-the-bundled-version-to-25.3.patch
 	0103-Add-missing-sys-import-to-test_cppext.patch
+	0104-CVE-2025-12084.patch
+	0105-CVE-2025-13836.patch
+	0106-CVE-2025-13837.patch
 	https://files.pythonhosted.org/packages/44/3c/d717024885424591d5376220b5e836c2d5293ce2011523c9de23ff7bf068/pip-25.3-py3-none-any.whl
 	"
 options="net" # Required for tests
 builddir="$srcdir/Python-$pkgver"
 
 # secfixes:
+#   3.12.12-r2:
+#     - CVE-2025-12084
+#     - CVE-2025-13836
+#     - CVE-2025-13837
 #   3.12.11-r1:
 #     - CVE-2025-8194
 #   3.12.11-r0:
@@ -309,5 +316,8 @@ ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e9
 77d3a4cfe57f9ca8cfae748f9164a8977b7c6af4d6de06d2593945716b9c71a7cdc5e4425b4019c8c2c5730bf84f1c207d2d2e8efae8afe9d782920c2275f220  0101-Unset-BASH_XTRACEFD-in-tests.patch
 009cb7f9d4c018e785690b756cdd3c37fc910f18247ae4c7606eb48355537a20c6ca7c057a426adf4449d0909347d4ef745d0177ecc31d2731b04d4bfcc5e2c0  0102-ensurepip-upgrade-the-bundled-version-to-25.3.patch
 de587425c698dca267875f70118226058c05a9077bc7bd71ea4ab9200157cade66a5a74ffe4242b5bd02493440b5acb507c67a9cdd08db5f479147ad04bdf012  0103-Add-missing-sys-import-to-test_cppext.patch
+4235cc4ba9952971ba98119c0245f934e1edc455bd4a5de4ca11619fba936340ea9eab868a7f75e83ae9adb8827b4ab7b89bf9eb1ac154a5def1219e6705454e  0104-CVE-2025-12084.patch
+10ef42141e02ec5a34e1c0addf86bed207b981dbed0a2af217da54dded8e208e82e0aba31ae074ee1de2b8f9d555bab5d1597c4a7ca117cd64f22f95a1aadef4  0105-CVE-2025-13836.patch
+9a003b441fc8c419ecbbd33beb00c6f2bc8615f89ec166a488c006ac855fa66c710e104836b08e25902fbdb440292c6893547d5400fd3ebcc02dddad371ecb4c  0106-CVE-2025-13837.patch
 53c9f8482beb3bb71e83924159523b3320afc35e2bdbaae5dd349e1375f1c956017cf07a698ce9803b76049d2daa3833a1d08c17df27cb3ec5b1acaf93c6e07f  pip-25.3-py3-none-any.whl
 "
