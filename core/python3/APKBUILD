@@ -5,7 +5,7 @@ pkgname=python3
 # the python3-tkinter's pkgver needs to be synchronized with this.
 pkgver=3.12.12
 _basever="${pkgver%.*}"
-pkgrel=0
+pkgrel=1
 pkgdesc="Python programming language"
 url="https://www.python.org/"
 arch="all"
@@ -51,11 +51,18 @@ source="https://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz
 
 	0100-test_urllib-skip-test_url_host_with_-test-cases.patch
 	0101-Unset-BASH_XTRACEFD-in-tests.patch
+	0102-CVE-2025-12084.patch
+	0103-CVE-2025-13836.patch
+	0104-CVE-2025-13837.patch
 	"
 options="net" # Required for tests
 builddir="$srcdir/Python-$pkgver"
 
 # secfixes:
+#   3.12.12-r1:
+#     - CVE-2025-12084
+#     - CVE-2025-13836
+#     - CVE-2025-13837
 #   3.12.11-r1:
 #     - CVE-2025-8194
 #   3.12.11-r0:
@@ -301,4 +308,7 @@ ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e9
 0e1155b1976be46d68fe50161b9644ac272d95c51f44ada51a0fd67a0154df89833752e97cfc85e977b384fca82b58907c30405a103f3a33a1483b9f76ce632f  fix-run_fileexflags-test.patch
 942f13ecef2efa251b948b5ad4a58cb9b7237e399a05b184ddbfad62419d60f2f810478097d2fb58997543540c55035469b3df394ff0cb87c99da11007454d2e  0100-test_urllib-skip-test_url_host_with_-test-cases.patch
 77d3a4cfe57f9ca8cfae748f9164a8977b7c6af4d6de06d2593945716b9c71a7cdc5e4425b4019c8c2c5730bf84f1c207d2d2e8efae8afe9d782920c2275f220  0101-Unset-BASH_XTRACEFD-in-tests.patch
+4235cc4ba9952971ba98119c0245f934e1edc455bd4a5de4ca11619fba936340ea9eab868a7f75e83ae9adb8827b4ab7b89bf9eb1ac154a5def1219e6705454e  0102-CVE-2025-12084.patch
+10ef42141e02ec5a34e1c0addf86bed207b981dbed0a2af217da54dded8e208e82e0aba31ae074ee1de2b8f9d555bab5d1597c4a7ca117cd64f22f95a1aadef4  0103-CVE-2025-13836.patch
+9a003b441fc8c419ecbbd33beb00c6f2bc8615f89ec166a488c006ac855fa66c710e104836b08e25902fbdb440292c6893547d5400fd3ebcc02dddad371ecb4c  0104-CVE-2025-13837.patch
 "
