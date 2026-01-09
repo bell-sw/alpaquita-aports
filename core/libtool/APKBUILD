@@ -52,11 +52,11 @@ build() {
 check() {
 	# Test 58 debug tracing: not compatible with debug tracing enabled in ci
 	if [ "$CLIBC" = "musl" ] ; then
-		make check TESTSUITEFLAGS="-j$JOBS 1-57 59-72 73 74-169" SUBDIRS=.
+		make check TESTSUITEFLAGS="-j$JOBS 1-57 59-75 76 77-184 185" SUBDIRS=.
 	elif [ "$CLIBC" = "glibc" ] ; then
-		make check TESTSUITEFLAGS="-j$JOBS 1-57 59-72    74-169" SUBDIRS=.
-		# Test 73 fails on glibc unless we add no-pie flag to CFLAGS
-		make check CFLAGS="$CFLAGS -no-pie" TESTSUITEFLAGS=73 SUBDIRS=.
+		make check TESTSUITEFLAGS="-j$JOBS 1-57 59-75    77-184    " SUBDIRS=.
+		# Tests 76,185 fail on glibc unless we add no-pie flag to CFLAGS
+		make check CFLAGS="$CFLAGS -no-pie" TESTSUITEFLAGS="76 185" SUBDIRS=.
 	fi
 }
 
