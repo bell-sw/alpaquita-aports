@@ -1,6 +1,6 @@
 pkgname=gdk-pixbuf
 pkgver=2.44.5
-pkgrel=3
+pkgrel=4
 pkgdesc="GTK+ image loading library"
 url="https://gitlab.gnome.org/GNOME/gdk-pixbuf"
 arch="all"
@@ -10,12 +10,9 @@ makedepends="
 	glib-dev
 	gobject-introspection-dev
 	libglycin-dev
-	libjpeg-turbo-dev
-	libpng-dev
 	meson
 	py3-docutils
 	tiff-dev
-	libglycin-dev
 	"
 install="$pkgname.pre-deinstall"
 triggers="$pkgname.trigger=/usr/lib/gdk-pixbuf-2.0/*/loaders"
@@ -46,10 +43,13 @@ build() {
 	abuild-meson \
 		-Db_lto=true \
 		-Dinstalled_tests=false \
-		-Dothers=enabled \
-		-Dtiff=enabled \
 		-Dintrospection=enabled \
 		-Dglycin=enabled \
+		-Dgif=disabled \
+		-Djpeg=disabled \
+		-Dothers=disabled \
+		-Dpng=disabled \
+		-Dtiff=disabled \
 		-Dtests="$(want_check && echo true || echo false)" \
 		output .
 	meson compile -C output
