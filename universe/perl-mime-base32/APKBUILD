@@ -1,0 +1,33 @@
+pkgname=perl-mime-base32
+_pkgreal=MIME-Base32
+pkgver=1.303
+_pkgver=1.303
+pkgrel=3
+pkgdesc="Perl module for MIME-Base32"
+url="https://metacpan.org/release/MIME-Base32/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/R/RE/REHSACK/$_pkgreal-$pkgver.tar.gz"
+
+builddir="$srcdir"/$_pkgreal-$_pkgver
+
+check() {
+	make test
+}
+
+prepare() {
+	PERL_MM_USE_DEFAULT=1 perl Makefile.PL INSTALLDIRS=vendor
+}
+
+build() {
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="48c2541d08976fba154816d4f803cc20d8d51f8a7e4084cd85e23f7559868611adcce133f7dd8728cb21bbec67c325a99e68e36149b4ae3bfae97a6e57f4b806  MIME-Base32-1.303.tar.gz"
