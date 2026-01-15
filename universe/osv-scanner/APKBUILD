@@ -1,6 +1,7 @@
 pkgname=osv-scanner
-pkgver=2.3.1
+pkgver=2.3.1_git20260115
 pkgrel=0
+_commit=2a77559e3a65e73ada1293931350426899266a1d
 pkgdesc="Vulnerability scanner written in Go which uses the data provided by https://osv.dev"
 url="https://github.com/google/osv-scanner"
 arch="all"
@@ -9,18 +10,12 @@ makedepends="go"
 checkdepends="tzdata"
 # tests appears to be flaky? passes on local machines but fails on builder
 options="net !check"
-source="https://github.com/google/osv-scanner/archive/v$pkgver/osv-scanner-$pkgver.tar.gz
-		osv-scalibr-for_scanner-apk.tar.gz::https://github.com/i-bs/osv-scalibr/archive/refs/heads/for_scanner-apk.tar.gz
-		"
+source="osv-scanner-$_commit.tar.gz::https://github.com/google/osv-scanner/archive/$_commit.tar.gz"
+builddir="$srcdir/$pkgname-$_commit"
 
 export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
 export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
 export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
-
-prepare() {
-	default_prepare
-	echo "replace github.com/google/osv-scalibr v0.3.1-0.20250709041632-ed2676c6ae1b => ../osv-scalibr-for_scanner-apk" >> go.mod
-}
 
 build() {
 	mkdir build
@@ -38,6 +33,5 @@ package() {
 }
 
 sha512sums="
-9cbc3659986c5ae11c263219c2ec2d34d2f140f6c9ff252680243c3de6cb0ca5f1d62fc63106ddacf49c9cf0b0be8ee88287515bb599fba1f44a30c435c16b03  osv-scanner-2.3.1.tar.gz
-779170f7eaea11bff6c10728b8ff32f92b40ffb34270b29df0d0ad0aace28fbaa1e8ad3963b96ada57638292c22ad8302c612a304be37bca928ce7266ef47474  osv-scalibr-for_scanner-apk.tar.gz
+8cbf43069d1e42434a06dadc904d6098f28ff57dcb5c7826dd9f883da7067f892cf3379f7bc8d4585eea99c57249d4b5e2f036d956897c0dced83770e1b1713c  osv-scanner-2a77559e3a65e73ada1293931350426899266a1d.tar.gz
 "
