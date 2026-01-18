@@ -2,7 +2,7 @@
 
 pkgname=libxml2
 pkgver=2.13.9
-pkgrel=0
+pkgrel=1
 pkgdesc="GNOME XML parsing library"
 url="https://gitlab.gnome.org/GNOME/libxml2"
 arch="all"
@@ -18,9 +18,16 @@ if [ -z "$BOOTSTRAP" ]; then
 else
 	_py_configure="--with-python=no"
 fi
-source="https://download.gnome.org/sources/libxml2/${pkgver%.*}/libxml2-$pkgver.tar.xz"
+source="https://download.gnome.org/sources/libxml2/${pkgver%.*}/libxml2-$pkgver.tar.xz
+
+	0100-CVE-2026-0990.patch
+	0101-CVE-2026-0992.patch
+	"
 
 # secfixes:
+#   2.13.9-r1:
+#     - CVE-2026-0990
+#     - CVE-2026-0992
 #   2.13.8-r2:
 #     - CVE-2025-49795
 #   2.13.8-r1:
@@ -122,4 +129,6 @@ utils() {
 
 sha512sums="
 62d4813860124c969f204aaf33b497105dbc32a6c5655f5a86168743660e10987d687d7e5e7ee49fdfdeb8f6ad9fa4503f81fcce2e4d459094895f02436d1b13  libxml2-2.13.9.tar.xz
+2675062671bf66c002355a957bf3d4fccbf06179477713d4061a45ed6d418f5f0ee4d4eca99999639c506a62eb6905003cdfdedb9addb46c64732112816f649c  0100-CVE-2026-0990.patch
+01fa77bb6b084d2ccd8353f3c969880aee36aac874f198f3650c0226ccc7bb40df41d915c5cc8dd6c03374dd88d5d3e8765ea570a45b5a5e77019cd2a65c8819  0101-CVE-2026-0992.patch
 "
