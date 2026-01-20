@@ -1,0 +1,91 @@
+pkgname=librsvg
+pkgver=2.61.3
+pkgrel=2
+pkgdesc="Library to render SVG images to Cairo surfaces"
+url="https://gitlab.gnome.org/GNOME/librsvg"
+arch="all"
+license="LGPL-2.1-or-later"
+depends_dev="rsvg-convert=$pkgver-r$pkgrel"
+makedepends="
+	bzip2-dev
+	cairo-dev
+	cargo
+	cargo-c
+	dav1d-dev
+	font-dejavu
+	gdk-pixbuf-dev
+	gi-docgen
+	git
+	glib-dev
+	gobject-introspection-dev
+	libgsf-dev
+	meson
+	py3-docutils
+	rust
+	vala
+	"
+install="$pkgname.post-upgrade"
+subpackages="
+	$pkgname-dbg
+	$pkgname-dev
+	$pkgname-doc
+	rsvg-convert:_convert
+	rsvg-convert-doc:_convert_doc:noarch
+	"
+source="https://download.gnome.org/sources/librsvg/${pkgver%.*}/librsvg-$pkgver.tar.xz
+	"
+# tests are very dependent on versions of pango/cairo/freetype
+options="!check net"
+
+# secfixes:
+#   2.56.3-r0:
+#     - CVE-2023-38633
+#   2.50.4-r0:
+#     - RUSTSEC-2020-0146
+#   2.46.2-r0:
+#     - CVE-2019-20446
+
+export RUSTFLAGS="$RUSTFLAGS -C debuginfo=1"
+
+prepare() {
+	default_prepare
+	git init -q
+}
+
+build() {
+	abuild-meson \
+		-Dintrospection=enabled \
+		-Dpixbuf=enabled \
+		-Dpixbuf-loader=disabled \
+		-Dvala=enabled \
+		-Dtests="$(want_check && echo true || echo false)" \
+		-Davif=enabled \
+		output
+	meson compile -C output
+}
+
+check() {
+	meson test --print-errorlogs -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+_convert() {
+	pkgdesc="CLI utility to convert SVG files to PNG format"
+
+	amove usr/bin/rsvg-convert
+}
+
+_convert_doc() {
+	pkgdesc="CLI utility to convert SVG files to PNG format (documentation)"
+	depends=""
+	install_if="docs ${subpkgname%-doc}=$pkgver-r$pkgrel"
+
+	pkgdir="$pkgdir-doc" amove usr/share/man/man1/rsvg-convert.*
+}
+
+sha512sums="
+f16a1997a5e174214454b5e398cb432d74192c03e2ce6d7aec1d4288d20a1206e06a359e047a0003dc8f6f11a9f0c87f6d9a8c808d621a97001e41b5cc7a062c  librsvg-2.61.3.tar.xz
+"
