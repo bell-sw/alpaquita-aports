@@ -1,0 +1,105 @@
+From a9bf93e97797d219189ae38c36086c4d18436f67 Mon Sep 17 00:00:00 2001
+From: "Miss Islington (bot)"
+ <31488909+miss-islington@users.noreply.github.com>
+Date: Mon, 22 Dec 2025 14:51:27 +0100
+Subject: [PATCH] gh-136063: fix quadratic-complexity parsing in
+ `email.message._parseparam` (GH-136072) (#140829)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+gh-136063: fix quadratic-complexity parsing in `email.message._parseparam` (GH-136072)
+(cherry picked from commit 680a5d070f59798bb88a1bb6eb027482b8d85c34)
+
+Co-authored-by: Bénédikt Tran <10796600+picnixz@users.noreply.github.com>
+(cherry picked from commit 8aea810a9fe00ddcc5d567007ee0372e82c1ac30)
+---
+ Lib/email/message.py                          | 26 ++++++++++++-------
+ Lib/test/test_email/test_email.py             | 21 +++++++++++++++
+ ...-06-28-13-23-53.gh-issue-136063.aGk0Jv.rst |  2 ++
+ 3 files changed, 39 insertions(+), 10 deletions(-)
+ create mode 100644 Misc/NEWS.d/next/Security/2025-06-28-13-23-53.gh-issue-136063.aGk0Jv.rst
+
+diff --git a/Lib/email/message.py b/Lib/email/message.py
+index 492a6b9a430..6a9903f9c8e 100644
+--- a/Lib/email/message.py
++++ b/Lib/email/message.py
+@@ -74,19 +74,25 @@ def _parseparam(s):
+     # RDM This might be a Header, so for now stringify it.
+     s = ';' + str(s)
+     plist = []
+-    while s[:1] == ';':
+-        s = s[1:]
+-        end = s.find(';')
+-        while end > 0 and (s.count('"', 0, end) - s.count('\\"', 0, end)) % 2:
+-            end = s.find(';', end + 1)
++    start = 0
++    while s.find(';', start) == start:
++        start += 1
++        end = s.find(';', start)
++        ind, diff = start, 0
++        while end > 0:
++            diff += s.count('"', ind, end) - s.count('\\"', ind, end)
++            if diff % 2 == 0:
++                break
++            end, ind = ind, s.find(';', end + 1)
+         if end < 0:
+             end = len(s)
+-        f = s[:end]
+-        if '=' in f:
+-            i = f.index('=')
+-            f = f[:i].strip().lower() + '=' + f[i+1:].strip()
++        i = s.find('=', start, end)
++        if i == -1:
++            f = s[start:end]
++        else:
++            f = s[start:i].rstrip().lower() + '=' + s[i+1:end].lstrip()
+         plist.append(f.strip())
+-        s = s[end:]
++        start = end
+     return plist
+ 
+ 
+diff --git a/Lib/test/test_email/test_email.py b/Lib/test/test_email/test_email.py
+index ad60ed3a759..431d362718a 100644
+--- a/Lib/test/test_email/test_email.py
++++ b/Lib/test/test_email/test_email.py
+@@ -464,6 +464,27 @@ def test_get_param_with_quotes(self):
+             "Content-Type: foo; bar*0=\"baz\\\"foobar\"; bar*1=\"\\\"baz\"")
+         self.assertEqual(msg.get_param('bar'), 'baz"foobar"baz')
+ 
++    def test_get_param_linear_complexity(self):
++        # Ensure that email.message._parseparam() is fast.
++        # See https://github.com/python/cpython/issues/136063.
++        N = 100_000
++        for s, r in [
++            ("", ""),
++            ("foo=bar", "foo=bar"),
++            (" FOO = bar    ", "foo=bar"),
++        ]:
++            with self.subTest(s=s, r=r, N=N):
++                src = f'{s};' * (N - 1) + s
++                res = email.message._parseparam(src)
++                self.assertEqual(len(res), N)
++                self.assertEqual(len(set(res)), 1)
++                self.assertEqual(res[0], r)
++
++        # This will be considered as a single parameter.
++        malformed = 's="' + ';' * (N - 1)
++        res = email.message._parseparam(malformed)
++        self.assertEqual(res, [malformed])
++
+     def test_field_containment(self):
+         msg = email.message_from_string('Header: exists')
+         self.assertIn('header', msg)
+diff --git a/Misc/NEWS.d/next/Security/2025-06-28-13-23-53.gh-issue-136063.aGk0Jv.rst b/Misc/NEWS.d/next/Security/2025-06-28-13-23-53.gh-issue-136063.aGk0Jv.rst
+new file mode 100644
+index 00000000000..940a3ad5a72
+--- /dev/null
++++ b/Misc/NEWS.d/next/Security/2025-06-28-13-23-53.gh-issue-136063.aGk0Jv.rst
+@@ -0,0 +1,2 @@
++:mod:`email.message`: ensure linear complexity for legacy HTTP parameters
++parsing. Patch by Bénédikt Tran.
+-- 
+2.25.1
+
