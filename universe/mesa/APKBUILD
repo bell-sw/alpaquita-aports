@@ -2,7 +2,7 @@
 #	http://repo.rackspace.moe/mesa-nightly/
 pkgname=mesa
 pkgver=25.2.7
-pkgrel=3
+pkgrel=4
 pkgdesc="Mesa DRI OpenGL library"
 url="https://www.mesa3d.org"
 arch="all"
@@ -105,13 +105,17 @@ aarch64)
 	_gallium_drivers="$_gallium_drivers,vc4,v3d,freedreno,lima,panfrost,etnaviv,tegra,asahi"
 	_gallium_drivers="${_gallium_drivers//r300,}"
 	;;
-riscv64|loongarch64)
+riscv64)
+	_gallium_drivers="${_gallium_drivers//r300,}"
+	;;
+loongarch64)
+	_gallium_drivers="$_gallium_drivers,i915,iris,crocus"
 	_gallium_drivers="${_gallium_drivers//r300,}"
 esac
 
 # extra vulkan per arch
 case "$CARCH" in
-x86*)
+x86*|loongarch64)
 	_vulkan_drivers="$_vulkan_drivers,intel,intel_hasvk,nouveau,virtio"
 	_vulkan_layers="$_vulkan_layers,intel-nullhw"
 	subpackages="
@@ -158,7 +162,7 @@ x86)
 esac
 
 case "$CARCH" in
-armv7|aarch64|x86|x86_64)
+armv7|aarch64|x86|x86_64|loongarch64)
 	_rusticl=true
 	makedepends="
 		$makedepends
