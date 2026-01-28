@@ -1,15 +1,22 @@
 pkgname=perl-authen-sasl
 _realname=Authen-SASL
 pkgver=2.16
-pkgrel=3
+pkgrel=4
 pkgdesc="SASL Authentication framework for perl"
 url="https://metacpan.org/release/Authen-SASL"
 arch="noarch"
 license="GPL-1.0-or-later OR Artistic-1.0-Perl"
-depends="perl perl-digest-hmac"
+depends="perl perl-digest-hmac perl-crypt-urandom"
 makedepends="perl-module-install"
 subpackages="$pkgname-doc"
-source="https://cpan.metacpan.org/authors/id/G/GB/GBARR/Authen-SASL-$pkgver.tar.gz"
+source="https://cpan.metacpan.org/authors/id/G/GB/GBARR/Authen-SASL-$pkgver.tar.gz
+
+	0100-CVE-2025-40918.patch
+	"
+
+# secfixes:
+#   2.16-r4:
+#     - CVE-2025-40918
 
 builddir="$srcdir/$_realname-$pkgver"
 
@@ -29,4 +36,7 @@ package() {
 	find "$pkgdir" -name perllocal.pod -delete
 }
 
-sha512sums="d472b8b07b8915e65a219c0a40a7b6f25ca4fb767df301f426224b8f6ebf24d66fcb4422a1f421c39631e84585af06f6c64e41abe11e1e505d03e43a9f86bd6f  Authen-SASL-2.16.tar.gz"
+sha512sums="
+d472b8b07b8915e65a219c0a40a7b6f25ca4fb767df301f426224b8f6ebf24d66fcb4422a1f421c39631e84585af06f6c64e41abe11e1e505d03e43a9f86bd6f  Authen-SASL-2.16.tar.gz
+b9dd125e02d9dae306c6da21b0fcb6e771b2a32e5f8a45301220f5fecc3c3ad7bf52e65a1f3e7cf832c6cf77be33f2863bd948ca22d4e69202ae2497ddf1fe53  0100-CVE-2025-40918.patch
+"
