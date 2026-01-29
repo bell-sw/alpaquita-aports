@@ -1,4 +1,4 @@
-From 9efad269e398f062bcc3d2cb83a311d4af8406c4 Mon Sep 17 00:00:00 2001
+From 1525112750a1916a255a82e678529a4780c9c48c Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 22 Feb 2022 18:18:06 +0300
 Subject: [PATCH] add alternative packages support
@@ -13,7 +13,7 @@ Subject: [PATCH] add alternative packages support
  6 files changed, 134 insertions(+), 11 deletions(-)
 
 diff --git a/src/apk_package.h b/src/apk_package.h
-index 63c3ce1..4e43315 100644
+index 63c3ce18..4e433151 100644
 --- a/src/apk_package.h
 +++ b/src/apk_package.h
 @@ -97,6 +97,7 @@ struct apk_package {
@@ -25,7 +25,7 @@ index 63c3ce1..4e43315 100644
  	uint8_t digest[];
  };
 diff --git a/src/apk_solver.h b/src/apk_solver.h
-index 37f85b7..6af5c86 100644
+index 37f85b70..6af5c86f 100644
 --- a/src/apk_solver.h
 +++ b/src/apk_solver.h
 @@ -34,6 +34,7 @@ struct apk_changeset {
@@ -37,7 +37,7 @@ index 37f85b7..6af5c86 100644
  void apk_solver_set_name_flags(struct apk_name *name,
  			       unsigned short solver_flags,
 diff --git a/src/apk_solver_data.h b/src/apk_solver_data.h
-index 5c7f297..a0317e5 100644
+index 5c7f2973..a0317e51 100644
 --- a/src/apk_solver_data.h
 +++ b/src/apk_solver_data.h
 @@ -42,6 +42,7 @@ struct apk_solver_name_state {
@@ -55,7 +55,7 @@ index 5c7f297..a0317e5 100644
 +	unsigned char old_alternative : 1;
  };
 diff --git a/src/app_add.c b/src/app_add.c
-index fdcef7a..3c4df35 100644
+index fdcef7ab..3c4df35f 100644
 --- a/src/app_add.c
 +++ b/src/app_add.c
 @@ -176,7 +176,7 @@ static int add_main(void *ctx, struct apk_ctx *ac, struct apk_string_array *args
@@ -68,10 +68,10 @@ index fdcef7a..3c4df35 100644
  		}
  	}
 diff --git a/src/package.c b/src/package.c
-index 7ae2f4e..555597e 100644
+index e5230c18..9e941d9c 100644
 --- a/src/package.c
 +++ b/src/package.c
-@@ -521,6 +521,9 @@ int apk_pkgtmpl_add_info(struct apk_package_tmpl *tmpl, char field, apk_blob_t v
+@@ -522,6 +522,9 @@ int apk_pkgtmpl_add_info(struct apk_package_tmpl *tmpl, char field, apk_blob_t v
  	case 'k':
  		pkg->provider_priority = apk_blob_pull_uint(&value, 10);
  		break;
@@ -81,7 +81,7 @@ index 7ae2f4e..555597e 100644
  	case 'F': case 'M': case 'R': case 'Z': case 'r': case 'q':
  	case 'a': case 's': case 'f': case 'g':
  		/* installed db entries which are handled in database.c */
-@@ -607,6 +610,7 @@ static int read_info_line(struct read_info_ctx *ri, apk_blob_t line)
+@@ -608,6 +611,7 @@ static int read_info_line(struct read_info_ctx *ri, apk_blob_t line)
  		{ "builddate",	't' },
  		{ "commit",	'c' },
  		{ "provider_priority", 'k' },
@@ -89,7 +89,7 @@ index 7ae2f4e..555597e 100644
  	};
  	apk_blob_t l, r;
  	int i;
-@@ -843,6 +847,10 @@ int apk_pkg_write_index_header(struct apk_package *info, struct apk_ostream *os)
+@@ -875,6 +879,10 @@ int apk_pkg_write_index_header(struct apk_package *info, struct apk_ostream *os)
  		apk_blob_push_blob(&bbuf, APK_BLOB_STR("\nk:"));
  		apk_blob_push_uint(&bbuf, info->provider_priority, 10);
  	}
@@ -101,7 +101,7 @@ index 7ae2f4e..555597e 100644
  
  	if (APK_BLOB_IS_NULL(bbuf))
 diff --git a/src/solver.c b/src/solver.c
-index 7141ef1..c142b20 100644
+index 1fefd585..397c81e7 100644
 --- a/src/solver.c
 +++ b/src/solver.c
 @@ -238,11 +238,19 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
@@ -231,8 +231,8 @@ index 7141ef1..c142b20 100644
  		    (solver_flags & APK_SOLVERF_INSTALLED)) {
  			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
  			if (r) {
--				dbg_printf("    prefer installed\n");
-+				dbg_printf("    prefer installed on self-upgrade\n");
+-				dbg_printf("    prefer installed (preupgrade)\n");
++				dbg_printf("    prefer installed on self-upgrade (preupgrade)\n");
  				return r;
  			}
  		}
@@ -250,9 +250,9 @@ index 7141ef1..c142b20 100644
 +		}
 +
  		/* Prefer installed */
- 		if (!(solver_flags & (APK_SOLVERF_REMOVE|APK_SOLVERF_UPGRADE))) {
- 			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
-@@ -659,6 +730,23 @@ static int compare_providers(struct apk_solver_state *ss,
+ 		if (!(solver_flags & (APK_SOLVERF_REMOVE|APK_SOLVERF_UPGRADE)) &&
+ 		    (pkgA->name == pkgB->name || pA->version != &apk_atom_null || pB->version != &apk_atom_null)) {
+@@ -660,6 +731,23 @@ static int compare_providers(struct apk_solver_state *ss,
  		}
  	}
  
@@ -276,7 +276,7 @@ index 7141ef1..c142b20 100644
  	/* Prefer highest declared provider priority. */
  	r = pkgA->provider_priority - pkgB->provider_priority;
  	if (r) {
-@@ -690,10 +778,15 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -691,10 +779,15 @@ static int compare_providers(struct apk_solver_state *ss,
  static void assign_name(struct apk_solver_state *ss, struct apk_name *name, struct apk_provider p)
  {
  	if (name->ss.locked) {
@@ -292,7 +292,7 @@ index 7141ef1..c142b20 100644
  		if (ss->ignore_conflict)
  			return;
  		/* Conflict: providing same name */
-@@ -722,8 +815,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
+@@ -723,8 +816,15 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
  		apk_array_foreach(p0, name->providers) {
  			if (p0->pkg == p.pkg) continue;
  			if (p.version == &apk_atom_null &&
@@ -309,7 +309,7 @@ index 7141ef1..c142b20 100644
  			disqualify_package(ss, p0->pkg, "conflicting provides");
  		}
  	}
-@@ -771,6 +871,13 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
+@@ -772,6 +872,13 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
  
  	pkg = chosen.pkg;
  	if (pkg) {
@@ -323,7 +323,7 @@ index 7141ef1..c142b20 100644
  		if (!pkg->ss.pkg_selectable || !pkg->ss.tag_ok) {
  			/* Selecting broken or unallowed package */
  			mark_error(ss, pkg, "broken package / tag not ok");
-@@ -822,6 +929,10 @@ static void cset_track_deps_added(struct apk_package *pkg)
+@@ -823,6 +930,10 @@ static void cset_track_deps_added(struct apk_package *pkg)
  	apk_array_foreach(d, pkg->depends) {
  		if (apk_dep_conflict(d) || !d->name->ss.installed_name) continue;
  		d->name->ss.installed_name->ss.requirers++;
@@ -335,5 +335,5 @@ index 7141ef1..c142b20 100644
  }
  
 -- 
-2.51.0
+2.52.0
 

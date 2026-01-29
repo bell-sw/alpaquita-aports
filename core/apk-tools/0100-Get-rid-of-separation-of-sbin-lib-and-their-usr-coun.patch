@@ -1,4 +1,4 @@
-From c9ed53432e5132f0f671715aeb82fb6311c9b9fa Mon Sep 17 00:00:00 2001
+From cdd27fcab0d24a5e97e259d19e89e07ce8b7edba Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
 Date: Mon, 27 Dec 2021 14:10:24 +0000
 Subject: [PATCH] Get rid of separation of /sbin /lib and their /usr
@@ -16,7 +16,7 @@ Subject: [PATCH] Get rid of separation of /sbin /lib and their /usr
  8 files changed, 24 insertions(+), 24 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index 9e977a0..09b2df2 100644
+index 9e977a02..09b2df2d 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -13,8 +13,8 @@ export PACKAGE VERSION SO_VERSION
@@ -31,7 +31,7 @@ index 9e977a0..09b2df2 100644
  MANDIR		:= /usr/share/man
  DOCDIR		:= /usr/share/doc/apk
 diff --git a/doc/apk.8.scd b/doc/apk.8.scd
-index f9ce0ec..ff93f38 100644
+index f9ce0ecf..ff93f388 100644
 --- a/doc/apk.8.scd
 +++ b/doc/apk.8.scd
 @@ -505,22 +505,22 @@ timeout 120
@@ -65,7 +65,7 @@ index f9ce0ec..ff93f38 100644
  	and triggers.
  
 diff --git a/src/app_audit.c b/src/app_audit.c
-index d3d097d..46e32d4 100644
+index d3d097d9..46e32d4b 100644
 --- a/src/app_audit.c
 +++ b/src/app_audit.c
 @@ -84,8 +84,8 @@ static int audit_option_parse(void *applet_ctx, struct apk_ctx *ac, int opt, con
@@ -80,7 +80,7 @@ index d3d097d..46e32d4 100644
  					"-root\n"
  					"-run\n"
 diff --git a/src/app_convdb.c b/src/app_convdb.c
-index 3369ae9..aabfac5 100644
+index 3369ae9b..aabfac55 100644
 --- a/src/app_convdb.c
 +++ b/src/app_convdb.c
 @@ -209,18 +209,18 @@ static int conv_main(void *pctx, struct apk_ctx *ac, struct apk_string_array *ar
@@ -107,10 +107,10 @@ index 3369ae9..aabfac5 100644
  		&ctx->dbi, apk_ctx_get_trust(ac));
  	if (r == 0) {
 diff --git a/src/database.c b/src/database.c
-index 93ce2ed..bce4b94 100644
+index 5176bd02..d53a5d62 100644
 --- a/src/database.c
 +++ b/src/database.c
-@@ -44,7 +44,7 @@
+@@ -45,7 +45,7 @@
  static const char * const apk_static_cache_dir = "var/cache/apk";
  static const char * const apk_world_file = "etc/apk/world";
  static const char * const apk_arch_file = "etc/apk/arch";
@@ -119,7 +119,7 @@ index 93ce2ed..bce4b94 100644
  
  static struct apk_db_acl *apk_default_acl_dir, *apk_default_acl_file;
  
-@@ -1913,8 +1913,8 @@ static int setup_cache(struct apk_database *db)
+@@ -1938,8 +1938,8 @@ static int setup_cache(struct apk_database *db)
  const char *apk_db_layer_name(int layer)
  {
  	switch (layer) {
@@ -130,7 +130,7 @@ index 93ce2ed..bce4b94 100644
  	default:
  		assert(!"invalid layer");
  		return 0;
-@@ -2262,7 +2262,7 @@ int apk_db_write_config(struct apk_database *db)
+@@ -2302,7 +2302,7 @@ int apk_db_write_config(struct apk_database *db)
  		return 0;
  
  	if (db->ctx->open_flags & APK_OPENF_CREATE) {
@@ -140,10 +140,10 @@ index 93ce2ed..bce4b94 100644
  	} else if (db->lock_fd == 0) {
  		apk_err(out, "Refusing to write db without write lock!");
 diff --git a/src/package.c b/src/package.c
-index 9ea6a38..7ae2f4e 100644
+index e7d1d2f4..e5230c18 100644
 --- a/src/package.c
 +++ b/src/package.c
-@@ -716,9 +716,9 @@ int apk_ipkg_run_script(struct apk_installed_package *ipkg,
+@@ -738,9 +738,9 @@ int apk_ipkg_run_script(struct apk_installed_package *ipkg,
  			struct apk_database *db,
  			unsigned int type, char **argv)
  {
@@ -156,7 +156,7 @@ index 9ea6a38..7ae2f4e 100644
  	struct apk_package *pkg = ipkg->pkg;
  	const char *reason = "failed to execute: ";
 diff --git a/test/solver.sh b/test/solver.sh
-index f31fc25..79ab077 100755
+index f31fc257..79ab0775 100755
 --- a/test/solver.sh
 +++ b/test/solver.sh
 @@ -38,7 +38,7 @@ run_test() {
@@ -169,7 +169,7 @@ index f31fc25..79ab077 100755
  		"@REPO @"*)
  			tag="${ln#* }"
 diff --git a/test/testlib.sh b/test/testlib.sh
-index 11af4d3..0532a8e 100644
+index 11af4d39..0532a8ef 100644
 --- a/test/testlib.sh
 +++ b/test/testlib.sh
 @@ -40,12 +40,12 @@ setup_apkroot() {
@@ -188,5 +188,5 @@ index 11af4d3..0532a8e 100644
  	cd "$TEST_ROOT/tmp"
  }
 -- 
-2.51.0
+2.52.0
 
