@@ -1,13 +1,13 @@
 pkgname=py3-protobuf
 pkgver=6.33.5
 _protobuf=${pkgver#*.}
-pkgrel=1
+pkgrel=2
 pkgdesc="Google's data interchange format"
 url="https://github.com/protocolbuffers/protobuf"
 arch="all"
 license="BSD-3-Clause"
 depends="tzdata"
-makedepends="protobuf-dev python3-dev py3-setuptools py3-wheel"
+makedepends="protobuf-dev python3-dev py3-gpep517 py3-setuptools py3-wheel"
 checkdepends="py3-pytest py3-numpy"
 # NOTE: Always use pypi releases of protobuf, not GitHub releases or auto-generated GitHub
 # tarballs as it is not possible to build from setup.py with these sources.
@@ -24,15 +24,20 @@ provides="py-protobuf=$pkgver-r$pkgrel" # Backwards compatibility
 #     - CVE-2026-0994
 
 build() {
-	python3 setup.py build
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
 }
 
 check() {
-	pytest
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/*.whl
+	.testenv/bin/python3 -m pytest
 }
 
 package() {
-	python3 setup.py install --skip-build --root="$pkgdir"
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
 
 	# correct permissions
 	chmod +r "$pkgdir"/usr/lib/*/site-packages/*/*
