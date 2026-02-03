@@ -1,0 +1,35 @@
+pkgname=pahole
+pkgver=1.30
+pkgrel=0
+pkgdesc="dwarf manipulation utilities"
+url="https://git.kernel.org/pub/scm/devel/pahole/pahole.git"
+arch="all"
+license="GPL-2.0-only"
+options="!check" # no test
+makedepends="cmake elfutils-dev libdwarf-dev zlib-dev libbpf-dev
+	linux-headers musl:musl-obstack-dev musl:argp-standalone samurai"
+subpackages="$pkgname-doc"
+source="https://git.kernel.org/pub/scm/devel/pahole/pahole.git/snapshot/pahole-v$pkgver.tar.gz"
+builddir="$srcdir/$pkgname-v$pkgver"
+
+build() {
+	# use libbpf installed uapi headers as we need something
+	# newer than linux-headers provides
+	export CFLAGS="$CFLAGS -I/usr/include/bpf/uapi"
+
+	cmake -B build -G Ninja . \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_BUILD_TYPE=None \
+		-D__LIB=lib \
+		-DCMAKE_MODULE_PATH=/usr/lib/cmake \
+		-DLIBBPF_EMBEDDED=OFF
+	cmake --build build
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --build build --target install
+}
+
+sha512sums="
+033fb91c574a8b7649933bb53f787cac82c5354cad3cea362d6fc591a285ebfaa2d5bdce238466bf8bb0b06ea457f53b763d303ff9e3bb5f05d0ae5f090f6ca2  pahole-v1.30.tar.gz
+"
