@@ -9,8 +9,22 @@ pkgdesc="$VENDOR_DISTRO_NAME Linux lts kernel"
 url="https://www.kernel.org"
 depends="dracut kmod"
 _depends_dev="perl gmp-dev elfutils-dev bash flex bison"
-makedepends="$_depends_dev sed installkernel bc linux-headers openssl-dev
-	diffutils findutils xz sbsigntool gawk python3"
+makedepends="
+	$_depends_dev
+	bc
+	bpftool
+	diffutils
+	findutils
+	gawk
+	installkernel
+	linux-headers
+	openssl-dev
+	pahole
+	python3
+	sbsigntool
+	sed
+	xz
+	"
 options="!strip !annobin"
 _config=${config:-config-lts.${CARCH}}
 source="https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$_kernver.tar.xz
@@ -185,6 +199,19 @@ build() {
 		make ARCH="$(_kernelarch $CARCH)" \
 			CC="${CC:-gcc}" \
 			KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-$VENDOR_DISTRO_NAME"
+
+		if grep -q '^CONFIG_DEBUG_INFO_BTF=y' .config; then
+			# Generate vmlinux.h
+			bpftool btf dump file vmlinux format c > vmlinux.h
+
+			case "$CARCH" in
+			aarch64|ppc64le)
+				# aarch64 and ppc64le installs the uncompressed vmlinux, which is extremely
+				# large with BTF debuginfo unless stripped
+				eu-strip --remove-comment vmlinux
+				;;
+			esac
+		fi
 	done
 }
 
@@ -246,6 +273,7 @@ _package() {
 	make modules_install $_install \
 		ARCH="$(_kernelarch $CARCH)" \
 		INSTALL_MOD_PATH="$_outdir" \
+		INSTALL_MOD_STRIP=1 \
 		INSTALL_PATH="$_outdir"/boot \
 		INSTALL_DTBS_PATH="$_outdir/boot/dtbs-$_buildflavor"
 
@@ -339,6 +367,11 @@ _dev() {
 
 	install -D -t "$dir"/certs "$_builddir"/certs/signing_key.x509 || :
 
+	# Install vmlinux.h
+	if grep -q '^CONFIG_DEBUG_INFO_BTF=y' "$_builddir"/.config; then
+		install -Dm644 "$_builddir"/vmlinux.h -t "$dir/"
+	fi
+
 	make -C "$builddir" \
 		O="$dir" \
 		ARCH="$(_kernelarch $CARCH)" \
@@ -389,9 +422,9 @@ _dev() {
 sha512sums="
 3963254af3e07d3bca03999ab39d8e18732b76b5972a125f024b82c44f6df63af5474e7b4507553fca5652cf865b9c7ac8d44224f91b704105bc67b65fdafa3f  patch-6.12.68.patch.xz
 a37b1823df7b4f72542f689b65882634740ba0401a42fdcf6601d9efd2e132e5a7650e70450ba76f6cd1f13ca31180f2ccee9d54fe4df89bc0000ade4380a548  linux-6.12.tar.xz
-c9eecae8c8e1ef9e6d8ddb7ba6966f681e5728d06436cfcccf8a452fe0ef49b4d429adb1a4aef7dbc13367dd250d7a0b8a07a6b703185a19088eb55ed18de948  lts.x86_64.config
-0bb83d453c7fa45ef8471a893f8f1ed51eaec1d8a4ca1a40cfbe0e08bbd57eccb7c29261b2f815f4430f5b9bcec2ce549d80904f38e00b0a94756cd514e5b175  lts.aarch64.config
-727d88214fc6f214b1134b21e292e2ebdaa7347c02ec2b6db5b17add2defc010a3b71f3a6aa415819fca71404e4c8d1ecfb84745d9ca22a100b7ecde3df4f43f  lts-64k.aarch64.config
+7a61bee8a03bcde705a203236743a0ef40f05ee8d74cfd1db043eac88982dd805a3ed7a9a72deb6e726d4ba887081c7ed3d52a003081f5704d63d0d72fcba83e  lts.x86_64.config
+071c4602c30b1b998ee847dd643212d6435208cf6842731efac8e15ce54c5c7bce85f2fc8b97e39ea6576d74fa0fd1158dd576b368b223bdafa00a6fcc113f62  lts.aarch64.config
+2b3c572b2f4fa8010c279739bc09dd7ef96af5554bf7cf2c90b7c945346324ad7c8238d6b9037e5ef50b42b268387fb47dc6910facc78d20c2ca5a4dbb32886a  lts-64k.aarch64.config
 594332c75da1e19678ec36854cd52389a63bf4798df184c2cc7f0c0be89ae3078e8147b3440fd25441cbe8776f643030958a8b0bdc38ff560818f507fa08b078  extramods
 ba44e77280ebff9f364b48aa2b52126941cb73290534390c9d2f866a26a19cc17c6e1e769305ff98ba4186b44fc7e1f3a438d7dae55432ff6cceb49de693d265  extramods.x86_64
 5e2b5eb280feaf15ced764117d052d8532096ab12d00674818814c954086549c81d38846043b7792663363b0588ff1279af6908282d322ff873434fe89ad860c  extramods.aarch64
