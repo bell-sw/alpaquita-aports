@@ -1,0 +1,63 @@
+pkgname=scx-scheds
+pkgver=1.0.19
+pkgrel=0
+pkgdesc="The BPF task scheduler implementations and tools"
+url="https://github.com/sched-ext/scx"
+arch="x86_64 aarch64"
+license="GPL-2.0-only"
+depends=""
+makedepends="
+	bpftool
+	bsd-compat-headers
+	cargo-auditable
+	clang
+	clang-libclang
+	llvm
+	libbpf-dev
+	libseccomp-dev
+	linux-headers
+	zlib-dev
+	elfutils-dev
+	"
+options="!check !annobin"
+
+source="$pkgname-$pkgver.tar.gz::https://github.com/sched-ext/scx/archive/refs/tags/v$pkgver.tar.gz"
+builddir="$srcdir/scx-$pkgver"
+
+prepare() {
+	default_prepare
+
+	cargo fetch --target="$CTARGET" --locked
+}
+
+build() {
+	# Build schedulers (production ready)
+
+	C_SCHEDS="\
+		scx_ftalcg \
+		scx_nest \
+		scx_simple \
+		" \
+		make all
+
+	cargo auditable build --release --frozen --workspace \
+		--exclude scx_rlfifo \
+		--exclude scx_wd40 \
+		--exclude scx_mitosis \
+		--exclude scx_chaos \
+		--exclude scx_tickless \
+		--exclude scxcash \
+		--exclude xtask \
+		--exclude vmlinux_docify \
+		--exclude scx_arena_selftests
+}
+
+package() {
+	find build/scheds/c target/release -maxdepth 1 -type f -executable \
+		! -name '*.so' \
+		-exec install -Dm755 -t "$pkgdir/usr/bin/" {} +
+}
+
+sha512sums="
+dd7b6e958fb7c341cca29710cc50e9ea07a9d8ee20533bab154371d069b0226f7c1899ad8f4f5ec8b970779c17dcd53143cf1fb04e4aa40229c642a554982b8f  scx-scheds-1.0.19.tar.gz
+"
