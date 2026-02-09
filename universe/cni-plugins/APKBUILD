@@ -1,0 +1,29 @@
+pkgname=cni-plugins
+pkgver=1.9.0
+pkgrel=2
+pkgdesc="Some standard networking plugins, maintained by the CNI team"
+options="!check"
+url="https://www.cni.dev/"
+arch="all"
+license="Apache-2.0"
+makedepends="go linux-headers"
+subpackages="$pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/containernetworking/plugins/archive/v$pkgver.tar.gz"
+builddir="$srcdir/plugins-$pkgver"
+
+export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
+
+build() {
+	sh ./build_linux.sh -ldflags "-X github.com/containernetworking/plugins/pkg/utils/buildversion.BuildVersion=v$pkgver"
+}
+
+package() {
+	install -Dm755 -t "$pkgdir"/usr/libexec/cni bin/*
+	install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+}
+
+sha512sums="
+8383a9f3fca75e978b84035609668f139e34cac7c5c1547c2913b6893754c3a0ec55acef73fd8e362094ca022359f2fa6c54dec55bada6b8fb8db7e9d7c889ea  cni-plugins-1.9.0.tar.gz
+"
