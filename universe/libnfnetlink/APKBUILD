@@ -1,0 +1,36 @@
+pkgname=libnfnetlink
+pkgver=1.0.2
+pkgrel=3
+pkgdesc="low-level library for netfilter related kernel/userspace communication"
+url="https://www.netfilter.org/projects/libnfnetlink/"
+arch="all"
+license="GPL-2.0-only"
+makedepends="linux-headers"
+subpackages="$pkgname-static $pkgname-dev"
+source="https://www.netfilter.org/projects/libnfnetlink/files/libnfnetlink-$pkgver.tar.bz2"
+options="!check"
+
+prepare() {
+ 	default_prepare
+	update_config_sub
+}
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--enable-static
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+a5e9ae22831f1d17703f83953f3b0ef898e8b3fa7f0f771b038db51816ddae3158574380ac4d45c09fb8fbb8677e2ccdcc5c4736e3b09de06eac99f899130854  libnfnetlink-1.0.2.tar.bz2
+"
