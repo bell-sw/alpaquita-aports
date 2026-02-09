@@ -1,0 +1,33 @@
+pkgname=cni-plugin-flannel
+pkgver=1.8.0
+pkgrel=3
+_flannelver="flannel2"
+pkgdesc="networking plugin, designed to work with flannel network fabric"
+url="https://github.com/flannel-io/cni-plugin/"
+arch="all"
+license="Apache-2.0"
+makedepends="go linux-headers"
+source="$pkgname-$pkgver-$_flannelver.tar.gz::https://github.com/flannel-io/cni-plugin/archive/refs/tags/v$pkgver-$_flannelver.tar.gz"
+builddir="$srcdir/cni-plugin-$pkgver-$_flannelver"
+options="!check net"
+
+build() {
+	mkdir -p dist
+
+	go build -o dist/flannel \
+		-tags "netgo osusergo no_stage static_build" \
+		-ldflags "
+		-X main.Version=$pkgver
+		-X main.Program=flannel
+		-X main.Commit=$VENDOR_DISTRO
+		"
+
+}
+
+package() {
+	install -Dm755 -t "$pkgdir"/usr/libexec/cni dist/flannel
+}
+
+sha512sums="
+1346fb2b0a3840f81cc65ae9011c3099e39cb59bfc2beb9169e2b761891570954e674cd25f81dbd9618e59a11361d08a053ddda5dcec70c757fb9570fcf46617  cni-plugin-flannel-1.8.0-flannel2.tar.gz
+"
