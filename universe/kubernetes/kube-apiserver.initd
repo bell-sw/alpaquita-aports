@@ -1,0 +1,21 @@
+#!/sbin/openrc-run
+# Copyright 2017 Gentoo Foundation
+# Distributed under the terms of the GNU General Public License v2
+
+supervisor=supervise-daemon
+description="Kubernetes API Server"
+
+if [ -e /var/lib/kubernetes/kube-apiserver-flags.env ]; then
+	. /var/lib/kubernetes/kube-apiserver-flags.env;
+fi
+
+command="/usr/bin/kube-apiserver"
+command_args="${command_args} ${KUBE_APISERVER_ARGS}"
+: ${output_log:=/var/log/$RC_SVCNAME/$RC_SVCNAME.log}
+: ${error_log:=/var/log/$RC_SVCNAME/$RC_SVCNAME.log}
+
+
+depend() {
+	after net
+}
+

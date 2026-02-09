@@ -1,0 +1,161 @@
+pkgname=kubernetes
+pkgver=1.35.0
+pkgrel=1
+pkgdesc="Container Cluster Manager"
+url="https://kubernetes.io/"
+arch="all !armhf"
+license="Apache-2.0"
+options="!check chmod-clean net" # Tests hang
+
+_kube_proxy_deps="iptables"
+_kubelet_deps="iptables"
+_kubeadm_deps="iproute2 socat ethtool conntrack-tools cri-tools"
+makedepends="go go-bindata linux-headers rsync grep findutils bash
+	$_kube_proxy_deps
+	$_kubelet_deps
+	$_kubeadm_deps
+	"
+subpackages="
+	kubeadm:_split
+	kubectl:_split
+	kubectl-convert:_split
+	kubelet:_split
+	kubelet-openrc
+	kube-apiserver:_split
+	kube-apiserver-openrc
+	kube-controller-manager:_split
+	kube-controller-manager-openrc
+	kube-proxy:_split
+	kube-proxy-openrc
+	kube-scheduler:_split
+	kube-scheduler-openrc
+	kubeadm-bash-completion
+	kubectl-bash-completion
+	kubeadm-zsh-completion
+	kubectl-zsh-completion
+	"
+
+source="$pkgname-$pkgver.tar.gz::https://github.com/kubernetes/kubernetes/archive/v$pkgver.tar.gz
+	make-e2e_node-run-over-distro-bins.patch
+	make-test-cmd-run-over-hyperkube-based-kubectl.patch
+
+	kube-apiserver.initd
+	kube-apiserver.confd
+	kube-apiserver.logrotated
+
+	kube-controller-manager.initd
+	kube-controller-manager.confd
+	kube-controller-manager.logrotated
+
+	kube-proxy.initd
+	kube-proxy.confd
+	kube-proxy.logrotated
+
+	kube-scheduler.initd
+	kube-scheduler.confd
+	kube-scheduler.logrotated
+
+	kubelet.initd
+	kubelet.confd
+	kubelet.logrotated
+	"
+
+_agent="kubelet"
+_cli="kubeadm kubectl kubectl-convert"
+_services="kube-apiserver kube-controller-manager kube-proxy kube-scheduler"
+
+export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
+
+# Without this the build scripts will attempt to download a whole Go toolchain
+# with the 'gimme' script when our Go does not match version from '.go-version'
+export FORCE_HOST_GO=y
+
+# Without this some architectures (x86, armv7, s390x) encounter the error:
+# "-buildmode=pie requires external (cgo) linking, but cgo is not enabled"
+export KUBE_CGO_OVERRIDES="$_agent $_cli $_services"
+
+build() {
+	for _pkgs in $_agent $_cli $_services ; do
+		make -j1 GOFLAGS="$GOFLAGS -buildmode=pie -v -tags=providerless" GOLDFLAGS="-extldflags=-static" WHAT=cmd/$_pkgs
+	done
+}
+
+package() {
+	for bin in $_agent $_cli $_services; do
+		install -Dm755 _output/local/go/bin/$bin "$pkgdir"/usr/bin/$bin
+	done
+	mkdir -p "$pkgdir"/etc/kubernetes
+}
+
+_split() {
+	local _pkg=$subpkgname
+	pkgdesc="Kubernetes - $_pkg"
+	case "$_pkg" in
+		kubelet) depends="$_kubelet_deps" ;;
+		kubeadm) depends="$_kubeadm_deps" ;;
+		kube-proxy) depends="$_kube_proxy_deps" ;;
+		kubectl-convert) depends="kubectl" ;;
+	esac
+	case "$_pkg" in
+		kubelet|kube-proxy) install -d "$subpkgdir"/var/lib/$_pkg ;;
+	esac
+
+	amove usr/bin/$_pkg
+
+	if [ -f "$srcdir"/$_pkg.logrotated ]; then
+		install -d "$subpkgdir"/var/log/$_pkg
+		install -Dm644 "$srcdir"/$_pkg.logrotated "$subpkgdir"/etc/logrotate.d/$_pkg
+	fi
+}
+
+openrc() {
+	local name=${subpkgname%-openrc}
+	pkgdesc="Kubernetes - $name"
+	default_openrc
+	depends="openrc"
+
+	install -Dm755 "$srcdir"/$name.initd "$subpkgdir"/etc/init.d/$name
+	install -Dm644 "$srcdir"/$name.confd "$subpkgdir"/etc/conf.d/$name
+}
+
+bashcomp() {
+	local _pkgname=${subpkgname%-bash-completion}
+	pkgdesc="Bash completions for $_pkgname"
+	install_if="$_pkgname=$pkgver-r$pkgrel bash-completion"
+
+	mkdir -p "$subpkgdir"/usr/share/bash-completion/completions
+	"$builddir"/_output/local/go/bin/$_pkgname completion bash>"$subpkgdir"/usr/share/bash-completion/completions/$_pkgname
+}
+
+zshcomp() {
+	local _pkgname=${subpkgname%-zsh-completion}
+	pkgdesc="Zsh completions for $_pkgname"
+	install_if="$_pkgname=$pkgver-r$pkgrel zsh"
+
+	mkdir -p "$subpkgdir"/usr/share/zsh/site-functions
+	"$builddir"/_output/local/go/bin/$_pkgname completion zsh \
+		> "$subpkgdir"/usr/share/zsh/site-functions/_$_pkgname
+}
+
+sha512sums="
+7bb55b41f0243bc42cf1fd77302ce780f802021ef89292f55c981261c5ed8774eacbaaf233e71f5f94bec35035eaa725f27e286b6dbba5a0f20da8f88bc061ac  kubernetes-1.35.0.tar.gz
+5427c2e653504cfd5b0bcaf195d4734ee40947ddfebc9f155cd96dddccfc27692c29d94af4ac99f1018925b52995c593b584c5d7a82df2f185ebce1a9e463c40  make-e2e_node-run-over-distro-bins.patch
+94d07edfe7ca52b12e85dd9e29f4c9edcd144abc8d120fb71e2a0507f064afd4bac5dde30da7673a35bdd842b79a4770a03a1f3946bfae361c01dd4dc4903c64  make-test-cmd-run-over-hyperkube-based-kubectl.patch
+e690daff2adb1013c92124f32e71f8ed9a18c611ae6ae5fcb5ce9674768dbf9d911a05d7e4028488cda886e63b82e8ac0606d14389a05844c1b5538a33dd09d1  kube-apiserver.initd
+302b2a7ec715967c0aa7d1c177d4e55b26e37ebba8d04dd37ecf627d20042fe91cd7e6192ff9d71422129b0ea54a9eec6046f505af550548bd450998924f37ee  kube-apiserver.confd
+1a4bcd54dafaedc614e34bbadc2a1163f003b5925d47552fb2c47049c033c147e612171e263d9659d189fc2d95688a0b7153322d8dba97c083c079fdef6c400e  kube-apiserver.logrotated
+90b9a9708e6d7c9084de17c8b28cbf6ff543400128d47f4d168883d8d3461b4dcbbb1796950a12ffc79b0f341b3881b48bba7651e3c232c1731a7e6dbddb62b8  kube-controller-manager.initd
+347dcf514abec4bc94036955d0fb2d32f141a39d1a70d7fb37e7bf8eb5792e5c29560d500a08aafcd3e19422d04466004b832bca7108eb2815610feb144688fe  kube-controller-manager.confd
+e00cd9297d8ac75fcd504a2bfb80d5c5e145e7d475dd15edf9361dc28721afdc069c5b6e79438b75a774e972028841a17e8f7842dcfb3d7835c436a3e503704c  kube-controller-manager.logrotated
+cd43587f69bd9fc6f1fdf0896d99df89377f677f4fa9b367dcaee1bf6f66469577dd79c60833ba0cd60ffdb68deedd0fb9bc00caa2b06854af4e6e56f1ffe365  kube-proxy.initd
+4c8c34ae8668bcfa5167c2d2af006fc46b461a5dafb3ec5b64cb8cdf2a830c22ddb5cf806c93b1404f60dabf91b4153724947fa2d2c494376f20e637eeed5018  kube-proxy.confd
+d7e022ee22da191bda7382f87cb293d9c9d115a3df0c2054bf918279eb866f99c6d5c21e4c98eae84bacf925f7793bbe3087e0bcf6732ccb33844d15e4386fb5  kube-proxy.logrotated
+561bef5633ba4b9021720624443d9c279a561e5fabea76e5d0fbee2e7ad8999029a2511a45895fbec8448026212a3c5b4c197b248a6afa7f8bd945f705524ea7  kube-scheduler.initd
+af88b382ab75657d0ff13c3f8f6d924cef9f2df7807a9a27daa63495981801bc4b607998f65c0758c11a7e070e43c24f7184ba7720711109c74b1c4d57919e34  kube-scheduler.confd
+3692da349dd6ed0f5acc09d7b95ac562ffecb103e2270bebdfe4a7808d48dada9d2debff262d85b11c47f9ca3f0c20000712d03629ed813ff08a3e02d69267e6  kube-scheduler.logrotated
+1b0e0cc45666b18ecb333bf3835b282e9f72e40bf29b7a9d7b9e5e2bbbd009297be8c31d284e865af45d66434a27dee14e617e61fac0dda0242d7d0f3fc89ce8  kubelet.initd
+f79ea6dec632ca052f8cd061bf0c5f7f821c7013c048b4737752e1a41c677c020c1f9454ddabe7f9ba5d55c2a8a4718170e30049b7212a4a2dc91148a3ac7ebc  kubelet.confd
+dda5fb57b55926fd2e9cebe6c1593da699afba0398c58dfa8b923c53a9ae6e63d765778577211460047f20863a6095e8e2ab3e7769e38c4f6a1c55c0e3485501  kubelet.logrotated
+"
