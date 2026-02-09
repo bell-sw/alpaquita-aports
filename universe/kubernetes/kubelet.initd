@@ -1,0 +1,22 @@
+#!/sbin/openrc-run
+# Copyright 2016-2017 Gentoo Foundation
+# Distributed under the terms of the GNU General Public License v2
+
+supervisor=supervise-daemon
+description="Kubelet, a Kubernetes node agent"
+
+if [ -e /var/lib/kubelet/kubeadm-flags.env ]; then
+	. /var/lib/kubelet/kubeadm-flags.env;
+fi
+
+command="/usr/bin/kubelet"
+command_args="${command_args} ${KUBELET_KUBEADM_ARGS}"
+pidfile="${KUBELET_PIDFILE:-/run/${RC_SVCNAME}.pid}"
+: ${output_log:=/var/log/$RC_SVCNAME/$RC_SVCNAME.log}
+: ${error_log:=/var/log/$RC_SVCNAME/$RC_SVCNAME.log}
+
+depend() {
+	after net
+	need cgroups
+	want containerd crio
+}
