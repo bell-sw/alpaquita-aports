@@ -1,0 +1,187 @@
+pkgname=openblas
+_pkgname=OpenBLAS
+pkgver=0.3.30
+pkgrel=2
+pkgdesc="fast BSD-licensed BLAS based on gotoBLAS2, with LAPACK"
+url="https://www.openblas.net/"
+arch="all"
+license="BSD-3-Clause"
+depends_dev="gfortran"
+makedepends="$depends_dev perl linux-headers"
+subpackages="
+	$pkgname-dev
+	$pkgname-doc
+	liblapack
+	liblapacke
+	"
+source="$_pkgname-$pkgver.tar.gz::https://github.com/OpenMathLib/OpenBLAS/archive/refs/tags/v$pkgver.tar.gz
+	blas-lapack.patch
+	arm.patch
+	disable-default-tests.patch
+	0001-Fix-clobber-list-entries-for-arrays-in-inline-asm.patch
+	0002-fix-typos-in-Power8-routines.patch
+	"
+builddir="$srcdir/$_pkgname-$pkgver"
+_builddir64="$builddir-64"
+
+# this provides mostly the same thing as community/lapack,
+# but they should be separate
+sonameprefix="$pkgname:"
+
+# ILP64 is not supported on aarch64 (https://github.com/xianyi/OpenBLAS/issues/956)
+_ilp64=false
+if [ "$CARCH" = "x86_64" ]; then
+	subpackages="$subpackages $pkgname-ilp64"
+	_ilp64=true
+fi
+
+# USE_OPENMP=0: see GCC bug 60035
+# NO_AFFINITY: don't expect to work on musl, also breaks R and not
+#              recommended for Julia
+# NO_STATIC: this is absolutely massive and not used anywhere in aports
+_flags="
+	MAJOR_VERSION=3
+	NO_AFFINITY=1
+	NO_STATIC=1
+	USE_OPENMP=0
+	PREFIX=/usr
+	"
+case "$CARCH" in
+*64|s390x)
+	# match kernel's CONFIG_NR_CPUS
+	_flags="$_flags NUM_THREADS=256"
+	;;
+*)
+	# 32bit machines usually have fewer cores
+	_flags="$_flags NUM_THREADS=8"
+	;;
+esac
+
+case "$CARCH" in
+x86*)
+	# DYNAMIC_ARCH is supported on x86* only, see
+	# https://github.com/xianyi/OpenBLAS/issues/709
+	_flags="$_flags DYNAMIC_ARCH=1"
+	;;
+*)
+	_flags="$_flags DYNAMIC_ARCH=0"
+	;;
+esac
+
+case "$CARCH" in
+x86*)
+	_flags="$_flags TARGET=CORE2"
+	;;
+armhf)
+	_flags="$_flags TARGET=ARMV6"
+	;;
+armv7)
+	_flags="$_flags TARGET=ARMV7"
+	;;
+aarch64)
+	_flags="$_flags TARGET=ARMV8"
+	;;
+ppc64le)
+	_flags="$_flags TARGET=POWER8 NO_AVX2=1"
+	;;
+s390x)
+	_flags="$_flags TARGET=ZARCH_GENERIC"
+	;;
+riscv64)
+	_flags="$_flags TARGET=RISCV64_GENERIC"
+	;;
+loongarch64)
+	_flags="$_flags TARGET=LA64_GENERIC"
+	;;
+esac
+
+# Flags for ILP64 variant.
+_flags64="
+	$_flags
+	INTERFACE64=1
+	SYMBOLSUFFIX=64_
+	"
+
+prepare() {
+	default_prepare
+
+	if [ "$CARCH" = "ppc64le" ] ; then
+		# Skip test level 3 on ppc64le for a while
+		sed 's/level2 level3/level2/g' -i "$builddir"/test/Makefile
+		sed 's/all2 all3/all2/g' -i "$builddir"/ctest/Makefile
+	fi
+	cp -ar "$builddir" "$_builddir64"
+}
+
+build() {
+	# OpenBLAS library is huge and it's heavily optimized for performance.
+	# It doesn't make sense to compile it with -Os.
+	export CFLAGS=${CFLAGS/-Os/-O2}
+
+	make -C "$builddir" \
+		$_flags CFLAGS="$CFLAGS"
+	make -C "$builddir"/interface \
+		$_flags CFLAGS="$CFLAGS" shared-blas-lapack
+
+	if $_ilp64; then
+		msg "Building with ILP64..."
+		make -C "$_builddir64" $_flags64 CFLAGS="$CFLAGS"
+	fi
+}
+
+dev() {
+	provides="blas-dev lapack-dev"
+	replaces="$provides"
+
+	default_dev
+}
+
+check() {
+	make -j1 $_flags CFLAGS="$CFLAGS" tests
+}
+
+package() {
+	if $_ilp64; then
+		make -C "$_builddir64" $_flags64 DESTDIR="$pkgdir" install
+	fi
+
+	make $_flags DESTDIR="$pkgdir" install
+	install -Dm755 interface/liblapack.so.3 \
+		"$pkgdir"/usr/lib/liblapack.so.3
+	ln -s liblapack.so.3 "$pkgdir"/usr/lib/liblapack.so
+	install -Dm755 interface/liblapacke.so.3 \
+		"$pkgdir"/usr/lib/liblapacke.so.3
+	ln -s liblapacke.so.3 "$pkgdir"/usr/lib/liblapacke.so
+
+	install -Dm 0644 Changelog.txt TargetList.txt USAGE.md \
+		-t "$pkgdir"/usr/share/doc/$pkgname/
+}
+
+ilp64() {
+	pkgdesc="$pkgdesc (ILP64)"
+
+	amove usr/lib/libopenblas64_*
+}
+
+liblapack() {
+	pkgdesc="$pkgdesc (LAPACK library)"
+	# provides the same library
+	depends="!lapack"
+	amove usr/lib/liblapack.so.*
+}
+
+liblapacke() {
+	pkgdesc="$pkgdesc (LAPACKE library)"
+	# provides the same library
+	depends="!lapack"
+	amove usr/lib/liblapacke.so.*
+}
+
+sha512sums="
+c726ced2d3e6ebd3ddcd0b13c255bb43fae8c12d2aec15e9ef992b0bc7099996c02cd284ccaaa7b5fac3f23f280b098063dd60f521d97a68dc183ab192fcccdb  OpenBLAS-0.3.30.tar.gz
+0209e0e86c34e5e684bd43f1e28e30b5ef8bed44e3b31211085d7f378ed525f9c07bfb1012a7af1e2342ce16b1844f7286957ff8d6c8285eba48e9ce16c76b96  blas-lapack.patch
+60fc365ec7ab5ebbdd515154655de442aaf38c36408a2e7bf92a5e5325992a2fe3a4c90fcb48a69423ef3917266a1d2f65bb9e40222612b2c87d0cca2b5330e1  arm.patch
+fd2b94c5b8fd50272ce05cc6764e0fc75a13abb5f63c718816115f590604a87d7fd413d04454031d38bb6e9c5ee685192f93b3200eb5dd37bbc7e558d81c451f  disable-default-tests.patch
+82b2550e10558aef7e8b84ee92b51bdf27b73b78ce0a6084230a2bbc2abde5addd719615cfc195487503988ed92f670d450e0f735e289dc974ebfca6db19bcb8  0001-Fix-clobber-list-entries-for-arrays-in-inline-asm.patch
+41dcc8b7e83c2f444608e45069128a00e8f307569f4828fcef14f0c0a05e41345c86ea54ebfa17220d0bc843a6119ad2a55a04579010abcc3d3c62b923edf7bc  0002-fix-typos-in-Power8-routines.patch
+"
