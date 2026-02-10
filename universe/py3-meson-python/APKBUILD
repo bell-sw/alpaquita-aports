@@ -1,0 +1,48 @@
+pkgname=py3-meson-python
+pkgver=0.18.0
+pkgrel=1
+pkgdesc="Meson PEP 517 Python build backend"
+url="https://github.com/mesonbuild/meson-python"
+arch="noarch"
+license="MIT"
+depends="
+	meson
+	py3-pyproject-metadata
+	python3
+	"
+checkdepends="
+	cython
+	git
+	patchelf
+	py3-pytest
+	py3-pytest-mock
+	py3-wheel
+	python3-dev
+	"
+subpackages="$pkgname-pyc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/mesonbuild/meson-python/archive/refs/tags/$pkgver.tar.gz"
+builddir="$srcdir/meson-python-$pkgver"
+
+build() {
+	abuild-meson . output
+	meson compile -C output
+}
+
+check() {
+	# these require pip
+	pytest \
+		--deselect tests/conftest.py \
+		--deselect tests/test_pep518.py \
+		--deselect tests/test_editable.py::test_editable_rebuild \
+		--deselect tests/test_editable.py::test_editable_verbose \
+		-k 'not test_user_args'
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+	python3 -m compileall "$pkgdir"/usr/lib
+}
+
+sha512sums="
+f32f02851cdfc13f29550b297b3bce9038bdaf02381b15064e36442104e93624e090abeae23b9de97dfa971aa456716cae65dbe04784beee13b510db12de1000  py3-meson-python-0.18.0.tar.gz
+"
