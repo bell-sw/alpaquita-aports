@@ -5,7 +5,7 @@ pkgname=grub
 # NOTE: After upgrading or applying a fix, please rebuild the following aport:
 # - grub-efi-signed
 pkgver=2.12
-pkgrel=12
+pkgrel=13
 _deb_ver="2.12-7"
 _deb_peimage_ver="$_deb_ver"
 pkgdesc="Bootloader with support for Linux, Multiboot and more"
@@ -14,8 +14,9 @@ arch="all !s390x"
 license="GPL-3.0-or-later"
 depends="dracut"
 triggers="grub.trigger=/boot"
-makedepends="autoconf automake bison flex font-unifont freetype-dev fuse3-dev gawk
-	gettext-dev libtool linux-headers lvm2-dev python3 squashfs-tools xz-dev"
+makedepends="autoconf automake bison flex font-unifont freetype-dev
+	fuse3-dev gawk gettext-dev help2man libtool linux-headers lvm2-dev
+	python3 squashfs-tools xz-dev"
 install="$pkgname.post-upgrade"
 # strip handled by grub Makefiles, abuild strip breaks xen pv-grub
 options="!check !strip !stackprot !fortify !annobin"  # Cannot test boot loader.
@@ -330,6 +331,15 @@ package() {
 	mv "$pkgdir"/etc/bash_completion.d "$pkgdir"/usr/share/bash-completion/completions
 
 	install -D -m755 "$srcdir"/update-grub "$pkgdir"/usr/sbin/update-grub
+
+	# For installing the docs, just use the builddir of first flavor.
+	cd "$srcdir"/build-"${_flavors%% *}"
+	make DESTDIR="$pkgdir" install-man
+	make DESTDIR="$pkgdir" -C docs install-info
+
+	cd "$builddir"
+	install -D -m644 -t "$pkgdir"/usr/share/doc/"$pkgname" README BUGS
+	install -D -m644 -t "$pkgdir"/usr/share/licenses/"$pkgname" COPYING
 }
 
 bios() {
