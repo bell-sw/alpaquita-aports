@@ -1,0 +1,147 @@
+pkgname=openexr
+pkgver=3.4.4
+pkgrel=0
+_commit_images=e38ffb0790f62f05a6f083a6fa4cac150b3b7452
+pkgdesc="High dynamic-range image file format library"
+url="https://www.openexr.com/"
+arch="all"
+license="BSD-3-Clause"
+# cmake files fail when libdeflate-static is missing
+depends_dev="libdeflate-static"
+makedepends="
+	$depends_dev
+	boost-dev
+	chrpath
+	cmake
+	imath-dev
+	libdeflate-dev
+	samurai
+	"
+subpackages="
+	$pkgname-doc
+	$pkgname-tools
+	$pkgname-dev
+	$pkgname-libiex
+	$pkgname-libilmthread
+	$pkgname-libopenexr
+	$pkgname-libopenexrcore
+	$pkgname-libopenexrutil
+	"
+source="$pkgname-$pkgver.tar.gz::https://github.com/AcademySoftwareFoundation/openexr/archive/v$pkgver.tar.gz
+	openexr-images-$_commit_images.tar.gz::https://github.com/AcademySoftwareFoundation/openexr-images/archive/$_commit_images.tar.gz
+	"
+
+# secfixes:
+#   3.4.2-r0:
+#     - CVE-2025-48074
+#     - CVE-2025-48073
+#     - CVE-2025-48072
+#     - CVE-2025-48071
+#   3.1.12-r0:
+#     - CVE-2023-5841
+#   3.1.4-r0:
+#     - CVE-2021-45942
+#   3.1.1-r0:
+#     - CVE-2021-3598
+#     - CVE-2021-23169
+#     - CVE-2021-23215
+#     - CVE-2021-26260
+#     - CVE-2021-26945
+#   2.5.4-r0:
+#     - CVE-2021-20296
+#     - CVE-2021-3474
+#     - CVE-2021-3475
+#     - CVE-2021-3476
+#     - CVE-2021-3477
+#     - CVE-2021-3478
+#     - CVE-2021-3479
+#   2.5.2-r0:
+#     - CVE-2020-15304
+#     - CVE-2020-15305
+#     - CVE-2020-15306
+#   2.4.1-r0:
+#     - CVE-2020-11758
+#     - CVE-2020-11759
+#     - CVE-2020-11760
+#     - CVE-2020-11761
+#     - CVE-2020-11762
+#     - CVE-2020-11763
+#     - CVE-2020-11764
+#     - CVE-2020-11765
+#   2.4.0-r0:
+#     - CVE-2017-12596
+#   2.2.1-r0:
+#     - CVE-2017-9110
+#     - CVE-2017-9111
+#     - CVE-2017-9112
+#     - CVE-2017-9113
+#     - CVE-2017-9114
+#     - CVE-2017-9115
+#     - CVE-2017-9116
+
+case "$CARCH" in
+s390x)
+	# fails a bunch of tests
+	options="$options !check"
+	;;
+esac
+
+build() {
+	mkdir -p build/src/test/bin
+	cp -R "$srcdir"/openexr-images-$_commit_images/* build/src/test/bin/
+
+	CFLAGS="$CFLAGS -O2 -flto=auto" \
+	CXXFLAGS="$CXXFLAGS -O2 -flto=auto" \
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_SHARED_LIBS=True \
+		-DCMAKE_BUILD_TYPE=None \
+		-DCMAKE_SKIP_INSTALL_RPATH=ON \
+		-DBUILD_TESTING="$(want_check && echo ON || echo OFF)" \
+		$CMAKE_CROSSOPTS
+	cmake --build build
+}
+
+check() {
+	local exclude_tests=""
+	case "$CARCH" in
+		x86*) exclude_tests="OpenEXR.testMultiTiledPartThreading|OpenEXR.Iex" ;;
+		riscv64) exclude_tests="OpenEXR.testMultiTiledPartThreading|OpenEXR.testRgba" ;;
+		arm*) exclude_tests="OpenEXR.testLargeDataWindowOffsets|OpenEXR.testCompression|OpenEXR.testConversion|OpenEXR.testCopyPixels|OpenEXR.testExistingStreams|OpenEXR.testRgba|OpenEXR.testCRgba|OpenEXR.testRgbaThreading|OpenEXR.testSharedFrameBuffer|OpenEXR.testTiledCompression|OpenEXR.testTiledCopyPixels|OpenEXR.testTiledLineOrder|OpenEXR.testTiledRgba" ;;
+	esac
+	ctest --test-dir build -E "$exclude_tests"
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+tools() {
+	amove usr/bin
+}
+
+libiex() {
+	amove usr/lib/libIex-*.so.*
+}
+
+libilmthread() {
+	amove usr/lib/libIlmThread-*.so.*
+}
+
+libopenexr() {
+	amove usr/lib/libOpenEXR-*.so.*
+}
+
+libopenexrcore() {
+	amove usr/lib/libOpenEXRCore-*.so.*
+}
+
+libopenexrutil() {
+	amove usr/lib/libOpenEXRUtil-*.so.*
+}
+
+sha512sums="
+5543063d7941f08b4c85ab9428c104ba9ad38f33a043862d5dfd3243450cc0a3cdb2f3818c11db9fa15f5a0fa6847af8a756a6a96d7d5f7c9aa5b7fdccd817a6  openexr-3.4.4.tar.gz
+b038344145470acc8656bf528fad975877948483848cf5f6d3f1ba55da1c98710343fff0240e14fdd55ec8c4c32f27a31c4dea87526569e26cdbef86fc87da43  openexr-images-e38ffb0790f62f05a6f083a6fa4cac150b3b7452.tar.gz
+"
