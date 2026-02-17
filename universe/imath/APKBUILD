@@ -1,0 +1,57 @@
+pkgname=imath
+pkgver=3.2.2
+pkgrel=0
+pkgdesc="C++ and python library of 2D and 3D vector, matrix, and math operations for computer graphics"
+url="https://github.com/AcademySoftwareFoundation/Imath"
+arch="all"
+license="BSD-3-Clause"
+makedepends="
+	bash
+	boost-dev
+	clang-extra-tools
+	cmake
+	doxygen
+	py3-numpy-dev
+	python3-dev
+	samurai
+	"
+subpackages="$pkgname-dev py3-$pkgname:_py"
+source="$pkgname-$pkgver.tar.gz::https://github.com/AcademySoftwareFoundation/Imath/archive/refs/tags/v$pkgver.tar.gz
+	fix-quat-test-precision.patch
+	"
+builddir=$srcdir/Imath-$pkgver
+
+# openexr used to vendor an imath that was system installed
+replaces="openexr"
+
+build() {
+	CFLAGS="$CFLAGS -O2 -flto=auto" \
+	CXXFLAGS="$CXXFLAGS -O2 -flto=auto" \
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_SHARED_LIBS=True \
+		-DCMAKE_BUILD_TYPE=None \
+		-DPYTHON=ON
+	cmake --build build
+}
+
+check() {
+	cd build && ctest
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+_py() {
+	pkgdesc="Imath Python library"
+	depends="python3 $pkgname=$pkgver-r$pkgrel"
+	amove usr/lib/python3*
+	amove usr/lib/libPy*
+}
+
+sha512sums="
+492a624e4c0b59685d1ea58a3c2c63ddb4ba5ab9177c7d2a1b7e80be95d38ce02c74fafd2fe0982f7d21e5e75c938cc24a33a12d827dec32727cb8dcd5066450  imath-3.2.2.tar.gz
+8d3af3d49d9c845710f3211c0c882c548d5bb128b9f9c808075d95e431f713430812dd650b5cf8d2593b607115135d345d2eb456dec751ba1cdee8ec798b3559  fix-quat-test-precision.patch
+"
