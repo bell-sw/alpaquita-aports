@@ -1,0 +1,48 @@
+pkgname=libdeflate
+pkgver=1.25
+pkgrel=0
+pkgdesc="Library for fast, whole-buffer DEFLATE-based compression and decompression"
+url="https://github.com/ebiggers/libdeflate"
+arch="all"
+license="MIT"
+makedepends="
+	cmake
+	samurai
+	"
+checkdepends="
+	zlib-dev
+	"
+subpackages="
+	$pkgname-static
+	$pkgname-dev
+	$pkgname-utils
+	"
+source="
+	$pkgname-$pkgver.tar.gz::https://github.com/ebiggers/libdeflate/archive/refs/tags/v$pkgver.tar.gz
+	"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DLIBDEFLATE_BUILD_TESTS="$(want_check && echo ON || echo OFF)" \
+		-DLIBDEFLATE_USE_SHARED_LIB=ON
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build -j 4
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+utils() {
+	pkgdesc="Command line utilities for the DEFLATE library"
+	amove usr/bin
+}
+
+sha512sums="
+fa02fa0a6d241d3f71cf4238a3ac58968cbea0b66613c1647d6eea575379d60e93f4647f8b3921e8c31322e20521aa9953213d5465f7d10a27c57bdd7186d318  libdeflate-1.25.tar.gz
+"
