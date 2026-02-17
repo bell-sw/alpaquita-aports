@@ -1,0 +1,39 @@
+pkgname=py3-click
+pkgver=8.3.1
+pkgrel=0
+pkgdesc="Simple wrapper around optparse for powerful command line utilities"
+url="https://click.palletsprojects.com"
+arch="noarch"
+license="BSD-3-Clause"
+makedepends="
+	py3-flit-core
+	py3-gpep517
+	"
+checkdepends="py3-pytest"
+subpackages="$pkgname-pyc"
+source="https://files.pythonhosted.org/packages/source/c/click/click-$pkgver.tar.gz"
+builddir="$srcdir/click-$pkgver"
+
+replaces="py-click" # Backwards compatibility
+provides="py-click=$pkgver-r$pkgrel" # Backwards compatibility
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/*.whl
+	.testenv/bin/python3 -m pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+}
+
+sha512sums="
+78bb5588f1f57f1ce00389bf3cd01630fb68bd75d4deaa9fa9cb6f420e571ea8216aefa37703154e4e99d141925c705a93212d6a23e8751a132a010f4379762e  click-8.3.1.tar.gz
+"
