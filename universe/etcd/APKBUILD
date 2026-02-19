@@ -1,0 +1,54 @@
+pkgname=etcd
+pkgver=3.6.4
+pkgrel=6
+pkgdesc="A highly-available key value store for shared configuration and service discovery"
+url="https://github.com/etcd-io/etcd"
+license="Apache-2.0"
+arch="all"
+makedepends="go bash"
+install="$pkgname.pre-install"
+provides="etcd-api"
+provider_priority=2
+options="net chmod-clean"
+pkgusers="etcd"
+pkggroups="etcd"
+subpackages="$pkgname-doc $pkgname-ctl $pkgname-openrc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/etcd-io/etcd/archive/v$pkgver.tar.gz
+	$pkgname.yaml
+	$pkgname.confd
+	$pkgname.initd
+	"
+
+build() {
+	export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+	export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+	export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
+	export GOFLAGS="$GOFLAGS -mod=mod"
+	export CGO_ENABLED=1
+	export FORCE_HOST_GO=1
+
+	GIT_SHA="$(git ls-remote https://github.com/coreos/etcd.git refs/tags/v$pkgver | awk '{print $1}')" \
+		make
+}
+
+package() {
+	install -d -o "$pkgusers" -g "$pkggroups" -m 700 "$pkgdir"/var/lib/$pkgname
+	install -Dm755 bin/etcd "$pkgdir"/usr/bin/etcd
+	install -Dm755 bin/etcdctl "$pkgdir"/usr/bin/etcdctl
+	install -Dm644 $srcdir/$pkgname.yaml "$pkgdir"/etc/etcd/conf.yml
+	install -Dm644 $srcdir/$pkgname.confd "$pkgdir"/etc/conf.d/$pkgname
+	install -Dm755 $srcdir/$pkgname.initd "$pkgdir"/etc/init.d/$pkgname
+	install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+}
+
+ctl() {
+	pkgdesc="A command-line client for etcd"
+	amove usr/bin/etcdctl
+}
+
+sha512sums="
+1a5cf0c2f5fa6e02958739debd4310f2d02e5e0cf042880e220e978816d1b1b9a0fc24d4f4a76b5b624a9183225803416dd1a91fbccb022ab3bf0a764bedfe7d  etcd-3.6.4.tar.gz
+92e6a22dfe12eef76c186c04a4aadca5318300c18aefc979cc03926fddf40e0e9b3bf2b40b75702f2f710dc65420da676c734cfe4d246d86e0728d6e99f43426  etcd.yaml
+8b917d2b3a136a97dd9565a91377420ce1f812bfb10bb0caa95f1024dd366cb78ebb0539f16ddfbc399325d41a6664b856d49c5c9aa67bc27e36040f2227356e  etcd.confd
+b67f7fd209a29ed2a6ef86d5a3c07cf5dc4138af7c61c3a928471cd79f5579ce7861fd21167db332727dfb2a8e554722366c6505e447f3b2feeae819f869aa11  etcd.initd
+"
