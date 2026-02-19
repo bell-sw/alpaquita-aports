@@ -1,4 +1,4 @@
-From 79f02a53316f90543d60269d7c06727c376f423b Mon Sep 17 00:00:00 2001
+From 58e96f6299a265f24faf4f35506e076076326e14 Mon Sep 17 00:00:00 2001
 From: Antoine Martin <dev@ayakael.net>
 Date: Wed, 24 Aug 2022 18:41:08 +0000
 Subject: [PATCH 1/1] disable apphost usage
@@ -7,11 +7,14 @@ Roslyn-analyzer can't seem to find apphost produced by runtime build on ppc64le
 This disables its use as it isn't necessary
 
 ---
-diff --git a/src/roslyn-analyzers/src/PerformanceTests/Tests/PerformanceTests.csproj.orig b/src/roslyn-analyzers/src/PerformanceTests/Tests/PerformanceTests.csproj
-index 7b454a4..bbe18ae 100644
---- a/src/roslyn-analyzers/src/PerformanceTests/Tests/PerformanceTests.csproj.orig
+ .../src/PerformanceTests/Tests/PerformanceTests.csproj           | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/roslyn-analyzers/src/PerformanceTests/Tests/PerformanceTests.csproj b/src/roslyn-analyzers/src/PerformanceTests/Tests/PerformanceTests.csproj
+index eefae30d7..191235e7b 100644
+--- a/src/roslyn-analyzers/src/PerformanceTests/Tests/PerformanceTests.csproj
 +++ b/src/roslyn-analyzers/src/PerformanceTests/Tests/PerformanceTests.csproj
-@@ -16,6 +16,7 @@
+@@ -17,6 +17,7 @@
      <IsPackable>false</IsPackable>
      <ExcludeFromSourceBuild>true</ExcludeFromSourceBuild>
      <MicrosoftCodeAnalysisVersion>$(MicrosoftCodeAnalysisVersionForTests)</MicrosoftCodeAnalysisVersion>
@@ -19,10 +22,6 @@ index 7b454a4..bbe18ae 100644
    </PropertyGroup>
    <ItemGroup>
      <PackageReference Include="BenchmarkDotNet" Version="$(BenchmarkDotNetVersion)" />
-@@ -28,4 +29,4 @@
-     <ProjectReference Include="..\Utilities\CSharp\CSharpPerfUtilities.csproj" />
-     <ProjectReference Include="..\Utilities\VisualBasic\VisualBasicPerfUtilities.csproj" />
-   </ItemGroup>
--</Project>
-\ No newline at end of file
-+</Project>
+-- 
+2.53.0
+
