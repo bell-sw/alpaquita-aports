@@ -1,20 +1,17 @@
-.Dd 2025-08-23
-.Dt alpine-hier 7
+.Dd 2026-02-20
+.Dt @VENDOR_DISTRO@-hier 7
 .\" TODO: inject version here?
-.Os Alpine Linux
+.Os @VENDOR_DISTRO_NAME@ Linux
 .Sh NAME
-.Nm alpine-hier
+.Nm @VENDOR_DISTRO@-hier
 .Nd filesystem hierarchy
 .Sh DESCRIPTION
-Overview of the filesystem hierarchy on Alpine Linux.
+Overview of the filesystem hierarchy on @VENDOR_DISTRO_NAME@ Linux.
 .Bl -tag -width "/media/"
 .It Pa /
 Root directory of the file system.
 .It Pa /bin/
-Essential system utilities. The distinction between this directory and
-.Pa /usr/bin/
-is somewhat loose, and new packages should prefer the latter. In future, this
-shall be a symlink to
+This is a symlink to
 .Pa /usr/bin/ .
 .It Pa /boot/
 Static files used for the boot process. On BIOS systems, this is often the boot
@@ -39,7 +36,7 @@ May include files installed by packages themselves. Files inside this directory
 are typically not overwritten during package updates. See
 .Xr apk-protected_paths 5 .
 .It Pa /etc/apk/
-Configuration files for the Alpine Package Keeper. See
+Configuration files for the APK Package Keeper. See
 .Xr apk 8 .
 .It Pa /etc/ssl/certs/
 CA certificates for anchoring trust.
@@ -60,23 +57,8 @@ Configuration for kernel parameters. See
 .It Pa /home/
 Home directories for regular users (each one as an individual subdirectory).
 .It Pa /lib/
-Shared libraries for essential system utilities. In future, this shall be a
-deprecated in favour of
+This is a symlink to
 .Pa /usr/lib/ .
-.It Pa /lib/apk/
-Files describing system state and configuration for
-.Xr apk 8 .
-The contents inside this directory are not intended to be tampered directly,
-and no guarantees are made about its inner structure.
-.It Pa /lib/firmware/
-Firmware loaded by the kernel.
-.It Pa /lib/modules/
-Kernel modules.
-.It Pa /lib/modules-load.d/
-Configuration files for modules which should be loaded automatically. This
-directory is intended to be used by packages, and will be overwritten during
-updates. See
-.Xr modules 7 .
 .It Pa /media/
 Mount points for removable media.
 .It Pa /mnt/
@@ -84,7 +66,7 @@ Mount point for a single, temporally mounted filesystem.
 .It Pa /opt/
 Utilities installed by the system administrator. Packages shall not install
 files into this directory. Usually, software which cannot be adapted to follow
-.Xr alpine-hier 7
+.Xr @VENDOR_DISTRO@-hier 7
 shall be installed into a single directory here.
 .It Pa /proc/
 Exposes information about running processes. Typically mounted as the proc
@@ -98,7 +80,8 @@ and other runtime-only files here. Files are typically
 .Em not
 preserved between reboots.
 .It Pa /sbin/
-Essential system utilities.
+This is a symlink to
+.Pa /usr/sbin/ .
 .It Pa /srv/
 Files served by local system services, managed by the system administrator. The
 exact structure of this directory is defined by the system administrator.
@@ -113,12 +96,21 @@ The majority of user utilities and their support files. This directory should
 generally be treated as read-only (except for package installation, deletion or
 upgrades) and may be mounted across multiple hosts.
 .It Pa /usr/bin/
-Common utilities, games and applications.
+Common utilities and applications.
 .It Pa /usr/include/
 Standard C or C++ headers.
 .It Pa /usr/lib/
-Common shared object libraries, and other private support files. Larger
+System and common shared object libraries, and other private support files. Larger
 packages may include a subdirectory here.
+.It Pa /usr/lib/firmware/
+Firmware loaded by the kernel.
+.It Pa /usr/lib/modules/
+Kernel modules.
+.It Pa /usr/lib/modules-load.d/
+Configuration files for modules which should be loaded automatically. This
+directory is intended to be used by packages, and will be overwritten during
+updates. See
+.Xr modules 7 .
 .It Pa /usr/lib/os-release
 Fallback identification information for the operating system and its current
 version. This file is present only for compatibility with the systemd
@@ -157,11 +149,16 @@ Variable system data, including application state, spool files and logs.
 Usually persists across reboots.
 .It Pa /var/cache/
 Ephemeral cache data for local utilities and services.
+.It Pa /var/lib/apk/
+Files describing system state and configuration for
+.Xr apk 8 .
+The contents inside this directory are not intended to be tampered directly,
+and no guarantees are made about its inner structure.
 .It Pa /var/log/
 System log files.
 .It Pa /var/run/
 Symlink to
-.Pa /var/ .
+.Pa /run/ .
 Exists only for backwards compatibility.
 .El
 .Sh SEE ALSO
@@ -175,7 +172,7 @@ Exists only for backwards compatibility.
 .Xr whereis 1 ,
 .Xr which 1
 .Sh HISTORY
-The following are related standards and conventions. Alpine Linux does not
+The following are related standards and conventions. @VENDOR_DISTRO_NAME@ Linux does not
 strictly adhere to any of them, but attempts to align as close as possible
 where applicable.
 .Bl -bullet -compact -offset ident
