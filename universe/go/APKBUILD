@@ -306,6 +306,10 @@ check() {
 	export PATH="$(echo "$PATH" | sed 's|/usr/lib/ccache/bin:||g')"
 
 	PATH="$builddir/bin:$PATH" ./run.bash -no-rebuild
+
+	# XXX: b/c fips tarballs think it's a good idea to be
+	# read-only they fail rm -rf during cleanup otherwise.
+	chmod -R u+w "$GOTMPDIR"/
 }
 
 package() {
