@@ -1,5 +1,5 @@
 pkgname=cilium-cli
-pkgver=0.16.13
+pkgver=0.19.0
 pkgrel=12
 pkgdesc="CLI to install, manage and troubleshoot Kubernetes clusters running Cilium"
 url="https://cilium.io/"
@@ -13,8 +13,10 @@ subpackages="
 	"
 source="$pkgname-$pkgver.tar.gz::https://github.com/cilium/cilium-cli/archive/refs/tags/v$pkgver.tar.gz
 	byteorder-add-s390x-support.patch
-	byteorder-add-loongarch-support.patch
 	"
+# Test files are not provided by the cilium-cli repository, see also:
+# https://github.com/cilium/design-cfps/pull/9
+options="!check"
 
 export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
 export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
@@ -22,16 +24,12 @@ export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
 
 build() {
 	go build -v \
-		-ldflags "-X github.com/cilium/cilium-cli/internal/cli/cmd.Version=v$pkgver" \
+		-ldflags "-X github.com/cilium/cilium/cilium-cli/defaults.CLIVersion=v$pkgver" \
 		./cmd/cilium
 
 	for shell in bash fish zsh; do
 		./cilium completion $shell > cilium.$shell
 	done
-}
-
-check() {
-	go test ./...
 }
 
 package() {
@@ -46,7 +44,6 @@ package() {
 }
 
 sha512sums="
-077a7a62d300e2d291450e342cf0afd24f6cf3dd5965a66cb17bded48680410575e3ddcb17dd7699121968fa3659e6d2c8e6c3a1a2554dc1bdf678ba6b460717  cilium-cli-0.16.13.tar.gz
+dd70d3ecc2d0663408afb9e6f584c6594f3c381635c2621269ca3870b9680d570a6a3d8fe9f5b69eff5e1687d00e8c25c3d690d4e4cf7c846de43e45149e679a  cilium-cli-0.19.0.tar.gz
 872ccb44ac714420f87c476743d7be1b644c3a5c7e2a975d47720dc970c632ce82bb678421b053ebbc219d4a3b1f2c9f37aa74f3733a055b0f8c1dbe15fed23f  byteorder-add-s390x-support.patch
-a0fadbf5b6691eeaed63297fb3a53a35977550169885f1bf283403b453d8d23cb42b7d1b94fd8519c58e5deb8e87b1a21b074d4224881cacd2d74f3c1dd67c2e  byteorder-add-loongarch-support.patch
 "
