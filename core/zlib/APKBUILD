@@ -3,7 +3,7 @@
 
 pkgname=zlib
 pkgver=1.2.13
-pkgrel=0
+pkgrel=1
 pkgdesc="Library for data compression"
 arch="all"
 license="Zlib"
@@ -11,9 +11,12 @@ url="https://zlib.net/"
 subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
 source="https://zlib.net/fossils/zlib-$pkgver.tar.gz
 	configure-Pass-LDFLAGS-to-link-tests.patch
+	0100-CVE-2026-27171.patch
 	"
 
 # secfixes:
+#   1.2.13-r1:
+#     - CVE-2026-27171
 #   1.2.12-r2:
 #     - CVE-2022-37434
 #   1.2.11-r4:
@@ -44,4 +47,5 @@ package() {
 sha512sums="
 99f0e843f52290e6950cc328820c0f322a4d934a504f66c7caa76bd0cc17ece4bf0546424fc95135de85a2656fed5115abb835fd8d8a390d60ffaf946c8887ad  zlib-1.2.13.tar.gz
 76179eb7e498aef5bc88c3f826c6f2506a2d3c3a2e2560ef1825bd4a9297d68b0d2390619a4b3b0b2e6dde765431e5fba18fd15fbd1ad99827244f8f9bdbd909  configure-Pass-LDFLAGS-to-link-tests.patch
+5cb3fb68f64af4ab89116ea821fd329f91504731d30256c9535884eda93f85cd454b64f1783580fbe85339bc5b4917f4b7f78319c0798a3f325752a50b0d51b6  0100-CVE-2026-27171.patch
 "
