@@ -1,0 +1,69 @@
+pkgname=helm
+pkgver=3.19.0
+pkgrel=4
+pkgdesc="The Kubernetes Package Manager"
+url="https://helm.sh/"
+arch="all"
+license="Apache-2.0"
+makedepends="bash go"
+options="net"
+subpackages="$pkgname-bash-completion $pkgname-fish-completion $pkgname-zsh-completion"
+source="$pkgname-$pkgver.tar.gz::https://github.com/helm/helm/archive/v$pkgver.tar.gz
+	unset-CGO_ENABLED.patch
+	"
+
+# secfixes:
+#   3.6.0-r0:
+#     - CVE-2021-21303
+#   3.6.1-r0:
+#     - CVE-2021-32690
+#   3.18.4-r0:
+#     - CVE-2025-53547
+
+case "$CARCH" in
+	# arm*:
+	# --- FAIL: TestInvalidYaml (0.01s)
+	# lint_test.go:87: All didn't fail with expected errors, got []support.Message(nil)
+	# arm*,loongarch64:
+	# --- FAIL: TestPlatformPrepareCommand (0.00s)
+	# plugin_test.go:45: Expected arg="os-arch", got "linux-riscv64"
+	# plugin_test.go:64: Expected arg="os-arch", got "linux-riscv64"
+	#
+	# riscv64,loongarch64:
+	# ../go/github.com/bugsnag/panicwrap@v0.0.0-20151223152923-e2c28503fcd0/dup2.go:10:17: undefined: syscall.Dup2
+	# FAIL	helm.sh/helm/v3/cmd/helm [build failed]
+	# ...
+	# FAIL
+	arm*|riscv64|loongarch64) options="$options !check" ;;
+esac
+
+export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
+
+export GOFLAGS="$GOFLAGS -modcacherw"
+
+build() {
+	make GOFLAGS="$GOFLAGS" GIT_TAG="v$pkgver" GIT_COMMIT="" GIT_DIRTY=""
+
+	./bin/helm completion bash > $pkgname.bash
+	./bin/helm completion fish > $pkgname.fish
+	./bin/helm completion zsh > $pkgname.zsh
+}
+
+check() {
+	make test-unit GOFLAGS="$GOFLAGS"
+}
+
+package() {
+	install -Dm755 bin/helm -t "$pkgdir/usr/bin"
+
+	install -Dm644 $pkgname.bash "$pkgdir"/usr/share/bash-completion/completions/$pkgname
+	install -Dm644 $pkgname.fish "$pkgdir"/usr/share/fish/vendor_completions.d/$pkgname.fish
+	install -Dm644 $pkgname.zsh "$pkgdir"/usr/share/zsh/site-functions/_$pkgname
+}
+
+sha512sums="
+39e990124111853d4dc6dcdc732a1adba4484f7a641e0baa3734e7a97cd5d0809420032b4ac090b61cffdb5b0a928e4a592db12c355da437c5a54cddf9b31533  helm-3.19.0.tar.gz
+e76132b99ffa3429d4da7f8f2dc165976bcf7cf1e85646ae15cdef166148ea9637cedccd7a9f3705251fbde0d48d4dbc4635088ad7de58d007380cd0358088e7  unset-CGO_ENABLED.patch
+"
