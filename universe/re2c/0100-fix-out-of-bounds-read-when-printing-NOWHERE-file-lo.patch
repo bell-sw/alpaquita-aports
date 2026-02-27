@@ -1,0 +1,38 @@
+From f4d6bb5141f12a0b1ff98a87a9cd9c1a3c5ac260 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Mon, 2 Mar 2026 13:35:01 +0000
+Subject: [PATCH] fix out-of-bounds read when printing NOWHERE file location
+
+NOWHERE is a special location with .file == ~0u, which cannot be used
+as an index into filenames array. Attempting to access filenames[~0u]
+will lead to undefined behavior or crash.
+
+Reproducer:
+
+cat > test.re << 'EOF'
+/*!re2c
+    <!*> { }
+*/
+EOF
+re2c test.re
+---
+ src/msg/msg.cc | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/msg/msg.cc b/src/msg/msg.cc
+index 4c770931d..06c0a3d19 100644
+--- a/src/msg/msg.cc
++++ b/src/msg/msg.cc
+@@ -27,6 +27,9 @@ void error(const char *fmt, ...)
+ 
+ void Msg::print_location(const loc_t &loc) const
+ {
++    if (loc.file == NOWHERE.file)
++        return;
++
+     const char *f = filenames[loc.file].c_str();
+     switch (locfmt) {
+         case LOCFMT_GNU:
+-- 
+2.25.1
+
