@@ -68,6 +68,15 @@ source="https://gitlab.freedesktop.org/PipeWire/pipewire/-/archive/$pkgver/pipew
 	0001-systemd-user-remove-socket-activation-dep-and-hardco.patch
 	"
 
+case "$CARCH" in
+	s390x)
+		# libldac not available for big endian
+		;;
+	*)
+		makedepends="$makedepends libldac-dev"
+		;;
+esac
+
 # put libs last to steal residual files taken by some prior extras
 subpackages="$subpackages $pkgname-libs"
 
