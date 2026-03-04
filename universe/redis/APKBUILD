@@ -1,6 +1,6 @@
 pkgname=redis
 pkgver=7.0.15
-pkgrel=6
+pkgrel=7
 pkgdesc="Advanced key-value store"
 url="https://redis.io/"
 arch="all"
@@ -32,6 +32,10 @@ source="https://download.redis.io/releases/redis-$pkgver.tar.gz
 	0103-CVE-2025-46818.patch
 	0104-CVE-2025-46819.patch
 	0105-CVE-2025-46817.patch
+	0106-Fix-MurmurHash64A-overflow-in-HyperLogLog-with-2GB-e.patch
+	0107-CVE-2025-49112.patch
+	0108-CVE-2025-67733.patch
+	0109-CVE-2026-21863.patch
 	"
 # flaky tests are sometimes blocking these builders
 case "$CARCH" in
@@ -39,6 +43,10 @@ ppc64le|s39x) options="!check" ;;
 esac
 
 # secfixes:
+#   7.0.15-r7:
+#     - CVE-2025-49112
+#     - CVE-2025-67733
+#     - CVE-2026-21863
 #   7.0.15-r6:
 #     - CVE-2025-49844
 #     - CVE-2025-46819
@@ -156,4 +164,8 @@ cfa1437cbb41cc9b5d8c5e4a373ccb18bb2accdf5b6704ce86f5aa8f23771afbee06e1fe03218709
 b571f2bb73b6bba0172ec9fcc69a2dc5e00ba0068b76ccb41ca49fa5709aded99a8741c266257fc723d8ad3ff069ec4cab79259b476e9c18c8bad5cc70d65f18  0103-CVE-2025-46818.patch
 85cc5130f326e7b171c500f8f9576442ace03cbf535c1c1483e0d82d0de71ee5bc494bca97f46246b5a0c923378f2bb81a4b2e80d4a8a869aac9e92d7cc9eb8e  0104-CVE-2025-46819.patch
 5c6367cc39e0b53bd7b71a2a374329dedb128e0a41ac7d9305a1118ecfdae9b4a387bd275f93238f1d8c6c5da4c012b29b57f1028b12783d87731f0c230d2143  0105-CVE-2025-46817.patch
+8a556c200cd2ae0930b03f428f4369aed8b4486c5461bd5b13c437ee3a7a1eef3f6c46601917030f4a180e935bd9626932d9a434a6624fce554c85cc4349b11d  0106-Fix-MurmurHash64A-overflow-in-HyperLogLog-with-2GB-e.patch
+3724e922740397e20c93961d00d6ae18693c20ef69af31705bdabcfac8cbbb28cffcf2c240a78f5cae6305995f47a083ad5a91b8ba93c31dfaef9d07c48cd5eb  0107-CVE-2025-49112.patch
+a8231d89af0512e1f8c83c888ae7b79237b39c04d65a6dca218379cf686bbf014e5794bfcd5d39a065444cb7ce5bffaca1801e3903c2eb0049b563c46a0d16d1  0108-CVE-2025-67733.patch
+112fb89afa81a25fdd3afb2c8317fe6626bbb1af6494a0f63f8fa166ea19df365474734958c4cae5f92970c49391c437d18dda696816c1c7cb3134caaddffa6c  0109-CVE-2026-21863.patch
 "
