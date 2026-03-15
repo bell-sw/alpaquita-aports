@@ -7,7 +7,7 @@
 
 pkgname=curl
 pkgver=8.14.1
-pkgrel=3
+pkgrel=4
 pkgdesc="Command line tool for data transfer with URL syntax"
 url="https://curl.se/"
 arch="all"
@@ -36,6 +36,11 @@ source="https://curl.se/download/curl-$pkgver.tar.xz
 	0100-CVE-2025-9086.patch
 	0101-CVE-2025-10148.patch
 	0102-CVE-2025-10966.patch
+	0103-CVE-2026-1965-part1.patch
+	0103-CVE-2026-1965-part2.patch
+	0104-CVE-2026-3783.patch
+	0105-CVE-2026-3784.patch
+	0106-CVE-2026-3805.patch
 	"
 options="net" # Required for running tests
 if [ -n "$BOOTSTRAP" ] || [ -n "$APORTS_BOOTSTRAP" ]; then
@@ -45,6 +50,11 @@ provides="wcurl=$pkgver-r$pkgrel"
 replaces="wcurl"
 
 # secfixes:
+#   8.14.1-r4:
+#     - CVE-2026-1965
+#     - CVE-2026-3783
+#     - CVE-2026-3784
+#     - CVE-2026-3805
 #   8.14.1-r3:
 #     - CVE-2025-10966
 #   8.14.1-r2:
@@ -325,4 +335,9 @@ sha512sums="
 8f9fe068e4b0d0ff4c336b949977ba6b44ed68cfbfe8a9960b81206be67bfdbb50ea2815dc4e65c224302142c0fc335bf837b300ef07050ddc8b4bea58f17849  0100-CVE-2025-9086.patch
 097dea5afddd722c028878f706097a1b3c5c4937c8c1aec203d097b8ccc841cb1143ddb025134742a20aed7d6b5b57674075adbbbcdec25da8b556c3cc42193c  0101-CVE-2025-10148.patch
 73ce47b7c1180ed41ca5d85ef697ed0e4c12b5dcf90526ccbcb464dd6bc8c668cf271e447fb399e4ea914f8b06ce7e14a199bba160d60c0f71468652efa82f56  0102-CVE-2025-10966.patch
+6ab02265bfc92561e6d5e59083b05ead246399920f2efbaf72c481d277853022f5673a475683af9dee0d115efaaa955c13d456c75aa946cb26f42ee93a0830af  0103-CVE-2026-1965-part1.patch
+9e2591e45992a7230a481fdab580c78c22cbd400ad2d597972ae5e8333b00dc1b54344dc1c8d4a534fc77a4fafd0ec53d6037bf948d4aef756fd0188d92a7b66  0103-CVE-2026-1965-part2.patch
+b86f51ad00f6a05af3de559919a602a5aac6f62b3b2c614b7e226c0eb9ae2fa235d1ae3ab88ba098b0b75e90e1b4c0b86d8e92d0f9138fd476face605ad6083f  0104-CVE-2026-3783.patch
+d9761d9466cc1bd47fcb2ea93a701050d1281943447d6519ceb8730bf4366dcd843d3bd4cacdb2670790b9c22c9b9806c6faf374e148ce032a16773aba3fbdd8  0105-CVE-2026-3784.patch
+26711cf01f2474a841c33f7bdb148f1bbe5eca8fd42f6194da33398689b4eb242b9b5e62433f2ceccca69ec688b9b0c33164f2cb21f36ae892b77151aa1f0997  0106-CVE-2026-3805.patch
 "
