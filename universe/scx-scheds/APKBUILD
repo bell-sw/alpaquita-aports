@@ -1,6 +1,6 @@
 pkgname=scx-scheds
 pkgver=1.0.19
-pkgrel=0
+pkgrel=1
 pkgdesc="The BPF task scheduler implementations and tools"
 url="https://github.com/sched-ext/scx"
 arch="x86_64 aarch64"
@@ -20,8 +20,12 @@ makedepends="
 	elfutils-dev
 	"
 options="!check !annobin"
+subpackages="$pkgname-openrc"
 
-source="$pkgname-$pkgver.tar.gz::https://github.com/sched-ext/scx/archive/refs/tags/v$pkgver.tar.gz"
+source="$pkgname-$pkgver.tar.gz::https://github.com/sched-ext/scx/archive/refs/tags/v$pkgver.tar.gz
+	$pkgname.initd
+	$pkgname.confd
+	"
 builddir="$srcdir/scx-$pkgver"
 
 prepare() {
@@ -56,8 +60,13 @@ package() {
 	find build/scheds/c target/release -maxdepth 1 -type f -executable \
 		! -name '*.so' \
 		-exec install -Dm755 -t "$pkgdir/usr/bin/" {} +
+
+	install -Dm755 "$srcdir"/$pkgname.initd "$pkgdir"/etc/init.d/$pkgname
+	install -Dm644 "$srcdir"/$pkgname.confd "$pkgdir"/etc/conf.d/$pkgname
 }
 
 sha512sums="
 dd7b6e958fb7c341cca29710cc50e9ea07a9d8ee20533bab154371d069b0226f7c1899ad8f4f5ec8b970779c17dcd53143cf1fb04e4aa40229c642a554982b8f  scx-scheds-1.0.19.tar.gz
+0d47e29fec1439396c9ac0d02bb004d7c5aab9789607d9d32686a2909c91e1846526d2b390453a45ee5fc11985abc3f8f185ee8e65e2eb8c58a89d7e3260018e  scx-scheds.initd
+eeb34b2c94b3d9324fe5b04dc6dd9da67bb759c6271e7baf87695eeea7b22904c160aed6f9fdaeb28e8becf16a2cbe9a06e6b75254498ef75350b4e100b64b5a  scx-scheds.confd
 "

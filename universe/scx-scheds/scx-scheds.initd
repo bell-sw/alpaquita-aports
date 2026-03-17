@@ -1,0 +1,32 @@
+#!/sbin/openrc-run
+
+supervisor=supervise-daemon
+description="SCX Scheduler Daemon"
+
+command="${SCX_SCHEDULER}"
+command_args="${SCX_FLAGS}"
+
+depend() {
+	need sysfs
+}
+
+start_pre() {
+	if [ ! -d "/sys/kernel/sched_ext" ]; then
+		eerror "sched_ext is not available in the running Linux kernel"
+		eerror "Make sure the CONFIG_SCHED_CLASS_EXT kernel configuration option is set"
+		return 1
+	fi
+
+	if [ -z "${SCX_SCHEDULER}" ]; then
+		eerror "SCX_SCHEDULER is not set in /etc/conf.d/scx-scheds"
+		return 1
+	fi
+
+	if ! command -v "${SCX_SCHEDULER}" >/dev/null 2>&1; then
+		eerror "Scheduler '${SCX_SCHEDULER}' not found"
+		eerror "Available schedulers are installed in /usr/bin/scx_*"
+		return 1
+	fi
+
+	return 0
+}
