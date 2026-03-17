@@ -1,6 +1,6 @@
 pkgname=py3-jwt
 pkgver=2.10.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Python3 JSON Web Token implementation"
 url="https://github.com/jpadilla/pyjwt"
 license="MIT"
@@ -8,13 +8,18 @@ arch="noarch"
 makedepends="py3-gpep517 py3-installer py3-setuptools py3-wheel"
 checkdepends="py3-pytest"
 subpackages="$pkgname-pyc"
-source="https://github.com/jpadilla/pyjwt/archive/$pkgver/py3-jwt-$pkgver.tar.gz"
+source="https://github.com/jpadilla/pyjwt/archive/$pkgver/py3-jwt-$pkgver.tar.gz
+
+	0100-CVE-2026-32597.patch
+	"
 builddir="$srcdir/pyjwt-$pkgver"
 
 replaces="py-jwt" # Backwards compatibility
 provides="py-jwt=$pkgver-r$pkgrel" # Backwards compatibility
 
 # secfixes:
+#   2.10.1-r1:
+#     - CVE-2026-32597
 #   2.4.0-r0:
 #     - CVE-2022-29217
 
@@ -35,4 +40,5 @@ package() {
 
 sha512sums="
 9fc11a70960122799280669634bfeb9035222b9bda01eb31219d8f9a16d016a70617472ccd6873ceccc2124112dabfe160933d8eb24a096c14940625909dbe65  py3-jwt-2.10.1.tar.gz
+75ce347e9adb172100eb82b945e2d8381edfd4cc36a93b371bc1b2d342e9c5eb83969aa9e016c05d1b8328570daa51bfd31276dcdebd146cbb6b9254949bf811  0100-CVE-2026-32597.patch
 "
