@@ -1,0 +1,44 @@
+pkgname=py3-importlib-resources
+pkgver=6.5.2
+pkgrel=0
+pkgdesc="Backport of the importlib.resources module"
+url="https://github.com/python/importlib_resources"
+arch="noarch"
+license="Apache-2.0"
+makedepends="
+	py3-gpep517
+	py3-setuptools
+	py3-setuptools_scm
+	py3-wheel
+	"
+checkdepends="
+	py3-pytest
+	py3-zipp
+	"
+subpackages="$pkgname-pyc"
+source="https://pypi.python.org/packages/source/i/importlib_resources/importlib_resources-$pkgver.tar.gz"
+options="!check" # Fails to find import 'test'
+builddir="$srcdir/importlib_resources-$pkgver"
+
+export SETUPTOOLS_SCM_PRETEND_VERSION="$pkgver"
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/*.whl
+	.testenv/bin/python3 -m pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+}
+
+sha512sums="
+e9ca57f5191effdb570cde2b8adaddb27a1bfccc36575f5b15684283ff1b6363831bcb073322fecbf067456f8cf288a576b3a95a506c3701a4f2f30c03ec1c8a  importlib_resources-6.5.2.tar.gz
+"
