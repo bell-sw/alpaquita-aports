@@ -1,7 +1,55 @@
 # Description:
+pkgname=ruby
+# When upgrading, upgrade also each ruby-<name> aport listed in file
+# gems/bundled_gems. If some aport is missing or not in the main repo,
+# create/move it.
+pkgver=3.3.10
+_abiver="${pkgver%.*}.0"
+pkgrel=0
+pkgdesc="An object-oriented language for quick and easy programming"
+url="https://www.ruby-lang.org/"
+arch="all"
+license="Ruby AND BSD-2-Clause AND MIT"
+depends="ca-certificates"
+depends_dev="
+	$pkgname=$pkgver-r$pkgrel
+	$pkgname-rdoc=$pkgver-r$pkgrel
+	gmp-dev
+	musl:libucontext-dev
+	"
+makedepends="$depends_dev
+	autoconf
+	cargo
+	gdbm-dev
+	libffi-dev
+	linux-headers
+	openssl-dev>3
+	readline-dev
+	yaml-dev
+	zlib-dev
+	"
+install="$pkgname.post-upgrade"
+subpackages="$pkgname-dbg $pkgname-doc $pkgname-dev
+	$pkgname-rdoc::noarch
+	$pkgname-libs
+	$pkgname-full::noarch
+	"
+source="https://cache.ruby-lang.org/pub/ruby/${pkgver%.*}/ruby-$pkgver.tar.gz
+	test_insns-lower-recursion-depth.patch
+	fix-get_main_stack.patch
+	dont-install-bundled-gems.patch
+	fix-riscv64-build.patch
+	"
+replaces="ruby-gems"
 
-#
+# For backward compatibility (pre 3.x).
+for _i in bigdecimal etc fiddle gdbm io-console irb json; do
+	provides="$provides ruby-$_i=$pkgver-r$pkgrel"
+done
+
 # secfixes:
+#   3.3.10-r0:
+#     - CVE-2025-24294
 #   3.1.5-r2:
 #     - CVE-2025-61594
 #   3.1.5-r0:
@@ -58,55 +106,6 @@
 #     - CVE-2017-0902
 #   2.4.3-r0:
 #     - CVE-2017-17405
-#
-pkgname=ruby
-# When upgrading, upgrade also each ruby-<name> aport listed in file
-# gems/bundled_gems. If some aport is missing or not in the main repo,
-# create/move it.
-pkgver=3.1.5
-_abiver="${pkgver%.*}.0"
-pkgrel=2
-pkgdesc="An object-oriented language for quick and easy programming"
-url="https://www.ruby-lang.org/"
-arch="all"
-license="Ruby AND BSD-2-Clause AND MIT"
-depends="ca-certificates"
-depends_dev="
-	$pkgname=$pkgver-r$pkgrel
-	$pkgname-rdoc=$pkgver-r$pkgrel
-	gmp-dev
-	musl:libucontext-dev
-	"
-makedepends="$depends_dev
-	autoconf
-	gdbm-dev
-	libffi-dev
-	linux-headers
-	openssl-dev>3
-	readline-dev
-	yaml-dev
-	zlib-dev
-	"
-install="$pkgname.post-upgrade"
-subpackages="$pkgname-dbg $pkgname-doc $pkgname-dev
-	$pkgname-rdoc::noarch
-	$pkgname-libs
-	$pkgname-full::noarch
-	"
-source="https://cache.ruby-lang.org/pub/ruby/${pkgver%.*}/ruby-$pkgver.tar.gz
-	test_insns-lower-recursion-depth.patch
-	fix-get_main_stack.patch
-	dont-install-bundled-gems.patch
-	fix-riscv64-build.patch
-
-	0100-CVE-2025-61594.patch
-	"
-replaces="ruby-gems"
-
-# For backward compatibility (pre 3.x).
-for _i in bigdecimal etc fiddle gdbm io-console irb json; do
-	provides="$provides ruby-$_i=$pkgver-r$pkgrel"
-done
 
 _gemdir="/usr/lib/ruby/gems/$_abiver"
 _rubydir="/usr/lib/ruby/$_abiver"
@@ -172,7 +171,7 @@ check() {
 	# https://bugs.ruby-lang.org/issues/18380
 	local disable_tests="-n !/TestAddressResolve#test_socket_getnameinfo_domain_blocking/"
 
-	make test TESTS="$disable_tests"
+	make test TESTS="$disable_tests" TESTOPTS="--verbose"
 }
 
 package() {
@@ -236,10 +235,9 @@ full() {
 }
 
 sha512sums="
-23661cb1b61013d912b7433f8707bbcd723391694d91f413747c71428e74f8c7385c1304de7d08b70c9fa3bd649e4eb5e9acb472d89dc2ad5678cc54855a24ae  ruby-3.1.5.tar.gz
+abfe212c189f7fd94ba2bb42efc45f20369ced193bbfdb4a677bd868b71e1d2f3941fed6e0b62c444fc16bc5c2073a5fee2c69037015408e2933308f407ad0a8  ruby-3.3.10.tar.gz
 16fc1f35aee327d1ecac420b091beaa53c675e0504d5a6932004f17ca68a2c38f57b053b0a3903696f2232c5add160d363e3972a962f7f7bcb52e4e998c7315d  test_insns-lower-recursion-depth.patch
-c1bc0c98fa90cba5d626a836de5e9504770bd56e5772eed2c3eb8337761a55fa71225d14ed7c3ff4191866a386174d151e95fa05a19b10165a179bbc736176e9  fix-get_main_stack.patch
-facf2adaf25e1781cbe280b42430ca0cc61e7cdacbfcf1e1c7df1b4acb4bc70c444d79b95d6d0596a94dfa67d51ced342b6dc2ff20ac28977ca715154cc53fa5  dont-install-bundled-gems.patch
+42cd45c1db089a1ae57834684479a502e357ddba82ead5fa34e64c13971e7ab7ad2919ddd60a104a817864dd3e2e35bdbedb679210eb41d82cab36a0687e43d4  fix-get_main_stack.patch
+a77da5e5eb7d60caf3f1cabb81e09b88dc505ddd746e34efd1908c0096621156d81cc65095b846ba9bdb66028891aefce883a43ddec6b56b5beb4aac5e4ee33f  dont-install-bundled-gems.patch
 000530316af1fca007fe8cee694b59e2e801674bcc1a2ebea95e67745d4afc0ce66c902fdbc88ee847a4fbf55115b183cd803cbf7c98ef685938efb3e2b7c991  fix-riscv64-build.patch
-11accfe7593a310e06e7e427c9fca69086435cfc51ab5a016d26254e83e1a1e5a8910bf1d9661b92d26f2a92f1597561fdb9c2bb56de46ed90aff936f1c6400c  0100-CVE-2025-61594.patch
 "
