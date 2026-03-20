@@ -6,8 +6,8 @@
 # functions, such as memcpy(), memset(), memmove(), etc).
 
 pkgname=musl-perf
-pkgver=1.2.5
-pkgrel=21
+pkgver=1.2.6
+pkgrel=0
 _mimalloc_ver=2.2.4
 pkgdesc="the musl c library (libc) implementation (optimized for performance)"
 url="https://musl.libc.org/"
@@ -47,20 +47,8 @@ nolibc) ;;
 esac
 source="https://musl.libc.org/releases/musl-$pkgver.tar.gz
 	mimalloc-$_mimalloc_ver.tar.gz::https://github.com/microsoft/mimalloc/archive/refs/tags/v$_mimalloc_ver.tar.gz
-	isatty-glibc-align.patch
-	ldso-fix-non-functional-fix-to-early-dynamic-PAGE_SI.patch
-	loongarch64-Add-lsx-and-lasx-vector-structure-defini.patch
-	loongarch64-add-TLSDESC-support.patch
-	loongarch64-add-fpu-and-simd-context-to-signal.h.patch
-	loongarch64-add-bits-hwcap.h.patch
-	LoongArch64-add-new-reloc-types-and-NT_LOONGARCH_HW_.patch
-	CVE-2025-26519.patch
-	stdio-skip-empty-iovec-when-buffering-is-disabled.patch
-	backport-posix_getdents.patch
 	0001-add-stub-for-pthread_mutexattr_setprioceiling.patch
-	s390x-dont-allow-br-r0-in-crtjmp.patch
 	fix-loongarch64-zero-len-extcontext.patch
-	__NR_riscv_hwprobe.patch
 
 	0100-ldso-dynlink-add-ifunc-support.patch
 	0101-support-ifunc-in-static-linking.patch
@@ -73,7 +61,6 @@ source="https://musl.libc.org/releases/musl-$pkgver.tar.gz
 	0108-process-rela.dyn-plt-relocations-with-ifuncs-in-stat.patch
 	0109-ldd-detect-static-pie-binaries.patch
 	0110-ldd-process-only-one-program-interpreter-segment-typ.patch
-	0111-vdso-add-support-for-GNU-hash-tables.patch
 
 	0120-plumb-in-support-for-externally-provided-allocator-l.patch
 	0121-implement-necessary-bits-for-musl-integration.patch
@@ -215,22 +202,10 @@ dbg() {
 }
 
 sha512sums="
-7bb7f7833923cd69c7a1a9b8a5f1784bfd5289663eb6061dcd43d583e45987df8a68a1be05d75cc1c88a3f5b610653d1a70f4a9cff4d8f7fd41ae73ee058c17c  musl-1.2.5.tar.gz
+1adad96eddb3a2eb0cacb3e363b0046568925fcdd75cf8b0503f2139df1f693d64730779ca0ce8131b7624ab2d37f4247bb1d3393c523de6e30d2b1d7732555c  musl-1.2.6.tar.gz
 5218fcd3ad285687ed3f78b4651d7d3aee92b6f28e6c563a884975e654a43c94c4e5c02c5ed0322c3d3627d83d4843df2d2d8441f09aa18d00674ca9fd657345  mimalloc-2.2.4.tar.gz
-4fe4309d9e5eb12f3aaf9dac300c7bf1a9e104d9b0e7754353314f4b6507de68d8d5bf0ac45164d7e2ab4d71728b5ef8b302f8ee7a6b548f54e022218031e2cf  isatty-glibc-align.patch
-1b85079c706b017106ecbf4afbc65b4a2171297a673035645e4c3ddb7e2aae0549b04932df83778323b7329ae8d32160a89e0c1b2534c278708c61b1f40a1ed8  ldso-fix-non-functional-fix-to-early-dynamic-PAGE_SI.patch
-b4d95231944fd236827a62343bbce74b20a56739e2b8937bda69bfc7b53f2ce5bd709459ee61615bd10d2839f43311eced9344ee8185701fd38ec0de0d43c6ae  loongarch64-Add-lsx-and-lasx-vector-structure-defini.patch
-363d0cbfe11f024b120b6d54e909c038cd5b37f1f195048ddb29591191a1288ff50842ccd14e0cab80359e5b46c0e02d2b5af3016bd1507c1d269e590690a3fe  loongarch64-add-TLSDESC-support.patch
-b0f93f8868caf15d436ebe81088f4914cac3e21cc5b86cb0d5f40092edc6e29909188a14cde0c69ab86b51631aa34a4b8136a515f2a1b53c424c8b251c5ea689  loongarch64-add-fpu-and-simd-context-to-signal.h.patch
-70003d89e31b1c83274d1e850f86d8a54f30c1d5e22f769ae229d30d2bbdc095dbf4c262fb55079aaf8bfdf9a213f9468150b50c000b6596b051729a0d25f913  loongarch64-add-bits-hwcap.h.patch
-546fa317b532c3a63a592b6613e9a2136ee7750113ab048b261acf94e33a34732f3f26d6f734879c025d944f0b8e5307656c485bd32ce8f2364ee537ab236c95  LoongArch64-add-new-reloc-types-and-NT_LOONGARCH_HW_.patch
-7a6a9836d2de91afc1115868e68f347bd2365fa48188e65938cfa654ae9bafdbb3a56bf12d3185a96800a85198378c8dbf9c25d977ca0e318220529fa4458123  CVE-2025-26519.patch
-a70068d2a16b64188f04fccd180585b025aa8bccd4e823d8fdea0be1a80ee8b74cb485ecd22e72b5ce3f141526aca563b6c69e1389c0340fad15c9b9bee6885c  stdio-skip-empty-iovec-when-buffering-is-disabled.patch
-703982a7624a377037c28cfd572cf22b64ee57e362a60975c91caa9c85fd1edde1f82933e91fb44425976178c59f50f5ebb651216f96c05c0f755e205e578eb0  backport-posix_getdents.patch
 83ec0f774dbb5d4f4d4b917d149ea0ef609d028d18ae7624e90fedda6e3174c91ade93751bfd376adfa2848155110fc4dd02b6790363b98e5395c4787e8731e8  0001-add-stub-for-pthread_mutexattr_setprioceiling.patch
-711ff7eb53e1cb1f5d21d821346dca4ff24e8273a978cba10f3e9901875ced96b7a693e128fa6f92492e5c18f1fc2b4079ca445cc67d14081baff22297e2d375  s390x-dont-allow-br-r0-in-crtjmp.patch
 6eae45aa82db69bc96386aedf3d1bfe83dfa0a7b4b824326c1c7e1bab31100d635ed0e8930c26a1694697fad59167a42e2b5f3a2ac51b07e36d85f047e268cff  fix-loongarch64-zero-len-extcontext.patch
-284ace5c9587fe8379bfbec12b3dc5c157b540f1873c183d82f7c5f086710d402f4813ad2244bb9bef6c3838c37a2c19337f7a1275d54024568eb42368ec5e4b  __NR_riscv_hwprobe.patch
 560ebc146d4e4880367f15264c06f0905865f1850db10777e7ae9ce5d6cf8bb5bd1118a92e473a7d8c4c798e921048e60624c2610abc4ca52e2a04b9892ebaf5  0100-ldso-dynlink-add-ifunc-support.patch
 8a6db706b17c8ffd1dc3ca99bec29cbf5b41574b57af91bd269ac32e552aa699e4b46c975acb88b9c9734cbed0f4e40242048e30753d61c5fb63a120a6f620c4  0101-support-ifunc-in-static-linking.patch
 c19e101f3018a292d4b13c044223c6e4caeda9bbe6af17968acb87a4b96031dca9a210b284634a2e03da66a027e37abf8346d9eee5fb230619840545268029e0  0102-Makefile-link-glibc-string-lib.patch
@@ -242,7 +217,6 @@ d9dc2832635475f9494c9afa8077dece5d44111fbcdca462687119e3866f7f3e191685f919d8f850
 30ca0bddde27051c2dc92897a73da4e04b85894bd44a6edbe5ed8274b643e2e90564f80f94a5c9cde1f753c024af98244b00f34a7c96a4abde85b20ab2202d25  0108-process-rela.dyn-plt-relocations-with-ifuncs-in-stat.patch
 5d584afd53a0544112db7df936443cdeaf4bd7b7a60a37a398522d6e177af3e53060126c171d40c5bef6aeb30f5de06127495de93b7834e27f6f1f46a836b989  0109-ldd-detect-static-pie-binaries.patch
 17eb26d06f563bd955d39dedb23ea9a47cec95bac245cf19aed9ee187a939b787de3d769c729d65cf3738290b10dc3d4d2800a359fdb3c532936ff7d4cd0a375  0110-ldd-process-only-one-program-interpreter-segment-typ.patch
-83cc3a45bd18230948059e9f153f75f5c750c59ec65c4d6c2b32c322c701241fdd70c43eadc0e3e139f9b9e3bb7d0c072fb6aa6964b09f1adeed12df90295f1e  0111-vdso-add-support-for-GNU-hash-tables.patch
 890e350b2dd2f8671bb745324a002fae0ec22ae3cff374dd50b4caea11ce4c0d247e594d9db53cfcb754acc3ec350e84eda340a3ae638996cdbaf4b8e86599de  0120-plumb-in-support-for-externally-provided-allocator-l.patch
 a323964f0b58234d04b59bfe9065f8754bfd0d75fcccf802fa9863822054cbe7e4040ec9c66032c84ebc15c8d540c3f1c7c78950b6a45ed1b2d20b0aa3ee28cc  0121-implement-necessary-bits-for-musl-integration.patch
 bcf33844e5a7739d37346a502dabb3f5a9d20661eb861b7952ea645cd14ec2e612e2f87308079c51c3e598aa77d2c87e1cbc5333817f0bf45fca92e789f3a42f  0122-make-internal-declarations-static.patch
