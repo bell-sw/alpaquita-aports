@@ -1,6 +1,6 @@
 pkgname=py3-openssl
 # version needs to be compatible with py3-cryptography
-pkgver=25.3.0
+pkgver=26.0.0
 pkgrel=0
 pkgdesc="Python3 wrapper module around the OpenSSL library"
 url="https://github.com/pyca/pyopenssl"
@@ -24,6 +24,11 @@ builddir="$srcdir/pyopenssl-$pkgver"
 replaces="py-openssl" # Backwards compatibility
 provides="py-openssl=$pkgver-r$pkgrel" # Backwards compatibility
 
+# secfixes:
+#   26.0.0-r0:
+#     - CVE-2026-27448
+#     - CVE-2026-27459
+
 build() {
 	gpep517 build-wheel \
 		--wheel-dir .dist \
@@ -43,5 +48,5 @@ package() {
 }
 
 sha512sums="
-526b44eeff032c1966944cb8721e0694446ef2a40d3b23e7d04aebbc7986282858a2673f6fa1a9f1bf98cfe514a408a926910571e73db2bf3bae252427f398de  pyopenssl-25.3.0.tar.gz
+aa8d68c6945c4e12b87c839d33da5e03a645b45b07ea63a8b663ea1fc09ff6a1744b35dff679046b049d410b945fd6dd4a39a74010b1c10fcd916be7715d6742  pyopenssl-26.0.0.tar.gz
 "
