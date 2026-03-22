@@ -2,7 +2,7 @@
 pkgname=perl-yaml-syck
 #_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
 _pkgreal=YAML-Syck
-pkgver=1.36
+pkgver=1.37
 pkgrel=0
 pkgdesc="Fast, lightweight YAML loader and dumper"
 url="https://metacpan.org/release/YAML-Syck/"
@@ -11,9 +11,12 @@ license="MIT"
 depends="perl"
 makedepends="perl-dev"
 subpackages="$pkgname-doc"
-source="https://cpan.metacpan.org/authors/id/T/TO/TODDR/YAML-Syck-$pkgver.tar.gz
-	gcc15.patch
-	"
+source="https://cpan.metacpan.org/authors/id/T/TO/TODDR/YAML-Syck-$pkgver.tar.gz"
+
+# secfixes:
+#   1.37-r0:
+#     - CVE-2026-4177
+
 builddir="$srcdir/$_pkgreal-$pkgver"
 
 build() {
@@ -33,6 +36,5 @@ package() {
 }
 
 sha512sums="
-596ddbb0502da94c78d4398b7f66311362b0bff1f9dd0ee58199e7a963d0a985f32404de365784d296d16579f6e288b0aade38988f58aaa1c9f82790eac97b01  YAML-Syck-1.36.tar.gz
-4d5f1c2f4af098b92183f3694e8b070fb3cc06e0008c08b151afcc7687b9db7bf82d64221cef023595912eba3143eb5a7f03059059ce5341d65d829a4db204cd  gcc15.patch
+ad67dde722316a0e976825a420bcdfaf3d15b53b0847a630546f66af7cfbf323b36dcc3b74bf76a0f0b0fd58561aa5abc6174b9511b711e6a23e7a6d9ae98cd1  YAML-Syck-1.37.tar.gz
 "
