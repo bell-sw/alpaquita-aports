@@ -2,7 +2,7 @@ pkgname=rust
 pkgver=1.64.0
 _llvmver=15
 _bootver=1.63.0
-pkgrel=2
+pkgrel=3
 pkgdesc="The Rust Programming Language"
 url="https://www.rust-lang.org/"
 arch="x86_64 aarch64"
@@ -90,11 +90,14 @@ source="https://static.rust-lang.org/dist/rustc-$pkgver-src.tar.xz
 	do-not-install-libunwind-source.patch
 	musl:0001-When-linking-statically-on-musl-based-system-also-li.patch
 	s390x-enotsup.patch
+	tar-rs-CVE-2026-33056.patch
 	check-rustc
 	"
 builddir="$srcdir/rustc-$pkgver-src"
 
 # secfixes:
+#   1.64.0-r3:
+#     - CVE-2026-33056
 #   1.56.1-r0:
 #     - CVE-2021-42574
 #   1.52.1-r1:
@@ -400,5 +403,6 @@ bc28e1edae88f48eb0368cd0905280c323d521c7e13b6fc2bb1fb6e57274fa418afdc9cb3342f492
 7af23c34096f7a03c5a1b40aa07e00dd6193743c872881018a9baa900f240c6e44918e481ab5ed7787a70ef361e4aeec2a7719bcd695f52988262e23271b44e5  do-not-install-libunwind-source.patch
 92916225c21742941aaf415d75d330fe2baf77a8226c076e862f4413068d5dee7b08c4b3182f69957ea9a51a0dcde145031565289015b6e3c31894fb396e4eb1  0001-When-linking-statically-on-musl-based-system-also-li.patch
 6605f1eb51cafe8eaa9a4fd7196bef5e86169634590e38f20b7c4362f9b755c4841c6fd646f74657a0189bb35822beb1f6cf0ed56d93c15ab9fa4a4f0ad33d3a  s390x-enotsup.patch
+45fc2fa22890acf8974bb9bee8a5a2db6fbc7e3fb755cb7fa5da5db518c46d6664c9e7aa8d747db1817ccdda68c486fbaeb958fefec6bdae412a0aa8b5361705  tar-rs-CVE-2026-33056.patch
 c31fdfe8a9b3411576c75da46645cf0465b9053000a2ab49cf9b2f2733f679d6d33acbf236d67a20e14935d094a685453b7f1840180249f39d610fd0902c3125  check-rustc
 "
