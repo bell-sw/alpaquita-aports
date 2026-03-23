@@ -1,4 +1,4 @@
-From e7cba89b570cc219f654659588422e9e8a25d190 Mon Sep 17 00:00:00 2001
+From 5ccab400ec820b5c080329f79670974819168ca8 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 12 Nov 2024 15:55:31 +0000
 Subject: [PATCH] process rela.dyn/plt relocations with ifuncs in static-pie
@@ -8,10 +8,10 @@ Subject: [PATCH] process rela.dyn/plt relocations with ifuncs in static-pie
  1 file changed, 31 insertions(+), 1 deletion(-)
 
 diff --git a/ldso/dlstart.c b/ldso/dlstart.c
-index 259f5e18..d5568bcd 100644
+index 36ce0934..d313e839 100644
 --- a/ldso/dlstart.c
 +++ b/ldso/dlstart.c
-@@ -18,6 +18,20 @@
+@@ -19,6 +19,20 @@
  	*(fp) = static_func_ptr; } while(0)
  #endif
  
@@ -32,7 +32,7 @@ index 259f5e18..d5568bcd 100644
  hidden void _dlstart_c(size_t *sp, size_t *dynv)
  {
  	size_t i, aux[AUX_CNT], dyn[DYN_CNT];
-@@ -136,9 +150,25 @@ hidden void _dlstart_c(size_t *sp, size_t *dynv)
+@@ -137,9 +151,25 @@ hidden void _dlstart_c(size_t *sp, size_t *dynv)
  	rel = (void *)(base+dyn[DT_RELA]);
  	rel_size = dyn[DT_RELASZ];
  	for (; rel_size; rel+=3, rel_size-=3*sizeof(size_t)) {

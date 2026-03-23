@@ -1,4 +1,4 @@
-From d2efa611fcc35baf25329a32ff84fad26f078a83 Mon Sep 17 00:00:00 2001
+From d6532483dec2f98d8da44a053d909b101bd7995f Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Wed, 27 Nov 2024 15:22:32 +0000
 Subject: [PATCH] ldd: detect static-pie binaries
@@ -27,10 +27,10 @@ With the patch, the output will be as follows:
  1 file changed, 11 insertions(+)
 
 diff --git a/ldso/dynlink.c b/ldso/dynlink.c
-index 90fca727..95426fce 100644
+index 7fee8df7..6ca0cc80 100644
 --- a/ldso/dynlink.c
 +++ b/ldso/dynlink.c
-@@ -1960,6 +1960,17 @@ void __dls3(size_t *sp, size_t *auxv)
+@@ -1956,6 +1956,17 @@ void __dls3(size_t *sp, size_t *auxv)
  				if (app.phdr[i].p_type == PT_INTERP)
  					ldso.name = laddr(&app, app.phdr[i].p_vaddr);
  			}

@@ -1,4 +1,4 @@
-From 332ca8eddf712ec18958895c018ada40786678b9 Mon Sep 17 00:00:00 2001
+From e82c1370fcc23d2ae65a72c7159099c5bf682de7 Mon Sep 17 00:00:00 2001
 From: q66 <q66@chimera-linux.org>
 Date: Sun, 4 Aug 2024 00:42:35 +0200
 Subject: [PATCH] plumb in support for externally provided allocator libraries
@@ -28,18 +28,18 @@ Patch-Source: https://github.com/chimera-linux/cports/blob/master/main/musl/patc
  ldso/dynlink.c               |  9 ++++++++-
  mimalloc/readme.md           |  1 +
  src/env/__init_tls.c         |  8 +++++++-
- src/exit/exit.c              |  2 ++
+ src/exit/exit.c              |  1 +
  src/internal/pthread_impl.h  | 13 +++++++++++++
  src/malloc/calloc.c          |  4 ++++
  src/malloc/external/empty.h  |  1 +
  src/malloc/libc_calloc.c     |  4 ++++
  src/malloc/mallocng/malloc.c |  2 ++
  src/thread/pthread_create.c  |  7 +++++++
- 11 files changed, 62 insertions(+), 6 deletions(-)
+ 11 files changed, 61 insertions(+), 6 deletions(-)
  create mode 100644 src/malloc/external/empty.h
 
 diff --git a/Makefile b/Makefile
-index e04d1f58..28486642 100644
+index 21a8ae21..7f1e3031 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -23,6 +23,7 @@ BASE_GLOBS = $(addsuffix /*.c,$(SRC_DIRS))
@@ -98,10 +98,10 @@ index e04d1f58..28486642 100644
  	$(AR) rc $@ $(AOBJS) glibc-string-ar/*
  	$(RANLIB) $@
 diff --git a/ldso/dynlink.c b/ldso/dynlink.c
-index 3ff540d6..00f84089 100644
+index e61714e6..009ed80a 100644
 --- a/ldso/dynlink.c
 +++ b/ldso/dynlink.c
-@@ -1529,6 +1529,7 @@ void __libc_exit_fini()
+@@ -1525,6 +1525,7 @@ void __libc_exit_fini()
  			fpaddr(p, dyn[DT_FINI])();
  #endif
  	}
@@ -109,7 +109,7 @@ index 3ff540d6..00f84089 100644
  }
  
  void __ldso_atfork(int who)
-@@ -1866,6 +1867,9 @@ void __dls3(size_t *sp, size_t *auxv)
+@@ -1862,6 +1863,9 @@ void __dls3(size_t *sp, size_t *auxv)
  	/* Activate error handler function */
  	error = error_impl;
  
@@ -119,7 +119,7 @@ index 3ff540d6..00f84089 100644
  	/* If the main program was already loaded by the kernel,
  	 * AT_PHDR will point to some location other than the dynamic
  	 * linker's program headers. */
-@@ -2085,9 +2089,12 @@ void __dls3(size_t *sp, size_t *auxv)
+@@ -2081,9 +2085,12 @@ void __dls3(size_t *sp, size_t *auxv)
  	/* Actual copying to new TLS needs to happen after relocations,
  	 * since the TLS images might have contained relocated addresses. */
  	if (initial_tls != builtin_tls) {
@@ -179,18 +179,10 @@ index 11a897ab..5e9962da 100644
  
  weak_alias(static_init_tls, __init_tls);
 diff --git a/src/exit/exit.c b/src/exit/exit.c
-index a6869b37..6a0b78fc 100644
+index 17b33cc6..e207822e 100644
 --- a/src/exit/exit.c
 +++ b/src/exit/exit.c
-@@ -1,6 +1,7 @@
- #include <stdlib.h>
- #include <stdint.h>
- #include "libc.h"
-+#include "pthread_impl.h"
- 
- static void dummy()
- {
-@@ -20,6 +21,7 @@ static void libc_exit_fini(void)
+@@ -23,6 +23,7 @@ static void libc_exit_fini(void)
  	for (; a>(uintptr_t)&__fini_array_start; a-=sizeof(void(*)()))
  		(*(void (**)())(a-sizeof(void(*)())))();
  	_fini();
@@ -289,7 +281,7 @@ index d25eabea..3895c8cf 100644
 +
 +#endif
 diff --git a/src/malloc/mallocng/malloc.c b/src/malloc/mallocng/malloc.c
-index ddad83ac..b8e38c74 100644
+index d695ab8e..f70466d3 100644
 --- a/src/malloc/mallocng/malloc.c
 +++ b/src/malloc/mallocng/malloc.c
 @@ -7,6 +7,8 @@

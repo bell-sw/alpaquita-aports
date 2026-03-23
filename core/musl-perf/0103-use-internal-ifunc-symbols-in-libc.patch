@@ -1,4 +1,4 @@
-From 7208a955023bcc8c27ab1c78ca5b43e8a58c7b21 Mon Sep 17 00:00:00 2001
+From 5b1c8bb0f6cee8727419ba6da3b11dac19a535d7 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 14 Sep 2021 16:44:15 +0300
 Subject: [PATCH] use internal ifunc symbols in libc
@@ -18,7 +18,7 @@ function.
  create mode 100644 src/internal/use_base_memory_func.h
 
 diff --git a/ldso/dlstart.c b/ldso/dlstart.c
-index 259f5e18..fc866e4f 100644
+index 4aac42bc..36ce0934 100644
 --- a/ldso/dlstart.c
 +++ b/ldso/dlstart.c
 @@ -1,6 +1,7 @@
@@ -30,7 +30,7 @@ index 259f5e18..fc866e4f 100644
  #ifndef START
  #define START "_dlstart"
 diff --git a/ldso/dynlink.c b/ldso/dynlink.c
-index e9d166ae..c389a212 100644
+index f7c8f95a..4bdc91d4 100644
 --- a/ldso/dynlink.c
 +++ b/ldso/dynlink.c
 @@ -23,6 +23,7 @@
@@ -51,7 +51,7 @@ index e9d166ae..c389a212 100644
  struct debug {
  	int ver;
  	void *head;
-@@ -1784,6 +1788,8 @@ hidden void __dls2(unsigned char *base, size_t *sp)
+@@ -1780,6 +1784,8 @@ hidden void __dls2(unsigned char *base, size_t *sp)
  	size_t addends[symbolic_rel_cnt+1];
  	saved_addends = addends;
  
