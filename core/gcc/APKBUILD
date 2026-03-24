@@ -12,13 +12,15 @@ _pkgsnap="${pkgver##*_git}"
 [ "$CHOST" != "$CTARGET" ] && _target="-$CTARGET_ARCH" || _target=""
 
 pkgname="$pkgname$_target"
-pkgrel=5
+pkgrel=6
 pkgdesc="The GNU Compiler Collection"
 url="https://gcc.gnu.org"
 arch="all"
 license="GPL-2.0-or-later AND LGPL-2.1-or-later"
 _gccrel=$pkgver-r$pkgrel
-depends="binutils$_target"
+# Regarding the "musl>=1.2.6" dependency, musl adds __getauxval() in v1.2.6.
+# Subsequently, we enabled GCC support for LSE atomics init that needs this function.
+depends="binutils$_target musl:musl>=1.2.6"
 makedepends_build="gcc$_cross g++$_cross bison flex texinfo gawk zip gmp-dev mpfr-dev mpc1-dev zlib-dev"
 makedepends_host="linux-headers gmp-dev mpfr-dev mpc1-dev isl-dev zlib-dev !gettext-dev musl:libucontext-dev"
 subpackages=" "
@@ -284,6 +286,8 @@ source="https://gcc.gnu.org/pub/gcc/releases/gcc-$_pkgbase/gcc-$_pkgbase.tar.xz
 
 	0001-tree-object-size.cc-Fix-assert-constant-offset-in-ch.patch
 	0001-LoongArch-Only-allow-valid-binary-op-when-optimize-c.patch
+
+	0100-libgcc-aarch64-add-musl-support-for-LSE-atomics-dete.patch
 	"
 
 # secfixes:
@@ -855,4 +859,5 @@ c717764ef52c0226a23cbf434654cdefa6cbf38ec625648575d9143c5513b16d8914c25015db7430
 5dd452a80c496a587a8826b04a4917045e4028631606e85cabd8e87e0460642d188a2156c4e0cf37a5d88e66ebd08a08393d48a6065045178c69eaba2edd063e  0042-libsanitizer-struct_sock_fprog_sz.patch
 c3b64b05332bd4dd7fad3fff3cacd4f9de0512943f1548c6f1205fab1a74c83622024f30471805f57d625198cc32f647b32172914528fd5605d0bf61cb0c3ff1  0001-tree-object-size.cc-Fix-assert-constant-offset-in-ch.patch
 e91873055550eba051d9297bec5c6acd27abb9ee6ce8911cdd04b5faf37d77b6b2a7607ec588d2863f13f14b48af9398cb4ac42443d8567bfa5037dc6bd50404  0001-LoongArch-Only-allow-valid-binary-op-when-optimize-c.patch
+c0030200f8691392b955d9febb159a4a5fb3d0791f575a02037b13c3db6ad370b896dbc74d212ea430b37b4346cf862ee0e5fc4d13521a31663759d6120d9d2e  0100-libgcc-aarch64-add-musl-support-for-LSE-atomics-dete.patch
 "

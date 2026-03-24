@@ -1,0 +1,38 @@
+From d7152336cabf5be945e2d4aa08d8347af50e2fa1 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 24 Mar 2026 10:45:30 +0000
+Subject: [PATCH] libgcc/aarch64: add musl support for LSE atomics detection
+
+Extend the LSE atomics initialization to support musl libc. The conditional
+is now enabled for all Linux systems since both glibc and musl (>=1.2.6)
+provide the necessary auxval function.
+---
+ libgcc/config/aarch64/lse-init.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/libgcc/config/aarch64/lse-init.c b/libgcc/config/aarch64/lse-init.c
+index 2a1315abcc8..8d0ddeb1a2e 100644
+--- a/libgcc/config/aarch64/lse-init.c
++++ b/libgcc/config/aarch64/lse-init.c
+@@ -30,8 +30,10 @@ _Bool __aarch64_have_lse_atomics
+   __attribute__((visibility("hidden"), nocommon));
+ 
+ /* Gate availability of __getauxval on glibc.  All AArch64-supporting glibc
+-   versions support it.  */
+-#ifdef __gnu_linux__
++   versions support it.  For musl, __getauxval() is available since version 1.2.6.
++   Enable unconditionally as both glibc and musl (>=1.2.6) provide the
++   necessary auxval function. */
++#if defined(__linux__)
+ 
+ # define AT_HWCAP	16
+ # define HWCAP_ATOMICS	(1 << 8)
+@@ -47,4 +49,4 @@ init_have_lse_atomics (void)
+   __aarch64_have_lse_atomics = (hwcap & HWCAP_ATOMICS) != 0;
+ }
+ 
+-#endif /* __gnu_linux__  */
++#endif /* __linux__  */
+-- 
+2.34.1
+
