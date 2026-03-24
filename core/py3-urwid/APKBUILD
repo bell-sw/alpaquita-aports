@@ -45,6 +45,9 @@ check() {
 	skip="$skip --ignore=urwid/display/_win32.py"
 	skip="$skip --ignore urwid/display/_win32_raw_display.py"
 
+	# We don't have py3-pyzmq to test it:
+	skip="$skip --ignore=urwid/event_loop/zmq_loop.py"
+
 	.testenv/bin/python3 -m pytest -vvvv --doctest-modules -s $skip
 }
 
