@@ -9,7 +9,7 @@ license="Apache-2.0"
 makedepends="
 	asciidoc
 	brotli-dev
-	clang
+	clang21
 	cmake
 	gflags-dev
 	giflib-dev
@@ -18,8 +18,8 @@ makedepends="
 	lcms2-dev
 	libjpeg-turbo-dev
 	libpng-dev
-	lld
-	llvm
+	lld21
+	llvm21
 	openexr-dev
 	samurai
 	zlib-dev
@@ -46,8 +46,8 @@ prepare() {
 build() {
 	export CFLAGS="$CFLAGS -flto=thin"
 	export CXXFLAGS="$CXXFLAGS -flto=thin"
-	export CC=clang
-	export CXX=clang++
+	export CC=clang-21
+	export CXX=clang++-21
 	case "$CARCH" in
 	s390x|ppc) ;; # broken lld with PIC
 	*) export LDFLAGS="$LDFLAGS -fuse-ld=lld" ;;
