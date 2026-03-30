@@ -51,16 +51,10 @@ source="https://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz
 
 	0100-test_urllib-skip-test_url_host_with_-test-cases.patch
 	0101-Unset-BASH_XTRACEFD-in-tests.patch
-	0102-ensurepip-upgrade-the-bundled-version-to-25.3.patch
-	0103-Add-missing-sys-import-to-test_cppext.patch
 	0111-CVE-2025-15366.patch
 	0112-CVE-2025-15367.patch
-	0115-CVE-2025-12781-pre.patch
-	0116-CVE-2025-12781.patch
-	0117-CVE-2026-2297.patch
-	0118-CVE-2026-4519.patch
-
-	https://files.pythonhosted.org/packages/44/3c/d717024885424591d5376220b5e836c2d5293ce2011523c9de23ff7bf068/pip-25.3-py3-none-any.whl
+	0113-CVE-2026-2297.patch
+	0114-CVE-2026-4519.patch
 	"
 options="net" # Required for tests
 builddir="$srcdir/Python-$pkgver"
@@ -145,9 +139,6 @@ prepare() {
 
 	# force system libs
 	rm -r Modules/expat
-
-	rm Lib/ensurepip/_bundled/pip*.whl
-	install -m644 "$srcdir"/pip-25.3-py3-none-any.whl Lib/ensurepip/_bundled
 }
 
 build() {
@@ -329,14 +320,9 @@ sha512sums="
 ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e960c4889568d25753b9e4a1494834fea48291b33f07000ec2  musl-find_library.patch
 29ed51cbdc30b7e40e517b02854ebce891e865e2a9a4755d2d8be70ad3973205766b6019a2761e20839ccbea979cd7f5311b7dd2b97b494fe1a137ef02c288c9  s390x-c-stack-size.patch
 942f13ecef2efa251b948b5ad4a58cb9b7237e399a05b184ddbfad62419d60f2f810478097d2fb58997543540c55035469b3df394ff0cb87c99da11007454d2e  0100-test_urllib-skip-test_url_host_with_-test-cases.patch
-77d3a4cfe57f9ca8cfae748f9164a8977b7c6af4d6de06d2593945716b9c71a7cdc5e4425b4019c8c2c5730bf84f1c207d2d2e8efae8afe9d782920c2275f220  0101-Unset-BASH_XTRACEFD-in-tests.patch
-009cb7f9d4c018e785690b756cdd3c37fc910f18247ae4c7606eb48355537a20c6ca7c057a426adf4449d0909347d4ef745d0177ecc31d2731b04d4bfcc5e2c0  0102-ensurepip-upgrade-the-bundled-version-to-25.3.patch
-de587425c698dca267875f70118226058c05a9077bc7bd71ea4ab9200157cade66a5a74ffe4242b5bd02493440b5acb507c67a9cdd08db5f479147ad04bdf012  0103-Add-missing-sys-import-to-test_cppext.patch
-01be9bda118e78a403befa3a804356b0cd4ef0bc19f777e6d25f20bbe1b4f917e4b7b67a0e2a95f3ca4ffd592ef63aeacc5de1e8f9d1461ca3429bda6eb86958  0111-CVE-2025-15366.patch
-45ad9a75fb81fe1a8035cf540dcf24e8bbdafd883ba74c9359de386bb31162742760a4e6d7c553d41b4465a9728d4ec631af16f2a2ca8c0e3bfd4e3440b5bc88  0112-CVE-2025-15367.patch
-2e6d138b1df2d5eae1e6b4f9865f2dbdab068d9b9f4ca715401028ad8d11d2f9f9a976d3fd5e55c9e845bd10d3106338d24be7ab9f771efad790300edf53c968  0115-CVE-2025-12781-pre.patch
-cc7e492ed7d260f8e278b9c0bbe42134efacd22558e80fe38fe4b701fea2d55f70b79a0afff0d415800bac99b2bfc02f83f395100fa9079ac95a1bbbd8f409f0  0116-CVE-2025-12781.patch
-ccb40f8c624f14adbfbba01b0aa61e6899870d74ff3fcc72abd07220dcfc5e3fd4172ab562e3b4dbfcd72eaa6cec1326ade08f15f52a56b86ce85ab90bdfa103  0117-CVE-2026-2297.patch
-25505ab87cabad557145957704429c1fdf1ef0c9373e57a6165dc1f631a07e5f6f3b514cfe8cae6b60f4483f46231db62146b72892567f1922440d3f9989ea2c  0118-CVE-2026-4519.patch
-53c9f8482beb3bb71e83924159523b3320afc35e2bdbaae5dd349e1375f1c956017cf07a698ce9803b76049d2daa3833a1d08c17df27cb3ec5b1acaf93c6e07f  pip-25.3-py3-none-any.whl
+adb479a85ead4b8ccdfd9ae0cb9817b62bf1887bf6a2a5bf22b27e0895208836867e08b39455ca31916b6924b5ee8f44cf614bd12a20c892cafdcc979faba282  0101-Unset-BASH_XTRACEFD-in-tests.patch
+4eeb940e5a32939a8e404d4569c8397ca59824ca59b7f22d0a988008cf56e2b914bcb583b77e128200d4340e7dfcff6c06e75c0af232278665c28e891285c5b4  0111-CVE-2025-15366.patch
+692c4feed7568b026906f957c9c9e0e6df9c2a1b1ba5e209c39dd927edd1921adff668db189d46d0ff8c1ef1a5848efd7e105ff365eb0a08c5dc888bddad16ec  0112-CVE-2025-15367.patch
+047194b2a5f26df4ea323fb71fed9ff5a2e48a3c775170f9610755899972b4c6d32dbd01b2211ecca8e2384a2e91424af0dfc6ddb1692ea9feb66c32560e4865  0113-CVE-2026-2297.patch
+a85558fd0a262afab9dc6b2cbf48c57c4b93cd5e0b70577a287e70213afe74d96b9abfe63db44016b0c006d29b903b35fb24c595a88e10f34407dfcd4029bb6b  0114-CVE-2026-4519.patch
 "
