@@ -1,6 +1,6 @@
 pkgname=distro-base
 pkgver=25
-pkgrel=0
+pkgrel=1
 pkgdesc="Meta package for minimal $VENDOR_NAME $VENDOR_DISTRO_NAME base"
 url="$VENDOR_URL"
 arch="noarch"
@@ -19,14 +19,47 @@ depends="
 makedepends=""
 install=""
 subpackages=""
-subpackages="distro-release:release"
+subpackages="distro-release:release hardened-release:hardened_release"
 replaces="$VENDOR_DISTRO-baselayout"
 provides="$VENDOR_DISTRO-base=$pkgver-r$pkgrel"
 source=""
 options="!check"
 
+case $pkgver in
+    *.*)
+	_ver=${pkgver%%.*}
+	_ver_pretty="$_ver LTS"
+	;;
+    *)
+	_ver="stream"
+	_ver_pretty="Stream"
+	;;
+esac
+
 package() {
 	mkdir -p "$pkgdir"
+}
+
+_create_os_release() {
+	local basic=$1
+	local pretty=$2
+	local id=$3
+
+	mkdir -p "$subpkgdir"/usr/lib
+	cat >"$subpkgdir"/usr/lib/os-release<<EOF
+NAME="$basic"
+ID=$id
+ID_LIKE=alpine
+VERSION="$_ver_pretty"
+VERSION_ID=$_ver
+PRETTY_NAME="$pretty"
+HOME_URL="$VENDOR_URL"
+BUG_REPORT_URL="$VENDOR_BUG_REPORT_URL"
+LIBC_TYPE=$CLIBC
+EOF
+
+	mkdir -p "$subpkgdir"/etc
+	ln -s ../usr/lib/os-release "$subpkgdir"/etc/os-release
 }
 
 release() {
@@ -34,23 +67,10 @@ release() {
 	pkgdesc="$VENDOR_DISTRO_NAME release data"
 	provides="$VENDOR_DISTRO-release=$pkgver-r$pkgrel"
 
-	mkdir -p "$subpkgdir"/etc
-
-	local _ver
-	local _ver_pretty
-
 	local basic="$VENDOR_NAME $VENDOR_DISTRO_NAME Linux"
-	case $pkgver in
-	    *.*)
-		_ver=${pkgver%%.*}
-		_ver_pretty="$_ver LTS"
-		;;
-	    *)
-		_ver="stream"
-		_ver_pretty="Stream"
-		;;
-	esac
 	local pretty="$basic $_ver_pretty ($CLIBC)"
+
+	_create_os_release "$basic" "$pretty" "$VENDOR_DISTRO"
 
 	# create /etc/$VENDOR_DISTRO-release
 	echo $_ver > "$subpkgdir/etc/$VENDOR_DISTRO-release"
@@ -61,19 +81,14 @@ Welcome to $pretty
 Kernel \\r on \\m (\\l)
 
 EOF
+}
 
-	# create os-release
-	mkdir -p "$subpkgdir"/usr/lib
-	cat >"$subpkgdir"/usr/lib/os-release<<EOF
-NAME="$basic"
-ID=$VENDOR_DISTRO
-ID_LIKE=alpine
-VERSION="$_ver_pretty"
-VERSION_ID=$_ver
-PRETTY_NAME="$pretty"
-HOME_URL="$VENDOR_URL"
-BUG_REPORT_URL="$VENDOR_BUG_REPORT_URL"
-LIBC_TYPE=$CLIBC
-EOF
-	ln -s ../usr/lib/os-release "$subpkgdir"/etc/os-release
+hardened_release() {
+	depends="distro-keys !distro-release"
+	pkgdesc="Hardened release data"
+
+	local basic="$VENDOR_NAME Hardened Containers"
+	local pretty="$basic $_ver_pretty ($CLIBC)"
+
+	_create_os_release "$basic" "$pretty" "$(echo "$basic" | tr '[:upper:] ' '[:lower:]-')"
 }
