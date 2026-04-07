@@ -12,6 +12,9 @@ source="https://github.com/di/calver/archive/$pkgver/py3-calver-$pkgver.tar.gz
 	version-placeholder.patch
 	"
 builddir="$srcdir/calver-$pkgver"
+# To avoid circular dependency:
+# py3-calver -> py3-pytest -> py3-pygments -> py3-hatchling -> py3-trove-classifiers -> py3-calver
+options="!check"
 
 prepare() {
 	default_prepare
