@@ -1,6 +1,6 @@
 pkgname=sudo
 pkgver=1.9.17_p2
-pkgrel=0
+pkgrel=1
 _realver=${pkgver/_/}
 pkgdesc="Give certain users the ability to run some commands as root"
 url="https://www.sudo.ws/sudo/"
@@ -8,7 +8,9 @@ arch="all"
 license="custom ISC"
 makedepends_host="glibc:libxcrypt-dev zlib-dev"
 subpackages="$pkgname-doc-extra::noarch $pkgname-doc $pkgname-dev"
-source="https://www.sudo.ws/dist/sudo-$_realver.tar.gz"
+source="https://www.sudo.ws/dist/sudo-$_realver.tar.gz
+	0100-CVE-2026-35535.patch
+	"
 options="suid"
 builddir="$srcdir/sudo-$_realver"
 
@@ -17,6 +19,8 @@ provider_priority=100
 replaces="sudo-ldap"
 
 # secfixes:
+#   1.9.17_p2-r1:
+#     - CVE-2026-35535
 #   1.9.17_p1-r0:
 #     - CVE-2025-32462
 #     - CVE-2025-32463
@@ -83,4 +87,5 @@ extra() {
 
 sha512sums="
 c8abd6ca56e54a081c9ef1e9f6579d1db5b93ff857e60d1f58d1f425d7dc23c31c58d40b7819780688f66dfdf87a1f3bbe0a78387b007e2beb1b0e546203ea93  sudo-1.9.17p2.tar.gz
+63c3f9d11a58bdcd5d958d96ef6af3e47c5b375518f3a69f84cecd4ee772d6352c05806cd9c4df1015262e7836330b68ed7eda61d1c9db9f215b72828313b223  0100-CVE-2026-35535.patch
 "
