@@ -15,16 +15,12 @@ makedepends="
 	aom-dev
 	cmake
 	dav1d-dev
-	ffmpeg-dev
 	libde265-dev
 	libjpeg-turbo-dev
 	libpng-dev
 	libwebp-dev
-	openh264-dev
 	openjpeg-dev
-	rav1e-dev
 	samurai
-	x264-dev
 	x265-dev
 	"
 install="
@@ -44,25 +40,11 @@ source="https://github.com/strukturag/libheif/releases/download/v$pkgver/libheif
 _plugins="
 	aom:aomdec:aomenc
 	dav1d
-	ffmpeg:ffmpegdec
 	jpeg:jpegdec:jpegenc
 	libde265
-	openh264:openh264dec
 	openjpeg:j2kdec:j2kenc
-	rav1e
-	x264
 	x265
 	"
-
-case "$CARCH" in
-# Blocked by svt-av1-dev.
-x86 | armhf | armv7)
-	_svtenc="OFF";;
-*)
-	makedepends="$makedepends svt-av1-dev"
-	_plugins="$_plugins svtenc"
-	_svtenc="ON" ;;
-esac
 
 for _i in $_plugins; do
 	subpackages="$subpackages $pkgname-${_i%%:*}:_plugin"
@@ -98,14 +80,14 @@ build() {
 		-DWITH_DAV1D_PLUGIN=ON \
 		-DWITH_LIBDE265=ON \
 		-DWITH_LIBDE265_PLUGIN=ON \
-		-DWITH_RAV1E=ON \
-		-DWITH_RAV1E_PLUGIN=ON \
-		-DWITH_SvtEnc="$_svtenc" \
-		-DWITH_SvtEnc_PLUGIN="$_svtenc" \
+		-DWITH_RAV1E=OFF \
+		-DWITH_RAV1E_PLUGIN=OFF \
+		-DWITH_SvtEnc=OFF \
+		-DWITH_SvtEnc_PLUGIN=OFF \
 		-DWITH_X265=ON \
 		-DWITH_X265_PLUGIN=ON \
-		-DWITH_X264=ON \
-		-DWITH_X264_PLUGIN=ON \
+		-DWITH_X264=OFF \
+		-DWITH_X264_PLUGIN=OFF \
 		-DWITH_JPEG_DECODER=ON \
 		-DWITH_JPEG_DECODER_PLUGIN=ON \
 		-DWITH_JPEG_ENCODER=ON \
@@ -119,10 +101,10 @@ build() {
 		-DWITH_OpenJPEG_ENCODER_PLUGIN=ON \
 		-DWITH_OPENJPH_ENCODER=OFF \
 		-DWITH_OPENJPH_ENCODER_PLUGIN=OFF \
-		-DWITH_FFMPEG_DECODER=ON \
-		-DWITH_FFMPEG_DECODER_PLUGIN=ON \
-		-DWITH_OpenH264_DECODER=ON \
-		-DWITH_OpenH264_DECODER_PLUGIN=ON \
+		-DWITH_FFMPEG_DECODER=OFF \
+		-DWITH_FFMPEG_DECODER_PLUGIN=OFF \
+		-DWITH_OpenH264_DECODER=OFF \
+		-DWITH_OpenH264_DECODER_PLUGIN=OFF \
 		-DWITH_UVG266=OFF \
 		-DWITH_UVG266_PLUGIN=OFF \
 		-DWITH_VVDEC=OFF \
