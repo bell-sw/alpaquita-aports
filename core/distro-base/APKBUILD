@@ -1,6 +1,6 @@
 pkgname=distro-base
 pkgver=23.0
-pkgrel=2
+pkgrel=3
 pkgdesc="Meta package for minimal $VENDOR_NAME $VENDOR_DISTRO_NAME base"
 url="$VENDOR_URL"
 arch="noarch"
@@ -19,11 +19,22 @@ depends="
 makedepends=""
 install=""
 subpackages=""
-subpackages="distro-release:release"
+subpackages="distro-release:release hardened-release:hardened_release"
 replaces="$VENDOR_DISTRO-baselayout"
 provides="$VENDOR_DISTRO-base=$pkgver-r$pkgrel"
 source=""
 options="!check"
+
+case $pkgver in
+    *.*)
+	_ver=${pkgver%%.*}
+	_ver_pretty="$_ver LTS"
+	;;
+    *)
+	_ver="stream"
+	_ver_pretty="Stream"
+	;;
+esac
 
 build() {
 	return 0
@@ -33,6 +44,25 @@ package() {
 	mkdir -p "$pkgdir"
 }
 
+_create_os_release() {
+	local basic=$1
+	local pretty=$2
+	local id=$3
+
+	mkdir -p "$subpkgdir"/etc
+	cat >"$subpkgdir"/etc/os-release<<EOF
+NAME="$basic"
+ID=$id
+ID_LIKE=alpine
+VERSION="$_ver_pretty"
+VERSION_ID=$_ver
+PRETTY_NAME="$pretty"
+HOME_URL="$VENDOR_URL"
+BUG_REPORT_URL="$VENDOR_BUG_REPORT_URL"
+LIBC_TYPE=$CLIBC
+EOF
+}
+
 release() {
 	depends="distro-keys"
 	pkgdesc="$VENDOR_DISTRO_NAME release data"
@@ -40,21 +70,10 @@ release() {
 
 	mkdir -p "$subpkgdir"/etc
 
-	local _ver
-	local _ver_pretty
-
 	local basic="$VENDOR_NAME $VENDOR_DISTRO_NAME Linux"
-	case $pkgver in
-	    *.*)
-		_ver=${pkgver%%.*}
-		_ver_pretty="$_ver LTS"
-		;;
-	    *)
-		_ver="stream"
-		_ver_pretty="Stream"
-		;;
-	esac
 	local pretty="$basic $_ver_pretty ($CLIBC)"
+
+	_create_os_release "$basic" "$pretty" "$VENDOR_DISTRO"
 
 	# create /etc/$VENDOR_DISTRO-release
 	echo $_ver > "$subpkgdir/etc/$VENDOR_DISTRO-release"
@@ -65,17 +84,14 @@ Welcome to $pretty
 Kernel \\r on an \\m (\\l)
 
 EOF
+}
 
-	# create os-release
-	cat >"$subpkgdir"/etc/os-release<<EOF
-NAME="$basic"
-ID=$VENDOR_DISTRO
-ID_LIKE=alpine
-VERSION="$_ver_pretty"
-VERSION_ID=$_ver
-PRETTY_NAME="$pretty"
-HOME_URL="$VENDOR_URL"
-BUG_REPORT_URL="$VENDOR_BUG_REPORT_URL"
-LIBC_TYPE=$CLIBC
-EOF
+hardened_release() {
+	depends="distro-keys !distro-release"
+	pkgdesc="Hardened release data"
+
+	local basic="$VENDOR_NAME Hardened Containers"
+	local pretty="$basic $_ver_pretty ($CLIBC)"
+
+	_create_os_release "$basic" "$pretty" "$(echo "$basic" | tr '[:upper:] ' '[:lower:]-')"
 }
