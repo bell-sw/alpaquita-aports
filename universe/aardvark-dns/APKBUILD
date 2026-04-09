@@ -1,15 +1,19 @@
 pkgname=aardvark-dns
 pkgver=1.16.0
-pkgrel=0
+pkgrel=1
 pkgdesc="Authoritative DNS server for A/AAAA container records"
 url="https://github.com/containers/aardvark-dns"
 license="Apache-2.0"
 arch="all"
 makedepends="cargo cargo-auditable"
-source="https://github.com/containers/aardvark-dns/archive/v$pkgver/aardvark-dns-$pkgver.tar.gz"
+source="https://github.com/containers/aardvark-dns/archive/v$pkgver/aardvark-dns-$pkgver.tar.gz
+	0100-CVE-2026-35406.patch
+	"
 options="net"
 
 # secfixes:
+#   1.16.0-r1:
+#     - CVE-2026-35406
 #   1.12.2-r0:
 #     - CVE-2024-8418
 
@@ -34,4 +38,5 @@ package() {
 
 sha512sums="
 6acdc06856e88f582f3eb651463dc627b4f33fe78605725f500ba21bd74385fe76bf2cb29adec356618a15b2f288b844e38cbd18c4522f7748b29c6d0ab7f59a  aardvark-dns-1.16.0.tar.gz
+1e752efc73b58e104df4969f6f18afcc8a804bfd830ad3cc8927398478ae9bc4cd0f0926f69bfc018fef9b8e37bb690f1a2a4026aaa560f3806bccabe827029e  0100-CVE-2026-35406.patch
 "
