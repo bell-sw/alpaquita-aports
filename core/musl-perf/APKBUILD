@@ -7,7 +7,7 @@
 
 pkgname=musl-perf
 pkgver=1.2.6
-pkgrel=1
+pkgrel=2
 _mimalloc_ver=2.2.4
 pkgdesc="the musl c library (libc) implementation (optimized for performance)"
 url="https://musl.libc.org/"
@@ -50,6 +50,7 @@ source="https://musl.libc.org/releases/musl-$pkgver.tar.gz
 	0001-add-stub-for-pthread_mutexattr_setprioceiling.patch
 	fix-loongarch64-zero-len-extcontext.patch
 	iconv-gb18030-fix.patch
+	CVE-2026-40200.patch
 
 	0100-ldso-dynlink-add-ifunc-support.patch
 	0101-support-ifunc-in-static-linking.patch
@@ -80,6 +81,8 @@ source="https://musl.libc.org/releases/musl-$pkgver.tar.gz
 builddir="$srcdir/musl-$pkgver"
 
 # secfixes:
+#   1.2.6-r2:
+#     - CVE-2026-40200
 #   1.2.5-r11:
 #     - CVE-2025-26519
 #   1.2.2_pre2-r0:
@@ -208,6 +211,7 @@ sha512sums="
 83ec0f774dbb5d4f4d4b917d149ea0ef609d028d18ae7624e90fedda6e3174c91ade93751bfd376adfa2848155110fc4dd02b6790363b98e5395c4787e8731e8  0001-add-stub-for-pthread_mutexattr_setprioceiling.patch
 6eae45aa82db69bc96386aedf3d1bfe83dfa0a7b4b824326c1c7e1bab31100d635ed0e8930c26a1694697fad59167a42e2b5f3a2ac51b07e36d85f047e268cff  fix-loongarch64-zero-len-extcontext.patch
 f7849abeab0e4eab992a80464afa07b9c8aae5cee76040523b9dbc0931435f28ea8f5792b8a4a0cd6d608ac2f37e3225e89afcb3171a0a6df44450ed57cee83b  iconv-gb18030-fix.patch
+a64ab7688d1a85e560b5687783df482d2467a79a74400da5a1601382847d6b4e6a79b7529a8dc80c46ddda8dc2a812f2261557fc8ee98dc3bdf7322761bd6d9c  CVE-2026-40200.patch
 4623c3bdf4c4b498095254bf04499b531576724b6c40aa71e13c563d4e2797361bfaa05624b16c5688953932cbd6f830fd06895676ff8cbc4edd8b1fd81a4288  0100-ldso-dynlink-add-ifunc-support.patch
 28966e0ecf96659033b1b07f7df6033380806eff15d79ca7783b546cd14174bfe9ed35dbadf404d9b97b76cd5fb77bd5fff97cebffd3954a594b79901f6e580c  0101-support-ifunc-in-static-linking.patch
 370c5a9c647e95cc0b52461c7b4b324e20fa7148df68811db503f7499f8ef05130345638837a8215788cab5a97409f220347ada65f9a966317a9c84f7f67b9e4  0102-Makefile-link-glibc-string-lib.patch
