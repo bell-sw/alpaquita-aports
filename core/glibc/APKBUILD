@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.37.0
-pkgrel=22
+pkgrel=23
 _glibcver=${pkgver%.*}
 _patch_ver="glibc-2.37-179-g49a10f5ac7"
 pkgdesc="GNU C Library"
@@ -16,6 +16,7 @@ makedepends="bison perl python3 texinfo gawk grep sed coreutils"
 source="
 	https://ftp.gnu.org/gnu/libc/glibc-$_glibcver.tar.xz
 	${VENDOR_URL/\/\//\/\/packages.}${VENDOR_DISTRO}/distfiles/${_patch_ver}.patch.xz
+	0100-CVE-2026-4046.patch
 	1000-delocalize-sh-scripts.patch
 	ld.so.conf
 	locale.gen.in
@@ -35,6 +36,8 @@ subpackages="
 "
 
 # secfixes:
+#   2.37.0-r23:
+#     - CVE-2026-4046
 #   2.37.0-r22:
 #     - CVE-2026-4437
 #     - CVE-2026-4438
@@ -252,6 +255,7 @@ dev() {
 sha512sums="
 4fc5932f206bb1b8b54828a28af1a681616b838bbab60c81c82155f3629cbfe1301d271af65511ed917f4c6949a025429221fe6035753282f15346919f15b90c  glibc-2.37.tar.xz
 07cea587e69b30c63d9e994ecf46daf297f5b3e392890234a53dd4e20c32d5eeb2a0356230f6abbcbdd5dea96ec04bd98ed271f05b771873b02a039736b6ed8c  glibc-2.37-179-g49a10f5ac7.patch.xz
+2e3aa4660f8f0b3de438f23d82e0b50ac6901c13bfed1c85140f3b13325de5f8107a904ddc67707ba521233c3b46a4a4aa43e0a33c7691ffc56fe45226cf5307  0100-CVE-2026-4046.patch
 2e6dbe2373c1b0e61413a23832f15a4a891aa3769afdff052ca5885f306c1ecc2ccd86f5c6fd5a91325809c59f7e39bb99e0afe1844eddf6c1fe22bf33cce657  1000-delocalize-sh-scripts.patch
 73bfefd8a1366f3bc7bbfd3f34b599b49f48278f783eb2837a414eb914ac3ae9995fe4e9fec58b9d1da1eb6ed36ccc889257ffc54031f1731e041dc18e096e6f  ld.so.conf
 47a686c2fda0f32a1e9e975f723ed96ab8125619541cf8711fa80d94428862be77c46d06f5ff17f6a978eb22c9f86929ee9bf79888e6f824beeb023f78512151  locale.gen.in
