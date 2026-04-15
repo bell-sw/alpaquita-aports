@@ -2,9 +2,9 @@
 # work over secure connection using the SSH protocol.
 
 pkgname=openssh
-pkgver=10.0_p1
+pkgver=10.3_p1
 _myver=${pkgver%_*}${pkgver#*_}
-pkgrel=10
+pkgrel=0
 pkgdesc="OpenBSD SSH implementation"
 url="https://www.openssh.com/portable.html"
 arch="all"
@@ -59,12 +59,15 @@ source="https://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-$_myver.tar
 	sshd.initd
 	sshd.confd
 	sshd.pam
-
-	0101-CVE-2025-61984.patch
-	0102-CVE-2025-61985.patch
 	"
 
 # secfixes:
+#   10.3_p1-r0:
+#     - CVE-2026-35385
+#     - CVE-2026-35386
+#     - CVE-2026-35387
+#     - CVE-2026-35388
+#     - CVE-2026-35414
 #   10.0_p1-r10:
 #     - CVE-2025-61984
 #     - CVE-2025-61985
@@ -326,7 +329,7 @@ _server_with_flavor() {
 }
 
 sha512sums="
-2daa1fcf95793b23810142077e68ddfabdf3732b207ef4f033a027f72d733d0e9bcdb6f757e7f3a5934b972de05bfaae3baae381cfc7a400cd8ab4d4e277a0ed  openssh-10.0p1.tar.gz
+cb2bd67086491c25e305879b924c3dfa8236502a60c7f250b2fd17d2d9a79ebfc2e40b2f43e42dcf598cc510996e00cc03df9b8e38f34bc2dc71a3d4ff3788fa  openssh-10.3p1.tar.gz
 53c99ef1d3a1f6ab4a9937986330787b1014098a39cc1639b36538e41e9322f81ee2f7f0cb6e2fbc4ac40c03c08e2b34df0a58316918bcecbb02539b0058d182  fix-utmp.patch
 8df35d72224cd255eb0685d2c707b24e5eb24f0fdd67ca6cc0f615bdbd3eeeea2d18674a6af0c6dab74c2d8247e2370d0b755a84c99f766a431bc50c40b557de  disable-forwarding-by-default.patch
 e85754b2b6c4c37b432d166e63d6293e58c9c8bb6ebd8d3527c83afa2337f14c06d6a4e008ffcc0afd7dc3409e960b89c1dde41d2543c4be7d4813d477ff3a5e  avoid-redefined-warnings-when-building-with-utmps.patch
@@ -338,6 +341,4 @@ a3e4fee23bed9bc241a7ef5e936c039604b02457ff2f77df8598056d67fa2513454fe3530dae057e
 bfd432c5152c37103d04db1bf3599aa4a21fdf03e63bae49ca8ed7740b53e1c8894d8bd10f7b1602f39b1c03c1024bcfd05bb924ce07f2e602c81933cbb52a5f  sshd.initd
 be7dd5f6d319b2e03528525a66a58310d43444606713786b913a17a0fd9311869181d0fb7927a185d71d392674857dea3c97b6b8284886227d47b36193471a09  sshd.confd
 5d3b62d724d930bafb6263d0600828771e667751cb5ba5070414dce7c3d0559bebdfb05960b721cfd20c81d3ad824291ffb10498798171c8bbbcbf389b706265  sshd.pam
-bfee4e33a09558d520ddd5109f3cd1bf61dd81a24c01ee1ce22f42239306bece2ab33aba219e5c89323ebe362fa60df3010a3d556daafb7ef0844bec7874f857  0101-CVE-2025-61984.patch
-87d373ce6af368bc31962939600f8a763ab874892e3aaa7d4c66652af22a4fda62fbc1cad917dc26c6a27c0def52e1777cf5024f8ab275737c2bc1ad2358f96c  0102-CVE-2025-61985.patch
 "
