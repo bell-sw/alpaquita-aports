@@ -233,9 +233,11 @@ build() {
 	# When building shared libnode.so, the resulting package size is +15 %
 	# (~8 MiB), so we rather build it twice to keep the node binary smaller
 	# (there are currently no packages using libnode.so).
-	msg 'Building node binary'
-	_build
-	cp out/Release/node out/
+	if ! [ -x out/node ]; then
+		msg 'Building node binary'
+		_build
+		cp out/Release/node out/
+	fi
 
 	msg 'Building libnode.so'
 	_build --shared
