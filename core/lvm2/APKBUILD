@@ -2,7 +2,7 @@
 
 pkgname=lvm2
 pkgver=2.03.35
-pkgrel=0
+pkgrel=1
 pkgdesc="Linux Logical Volume Manager"
 url="https://sourceware.org/lvm2/"
 arch="all"
@@ -10,8 +10,8 @@ options="!check"  # Test tries to use real /dev/mapper/control.
 license="GPL-2.0-or-later AND LGPL-2.1-or-later AND BSD-2-Clause"
 # lvm2 will dlopen libs so we need to add explicit depend
 depends="lvm2-libs=$pkgver-r$pkgrel"
-depends_dev="linux-headers"
-makedepends_host="$depends_dev libaio-dev util-linux-static util-linux-dev"
+depends_dev="device-mapper-dev~$pkgver linux-headers"
+makedepends_host="$depends_dev libaio-dev util-linux-static util-linux-dev eudev-dev sanlock-dev"
 source="https://mirrors.kernel.org/sourceware/lvm2/LVM2.$pkgver.tgz
 	default-udev-sync.patch
 	musl:fix-stdio-usage.patch
@@ -23,41 +23,27 @@ source="https://mirrors.kernel.org/sourceware/lvm2/LVM2.$pkgver.tgz
 	lvm.initd
 	lvm.confd
 	lvmlockd.initd
-	dmeventd.initd
 	"
-install="device-mapper-udev.post-install device-mapper-udev.post-upgrade"
 subpackages=
 case "$CLIBC" in
 musl)
 	subpackages="
 		$subpackages
 		$pkgname-static:lvm2_static
-		device-mapper-static:dm_static
 		"
 	;;
 esac
 subpackages="
 	$subpackages
-	device-mapper-libs:dm_libs
-	device-mapper-event-libs:dm_event_libs
 	$pkgname-dev
 	$pkgname-doc
 	$pkgname-openrc
-	$pkgname-dmeventd
-	$pkgname-dmeventd-openrc:dmeventd_openrc
-	device-mapper:dm
-	device-mapper-udev:udev:noarch
 	$pkgname-libs
 	$pkgname-extra::noarch
+	$pkgname-lockd
+	$pkgname-lockd-openrc:lockd_openrc
 	"
 builddir="$srcdir/LVM2.$pkgver"
-
-if [ -z "$BOOTSTRAP" ] && [ -z "$APORTS_BOOTSTRAP" ]; then
-	# XXX: enable-udev_sync needs a bit more polish to not fail with mdev-only
-	_no_bootstrap="--enable-lvmlockd-sanlock --disable-udev_sync"
-	makedepends_host="$makedepends_host eudev-dev sanlock-dev"
-	subpackages="$subpackages $pkgname-lockd $pkgname-lockd-openrc:lockd_openrc"
-fi
 
 build() {
 	# during cross-compilation malloc test goes wrong
@@ -95,45 +81,19 @@ build() {
 		--without-systemd-run \
 		--enable-udev_rules \
 		--enable-write_install \
-		$_no_bootstrap \
+		--enable-lvmlockd-sanlock \
+		--disable-udev_sync \
 		CLDFLAGS="$LDFLAGS"
 	make
 }
 
 package() {
-	make DESTDIR="$pkgdir" install
+	make DESTDIR="$pkgdir" install_lvm2
+	# blkdeactivate is part of install_device-mapper upstream, but goes in lvm2-extra
+	install -Dm755 scripts/blkdeactivate.sh "$pkgdir"/usr/sbin/blkdeactivate
 	install -d "$pkgdir"/etc/lvm/archive "$pkgdir"/etc/lvm/backup
 	install -Dm755 "$srcdir"/lvm.initd "$pkgdir"/etc/init.d/lvm
 	install -Dm644 "$srcdir"/lvm.confd "$pkgdir"/etc/conf.d/lvm
-}
-
-dmeventd() {
-	pkgdesc="Device-mapper event daemon"
-	amove usr/sbin/dmeventd
-}
-
-dmeventd_openrc() {
-	pkgdesc="Device-mapper event daemon (OpenRC init scripts)"
-	install_if="$pkgname-dmeventd=$pkgver-r$pkgrel openrc"
-	install -Dm755 "$srcdir"/dmeventd.initd "$subpkgdir"/etc/init.d/dmeventd
-}
-
-
-dm_static() {
-	pkgdesc="Device-mapper static libraries and binaries"
-	provides="device-mapper-event-static=$pkgver-r$pkgrel"
-	amove usr/lib/libdevmapper*.a usr/sbin/dm*.static
-}
-
-dm() {
-	pkgdesc="Device mapper userspace library and tools from LVM2"
-	amove usr/sbin/dm*
-}
-
-udev() {
-	pkgdesc="Device mapper udev rules"
-	install_if="device-mapper=$pkgver-r$pkgrel eudev"
-	amove usr/lib/udev/rules.d
 }
 
 libs() {
@@ -142,18 +102,6 @@ libs() {
 	amove usr/lib/liblvm2*.so.* \
 		usr/lib/libdevmapper-event-lvm2*.so.* \
 		usr/lib/device-mapper
-}
-
-dm_libs() {
-	pkgdesc="Device-mapper shared library"
-	depends=
-	amove usr/lib/libdevmapper.so.*
-}
-
-dm_event_libs() {
-	pkgdesc="Device-mapper event daemon shared library"
-	depends=
-	amove usr/lib/libdevmapper-event.so.*
 }
 
 lvm2_static() {
@@ -192,5 +140,4 @@ dfcda00e5607606ae8f10e5765de048af933afd05e0719b14036ba84ebc3b4eb07b138e5ce9af9f6
 478c04425d4804585f655530e32652913ddb780d11a86903ac8220ca3d37bd75333833e5a2f36b8d9180176211f2f86ed87f40cbebb296263b182bfc2b98e643  lvm.initd
 07caf8fa942290f3c953cc2463aaf55bac01d0bcb9351daf3880fa4d0eefb67fe00761c46a7a4da91cd2f8e492a12fed35853a15dc939cd80d19d3303bc3951d  lvm.confd
 7215daf0872063672d5ad13f65ccd90833c6ebea7347149789b97a232d92af28ddc21c2893cb9ee2cb004f857700822917152c2005300a5060b3095f0582bfdd  lvmlockd.initd
-75aecf7f405f9113fd3e79ff2062d15fbc1271e830c71b243f6278abdcb54ff173b0d147eac4c6742bd33b022d47cf9e7912a834307007831a5a9e487cbf89a8  dmeventd.initd
 "
