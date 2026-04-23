@@ -1,5 +1,5 @@
 pkgver=20.1.8
-pkgrel=1
+pkgrel=2
 _sover=${pkgver%.*}
 _llvmver=${pkgver%%.*}
 _prevllvmver=$((_llvmver - 1))
@@ -126,12 +126,11 @@ check() {
 
 package() {
 	# the libraries should always exactly match, not just by soname
-	# gcc is for libgcc-dev which we don't have split
 	depends="
 		$pkgname-headers=$pkgver-r$pkgrel
 		$pkgname-libs=$pkgver-r$pkgrel
 		musl:fortify-headers>=1.1-r2
-		gcc
+		libgcc
 		libstdc++-dev
 		llvm$_llvmver-linker-tools
 		$CLIBC-dev
