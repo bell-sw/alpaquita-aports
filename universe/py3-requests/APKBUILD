@@ -2,7 +2,7 @@
 
 pkgname=py3-requests
 pkgver=2.32.5
-pkgrel=0
+pkgrel=1
 pkgdesc="HTTP request library for Python3"
 url="https://requests.readthedocs.io/"
 arch="noarch"
@@ -18,13 +18,18 @@ depends="
 	"
 makedepends="py3-gpep517 py3-setuptools py3-wheel"
 subpackages="$pkgname-pyc"
-source="https://files.pythonhosted.org/packages/source/r/requests/requests-$pkgver.tar.gz"
+source="https://files.pythonhosted.org/packages/source/r/requests/requests-$pkgver.tar.gz
+
+	0100-CVE-2026-25645.patch
+"
 builddir="$srcdir/requests-$pkgver"
 
 replaces="py-requests" # Backwards compatibility
 provides="py-requests=$pkgver-r$pkgrel" # Backwards compatibility
 
 # secfixes:
+#   2.32.5-r1:
+#     - CVE-2026-25645
 #   2.32.3-r0:
 #     - CVE-2024-35195
 #   2.32.4-r0:
@@ -43,4 +48,5 @@ package() {
 
 sha512sums="
 2fbc05f5b638cefe59b9edaac86d53666d0416cebdbe8343caa818cae677a733c1f3a9ae62ef5c880b77cf706a2e3da57e0783d8936bda128f071367524189de  requests-2.32.5.tar.gz
+cca13763e2051201533c234616d2da7c23a37732c0a5702eb5b10f5720b3e9b8d4bc0f94e931d2afe3cb4b22eec5a29ad9d872d417ab6e74915fbd54ec693b72  0100-CVE-2026-25645.patch
 "
