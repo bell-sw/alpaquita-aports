@@ -1,6 +1,6 @@
 pkgname=lcms2
 pkgver=2.14
-pkgrel=0
+pkgrel=1
 pkgdesc="Color Management Engine"
 url="https://www.littlecms.com"
 arch="all"
@@ -8,9 +8,14 @@ license="MIT GPL-3.0-only"
 depends_dev="libjpeg-turbo-dev tiff-dev zlib-dev"
 makedepends="$depends_dev"
 subpackages="$pkgname-dev $pkgname-doc $pkgname-utils"
-source="https://github.com/mm2/Little-CMS/releases/download/lcms$pkgver/lcms2-$pkgver.tar.gz"
+source="https://github.com/mm2/Little-CMS/releases/download/lcms$pkgver/lcms2-$pkgver.tar.gz
+
+	0100-CVE-2026-41254.patch
+	"
 
 # secfixes:
+#   2.14-r1:
+#     - CVE-2026-41254
 #   2.9-r1:
 #     - CVE-2018-16435
 #   2.8-r1:
@@ -48,4 +53,5 @@ utils() {
 
 sha512sums="
 92fba0a457ea81590eba0b8d98b7b621da6a83e3857948585e0b524235954954f9ac1670cf6a19b457c0fce22a87899ea4c5810db1ff2acf7c6b6e0dc4b61a1b  lcms2-2.14.tar.gz
+07df93bc1048e4f62d08a46abe167c019b48261ff5b5f6110f9d57858d0c432f1379d508320247ac8c4e6712c3b4df156dcc0adf41f96a6e531fc0b0719357b6  0100-CVE-2026-41254.patch
 "
