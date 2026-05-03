@@ -7,7 +7,7 @@
 
 pkgname=xz
 pkgver=5.2.9_p525
-pkgrel=0
+pkgrel=1
 pkgdesc="Data compression utilities for XZ and LZMA"
 url="https://tukaani.org/xz"
 arch="all"
@@ -16,6 +16,8 @@ subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-libs"
 source="
 	http://packages.bell-sw.com/alpaquita/distfiles/xz-5.2.5-tukaani.tar.gz
 	xzgrep-ZDI-CAN-16587.patch
+
+	0100-CVE-2026-34743.patch
 	"
 
 builddir="$srcdir"/$pkgname-5.2.5
@@ -32,6 +34,8 @@ makedepends="
 	"
 
 # secfixes:
+#   5.2.9_p525-r1:
+#     - CVE-2026-34743
 #   5.2.9_p525-r0:
 #     - CVE-2024-3094
 #   5.2.5-r1:
@@ -80,4 +84,5 @@ package() {
 sha512sums="
 dd6fa147a839b8f8c30105dabee033d638e60288181619920b56ca258f810a2938a76862a83d33acc00a893b9fcd7568ec5b75171a27d3409dde86cf12e353bd  xz-5.2.5-tukaani.tar.gz
 52b16268e333399444f433a11ccf3a9b020a6914ed23fc8e082128fec596011d7c6863d47414d4c0f245d20ebed4b3a50b422599b4b88d66f6c6eb2e74b9a939  xzgrep-ZDI-CAN-16587.patch
+cff8663068a773927c745b9765b3bf29d1c8956f6e5384e31e66d46f44fb9aa2b906ae0315bf20b798234b71db362dec2e39ebaa68fc85b72b7a2cac00c5b146  0100-CVE-2026-34743.patch
 "
