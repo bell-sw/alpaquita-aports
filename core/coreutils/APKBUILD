@@ -66,16 +66,16 @@ build() {
 check() {
 	case "$CARCH" in
 	armhf)
-		make check XFAIL_TESTS="test-memset_explicit" ;;
+		BASH_XTRACEFD= make check XFAIL_TESTS="test-memset_explicit" ;;
 	ppc64le|loongarch64)
 		# Skipping due to Hangup
 		;;
 	x86|x86_64)
 		# deep-2: exceeds PATH_MAX on Alpine CI (ENAMETOOLONG in test setup)
 		echo "#!/bin/sh\necho skipped" > tests/rm/deep-2.sh
-		make check ;;
+		BASH_XTRACEFD= make check ;;
 	*)
-		make check ;;
+		BASH_XTRACEFD= make check ;;
 	esac
 }
 
