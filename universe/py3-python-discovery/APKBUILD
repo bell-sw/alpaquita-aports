@@ -1,0 +1,37 @@
+pkgname=py3-python-discovery
+pkgver=1.2.2
+pkgrel=0
+# _pkgreal is used by apkbuild-pypi to find modules at PyPI
+_pkgreal=python_discovery
+pkgdesc="Python interpreter discovery"
+url="https://pypi.org/project/python-discovery/"
+arch="noarch"
+license="mit"
+depends="py3-filelock py3-platformdirs"
+makedepends="py3-gpep517 py3-hatchling py3-hatch-vcs"
+checkdepends="py3-pytest py3-pytest-mock"
+subpackages="$pkgname-pyc"
+source="https://files.pythonhosted.org/packages/source/p/python-discovery/python_discovery-$pkgver.tar.gz"
+builddir="$srcdir/python_discovery-$pkgver"
+#options="!check"
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/*.whl
+	.testenv/bin/python3 -m pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+}
+
+sha512sums="
+4f82ff5510f245cdfd08e896f1b869f2c5b5636a92ac6e5c782ec652d1e2a8c0c422ca09bf277b2cd1b3ccfb566e9909ac108bc8ab095ca5564beb86ab66e9c5  python_discovery-1.2.2.tar.gz
+"
