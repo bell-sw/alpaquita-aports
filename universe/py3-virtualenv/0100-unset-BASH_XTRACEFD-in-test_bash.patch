@@ -1,0 +1,32 @@
+From 9f64c49b60501adde15afbf64b59f0591a1e51f1 Mon Sep 17 00:00:00 2001
+From: Takha Polat <takha.polat@bell-sw.com>
+Date: Fri, 8 May 2026 14:54:10 +0500
+Subject: [PATCH] unset BASH_XTRACEFD in test_bash
+
+We set the BASH_XTRACEFD env var to 10, and when the test_bash.py tests execute,
+the file descriptor is not available:
+```
+E       AssertionError: bash: BASH_XTRACEFD: 10: invalid value for trace file descriptor
+```
+---
+ tests/unit/activation/conftest.py | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/tests/unit/activation/conftest.py b/tests/unit/activation/conftest.py
+index 01c167d5..a5fd1870 100644
+--- a/tests/unit/activation/conftest.py
++++ b/tests/unit/activation/conftest.py
+@@ -109,6 +109,10 @@ class ActivationTester:
+         # clear up some environment variables so they don't affect the tests
+         for key in [k for k in env if k.startswith(("_OLD", "VIRTUALENV_", "COVERAGE_"))]:
+             del env[key]
++
++        # We set BASH_XTRACEFD in the CI, and it breaks test_bash.py::test_bash
++        del env["BASH_XTRACEFD"]
++
+         return env
+ 
+     def _generate_test_script(self, activate_script, tmp_path):
+-- 
+2.54.0
+
