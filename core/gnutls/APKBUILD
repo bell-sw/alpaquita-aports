@@ -2,33 +2,52 @@
 # at establishing secure communications back-end.
 
 pkgname=gnutls
-pkgver=3.7.11
-pkgrel=1
+pkgver=3.8.13
+pkgrel=0
 pkgdesc="The GNU TLS library"
 url="https://www.gnutls.org/"
 arch="all"
 license="LGPL-2.1-or-later"
 checkdepends="diffutils datefudge"
-makedepends="automake nettle-dev zlib-dev libkcapi-dev libtasn1-dev linux-headers p11-kit-dev libunistring-dev texinfo"
+makedepends="
+	automake
+	libkcapi-dev
+	libtasn1-dev
+	libunistring-dev
+	linux-headers
+	nettle-dev
+	p11-kit-dev
+	texinfo
+	zlib-dev
+	"
 subpackages="$pkgname-dbg $pkgname-doc $pkgname-dev $pkgname-utils $pkgname-c++:xx"
 _v=${pkgver%.*}
 case $pkgver in
 *.*.*.*) _v=${_v%.*};;
 esac
 source="https://www.gnupg.org/ftp/gcrypt/gnutls/v$_v/gnutls-$pkgver.tar.xz
-	musl:skip-crq.patch
-	musl:tests-certtool.patch
-
-	0100-CVE-2024-12243.patch
-	0101-CVE-2025-32989.patch
-	0102-CVE-2025-32988.patch
-	0103-CVE-2025-32990.patch
-	0104-CVE-2025-6395.patch
-	0105-CVE-2025-9820.patch
+	tests-certtool.patch
+	test-minidtls-fragments-link-error.patch
 	"
 
 # Upstream Tracker: https://gnutls.org/security-new.html
 # secfixes:
+#   3.8.13-r0:
+#     - CVE-2025-14831
+#     - CVE-2026-1584
+#     - CVE-2026-3832
+#     - CVE-2026-3833
+#     - CVE-2026-5260
+#     - CVE-2026-5419
+#     - CVE-2026-33845
+#     - CVE-2026-33846
+#     - CVE-2026-42009
+#     - CVE-2026-42010
+#     - CVE-2026-42011
+#     - CVE-2026-42012
+#     - CVE-2026-42013
+#     - CVE-2026-42014
+#     - CVE-2026-42015
 #   3.7.11-r1:
 #     - CVE-2024-12243
 #     - CVE-2025-32988
@@ -63,7 +82,7 @@ source="https://www.gnupg.org/ftp/gcrypt/gnutls/v$_v/gnutls-$pkgver.tar.xz
 #     - CVE-2017-7507
 
 build() {
-	LIBS="-lgmp" ./configure \
+	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
 		--prefix=/usr \
@@ -74,13 +93,18 @@ build() {
 		--disable-openssl-compatibility \
 		--disable-rpath \
 		--disable-static \
-		--disable-guile \
-		--disable-valgrind-tests
+		--disable-valgrind-tests \
+		--disable-nls
 	make
 }
 
 check() {
-	make check
+	# millis, 100s
+	export GNUTLS_TEST_TIMEOUT=100000
+	make check 	|| {
+		cat tests/test-suite.log
+		return 1
+	}
 }
 
 package() {
@@ -101,13 +125,7 @@ xx() {
 }
 
 sha512sums="
-a663c27c276a817d0623369f041f8a7892ff898f62f689de264322aec103c8cb9307e2b43ceb5af590dfa105fd938e7509d0738ff33f0a8f71d7406fd4813964  gnutls-3.7.11.tar.xz
-4d882c4b9aa206ea333532d35d296e84582fbf2e98fa795bc95e7e341fa62ec5fa79529f428a43a605801dae4a2fda78f8ce35781a18af6bfe28e2d56ba865a6  skip-crq.patch
-2006876dd33559a9ee4abe73e7cedc6867c4f480befdfd5fe9e3eca327e291c3cdb12385156c2ba5ab9496dec870b15178249e015363397f1d979ef785906366  tests-certtool.patch
-f19c25c0c1a76dfbb274515b25e611c464c4205331148ac66aad8401c39c28eefece9b59390bf8d22a6e12fe8d486e91168d02a999ae8aadab7b5ab76915a026  0100-CVE-2024-12243.patch
-1474455b52e6e40ac090fff705b1420e389410d873bcc823d9fbe887f0387f27ea8fff02f49fe670a4355b5e0cfb62dcf1d86ab3ac4ac69cd65afd8a5376a5be  0101-CVE-2025-32989.patch
-ad3d3d9cc16facbb12d4ea1241364d6c89da353d6c21687dcc2656225ab76c9a48cc1c6eebcf07f09978b7a121faa8c477330ea36fc8b26707d5a2a39bb799ae  0102-CVE-2025-32988.patch
-84e32472dc22ff6aa1f3724b80f5c7a4a4c1732d5eaf89c33398cbe7e941bc697e426caf774a9701e4c6ec4ca8d3dd9de4c880703b9628937398109c10c8f616  0103-CVE-2025-32990.patch
-43dc31e906c8e8ec41cd2ce5b8acd4fdb48c7c46f2148c990b75a166026d6122bb1c982d8ede1c87a298da518aef316906e39cc6b4b4474866619cb513e1eb6c  0104-CVE-2025-6395.patch
-e1421dd5454e0a9a775890a2602f43aa5269953276f60bb5b4f5dc60d44954411f1d2cf7f60c8845d93eaf6caa8eb840d8aefc2b8521004f15426e874187fbea  0105-CVE-2025-9820.patch
+71bf189a836fd18d58b9e995d4bfcecdb0aae6129dfd44247b98422b2f127dd868f9905d28fad2ca05afd919a0e6b3c8eebb6b95804067d3a8dab31ebdc72453  gnutls-3.8.13.tar.xz
+fadfe4f451d6ae2f657117c9b647d2343db5cdab51dcf602c92428edbc178138e47b5b72d008eda93674ca476563d678a602eb9351f484504998f14105a67242  tests-certtool.patch
+08311796f4cbb19a6c484e70759753edb1b380ba4f394799222ad23757eac871cc29fe675338ade10ed7da3a2720e6216e820cc3fd6e496a8cd9df8f0c2670eb  test-minidtls-fragments-link-error.patch
 "
