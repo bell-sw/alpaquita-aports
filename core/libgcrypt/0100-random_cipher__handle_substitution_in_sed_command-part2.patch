@@ -1,0 +1,43 @@
+From e96df0c82e086bf348753d2d0fa37fa6191b4b14 Mon Sep 17 00:00:00 2001
+From: Ildar Mulyukov <ildar.mulyukov@bell-sw.com>
+Date: Sat, 09 May 2026 19:56:47 +0500
+Subject: [PATCH] random:cipher: handle substitution in sed command
+
+* cipher/Makefile.in (o_flag_munging): Add 'g' flag for first sed
+expression.
+* random/Makefile.in (o_flag_munging): Likewise.
+--
+
+It was there earlier and accidentally removed from
+Makefile.am of cipher and random
+---
+ cipher/Makefile.in | 2 +-
+ random/Makefile.in | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/cipher/Makefile.in b/cipher/Makefile.in
+index ea9014cc9..149c9f210 100644
+--- a/cipher/Makefile.in
++++ b/cipher/Makefile.in
+@@ -603,7 +603,7 @@ EXTRA_libcipher_la_SOURCES = \
+ 	blake2b-amd64-avx2.S blake2s-amd64-avx.S
+ 
+ @ENABLE_O_FLAG_MUNGING_FALSE@o_flag_munging = cat
+-@ENABLE_O_FLAG_MUNGING_TRUE@o_flag_munging = sed -e 's/[[:blank:]]-O\([2-9sgz][2-9sgz]*\)/ -O1 /' -e 's/[[:blank:]]-Ofast/ -O1 /g'
++@ENABLE_O_FLAG_MUNGING_TRUE@o_flag_munging = sed -e 's/[[:blank:]]-O\([2-9sgz][2-9sgz]*\)/ -O1 /g' -e 's/[[:blank:]]-Ofast/ -O1 /g'
+ @ENABLE_INSTRUMENTATION_MUNGING_FALSE@instrumentation_munging = cat
+ 
+ # We need to disable instrumentation for these modules as they use cc as
+diff --git a/random/Makefile.am b/random/Makefile.in
+index c7100ef8b..a42e43064 100644
+--- a/random/Makefile.in
++++ b/random/Makefile.in
+@@ -410,7 +410,7 @@ jitterentropy-base.c jitterentropy.h jit
+ @ENABLE_O_FLAG_MUNGING_FALSE@o_flag_munging = cat
+ 
+ # The rndjent module needs to be compiled without optimization.  */
+-@ENABLE_O_FLAG_MUNGING_TRUE@o_flag_munging = sed -e 's/[[:blank:]]-O\([2-9sgz][2-9sgz]*\)/ -O0 /' -e 's/[[:blank:]]-Ofast/ -O0 /g'
++@ENABLE_O_FLAG_MUNGING_TRUE@o_flag_munging = sed -e 's/[[:blank:]]-O\([2-9sgz][2-9sgz]*\)/ -O0 /g' -e 's/[[:blank:]]-Ofast/ -O0 /g'
+ all: all-am
+ 
+ .SUFFIXES:

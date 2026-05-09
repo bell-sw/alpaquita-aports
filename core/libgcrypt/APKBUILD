@@ -1,7 +1,7 @@
 # Description: libgcrypt contains utilities for data encryption and signing.
 
 pkgname=libgcrypt
-pkgver=1.10.1
+pkgver=1.10.4
 pkgrel=0
 pkgdesc="GnuPG cryptographic library"
 url="https://www.gnupg.org/"
@@ -9,9 +9,15 @@ arch="all"
 license="LGPL-2.1-or-later"
 makedepends="libgpg-error-dev texinfo"
 subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
-source="https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-$pkgver.tar.bz2"
+source="https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-$pkgver.tar.bz2
+
+	0100-random_cipher__handle_substitution_in_sed_command.patch
+	0100-random_cipher__handle_substitution_in_sed_command-part2.patch
+	"
 
 # secfixes:
+#   1.10.4-r0:
+#     - CVE-2026-41989
 #   1.9.4-r0:
 #     - CVE-2021-33560
 #   1.8.5-r0:
@@ -49,5 +55,7 @@ dev() {
 }
 
 sha512sums="
-e5ca7966624fff16c3013795836a2c4377f0193dbb4ac5ad2b79654b1fa8992e17d83816569a402212dc8367a7980d4141f5d6ac282bae6b9f02186365b61f13  libgcrypt-1.10.1.tar.bz2
+7881e587b337c4478844d097aa67d459cdf33e4d5a8e6634d85fda908d38cb427a477148ec6a474baff38b78f4eef87eb169cb69e65baec6aa6ae8c764b5e5bf  libgcrypt-1.10.4.tar.bz2
+edaee8766e4ec2654c1ebe0d8ec430bb5ac944f4ed9109dddbab0edd443959ca12a631ce7adeb7d0e32c68f0a9cf0e222775af8a41c5fbfc62ddb1600782642d  0100-random_cipher__handle_substitution_in_sed_command.patch
+726ccaeaa41868548336583b5315c7047444c25e4e9bdc2db1a3f9ed98c4a2abf7fb97c0d3ec305b5827a871299c275fe35a08dd8ac13d99949e2ab3c1b92bd6  0100-random_cipher__handle_substitution_in_sed_command-part2.patch
 "
