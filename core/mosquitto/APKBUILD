@@ -3,7 +3,7 @@
 
 pkgname=mosquitto
 pkgver=2.1.2
-pkgrel=0
+pkgrel=1
 pkgdesc="MQTT broker"
 url="https://mosquitto.org/"
 arch="all"
@@ -11,7 +11,9 @@ license="EPL-1.0 OR EPL-2.0"
 replaces="mosquitto-utils"
 install="$pkgname.pre-install"
 options="!check" # FIXME: some of the tests are flaky
+depends_dev="cjson-dev"
 makedepends="
+	$depends_dev
 	c-ares-dev
 	libedit-dev
 	libmicrohttpd-dev
@@ -29,12 +31,10 @@ source="https://mosquitto.org/files/source/mosquitto-$pkgver.tar.gz
 
 if [ -z "$BOOTSTRAP" ] && [ -z "$APORTS_BOOTSTRAP" ]; then
 	subpackages="$pkgname-dbg $subpackages"
-	makedepends="$makedepends libwebsockets-dev cjson-dev"
-	_websockets=yes
-	_cjson=yes
+	makedepends="$makedepends libwebsockets-dev"
+	_websockets=lws
 else
 	_websockets=no
-	_cjson=no
 fi
 
 # secfixes:
@@ -62,15 +62,18 @@ fi
 #   1.4.12-r0:
 #     - CVE-2017-7650
 
-build() {
-	# PSK not supported by libressl
+_make() {
 	make \
 		WITH_MEMORY_TRACKING=no \
 		WITH_WEBSOCKETS=$_websockets \
-		WITH_CJSON=$_cjson \
 		WITH_SRV=yes \
 		WITH_ADNS=no \
-		prefix=/usr
+		prefix=/usr \
+		"$@"
+}
+
+build() {
+	_make
 }
 
 check() {
@@ -78,10 +81,7 @@ check() {
 }
 
 package() {
-	make prefix=/usr \
-		DESTDIR="$pkgdir" \
-		WITH_CJSON=$_cjson \
-		install
+	_make install DESTDIR="$pkgdir"
 
 	mv "$pkgdir"/etc/mosquitto/mosquitto.conf.example \
 		"$pkgdir"/etc/mosquitto/mosquitto.conf
