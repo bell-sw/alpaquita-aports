@@ -1,7 +1,7 @@
 pkgname=base64
 # NOTE: The primary use of this library is for nodejs.
 pkgver=0.5.2
-pkgrel=0
+pkgrel=1
 pkgdesc="Fast Base64 stream encoder/decoder in C99, with SIMD acceleration"
 url="https://github.com/aklomp/base64"
 arch="all"
@@ -12,6 +12,7 @@ makedepends="
 	samurai
 	"
 subpackages="
+	$pkgname-static
 	$pkgname-dev
 	lib$pkgname
 	"
@@ -22,25 +23,37 @@ source="
 options="!annobin"
 
 build() {
+	export CFLAGS="$CFLAGS -Wno-unused-command-line-argument"
+
+	_build build \
+		-DBUILD_SHARED_LIBS=ON \
+		-DBASE64_BUILD_CLI=ON \
+		-DBASE64_BUILD_TESTS=$(want_check && echo ON || echo OFF)
+
+	_build build-static \
+		-DBUILD_SHARED_LIBS=OFF \
+		-DBASE64_BUILD_CLI=OFF \
+		-DBASE64_BUILD_TESTS=OFF
+}
+
+_build() {
+	local _builddir="$1"; shift
 	local crossopts=
 	[ "$CBUILD" != "$CHOST" ] \
 		&& crossopts="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
 
-	export CFLAGS="$CFLAGS -Wno-unused-command-line-argument"
 	# Upstream recommends building with clang due to better support for NEON
 	# intrinsics.
-	cmake -B build -G Ninja \
+	cmake -B "$_builddir" -G Ninja \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_C_COMPILER=clang \
 		-DCMAKE_CXX_COMPILER=clang++ \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_VERBOSE_MAKEFILE=ON \
-		-DBUILD_SHARED_LIBS=ON \
-		-DBASE64_BUILD_CLI=ON \
-		-DBASE64_BUILD_TESTS=$(want_check && echo ON || echo OFF) \
 		-DBASE64_WITH_OpenMP=OFF \
-		$crossopts
-	cmake --build build
+		$crossopts \
+		"$@"
+	cmake --build "$_builddir"
 }
 
 check() {
@@ -54,6 +67,7 @@ check() {
 
 package() {
 	DESTDIR="$pkgdir" cmake --install build
+	install -Dm644 build-static/libbase64.a "$pkgdir"/usr/lib/libbase64.a
 
 	cd "$pkgdir"
 	rm -f usr/bin/test_base64
