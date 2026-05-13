@@ -3,16 +3,13 @@
 
 pkgname=ifupdown-ng
 pkgver=0.13.0
-pkgrel=0
+pkgrel=1
 pkgdesc="network configuration tools"
 url="https://github.com/ifupdown-ng/ifupdown-ng"
 arch="all"
 license="ISC"
 checkdepends="kyua atf"
-makedepends="scdoc"
-case "$CLIBC" in
-glibc) makedepends="$makedepends libbsd-dev" ;;
-esac
+makedepends="scdoc glibc:libbsd-static"
 subpackages="
 	$pkgname-doc
 	$pkgname-iproute2
@@ -25,7 +22,7 @@ subpackages="
 "
 source="https://distfiles.ariadne.space/ifupdown-ng/ifupdown-ng-$pkgver.tar.xz
 
-	glibc:0001-use-libbsd-for-glibc.patch
+	glibc:0100-use-libbsd-for-glibc.patch
 	"
 provides="ifupdown-any"
 provider_priority=900
@@ -127,5 +124,5 @@ doc() {
 
 sha512sums="
 30bf359bcba9f71468cf972334ae8e927b6026e4b2d2a5b15960ab74fa3e41c9bfe574468b60016a3907cf7041763acc6fe049c3932140f44e2127e6653a19c2  ifupdown-ng-0.13.0.tar.xz
-53882d25d0a250e8965467100d5d97a2eea036679dea9d4a7b0fc422698f0b577b448faea7000c0e91b4fc7fd62b3dddecb7b430883e8eb9aeaedab67e928da7  0001-use-libbsd-for-glibc.patch
+53882d25d0a250e8965467100d5d97a2eea036679dea9d4a7b0fc422698f0b577b448faea7000c0e91b4fc7fd62b3dddecb7b430883e8eb9aeaedab67e928da7  0100-use-libbsd-for-glibc.patch
 "
