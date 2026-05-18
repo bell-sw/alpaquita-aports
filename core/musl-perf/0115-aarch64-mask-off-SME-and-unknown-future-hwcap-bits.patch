@@ -1,0 +1,71 @@
+From 05fa1f2b7d34ed51b388736cd9e87d66af97332b Mon Sep 17 00:00:00 2001
+From: Rich Felker <dalias@aerifal.cx>
+Date: Wed, 16 Jul 2025 12:04:39 -0400
+Subject: [PATCH] aarch64: mask off SME and unknown/future hwcap bits
+
+as stated in the comment added, the ABI for SME requires libc to be
+aware of and support the extension to the register file. this is
+necessary to handle lazy saving correctly across setjmp/longjmp, and
+on older kernels, in order not to introduce memory corruption bugs
+that may be exploitable vulnerabilities when creating new threads.
+
+previously, we did not expose __getauxval, the interface libgcc uses
+to determine runtime availability of SME, so it was not usable when
+following the intended ABI. since commit
+ab4635fba6769e19fb411a1ab3c8aa7407e11188 has now exposed this
+interface, a mitigation is needed to ensure SME is not used
+unless/until we have proper support for it.
+
+while SME is the current hwcap feature that needs this treatment,
+as-yet-undefined hwcap bits are also masked in case other new cpu
+features have similar ABI issues. this could be re-evaluated at some
+point in the future.
+
+for now, the masking is only on aarch64. arguably it should be
+considered for all archs, but whether it's needed is really a matter
+of how ABI policy & stability are handled by the maintainers of the
+arch psABI, and aarch64 is the one that's demonstrated a necessity. if
+it turns out something like this is needed for more/all archs, making
+a generalized framework for it would make sense. for now, it's stuffed
+into __set_thread_area the same way atomics detection is stuffed there
+for 32-bit arm and sh, as it's a convenient point for "arch-specific
+early setup code" without invasive changes.
+---
+ src/thread/aarch64/__set_thread_area.c | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/src/thread/aarch64/__set_thread_area.c b/src/thread/aarch64/__set_thread_area.c
+index a348ee77..2ec788e8 100644
+--- a/src/thread/aarch64/__set_thread_area.c
++++ b/src/thread/aarch64/__set_thread_area.c
+@@ -1,5 +1,27 @@
++#include <elf.h>
++#include "libc.h"
++
++#define BITRANGE(a,b) (2*(1UL<<(b))-(1UL<<(a)))
++
+ int __set_thread_area(void *p)
+ {
+ 	__asm__ __volatile__ ("msr tpidr_el0,%0" : : "r"(p) : "memory");
++
++	/* Mask off hwcap bits for SME and unknown future features. This is
++	 * necessary because SME is not safe to use without libc support for
++	 * it, and we do not (yet) have such support. */
++	for (size_t *v = libc.auxv; *v; v+=2) {
++		if (v[0]==AT_HWCAP) {
++			v[1] &= ~BITRANGE(42,63); /* 42-47 are SME */
++		} else if (v[0]==AT_HWCAP2) {
++			v[1] &= ~(BITRANGE(23,30)
++			        | BITRANGE(37,42)
++			        | BITRANGE(57,62));
++		} else if (v[0]==AT_HWCAP3 || v[0]==AT_HWCAP4) {
++			v[0] = AT_IGNORE;
++			v[1] = 0;
++		}
++	}
++
+ 	return 0;
+ }
+-- 
+2.34.1
+

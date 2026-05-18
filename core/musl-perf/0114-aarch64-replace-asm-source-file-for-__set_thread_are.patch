@@ -1,0 +1,43 @@
+From bffc3d9feb664002d3541bc8cbe9a0b8447e9010 Mon Sep 17 00:00:00 2001
+From: Rich Felker <dalias@aerifal.cx>
+Date: Sat, 12 Jul 2025 21:56:08 -0400
+Subject: [PATCH] aarch64: replace asm source file for __set_thread_area with
+ inline asm
+
+this change both aligns with the intended future direction for most
+assembly usage, and makes it possible to add arch-specific setup logic
+based on hwcaps like we have for 32-bit arm.
+---
+ src/thread/aarch64/__set_thread_area.c | 5 +++++
+ src/thread/aarch64/__set_thread_area.s | 7 -------
+ 2 files changed, 5 insertions(+), 7 deletions(-)
+ create mode 100644 src/thread/aarch64/__set_thread_area.c
+ delete mode 100644 src/thread/aarch64/__set_thread_area.s
+
+diff --git a/src/thread/aarch64/__set_thread_area.c b/src/thread/aarch64/__set_thread_area.c
+new file mode 100644
+index 00000000..a348ee77
+--- /dev/null
++++ b/src/thread/aarch64/__set_thread_area.c
+@@ -0,0 +1,5 @@
++int __set_thread_area(void *p)
++{
++	__asm__ __volatile__ ("msr tpidr_el0,%0" : : "r"(p) : "memory");
++	return 0;
++}
+diff --git a/src/thread/aarch64/__set_thread_area.s b/src/thread/aarch64/__set_thread_area.s
+deleted file mode 100644
+index fd0df34b..00000000
+--- a/src/thread/aarch64/__set_thread_area.s
++++ /dev/null
+@@ -1,7 +0,0 @@
+-.global __set_thread_area
+-.hidden __set_thread_area
+-.type   __set_thread_area,@function
+-__set_thread_area:
+-	msr tpidr_el0,x0
+-	mov w0,#0
+-	ret
+-- 
+2.34.1
+
