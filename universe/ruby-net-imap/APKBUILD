@@ -2,7 +2,7 @@ pkgname=ruby-net-imap
 _gemname=net-imap
 # Keep version in sync with "Bundled gems" (https://stdgems.org) for the
 # packaged Ruby version.
-pkgver=0.5.8
+pkgver=0.5.14
 pkgrel=0
 pkgdesc="Ruby client api for Internet Message Access Protocol"
 url="https://github.com/ruby/net-imap"
@@ -22,6 +22,14 @@ source="https://github.com/ruby/net-imap/archive/v$pkgver/$_gemname-$pkgver.tar.
 	no-simplecov.patch
 	"
 builddir="$srcdir/$_gemname-$pkgver"
+
+# secfixes:
+#   0.5.14-r0:
+#     - CVE-2026-42245
+#     - CVE-2026-42246
+#     - CVE-2026-42256
+#     - CVE-2026-42257
+#     - CVE-2026-42258
 
 prepare() {
 	default_prepare
@@ -59,7 +67,7 @@ doc() {
 }
 
 sha512sums="
-bd87d59f996b2fede494ca21f39921b62bb3801a8e09dada95170e7a5ad6306dd20c12f8880d5962cf75c46c29ae134c49a4f23e86c5b5143fed9548436a3555  net-imap-0.5.8.tar.gz
+e9b8c9e55b1065a918f7244875237753ce862579cd9f680b23ff294628f3bc8f2558cd81a0384edf3e3039f0f8cbe12c4389be2932b76c4ceeac0e36748b18a3  net-imap-0.5.14.tar.gz
 0e45fc58a667561a0ecf1db75013c9c33132073e945599d015e7f038684920cc49ae920133044c254a0b68dc25a290735c026ecafe1ffd301e9e436a3eda5d50  gemspec.patch
-53776944c9e577b4495cf6ac79da8498016d2de829de2e426804d63b3ccebfd3fcfef04ba4b3ca29ec16f3f387fdf3c7a2c8e11358edce2292b850cbd71d8ea4  no-simplecov.patch
+c764627b14568e14c3bcb2c1832c909d3448db103c21fb99d2cddd9cd125de4a3206c04e91836505bb9c8b9bf4a21088afd132f9a737810f3d517219ab333a5c  no-simplecov.patch
 "
