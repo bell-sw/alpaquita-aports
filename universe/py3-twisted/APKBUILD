@@ -1,6 +1,6 @@
 pkgname=py3-twisted
 pkgver=24.11.0
-pkgrel=0
+pkgrel=1
 pkgdesc="Asynchronous networking framework written in Python3"
 url="https://twistedmatrix.com/"
 arch="noarch"
@@ -32,6 +32,8 @@ checkdepends="xvfb-run py3-appdirs tzdata py3-asn1 py3-bcrypt"
 subpackages="$pkgname-doc $pkgname-tests $pkgname-pyc"
 source="https://github.com/twisted/twisted/archive/twisted-$pkgver.tar.gz
 	hanging-test.patch
+
+	0100-CVE-2026-42304.patch
 	"
 options="net" # Tests require network access
 case "$CLIBC" in
@@ -48,6 +50,8 @@ case "$CARCH" in
 esac
 
 # secfixes:
+#   24.11.0-r1:
+#     - CVE-2026-42304
 #   22.4.0-r0:
 #     - CVE-2022-24801
 #   22.2.0-r0:
@@ -113,4 +117,5 @@ doc() {
 sha512sums="
 19b1754698404e36cf6eeab735a6cd22f6b18b593022211f0f767ccd339c1e54e7bed1a59d941c9bd136c00f0a28e2d8a196f45d93a5f64cd6cf8cd5c516b9f0  twisted-24.11.0.tar.gz
 523a4d89343cc2c9914e15fdfd25b9f89c9bee2a00d6b10c808ad4af4dd46689f5f0ebe529bd2ba4855dc7d80192e79f829192bc9171a5b2ae13dc04a181e352  hanging-test.patch
+1cf85ab519604d08cf7a582b7f4d993ccd10ebfaf5f9d04dda16d2421e5d6d54ac6b47705ea013d8177a6ee87420bb5caed261e1875e350857cafe8aa4dbf348  0100-CVE-2026-42304.patch
 "
