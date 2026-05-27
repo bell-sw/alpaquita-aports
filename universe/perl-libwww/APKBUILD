@@ -1,7 +1,7 @@
 pkgname=perl-libwww
 _realname=libwww-perl
 pkgver=6.67
-pkgrel=0
+pkgrel=1
 pkgdesc="Perl module - World Wide Web library"
 url="https://metacpan.org/pod/LWP"
 arch="noarch"
@@ -14,8 +14,15 @@ depends="
 makedepends="perl-test-fatal perl-test-requiresinternet"
 checkdepends="perl-test-needs perl-test-leaktrace"
 subpackages="$pkgname-doc"
-source="https://cpan.metacpan.org/authors/id/O/OA/OALDERS/libwww-perl-$pkgver.tar.gz"
+source="https://cpan.metacpan.org/authors/id/O/OA/OALDERS/libwww-perl-$pkgver.tar.gz
+
+	0100-CVE-2026-8368.patch
+	"
 builddir="$srcdir/$_realname-$pkgver"
+
+# secfixes:
+#   6.67-r1:
+#     - CVE-2026-8368
 
 prepare() {
 	default_prepare
@@ -43,4 +50,5 @@ package() {
 
 sha512sums="
 0e0c148e7d7e29e813e880e18be63d86b04a1b74fa7862e988727d7a9e6497e17baa7a90f79608f4edb83552d468c8b9be0ea7562a3777d305ae8891a04e496e  libwww-perl-6.67.tar.gz
+6e99810a8d28eb76b8a893339d0e8c49c189043ba6a0b4ecab6ee2425fca742e1e742600f3cd6ee8bfcdb360a7a0b82f38f4719e50546cdea05a098d4c18f0a4  0100-CVE-2026-8368.patch
 "
