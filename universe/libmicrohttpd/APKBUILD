@@ -1,0 +1,43 @@
+pkgname=libmicrohttpd
+pkgver=1.0.5
+pkgrel=0
+pkgdesc="small C library that is supposed to make it easy to run an HTTP server as part of another application"
+url="https://www.gnu.org/software/libmicrohttpd/"
+arch="all"
+license="LGPL-2.1-or-later"
+makedepends="gnutls-dev"
+checkdepends="curl-dev gnutls-utils"
+subpackages="$pkgname-static $pkgname-dev $pkgname-doc"
+source="https://ftp.gnu.org/gnu/libmicrohttpd/libmicrohttpd-$pkgver.tar.gz"
+
+build() {
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--infodir=/usr/share/info \
+		--disable-examples \
+		--disable-thread-names \
+		--disable-tools \
+		--enable-curl \
+		--enable-https \
+		--enable-largefile \
+		--enable-md5=tlslib \
+		--enable-messages \
+		--enable-sha256=tlslib
+	make
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+7ed3e81f0c4253a409f5e825446c8d2d8b975c0eb6f381b6867796bbdcf4890004a24659e95b8ec8c39e8df0a9885cc08a0ba75f953893ee1455ae180dc89391  libmicrohttpd-1.0.5.tar.gz
+"
