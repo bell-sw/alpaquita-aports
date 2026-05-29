@@ -1,6 +1,6 @@
 pkgname=py3-pip
 pkgver=22.3.1
-pkgrel=2
+pkgrel=3
 pkgdesc="Tool for installing and managing Python packages"
 url="https://pip.pypa.io"
 arch="noarch"
@@ -32,7 +32,10 @@ subpackages="
 	$pkgname-zsh-completion
 	$pkgname-bash-completion
 	"
-source="https://github.com/pypa/pip/archive/$pkgver/pip-$pkgver.tar.gz"
+source="https://github.com/pypa/pip/archive/$pkgver/pip-$pkgver.tar.gz
+
+	0100-Upgrade-urllib3-to-1.26.20.patch
+	"
 builddir="$srcdir/pip-$pkgver"
 
 provides="py-pip=$pkgver-r$pkgrel" # Backwards compatibility
@@ -96,4 +99,5 @@ package() {
 
 sha512sums="
 c7865c4ce79b0fea7ba469fe593af3be205b3bdb574a6ae019842e0f82a0af406ec905d8c6ff02fbbafe01630c8899a398d071ce74501ca830249160f2f6df98  pip-22.3.1.tar.gz
+6934677ed7213cf69564280763cb61ca618ee52e479f6c236f4907d252bec9de06e93d1f1cf85793516161cacf9c57af79cb1f187ea49a71a9695d6039ab5c05  0100-Upgrade-urllib3-to-1.26.20.patch
 "

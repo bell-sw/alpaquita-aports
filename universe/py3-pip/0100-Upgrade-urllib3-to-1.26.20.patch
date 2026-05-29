@@ -1,0 +1,676 @@
+diff --git a/src/pip/_vendor/urllib3/_collections.py b/src/pip/_vendor/urllib3/_collections.py
+index da9857e98..bceb8451f 100644
+--- a/src/pip/_vendor/urllib3/_collections.py
++++ b/src/pip/_vendor/urllib3/_collections.py
+@@ -268,6 +268,24 @@ class HTTPHeaderDict(MutableMapping):
+         else:
+             return vals[1:]
+ 
++    def _prepare_for_method_change(self):
++        """
++        Remove content-specific header fields before changing the request
++        method to GET or HEAD according to RFC 9110, Section 15.4.
++        """
++        content_specific_headers = [
++            "Content-Encoding",
++            "Content-Language",
++            "Content-Location",
++            "Content-Type",
++            "Content-Length",
++            "Digest",
++            "Last-Modified",
++        ]
++        for header in content_specific_headers:
++            self.discard(header)
++        return self
++
+     # Backwards compatibility for httplib
+     getheaders = getlist
+     getallmatchingheaders = getlist
+diff --git a/src/pip/_vendor/urllib3/_version.py b/src/pip/_vendor/urllib3/_version.py
+index 6fbc84b30..d49df2a0c 100644
+--- a/src/pip/_vendor/urllib3/_version.py
++++ b/src/pip/_vendor/urllib3/_version.py
+@@ -1,2 +1,2 @@
+ # This file is protected via CODEOWNERS
+-__version__ = "1.26.12"
++__version__ = "1.26.20"
+diff --git a/src/pip/_vendor/urllib3/connection.py b/src/pip/_vendor/urllib3/connection.py
+index 10fb36c4e..de35b63d6 100644
+--- a/src/pip/_vendor/urllib3/connection.py
++++ b/src/pip/_vendor/urllib3/connection.py
+@@ -68,7 +68,7 @@ port_by_scheme = {"http": 80, "https": 443}
+ 
+ # When it comes time to update this value as a part of regular maintenance
+ # (ie test_recent_date is failing) update it to ~6 months before the current date.
+-RECENT_DATE = datetime.date(2022, 1, 1)
++RECENT_DATE = datetime.date(2024, 1, 1)
+ 
+ _CONTAINS_CONTROL_CHAR_RE = re.compile(r"[^-!#$%&'*+.^_`|~0-9a-zA-Z]")
+ 
+@@ -229,6 +229,11 @@ class HTTPConnection(_HTTPConnection, object):
+             )
+ 
+     def request(self, method, url, body=None, headers=None):
++        # Update the inner socket's timeout value to send the request.
++        # This only triggers if the connection is re-used.
++        if getattr(self, "sock", None) is not None:
++            self.sock.settimeout(self.timeout)
++
+         if headers is None:
+             headers = {}
+         else:
+@@ -432,7 +437,7 @@ class HTTPSConnection(HTTPConnection):
+             and self.ssl_version is None
+             and hasattr(self.sock, "version")
+             and self.sock.version() in {"TLSv1", "TLSv1.1"}
+-        ):
++        ):  # Defensive:
+             warnings.warn(
+                 "Negotiating TLSv1/TLSv1.1 by default is deprecated "
+                 "and will be disabled in urllib3 v2.0.0. Connecting to "
+diff --git a/src/pip/_vendor/urllib3/connectionpool.py b/src/pip/_vendor/urllib3/connectionpool.py
+index 96339e90a..0872ed770 100644
+--- a/src/pip/_vendor/urllib3/connectionpool.py
++++ b/src/pip/_vendor/urllib3/connectionpool.py
+@@ -9,6 +9,7 @@ import warnings
+ from socket import error as SocketError
+ from socket import timeout as SocketTimeout
+ 
++from ._collections import HTTPHeaderDict
+ from .connection import (
+     BaseSSLError,
+     BrokenPipeError,
+@@ -50,6 +51,13 @@ from .util.url import Url, _encode_target
+ from .util.url import _normalize_host as normalize_host
+ from .util.url import get_host, parse_url
+ 
++try:  # Platform-specific: Python 3
++    import weakref
++
++    weakref_finalize = weakref.finalize
++except AttributeError:  # Platform-specific: Python 2
++    from .packages.backports.weakref_finalize import weakref_finalize
++
+ xrange = six.moves.xrange
+ 
+ log = logging.getLogger(__name__)
+@@ -220,6 +228,16 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
+             self.conn_kw["proxy"] = self.proxy
+             self.conn_kw["proxy_config"] = self.proxy_config
+ 
++        # Do not pass 'self' as callback to 'finalize'.
++        # Then the 'finalize' would keep an endless living (leak) to self.
++        # By just passing a reference to the pool allows the garbage collector
++        # to free self if nobody else has a reference to it.
++        pool = self.pool
++
++        # Close all the HTTPConnections in the pool before the
++        # HTTPConnectionPool object is garbage collected.
++        weakref_finalize(self, _close_pool_connections, pool)
++
+     def _new_conn(self):
+         """
+         Return a fresh :class:`HTTPConnection`.
+@@ -379,7 +397,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
+ 
+         timeout_obj = self._get_timeout(timeout)
+         timeout_obj.start_connect()
+-        conn.timeout = timeout_obj.connect_timeout
++        conn.timeout = Timeout.resolve_default_timeout(timeout_obj.connect_timeout)
+ 
+         # Trigger any extra validation we need to do.
+         try:
+@@ -405,12 +423,13 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
+             pass
+         except IOError as e:
+             # Python 2 and macOS/Linux
+-            # EPIPE and ESHUTDOWN are BrokenPipeError on Python 2, and EPROTOTYPE is needed on macOS
++            # EPIPE and ESHUTDOWN are BrokenPipeError on Python 2, and EPROTOTYPE/ECONNRESET are needed on macOS
+             # https://erickt.github.io/blog/2014/11/19/adventures-in-debugging-a-potential-osx-kernel-bug/
+             if e.errno not in {
+                 errno.EPIPE,
+                 errno.ESHUTDOWN,
+                 errno.EPROTOTYPE,
++                errno.ECONNRESET,
+             }:
+                 raise
+ 
+@@ -489,14 +508,8 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
+         # Disable access to the pool
+         old_pool, self.pool = self.pool, None
+ 
+-        try:
+-            while True:
+-                conn = old_pool.get(block=False)
+-                if conn:
+-                    conn.close()
+-
+-        except queue.Empty:
+-            pass  # Done.
++        # Close all the HTTPConnections in the pool.
++        _close_pool_connections(old_pool)
+ 
+     def is_same_host(self, url):
+         """
+@@ -756,7 +769,9 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
+                 # so we try to cover our bases here!
+                 message = " ".join(re.split("[^a-z]", str(ssl_error).lower()))
+                 return (
+-                    "wrong version number" in message or "unknown protocol" in message
++                    "wrong version number" in message
++                    or "unknown protocol" in message
++                    or "record layer failure" in message
+                 )
+ 
+             # Try to detect a common user error with proxies which is to
+@@ -832,7 +847,11 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
+         redirect_location = redirect and response.get_redirect_location()
+         if redirect_location:
+             if response.status == 303:
++                # Change the method according to RFC 9110, Section 15.4.4.
+                 method = "GET"
++                # And lose the body not to transfer anything sensitive.
++                body = None
++                headers = HTTPHeaderDict(headers)._prepare_for_method_change()
+ 
+             try:
+                 retries = retries.increment(method, url, response=response, _pool=self)
+@@ -862,7 +881,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
+             )
+ 
+         # Check if we should retry the HTTP response.
+-        has_retry_after = bool(response.getheader("Retry-After"))
++        has_retry_after = bool(response.headers.get("Retry-After"))
+         if retries.is_retry(method, response.status, has_retry_after):
+             try:
+                 retries = retries.increment(method, url, response=response, _pool=self)
+@@ -1108,3 +1127,14 @@ def _normalize_host(host, scheme):
+     if host.startswith("[") and host.endswith("]"):
+         host = host[1:-1]
+     return host
++
++
++def _close_pool_connections(pool):
++    """Drains a queue of connections and closes each one."""
++    try:
++        while True:
++            conn = pool.get(block=False)
++            if conn:
++                conn.close()
++    except queue.Empty:
++        pass  # Done.
+diff --git a/src/pip/_vendor/urllib3/contrib/appengine.py b/src/pip/_vendor/urllib3/contrib/appengine.py
+index 668538695..1717ee22c 100644
+--- a/src/pip/_vendor/urllib3/contrib/appengine.py
++++ b/src/pip/_vendor/urllib3/contrib/appengine.py
+@@ -224,7 +224,7 @@ class AppEngineManager(RequestMethods):
+                 )
+ 
+         # Check if we should retry the HTTP response.
+-        has_retry_after = bool(http_response.getheader("Retry-After"))
++        has_retry_after = bool(http_response.headers.get("Retry-After"))
+         if retries.is_retry(method, http_response.status, has_retry_after):
+             retries = retries.increment(method, url, response=http_response, _pool=self)
+             log.debug("Retry: %s", url)
+diff --git a/src/pip/_vendor/urllib3/contrib/ntlmpool.py b/src/pip/_vendor/urllib3/contrib/ntlmpool.py
+index 41a8fd174..471665754 100644
+--- a/src/pip/_vendor/urllib3/contrib/ntlmpool.py
++++ b/src/pip/_vendor/urllib3/contrib/ntlmpool.py
+@@ -69,7 +69,7 @@ class NTLMConnectionPool(HTTPSConnectionPool):
+         log.debug("Request headers: %s", headers)
+         conn.request("GET", self.authurl, None, headers)
+         res = conn.getresponse()
+-        reshdr = dict(res.getheaders())
++        reshdr = dict(res.headers)
+         log.debug("Response status: %s %s", res.status, res.reason)
+         log.debug("Response headers: %s", reshdr)
+         log.debug("Response data: %s [...]", res.read(100))
+@@ -101,7 +101,7 @@ class NTLMConnectionPool(HTTPSConnectionPool):
+         conn.request("GET", self.authurl, None, headers)
+         res = conn.getresponse()
+         log.debug("Response status: %s %s", res.status, res.reason)
+-        log.debug("Response headers: %s", dict(res.getheaders()))
++        log.debug("Response headers: %s", dict(res.headers))
+         log.debug("Response data: %s [...]", res.read()[:100])
+         if res.status != 200:
+             if res.status == 401:
+diff --git a/src/pip/_vendor/urllib3/contrib/pyopenssl.py b/src/pip/_vendor/urllib3/contrib/pyopenssl.py
+index 528764a03..19e4aa97c 100644
+--- a/src/pip/_vendor/urllib3/contrib/pyopenssl.py
++++ b/src/pip/_vendor/urllib3/contrib/pyopenssl.py
+@@ -47,10 +47,10 @@ compression in Python 2 (see `CRIME attack`_).
+ """
+ from __future__ import absolute_import
+ 
++import OpenSSL.crypto
+ import OpenSSL.SSL
+ from cryptography import x509
+ from cryptography.hazmat.backends.openssl import backend as openssl_backend
+-from cryptography.hazmat.backends.openssl.x509 import _Certificate
+ 
+ try:
+     from cryptography.x509 import UnsupportedExtension
+@@ -228,9 +228,8 @@ def get_subj_alt_name(peer_cert):
+     if hasattr(peer_cert, "to_cryptography"):
+         cert = peer_cert.to_cryptography()
+     else:
+-        # This is technically using private APIs, but should work across all
+-        # relevant versions before PyOpenSSL got a proper API for this.
+-        cert = _Certificate(openssl_backend, peer_cert._x509)
++        der = OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_ASN1, peer_cert)
++        cert = x509.load_der_x509_certificate(der, openssl_backend)
+ 
+     # We want to find the SAN extension. Ask Cryptography to locate it (it's
+     # faster than looping in Python)
+diff --git a/src/pip/_vendor/urllib3/contrib/securetransport.py b/src/pip/_vendor/urllib3/contrib/securetransport.py
+index 4a06bc69d..722ee4e12 100644
+--- a/src/pip/_vendor/urllib3/contrib/securetransport.py
++++ b/src/pip/_vendor/urllib3/contrib/securetransport.py
+@@ -64,9 +64,8 @@ import struct
+ import threading
+ import weakref
+ 
+-from pip._vendor import six
+-
+ from .. import util
++from ..packages import six
+ from ..util.ssl_ import PROTOCOL_TLS_CLIENT
+ from ._securetransport.bindings import CoreFoundation, Security, SecurityConst
+ from ._securetransport.low_level import (
+diff --git a/src/pip/_vendor/urllib3/packages/backports/weakref_finalize.py b/src/pip/_vendor/urllib3/packages/backports/weakref_finalize.py
+new file mode 100644
+index 000000000..a2f2966e5
+--- /dev/null
++++ b/src/pip/_vendor/urllib3/packages/backports/weakref_finalize.py
+@@ -0,0 +1,155 @@
++# -*- coding: utf-8 -*-
++"""
++backports.weakref_finalize
++~~~~~~~~~~~~~~~~~~
++
++Backports the Python 3 ``weakref.finalize`` method.
++"""
++from __future__ import absolute_import
++
++import itertools
++import sys
++from weakref import ref
++
++__all__ = ["weakref_finalize"]
++
++
++class weakref_finalize(object):
++    """Class for finalization of weakrefable objects
++    finalize(obj, func, *args, **kwargs) returns a callable finalizer
++    object which will be called when obj is garbage collected. The
++    first time the finalizer is called it evaluates func(*arg, **kwargs)
++    and returns the result. After this the finalizer is dead, and
++    calling it just returns None.
++    When the program exits any remaining finalizers for which the
++    atexit attribute is true will be run in reverse order of creation.
++    By default atexit is true.
++    """
++
++    # Finalizer objects don't have any state of their own.  They are
++    # just used as keys to lookup _Info objects in the registry.  This
++    # ensures that they cannot be part of a ref-cycle.
++
++    __slots__ = ()
++    _registry = {}
++    _shutdown = False
++    _index_iter = itertools.count()
++    _dirty = False
++    _registered_with_atexit = False
++
++    class _Info(object):
++        __slots__ = ("weakref", "func", "args", "kwargs", "atexit", "index")
++
++    def __init__(self, obj, func, *args, **kwargs):
++        if not self._registered_with_atexit:
++            # We may register the exit function more than once because
++            # of a thread race, but that is harmless
++            import atexit
++
++            atexit.register(self._exitfunc)
++            weakref_finalize._registered_with_atexit = True
++        info = self._Info()
++        info.weakref = ref(obj, self)
++        info.func = func
++        info.args = args
++        info.kwargs = kwargs or None
++        info.atexit = True
++        info.index = next(self._index_iter)
++        self._registry[self] = info
++        weakref_finalize._dirty = True
++
++    def __call__(self, _=None):
++        """If alive then mark as dead and return func(*args, **kwargs);
++        otherwise return None"""
++        info = self._registry.pop(self, None)
++        if info and not self._shutdown:
++            return info.func(*info.args, **(info.kwargs or {}))
++
++    def detach(self):
++        """If alive then mark as dead and return (obj, func, args, kwargs);
++        otherwise return None"""
++        info = self._registry.get(self)
++        obj = info and info.weakref()
++        if obj is not None and self._registry.pop(self, None):
++            return (obj, info.func, info.args, info.kwargs or {})
++
++    def peek(self):
++        """If alive then return (obj, func, args, kwargs);
++        otherwise return None"""
++        info = self._registry.get(self)
++        obj = info and info.weakref()
++        if obj is not None:
++            return (obj, info.func, info.args, info.kwargs or {})
++
++    @property
++    def alive(self):
++        """Whether finalizer is alive"""
++        return self in self._registry
++
++    @property
++    def atexit(self):
++        """Whether finalizer should be called at exit"""
++        info = self._registry.get(self)
++        return bool(info) and info.atexit
++
++    @atexit.setter
++    def atexit(self, value):
++        info = self._registry.get(self)
++        if info:
++            info.atexit = bool(value)
++
++    def __repr__(self):
++        info = self._registry.get(self)
++        obj = info and info.weakref()
++        if obj is None:
++            return "<%s object at %#x; dead>" % (type(self).__name__, id(self))
++        else:
++            return "<%s object at %#x; for %r at %#x>" % (
++                type(self).__name__,
++                id(self),
++                type(obj).__name__,
++                id(obj),
++            )
++
++    @classmethod
++    def _select_for_exit(cls):
++        # Return live finalizers marked for exit, oldest first
++        L = [(f, i) for (f, i) in cls._registry.items() if i.atexit]
++        L.sort(key=lambda item: item[1].index)
++        return [f for (f, i) in L]
++
++    @classmethod
++    def _exitfunc(cls):
++        # At shutdown invoke finalizers for which atexit is true.
++        # This is called once all other non-daemonic threads have been
++        # joined.
++        reenable_gc = False
++        try:
++            if cls._registry:
++                import gc
++
++                if gc.isenabled():
++                    reenable_gc = True
++                    gc.disable()
++                pending = None
++                while True:
++                    if pending is None or weakref_finalize._dirty:
++                        pending = cls._select_for_exit()
++                        weakref_finalize._dirty = False
++                    if not pending:
++                        break
++                    f = pending.pop()
++                    try:
++                        # gc is disabled, so (assuming no daemonic
++                        # threads) the following is the only line in
++                        # this function which might trigger creation
++                        # of a new finalizer
++                        f()
++                    except Exception:
++                        sys.excepthook(*sys.exc_info())
++                    assert f not in cls._registry
++        finally:
++            # prevent any more finalizers from executing during shutdown
++            weakref_finalize._shutdown = True
++            if reenable_gc:
++                gc.enable()
+diff --git a/src/pip/_vendor/urllib3/poolmanager.py b/src/pip/_vendor/urllib3/poolmanager.py
+index ca4ec3411..fb51bf7d9 100644
+--- a/src/pip/_vendor/urllib3/poolmanager.py
++++ b/src/pip/_vendor/urllib3/poolmanager.py
+@@ -4,7 +4,7 @@ import collections
+ import functools
+ import logging
+ 
+-from ._collections import RecentlyUsedContainer
++from ._collections import HTTPHeaderDict, RecentlyUsedContainer
+ from .connectionpool import HTTPConnectionPool, HTTPSConnectionPool, port_by_scheme
+ from .exceptions import (
+     LocationValueError,
+@@ -171,7 +171,7 @@ class PoolManager(RequestMethods):
+     def __init__(self, num_pools=10, headers=None, **connection_pool_kw):
+         RequestMethods.__init__(self, headers)
+         self.connection_pool_kw = connection_pool_kw
+-        self.pools = RecentlyUsedContainer(num_pools, dispose_func=lambda p: p.close())
++        self.pools = RecentlyUsedContainer(num_pools)
+ 
+         # Locally set the pool classes and keys so other PoolManagers can
+         # override them.
+@@ -382,9 +382,12 @@ class PoolManager(RequestMethods):
+         # Support relative URLs for redirecting.
+         redirect_location = urljoin(url, redirect_location)
+ 
+-        # RFC 7231, Section 6.4.4
+         if response.status == 303:
++            # Change the method according to RFC 9110, Section 15.4.4.
+             method = "GET"
++            # And lose the body not to transfer anything sensitive.
++            kw["body"] = None
++            kw["headers"] = HTTPHeaderDict(kw["headers"])._prepare_for_method_change()
+ 
+         retries = kw.get("retries")
+         if not isinstance(retries, Retry):
+diff --git a/src/pip/_vendor/urllib3/request.py b/src/pip/_vendor/urllib3/request.py
+index 398386a5b..3b4cf9992 100644
+--- a/src/pip/_vendor/urllib3/request.py
++++ b/src/pip/_vendor/urllib3/request.py
+@@ -1,6 +1,9 @@
+ from __future__ import absolute_import
+ 
++import sys
++
+ from .filepost import encode_multipart_formdata
++from .packages import six
+ from .packages.six.moves.urllib.parse import urlencode
+ 
+ __all__ = ["RequestMethods"]
+@@ -168,3 +171,21 @@ class RequestMethods(object):
+         extra_kw.update(urlopen_kw)
+ 
+         return self.urlopen(method, url, **extra_kw)
++
++
++if not six.PY2:
++
++    class RequestModule(sys.modules[__name__].__class__):
++        def __call__(self, *args, **kwargs):
++            """
++            If user tries to call this module directly urllib3 v2.x style raise an error to the user
++            suggesting they may need urllib3 v2
++            """
++            raise TypeError(
++                "'module' object is not callable\n"
++                "urllib3.request() method is not supported in this release, "
++                "upgrade to urllib3 v2 to use it\n"
++                "see https://urllib3.readthedocs.io/en/stable/v2-migration-guide.html"
++            )
++
++    sys.modules[__name__].__class__ = RequestModule
+diff --git a/src/pip/_vendor/urllib3/response.py b/src/pip/_vendor/urllib3/response.py
+index 4969b70e3..8909f8454 100644
+--- a/src/pip/_vendor/urllib3/response.py
++++ b/src/pip/_vendor/urllib3/response.py
+@@ -3,6 +3,7 @@ from __future__ import absolute_import
+ import io
+ import logging
+ import sys
++import warnings
+ import zlib
+ from contextlib import contextmanager
+ from socket import error as SocketError
+@@ -657,9 +658,21 @@ class HTTPResponse(io.IOBase):
+ 
+     # Backwards-compatibility methods for http.client.HTTPResponse
+     def getheaders(self):
++        warnings.warn(
++            "HTTPResponse.getheaders() is deprecated and will be removed "
++            "in urllib3 v2.1.0. Instead access HTTPResponse.headers directly.",
++            category=DeprecationWarning,
++            stacklevel=2,
++        )
+         return self.headers
+ 
+     def getheader(self, name, default=None):
++        warnings.warn(
++            "HTTPResponse.getheader() is deprecated and will be removed "
++            "in urllib3 v2.1.0. Instead use HTTPResponse.headers.get(name, default).",
++            category=DeprecationWarning,
++            stacklevel=2,
++        )
+         return self.headers.get(name, default)
+ 
+     # Backwards compatibility for http.cookiejar
+diff --git a/src/pip/_vendor/urllib3/util/retry.py b/src/pip/_vendor/urllib3/util/retry.py
+index 3398323fd..9a1e90d0b 100644
+--- a/src/pip/_vendor/urllib3/util/retry.py
++++ b/src/pip/_vendor/urllib3/util/retry.py
+@@ -235,7 +235,9 @@ class Retry(object):
+     RETRY_AFTER_STATUS_CODES = frozenset([413, 429, 503])
+ 
+     #: Default headers to be used for ``remove_headers_on_redirect``
+-    DEFAULT_REMOVE_HEADERS_ON_REDIRECT = frozenset(["Authorization"])
++    DEFAULT_REMOVE_HEADERS_ON_REDIRECT = frozenset(
++        ["Cookie", "Authorization", "Proxy-Authorization"]
++    )
+ 
+     #: Maximum backoff time.
+     DEFAULT_BACKOFF_MAX = 120
+@@ -394,7 +396,7 @@ class Retry(object):
+     def get_retry_after(self, response):
+         """Get the value of Retry-After in seconds."""
+ 
+-        retry_after = response.getheader("Retry-After")
++        retry_after = response.headers.get("Retry-After")
+ 
+         if retry_after is None:
+             return None
+diff --git a/src/pip/_vendor/urllib3/util/ssl_.py b/src/pip/_vendor/urllib3/util/ssl_.py
+index 2b45d391d..0a6a0e06a 100644
+--- a/src/pip/_vendor/urllib3/util/ssl_.py
++++ b/src/pip/_vendor/urllib3/util/ssl_.py
+@@ -1,11 +1,11 @@
+ from __future__ import absolute_import
+ 
++import hashlib
+ import hmac
+ import os
+ import sys
+ import warnings
+ from binascii import hexlify, unhexlify
+-from hashlib import md5, sha1, sha256
+ 
+ from ..exceptions import (
+     InsecurePlatformWarning,
+@@ -24,7 +24,10 @@ IS_SECURETRANSPORT = False
+ ALPN_PROTOCOLS = ["http/1.1"]
+ 
+ # Maps the length of a digest to a possible hash function producing this digest
+-HASHFUNC_MAP = {32: md5, 40: sha1, 64: sha256}
++HASHFUNC_MAP = {
++    length: getattr(hashlib, algorithm, None)
++    for length, algorithm in ((32, "md5"), (40, "sha1"), (64, "sha256"))
++}
+ 
+ 
+ def _const_compare_digest_backport(a, b):
+@@ -191,9 +194,15 @@ def assert_fingerprint(cert, fingerprint):
+ 
+     fingerprint = fingerprint.replace(":", "").lower()
+     digest_length = len(fingerprint)
+-    hashfunc = HASHFUNC_MAP.get(digest_length)
+-    if not hashfunc:
++    if digest_length not in HASHFUNC_MAP:
+         raise SSLError("Fingerprint of invalid length: {0}".format(fingerprint))
++    hashfunc = HASHFUNC_MAP.get(digest_length)
++    if hashfunc is None:
++        raise SSLError(
++            "Hash function implementation unavailable for fingerprint length: {0}".format(
++                digest_length
++            )
++        )
+ 
+     # We need encode() here for py32; works on py2 and p33.
+     fingerprint_bytes = unhexlify(fingerprint.encode())
+diff --git a/src/pip/_vendor/urllib3/util/timeout.py b/src/pip/_vendor/urllib3/util/timeout.py
+index ff69593b0..78e18a627 100644
+--- a/src/pip/_vendor/urllib3/util/timeout.py
++++ b/src/pip/_vendor/urllib3/util/timeout.py
+@@ -2,9 +2,8 @@ from __future__ import absolute_import
+ 
+ import time
+ 
+-# The default socket timeout, used by httplib to indicate that no timeout was
+-# specified by the user
+-from socket import _GLOBAL_DEFAULT_TIMEOUT
++# The default socket timeout, used by httplib to indicate that no timeout was; specified by the user
++from socket import _GLOBAL_DEFAULT_TIMEOUT, getdefaulttimeout
+ 
+ from ..exceptions import TimeoutStateError
+ 
+@@ -116,6 +115,10 @@ class Timeout(object):
+     # __str__ provided for backwards compatibility
+     __str__ = __repr__
+ 
++    @classmethod
++    def resolve_default_timeout(cls, timeout):
++        return getdefaulttimeout() if timeout is cls.DEFAULT_TIMEOUT else timeout
++
+     @classmethod
+     def _validate_timeout(cls, value, name):
+         """Check that a timeout attribute is valid.
+diff --git a/src/pip/_vendor/urllib3/util/url.py b/src/pip/_vendor/urllib3/util/url.py
+index 86bd8b48a..a960b2f3c 100644
+--- a/src/pip/_vendor/urllib3/util/url.py
++++ b/src/pip/_vendor/urllib3/util/url.py
+@@ -50,7 +50,7 @@ _variations = [
+     "(?:(?:%(hex)s:){0,6}%(hex)s)?::",
+ ]
+ 
+-UNRESERVED_PAT = r"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._!\-~"
++UNRESERVED_PAT = r"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._\-~"
+ IPV6_PAT = "(?:" + "|".join([x % _subs for x in _variations]) + ")"
+ ZONE_ID_PAT = "(?:%25|%)(?:[" + UNRESERVED_PAT + "]|%[a-fA-F0-9]{2})+"
+ IPV6_ADDRZ_PAT = r"\[" + IPV6_PAT + r"(?:" + ZONE_ID_PAT + r")?\]"
+@@ -63,7 +63,7 @@ IPV6_ADDRZ_RE = re.compile("^" + IPV6_ADDRZ_PAT + "$")
+ BRACELESS_IPV6_ADDRZ_RE = re.compile("^" + IPV6_ADDRZ_PAT[2:-2] + "$")
+ ZONE_ID_RE = re.compile("(" + ZONE_ID_PAT + r")\]$")
+ 
+-_HOST_PORT_PAT = ("^(%s|%s|%s)(?::([0-9]{0,5}))?$") % (
++_HOST_PORT_PAT = ("^(%s|%s|%s)(?::0*?(|0|[1-9][0-9]{0,4}))?$") % (
+     REG_NAME_PAT,
+     IPV4_PAT,
+     IPV6_ADDRZ_PAT,
+@@ -303,7 +303,7 @@ def _normalize_host(host, scheme):
+ 
+ 
+ def _idna_encode(name):
+-    if name and any([ord(x) > 128 for x in name]):
++    if name and any(ord(x) >= 128 for x in name):
+         try:
+             from pip._vendor import idna
+         except ImportError:
