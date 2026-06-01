@@ -1,0 +1,206 @@
+From a0a6c6e4efa59681968bbee65dd49fe01a40d8bf Mon Sep 17 00:00:00 2001
+From: Paul Marquess <pmqs@cpan.org>
+Date: Wed, 28 Aug 2024 14:12:02 -0400
+Subject: [PATCH] cpan/Compress-Raw-Bzip2 - Update to version 2.218
+
+  2.213 28 August 2024
+
+      * version 2.213
+        Wed Aug 28 15:48:25 2024 +0100
+        63a2ca4e124d88914c000742f082126db9a99c03
+
+      * Use -xc++ when building with C++
+        Mon Jun 17 10:47:25 2024 +0100
+        85daf683caff0fe1b2dafc49998fd6355bdf0da0
+
+      * more fixes
+        Sun Jun 16 11:32:20 2024 +0100
+        3353249cb9e6e25e06aa9ee4d5c74d0cbb45b5a3
+
+      * upstream fixes
+        Sun Jun 16 11:20:58 2024 +0100
+
+      * version 2.213
+        Wed Aug 28 15:48:25 2024 +0100
+        63a2ca4e124d88914c000742f082126db9a99c03
+
+      * Use -xc++ when building with C++
+        Mon Jun 17 10:47:25 2024 +0100
+        85daf683caff0fe1b2dafc49998fd6355bdf0da0
+
+      * more fixes
+        Sun Jun 16 11:32:20 2024 +0100
+        3353249cb9e6e25e06aa9ee4d5c74d0cbb45b5a3
+
+      * upstream fixes
+        Sun Jun 16 11:20:58 2024 +0100
+        f01726f4ab5b1a229d710d45cf310018185ea744
+
+      * rework upstream workflow
+        Sun Jun 16 09:56:02 2024 +0100
+        4c1ba3c333de52e9ec32356c3f720bdccd8f2481
+
+      * rework upstream workflows
+        Sun Jun 16 09:42:05 2024 +0100
+        54cb21c1ac4b795fcd32306c91d07b68b6c8411d
+
+      * no werror for main macos workflow
+        Sun Jun 16 09:36:51 2024 +0100
+        cb9ae2fbec6fa6f0f196cc133ada3e282b80c96f
+
+      * fix  workflows
+        Sun Jun 16 09:33:04 2024 +0100
+        809481c0f36e640c70c24d07401bf2b8b06038a1
+
+      * Merge remote-tracking branch 'origin/master'
+        Sun Jun 16 09:24:46 2024 +0100
+        791d14716523804153a09ffb689b39143807b749
+
+      * Add workflow for perl 5.40
+        Sun Jun 16 09:19:11 2024 +0100
+        e94d2dac2dd3a04e7af5bb8efd461d188d14d21a
+
+      * Merge pull request #15 from haarg-contrib/silence-unused-var
+        Mon Jun 10 21:33:59 2024 +0100
+        a536bcd45bd65a0be8ca8b17fad11ecf0e7d75ef
+
+      * silence unused variable warnings
+        Mon Jun 10 21:15:34 2024 +0200
+        7798ad06a2b184112bffa54a7339771bfeec65c4
+
+  2.214 24 October 2025
+
+      * version 2.214
+        Fri Oct 24 16:15:22 2025 +0100
+        5fd4a5676d0e9a283d55fdf7d2a14957292060dd
+
+      * Add dependbot yml file to police the workflow files
+        Thu Sep 4 16:57:57 2025 +0100
+        af071123f21dbd30cd1c0caab4fd126512007161
+
+      * Add perl 5.42 to workflow files
+        Thu Sep 4 16:57:06 2025 +0100
+        efd6a1b6cb0e2be7a26747b427575d6aa4bee6d6
+
+  2.217 31 January 2026
+
+      * Update version to 2.217
+        Sat Jan 31 11:52:54 2026 +0000
+        773773f59082a73134212a2d63368683027122ed
+
+  2.218 8 March 2026
+
+      * Version 2.218
+        Sun Mar 8 13:47:17 2026 +0000
+        be6054d7ed1536eec4e5cf04117f251fb4389d59
+
+      * Add SECURITY.md Fixes #18
+        Sun Mar 8 12:14:23 2026 +0000
+        69f9bdebf9fd8b1c5d132e1a423fb7477aa4b347
+        (Note: Not included in Perl core distribution.)
+
+      * fix spelling typo
+        Tue Feb 24 19:49:03 2026 +0000
+        d8b7ef4eb1507575598430c5e23e2cba95ca410e
+---
+ Porting/Maintainers.pl                            | 4 ++--
+ cpan/Compress-Raw-Bzip2/Bzip2.xs                  | 3 ---
+ cpan/Compress-Raw-Bzip2/bzip2-src/blocksort.c     | 3 +++
+ cpan/Compress-Raw-Bzip2/bzip2-src/compress.c      | 1 +
+ cpan/Compress-Raw-Bzip2/lib/Compress/Raw/Bzip2.pm | 4 ++--
+ cpan/Compress-Raw-Bzip2/t/000prereq.t             | 2 +-
+ 6 files changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/Porting/Maintainers.pl b/Porting/Maintainers.pl
+index 3afcab9308..1089c137c4 100755
+--- a/Porting/Maintainers.pl
++++ b/Porting/Maintainers.pl
+@@ -211,8 +211,8 @@ our %Modules = (
+     },
+ 
+     'Compress::Raw::Bzip2' => {
+-        'DISTRIBUTION' => 'PMQS/Compress-Raw-Bzip2-2.212.tar.gz',
+-        'SYNCINFO'     => 'LeoNerd on Sat Apr 27 14:06:26 2024',
++        'DISTRIBUTION' => 'PMQS/Compress-Raw-Bzip2-2.218.tar.gz',
++        'SYNCINFO'     => 'jkeenan on Wed Mar 11 22:43:18 2026',
+         'FILES'        => q[cpan/Compress-Raw-Bzip2],
+         'EXCLUDED'     => [
+             qr{^t/Test/},
+diff --git a/cpan/Compress-Raw-Bzip2/Bzip2.xs b/cpan/Compress-Raw-Bzip2/Bzip2.xs
+index 83a261f0dc..794e29f4cd 100644
+--- a/cpan/Compress-Raw-Bzip2/Bzip2.xs
++++ b/cpan/Compress-Raw-Bzip2/Bzip2.xs
+@@ -373,9 +373,6 @@ new(className, appendOut=1, blockSize100k=1, workfactor=0, verbosity=0)
+             s = NULL ;
+ 	}
+ 	else {
+-            int flags = 0 ;
+-            if (appendOut)
+-                flags |= FLAG_APPEND_OUTPUT;
+             PostInitStream(s, appendOut ? FLAG_APPEND_OUTPUT :0) ;
+         }
+     }
+diff --git a/cpan/Compress-Raw-Bzip2/bzip2-src/blocksort.c b/cpan/Compress-Raw-Bzip2/bzip2-src/blocksort.c
+index 04d3abcc7a..eab1ec49e5 100644
+--- a/cpan/Compress-Raw-Bzip2/bzip2-src/blocksort.c
++++ b/cpan/Compress-Raw-Bzip2/bzip2-src/blocksort.c
+@@ -764,6 +764,9 @@ void mainSort ( UInt32* ptr,
+    UChar  c1;
+    Int32  numQSorted;
+    UInt16 s;
++
++   ((void)numQSorted); /* Silence variable ‘numQSorted’ set but not used warning */
++
+    if (verb >= 4) VPrintf0 ( "        main sort initialise ...\n" );
+ 
+    /*-- set up the 2-byte frequency table --*/
+diff --git a/cpan/Compress-Raw-Bzip2/bzip2-src/compress.c b/cpan/Compress-Raw-Bzip2/bzip2-src/compress.c
+index 136bec129a..e1df0c4881 100644
+--- a/cpan/Compress-Raw-Bzip2/bzip2-src/compress.c
++++ b/cpan/Compress-Raw-Bzip2/bzip2-src/compress.c
+@@ -266,6 +266,7 @@ void sendMTFValues ( EState* s )
+    UInt16* mtfv = s->mtfv;
+ 
+    ((void)nBytes); /* Silence variable ‘nBytes’ set but not used warning */
++   ((void)totc); /* Silence variable ‘totc’ set but not used warning */
+    if (s->verbosity >= 3)
+       VPrintf3( "      %d in block, %d after MTF & 1-2 coding, "
+                 "%d+2 syms in use\n",
+diff --git a/cpan/Compress-Raw-Bzip2/lib/Compress/Raw/Bzip2.pm b/cpan/Compress-Raw-Bzip2/lib/Compress/Raw/Bzip2.pm
+index 29fb150b5c..c2f9539f26 100644
+--- a/cpan/Compress-Raw-Bzip2/lib/Compress/Raw/Bzip2.pm
++++ b/cpan/Compress-Raw-Bzip2/lib/Compress/Raw/Bzip2.pm
+@@ -11,7 +11,7 @@ use Carp ;
+ use bytes ;
+ our ($VERSION, $XS_VERSION, @ISA, @EXPORT, $AUTOLOAD);
+ 
+-$VERSION = '2.212';
++$VERSION = '2.218';
+ $XS_VERSION = $VERSION;
+ $VERSION = eval $VERSION;
+ 
+@@ -384,7 +384,7 @@ See the Changes file.
+ 
+ =head1 COPYRIGHT AND LICENSE
+ 
+-Copyright (c) 2005-2024 Paul Marquess. All rights reserved.
++Copyright (c) 2005-2026 Paul Marquess. All rights reserved.
+ 
+ This program is free software; you can redistribute it and/or
+ modify it under the same terms as Perl itself.
+diff --git a/cpan/Compress-Raw-Bzip2/t/000prereq.t b/cpan/Compress-Raw-Bzip2/t/000prereq.t
+index 57ec5380fa..f63f0af74e 100644
+--- a/cpan/Compress-Raw-Bzip2/t/000prereq.t
++++ b/cpan/Compress-Raw-Bzip2/t/000prereq.t
+@@ -19,7 +19,7 @@ BEGIN
+         if eval { require Test::NoWarnings ;  import Test::NoWarnings; 1 };
+ 
+ 
+-    my $VERSION = '2.212';
++    my $VERSION = '2.218';
+     my @NAMES = qw(
+ 
+ 			);
+-- 
+2.34.1
+

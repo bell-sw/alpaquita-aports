@@ -2,7 +2,7 @@
 
 pkgname=perl
 pkgver=5.40.4
-pkgrel=0
+pkgrel=1
 _cross=1.6.2
 pkgdesc="Larry Wall's Practical Extraction and Report Language"
 url="https://www.perl.org/"
@@ -25,6 +25,12 @@ source="https://cpan.metacpan.org/authors/id/S/SH/SHAY/perl-$pkgver.tar.xz
 	musl:musl-skip-dst-test.patch
 	skip-test-due-to-busybox-ps.patch
 	musl:musl-stack-size.patch
+
+	0100-cpan-Compress-Raw-Bzip2-Update-to-version-2.218.patch
+	0101-security-update-cpan-IO-Compress-Update-to-version-2.patch
+	0102-Treat-hardlinks-the-same-as-symlinks.patch
+	0103-CVE-2026-42496-CVE-2026-42497-Validate-symlink-and-h.patch
+	0104-CVE-2026-9538-Cpan-entry-size-during-read.patch
 	"
 # creates empty usr/local/{lib,share} for local sitedirs
 options="!fhs"
@@ -35,6 +41,14 @@ provides="
 	"
 
 # secfixes:
+#   5.40.4-r1:
+#     - CVE-2025-15649
+#     - CVE-2026-48959
+#     - CVE-2026-48961
+#     - CVE-2026-48962
+#     - CVE-2026-42496
+#     - CVE-2026-42497
+#     - CVE-2026-9538
 #   5.40.1-r1:
 #     - CVE-2024-56406
 #   5.38.1-r0:
@@ -253,4 +267,9 @@ abae709290306a8fbc96b604b9b38fc09a46ae178f3e77944813f1b46c78e2e3654e5c3b3a6aca96
 3eaec691bc38e208ba4f34130ae45e50b6c339fa50093d0b0f6d7f24cb5b7c2a3734ca714a279c4b51173f82e46a8e7a3e70bfc7d7471a18c55a2102140e4186  musl-skip-dst-test.patch
 c004d6612ec754e5947255a2e2d15b5581f187c32495aeeec9f4fa286919bd9f40c72b63db61e3f4004b09288af2063a6a14b67e5c289e9a8b23ebd7c216e16f  musl-stack-size.patch
 ba9cb1ff4a6e8e4c31bf4ef132c071ac919ffe45842cf5e98c8ca72d78ef4803883b57a0e7b8037da0079561a6ce9e6bd8d127892ac1bcb047638cb3ba3157f6  skip-test-due-to-busybox-ps.patch
+f6e695d0292348f32c6d7ebe75185886aeb047b3beb5bb00b6040913a27ee48bd0a67b9ac04aa924e7a38b35bb972cd2abf7012ce7f7253a8552b48419684c08  0100-cpan-Compress-Raw-Bzip2-Update-to-version-2.218.patch
+e7e2fc324fef4ab38938261c0579fbaf8d01cd473f658c6f1f73159194b15b2fdf22b329bc6d772dd1fa0cb4c08f03bffc4df7d1254544035acfcb613e82842f  0101-security-update-cpan-IO-Compress-Update-to-version-2.patch
+579e07779b2d3c7d99c4860fd9f5e26591e33b2ab00b1175e2e6d6bb728189c8fbb791d7ce445738ca15193709ee4c123d941f519b254e4637b5798436f97a8b  0102-Treat-hardlinks-the-same-as-symlinks.patch
+512cbb44029d5f0542e9227ccf290b8f633a308fc05eb8228a9acb7d5475c5485a4d31e5d5329d2de53fd832b868018c1e1e03c6f59459f3da9e065c82b7e659  0103-CVE-2026-42496-CVE-2026-42497-Validate-symlink-and-h.patch
+3ac728a6993ab039bd17004ec8ddac576bd268f4c7e91a31b9754a8b2ab1da4f0ea07ad2cb001662bd4290b0f6dcb04662bb2fa6654c5b71d256289b72670e57  0104-CVE-2026-9538-Cpan-entry-size-during-read.patch
 "
