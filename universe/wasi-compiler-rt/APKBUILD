@@ -1,0 +1,80 @@
+pkgname=wasi-compiler-rt
+pkgver=22.1.3
+_llvmver="${pkgver%%.*}"
+_wasi_sdk_ver=wasi-sdk-27
+_wasi_libc=ac020b86fd44bafe60aa4fa12f407d16e3731329
+pkgrel=1
+# NOTE: Upgrade together with the whole LLVM suite.
+pkgdesc="WASI LLVM compiler runtime"
+url="https://compiler-rt.llvm.org/"
+arch="all"
+options="!check" # TODO: check
+license="Apache-2.0 WITH LLVM-exception"
+makedepends="
+	bash
+	clang
+	cmake
+	libxml2-dev
+	llvm$_llvmver-dev
+	llvm$_llvmver-static
+	llvm$_llvmver-gtest
+	python3-dev
+	samurai
+	zlib-dev
+	"
+source="https://github.com/llvm/llvm-project/releases/download/llvmorg-$pkgver/llvm-project-$pkgver.src.tar.xz
+	wasi-sdk-$_wasi_sdk_ver.tar.gz::https://github.com/WebAssembly/wasi-sdk/archive/refs/tags/$_wasi_sdk_ver.tar.gz
+	wasi-libc-$_wasi_libc.tar.gz::https://github.com/WebAssembly/wasi-libc/archive/$_wasi_libc.tar.gz
+	"
+builddir="$srcdir"/llvm-project-$pkgver.src
+
+prepare() {
+	default_prepare
+
+	mv "$srcdir"/wasi-sdk-$_wasi_sdk_ver/wasi-sdk.cmake "$builddir"
+	mv "$srcdir"/wasi-sdk-$_wasi_sdk_ver/cmake/Platform cmake
+}
+
+build() {
+	cd "$srcdir"/wasi-libc-$_wasi_libc
+
+	make build/wasm32-wasi/copy-include-headers.stamp
+
+	cd "$builddir"
+
+	cmake -B build -G Ninja -S compiler-rt -Wno-dev \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_MODULE_PATH="$builddir"/cmake \
+		-DCMAKE_TOOLCHAIN_FILE="$builddir"/wasi-sdk.cmake \
+		-DCMAKE_C_COMPILER_WORKS=ON \
+		-DCMAKE_CXX_COMPILER_WORKS=ON \
+		-DCOMPILER_RT_BAREMETAL_BUILD=ON \
+		-DCOMPILER_RT_INCLUDE_TESTS=OFF \
+		-DCOMPILER_RT_HAS_FPIC_FLAG=OFF \
+		-DCOMPILER_RT_DEFAULT_TARGET_ONLY=ON \
+		-DCOMPILER_RT_OS_DIR=wasi \
+		-DCMAKE_AR=/usr/bin/llvm$_llvmver-ar \
+		-DCMAKE_RANLIB=/usr/bin/llvm$_llvmver-ranlib \
+		-DWASI_SDK_PREFIX=/usr \
+		-DCMAKE_INSTALL_PREFIX=/usr/lib/llvm$_llvmver/lib/clang/$_llvmver/ \
+		-DCMAKE_SYSROOT="$srcdir"/wasi-libc-$_wasi_libc/sysroot
+	cmake --build build
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+
+	rm -r "$pkgdir"/usr/lib/llvm$_llvmver/lib/clang/$_llvmver/include
+	for _p in 1 2; do
+		ln -s ./wasi "$pkgdir"/usr/lib/llvm$_llvmver/lib/clang/$_llvmver/lib/wasm32-wasip$_p
+		ln -s ./wasi "$pkgdir"/usr/lib/llvm$_llvmver/lib/clang/$_llvmver/lib/wasm32-unknown-wasip$_p
+	done
+	ln -s ./libclang_rt.builtins-wasm32.a "$pkgdir"/usr/lib/llvm$_llvmver/lib/clang/$_llvmver/lib/wasi/libclang_rt.builtins.a
+	ln -s ./libclang_rt.profile-wasm32.a "$pkgdir"/usr/lib/llvm$_llvmver/lib/clang/$_llvmver/lib/wasi/libclang_rt.profile.a
+}
+
+sha512sums="
+3557a955d55471671ae2f7b9c809affd59a29a6fb1e70a2a5d040dc1c6376246deb0635be8ca36cae09112981760e9afb128c822e5554bd722589fb8dee3f0df  llvm-project-22.1.3.src.tar.xz
+81f49bf572b6e6fe6443b57d22184fc0a64ddd3532c7fd8398a7d01b7755ad357ca2b8b9a42600125d0e649454b218c9233c22ef3df4bbaba8988ca75c0fb89b  wasi-sdk-wasi-sdk-27.tar.gz
+84caede1053df4a966a36fffc08fee79b7cd889f4ebb600d7a791e35651d2f8ead6bc1dc573c75e09b247fba001f5463175eb92d12bbc50e88abdc241b34519a  wasi-libc-ac020b86fd44bafe60aa4fa12f407d16e3731329.tar.gz
+"
