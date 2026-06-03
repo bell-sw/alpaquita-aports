@@ -1,6 +1,6 @@
 pkgname=osv-scanner
 pkgver=2.3.8
-pkgrel=1
+pkgrel=2
 pkgdesc="Vulnerability scanner written in Go which uses the data provided by https://osv.dev"
 url="https://github.com/google/osv-scanner"
 arch="all"
@@ -9,7 +9,10 @@ makedepends="go"
 checkdepends="tzdata"
 # tests appears to be flaky? passes on local machines but fails on builder
 options="net !check"
-source="https://github.com/google/osv-scanner/archive/v$pkgver/osv-scanner-$pkgver.tar.gz"
+source="https://github.com/google/osv-scanner/archive/v$pkgver/osv-scanner-$pkgver.tar.gz
+
+	0100-feat-purl-Add-more-PURL-to-ecosystem-mappings.patch
+	"
 
 export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
 export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
@@ -32,4 +35,5 @@ package() {
 
 sha512sums="
 93ce78f993b7d3cee3ba5dcb64d1649b7cf174b5f1b754dc2dd88e08310406fcbfab3fb20b3bb9602c2923ec4b761d6adcc2783c4aebcbeaf947c50ceeef24ce  osv-scanner-2.3.8.tar.gz
+d2d2984f414a9b443be47b34eb7a67a027b1ed5da61e4f921b2db0d0c70eb82b2089e2ba1e940cef979483b9c75a0cbf6a259a83e33147303ad66b5120211558  0100-feat-purl-Add-more-PURL-to-ecosystem-mappings.patch
 "

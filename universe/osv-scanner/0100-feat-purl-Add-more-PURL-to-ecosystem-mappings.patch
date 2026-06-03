@@ -1,0 +1,77 @@
+From dc8f072a8305637e8cb7305fff498b09074ff682 Mon Sep 17 00:00:00 2001
+Source: https://github.com/google/osv-scanner/pull/2862
+From: Ildar Mulyukov <ildar.mulyukov@bell-sw.com>
+Date: Wed, 3 Jun 2026 13:48:17 +0500
+Subject: [PATCH] feat(purl): Add more PURL-to-ecosystem mappings
+
+This PR adds more mappings for the following PURL types to their
+corresponding OSV ecosystems:
+- alpaquita
+- bellsoft-hardened-containers
+---
+ internal/utility/purl/purl_to_package.go      |  8 +++++--
+ internal/utility/purl/purl_to_package_test.go | 22 +++++++++++++++++++
+ 2 files changed, 28 insertions(+), 2 deletions(-)
+
+diff --git a/internal/utility/purl/purl_to_package.go b/internal/utility/purl/purl_to_package.go
+index 61bb9b5c..66a525fa 100644
+--- a/internal/utility/purl/purl_to_package.go
++++ b/internal/utility/purl/purl_to_package.go
+@@ -9,7 +9,11 @@ import (
+ // used like so: purlEcosystems[PkgURL.Type][PkgURL.Namespace]
+ // * means it should match any namespace string
+ var purlEcosystems = map[string]map[string]osvconstants.Ecosystem{
+-	"apk":      {"alpine": osvconstants.EcosystemAlpine},
++	"apk":      {
++		"alpaquita": osvconstants.EcosystemAlpaquita,
++		"alpine": osvconstants.EcosystemAlpine,
++		"bellsoft-hardened-containers": osvconstants.EcosystemBellSoftHardenedContainers,
++	},
+ 	"cargo":    {"*": osvconstants.EcosystemCratesIO},
+ 	"composer": {"*": osvconstants.EcosystemPackagist},
+ 	"conan":    {"*": osvconstants.EcosystemConanCenter},
+@@ -68,7 +72,7 @@ func ToPackage(purl string) (models.PackageInfo, error) {
+ 		case osvconstants.EcosystemMaven:
+ 			// Maven uses : to separate namespace and package
+ 			name = parsedPURL.Namespace + ":" + parsedPURL.Name
+-		case osvconstants.EcosystemDebian, osvconstants.EcosystemAlpine, osvconstants.EcosystemUbuntu:
++		case osvconstants.EcosystemAlpaquita, osvconstants.EcosystemAlpine, osvconstants.EcosystemBellSoftHardenedContainers, osvconstants.EcosystemDebian, osvconstants.EcosystemUbuntu:
+ 			// Debian and Alpine repeats their namespace in PURL, so don't add it to the name
+ 			name = parsedPURL.Name
+ 		default:
+diff --git a/internal/utility/purl/purl_to_package_test.go b/internal/utility/purl/purl_to_package_test.go
+index cda1aa59..11b0797c 100644
+--- a/internal/utility/purl/purl_to_package_test.go
++++ b/internal/utility/purl/purl_to_package_test.go
+@@ -86,6 +86,28 @@ func TestPURLToPackage(t *testing.T) {
+ 				Ecosystem: string(osvconstants.EcosystemAlpine),
+ 			},
+ 		},
++		{
++			name: "valid_PURL_alpaquta",
++			args: args{
++				purl: "pkg:apk/alpaquita/busybox@1.37.0-r37?arch=x86_64&distro=alpaquita-stream",
++			},
++			want: models.PackageInfo{
++				Name:      "busybox",
++				Version:   "1.37.0-r37",
++				Ecosystem: string(osvconstants.EcosystemAlpaquita),
++			},
++		},
++		{
++			name: "valid_PURL_bellsoft-hardened-containers",
++			args: args{
++				purl: "pkg:apk/bellsoft-hardened-containers/apk-tools@3.0.6-r0?arch=x86_64&distro=bellsoft-hardened-containers-stream",
++			},
++			want: models.PackageInfo{
++				Name:      "apk-tools",
++				Version:   "3.0.6-r0",
++				Ecosystem: string(osvconstants.EcosystemBellSoftHardenedContainers),
++			},
++		},
+ 		{
+ 			name: "invalid_PURL",
+ 			args: args{
+-- 
+2.42.4
+
