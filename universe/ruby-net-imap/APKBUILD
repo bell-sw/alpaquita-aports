@@ -1,0 +1,68 @@
+pkgname=ruby-net-imap
+_gemname=net-imap
+# Keep version in sync with "Bundled gems" (https://stdgems.org) for the
+# packaged Ruby version.
+pkgver=0.4.22
+pkgrel=0
+pkgdesc="Ruby client api for Internet Message Access Protocol"
+url="https://github.com/ruby/net-imap"
+arch="noarch"
+license="BSD-2-Clause AND Ruby"
+depends="ruby"
+makedepends="ruby-rdoc"
+checkdepends="
+	ruby-rake
+	ruby-test-unit
+	ruby-test-unit-ruby-core
+	"
+subpackages="$pkgname-doc"
+source="https://github.com/ruby/net-imap/archive/v$pkgver/$_gemname-$pkgver.tar.gz
+	gemspec.patch
+	"
+builddir="$srcdir/$_gemname-$pkgver"
+
+# secfixes:
+#   0.4.22-r0:
+#     - CVE-2025-43857
+#   0.4.19-r0:
+#     - CVE-2025-27219
+
+prepare() {
+	default_prepare
+	sed -i '/require .bundler/d' Rakefile
+}
+
+build() {
+	gem build $_gemname.gemspec
+}
+
+check() {
+	rake test
+}
+
+package() {
+	local gemdir="$pkgdir/$(ruby -e 'puts Gem.default_dir')"
+
+	gem install \
+		--local \
+		--install-dir "$gemdir" \
+		--ignore-dependencies \
+		--document ri \
+		--verbose \
+		$_gemname
+
+	# Remove unnessecary files
+	cd "$gemdir"
+	rm -rf build_info cache extensions plugins
+}
+
+doc() {
+	pkgdesc="$pkgdesc (ri docs)"
+
+	amove "$(ruby -e 'puts Gem.default_dir')"/doc
+}
+
+sha512sums="
+0de1560423de45f919e96b194a0fded068ea9757c3c6de2ec57f82d60be0fdd95359b95389b0928d8a6de0b953140cb1fc8e13394557e36dea29b06b5c414939  net-imap-0.4.22.tar.gz
+0e45fc58a667561a0ecf1db75013c9c33132073e945599d015e7f038684920cc49ae920133044c254a0b68dc25a290735c026ecafe1ffd301e9e436a3eda5d50  gemspec.patch
+"
