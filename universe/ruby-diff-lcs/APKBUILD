@@ -1,0 +1,49 @@
+pkgname=ruby-diff-lcs
+_gemname=${pkgname#ruby-}
+pkgver=1.5.1
+# https://github.com/halostatue/diff-lcs/issues/94
+_gitrev=1960a67b995137b1ac2a5e37c42d3984910266cc
+pkgrel=0
+pkgdesc="Generate difference sets between Ruby sequences"
+url="http://halostatue.github.io/diff-lcs/"
+arch="noarch"
+license="MIT"
+depends="ruby"
+options="!check"  # to avoid cyclic dependency with rspec
+subpackages="$pkgname-tools"
+source="https://github.com/halostatue/$_gemname/archive/$_gitrev/$pkgname-$_gitrev.tar.gz"
+builddir="$srcdir/$_gemname-$_gitrev"
+
+build() {
+	gem build $_gemname.gemspec
+}
+
+package() {
+	local gemdir="$pkgdir/$(ruby -e 'puts Gem.default_dir')"
+	local geminstdir="$gemdir/gems/$_gemname-$pkgver"
+
+	gem install --local \
+		--install-dir "$gemdir" \
+		--bindir "$pkgdir/usr/bin" \
+		--ignore-dependencies \
+		--no-document \
+		--verbose \
+		$_gemname
+
+	# Remove unnecessary files.
+	cd "$gemdir"
+	rm -r cache/ build_info/ doc/
+	cd "$geminstdir"
+	rm -r docs/ spec/ Rakefile *.md *.rdoc *.txt
+}
+
+tools() {
+	pkgdesc="$pkgdesc (CLI tools)"
+	depends="$pkgname=$pkgver-r$pkgrel"
+
+	amove usr/bin
+}
+
+sha512sums="
+7724a44150510086214ff8ee13ed701d431077d45d0b5a95cb05851b4ed4cffb61a2d1ba3369452751c66653d9523e96a9e3c22d2da0a8dd3aca0b47f1f85cfc  ruby-diff-lcs-1960a67b995137b1ac2a5e37c42d3984910266cc.tar.gz
+"
