@@ -1,0 +1,42 @@
+pkgname=ruby-rspec-core
+_gemname=${pkgname#ruby-}
+pkgver=3.13.2
+pkgrel=0
+pkgdesc="RSpec runner and formatters"
+url="https://relishapp.com/rspec/rspec-core/docs"
+arch="noarch"
+license="MIT"
+depends="ruby ruby-rspec-support~${pkgver%.*}"
+options="!check"  # rspec's tests are written in rspec
+source="$pkgname-$pkgver.tar.gz::https://github.com/rspec/$_gemname/archive/v$pkgver.tar.gz
+	gemspec.patch"
+builddir="$srcdir/$_gemname-$pkgver"
+
+build() {
+	gem build $_gemname.gemspec
+}
+
+package() {
+	local gemdir="$pkgdir/$(ruby -e 'puts Gem.default_dir')"
+
+	gem install --local \
+		--install-dir "$gemdir" \
+		--bindir "$pkgdir/usr/bin" \
+		--ignore-dependencies \
+		--no-document \
+		--verbose \
+		$_gemname
+
+	# WTF is that?
+	rm -f "$pkgdir"/usr/bin/rspec.lock
+
+	# Clean-up...
+	rm -r "$gemdir"/cache \
+		"$gemdir"/build_info \
+		"$gemdir"/doc
+}
+
+sha512sums="
+4729fa564adcc94ccd0416c63d100bac93faa2f6e4a498af55c3f13645eb28ecb7e106bb02a2eba1aa2748196e6aa5557909fb0e619067b731bd9111aa5fde31  ruby-rspec-core-3.13.2.tar.gz
+e0cbcfddcc4c73d9b9673907e3b1a785b399c0b3b213761e9dbca9fadc55d50a88389eaf561f5603bd674eb94ce9f2ecf829d884eaa77df8ef1b565c0c7f25f2  gemspec.patch
+"
