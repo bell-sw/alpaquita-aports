@@ -2,20 +2,31 @@ pkgname=ruby-rexml
 _gemname=rexml
 # Keep version in sync with "Bundled gems" (https://stdgems.org) for the
 # packaged Ruby version.
-pkgver=3.2.5
-pkgrel=2
+pkgver=3.4.4
+pkgrel=0
 pkgdesc="An XML toolkit for Ruby"
 url="https://github.com/ruby/rexml"
 arch="noarch"
 license="BSD-2-Clause"
 depends="ruby"
-checkdepends="ruby-test-unit"
+checkdepends="
+	ruby-test-unit
+	ruby-test-unit-ruby-core
+	"
 makedepends="ruby-rdoc"
 subpackages="$pkgname-doc"
-source="https://github.com/ruby/rexml/archive/v$pkgver/$pkgname-$pkgver.tar.gz"
+source="https://github.com/ruby/rexml/archive/v$pkgver/ruby-rexml-$pkgver.tar.gz"
 builddir="$srcdir/$_gemname-$pkgver"
 
 [ "$CARCH" = "s390x" ] && options="!check"
+
+# secfixes:
+#   3.3.9-r0:
+#     - CVE-2024-39908
+#     - CVE-2024-41123
+#     - CVE-2024-41946
+#     - CVE-2024-43398
+#     - CVE-2024-49761
 
 build() {
 	gem build $_gemname.gemspec
@@ -52,5 +63,5 @@ doc() {
 }
 
 sha512sums="
-9c62b789988b407bf4b02906768300b256734bfa342ef6b3551428ba2c1792b7e7e5a5480251d7df52318a5e5155757ab1377c0cc8d1d7c33278f33e367a5ca5  ruby-rexml-3.2.5.tar.gz
+3bb0d4a2cf4d8f567f6a7c1867506eed052fadf15b556f249a7d7dff533242817b90671450e7cc5144d7f09bb9f85c59e01eb9c703da2a479a1ea740f6e055ec  ruby-rexml-3.4.4.tar.gz
 "
