@@ -1,22 +1,24 @@
 pkgname=ruby-bundler
 _gemname=bundler
-pkgver=2.3.26
+pkgver=2.5.23
 pkgrel=0
 pkgdesc="Manage an application's gem dependencies"
 url="https://bundler.io/"
 arch="noarch"
 license="MIT"
 depends="ruby"
-makedepends="ruby-rake"
+makedepends="
+	ruby-rake
+	ruby-rdoc
+	"
 subpackages="$pkgname-doc"
 source="https://github.com/rubygems/rubygems/archive/bundler-v$pkgver.tar.gz
 	manpages.patch
 	"
 builddir="$srcdir/rubygems-bundler-v$pkgver/bundler"
-options="!check"  # testsuite requires not available dependencies
+options="!check"  # tests require deps not available in main repo
 
 build() {
-	rake build_metadata
 	gem build $_gemname.gemspec
 }
 
@@ -45,6 +47,6 @@ package() {
 }
 
 sha512sums="
-0a02d5130ecb8ca96e1850fc409a55d9f07481bbb8ec9b20554cdc6f3b3d3aada67717ab17dd30835615e4c228f39f895bd9b6f55bc22d4dbd88caef9cc105ba  bundler-v2.3.26.tar.gz
-77a36e61ed205aeea6114b1039dfbe29fcaf916eeae3f91785aa53b3ac534e004aa257e218534d927f39e3673eebbfb3ef9ee17f04ed81f74117799b88e53cf4  manpages.patch
+e37b43543eb9d27c19aa6cfbfa76d0372947da17a3d6402330c205d2ea01536cc0a0c360317c09704fbfb1a3d9f21f76a2f9703602ba34a34c15a41bc23fba42  bundler-v2.5.23.tar.gz
+76c008a71af25db5dda7055c98330fcb864fe7ffb4a5de34a0ad2bea403b28e0d945faf05685abf525b98c67c305068808fc596882676bbb1eb418d83377db41  manpages.patch
 "
