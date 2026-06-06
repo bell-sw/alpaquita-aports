@@ -672,12 +672,17 @@ libgcc() {
 	depends=
 
 	amove usr/lib/libgcc_s.so.*
+	# Symlink for Clang to find the library. Gets overwritten by the real
+	# library if gcc is installed.
+	ln -s /usr/lib/libgcc_s.so.1 \
+		"$subpkgdir"/usr/lib/libgcc_s.so
 }
 
 libgccstatic() {
 	pkgdesc="GNU C compiler runtime libraries"
 	depends=
 
+	amove "$_gcclibdir"/crtbegin.o
 	amove "$_gcclibdir"/crtbeginS.o
 	amove "$_gcclibdir"/crtendS.o
 	amove "$_gcclibdir"/libgcc.a
