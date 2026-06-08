@@ -5,7 +5,6 @@ Subject: [PATCH] Add distro naming customizations
 
 ---
  abuild.in       | 2 +-
- buildlab.in     | 6 +++---
  functions.sh.in | 2 +-
  3 files changed, 5 insertions(+), 5 deletions(-)
 
@@ -22,31 +21,6 @@ index 1dfcb1f..9dc17b6 100644
  
  	# busybox adduser/addgroup check if uid is 0 so we need to generate the files manually
  	awk -F: -v pkggroups="$pkggroups" -v pkgusers="$pkgusers" -v root="$BUILD_ROOT" -v home="$HOME" 'BEGIN {
-diff --git a/buildlab.in b/buildlab.in
-index 9c8edc9..a04e381 100644
---- a/buildlab.in
-+++ b/buildlab.in
-@@ -128,7 +128,7 @@ prepare_chroot() {
- 		ln -s /var/cache/apk "$path"/etc/apk/cache
- 	fi
- 
--	echo "alpine-base" > "$path"/etc/apk/world
-+	echo "distro-base" > "$path"/etc/apk/world
- 	mkdir -p "$path"/lib/apk/db
- 	mkdir -p "$path"/var/lock
- 	mkdir -p "$path"/var/cache/apk
-@@ -141,9 +141,9 @@ prepare_chroot() {
- 
- 	apk --arch $buildarch --root $path --repositories "$path"/etc/apk/repositories update
- 
--	msg "Installing alpine-base..."
-+	msg "Installing distro-base..."
- 
--	apk --arch $buildarch --root $path --repositories "$path"/etc/apk/repositories add --initdb alpine-base
-+	apk --arch $buildarch --root $path --repositories "$path"/etc/apk/repositories add --initdb distro-base
- 
- 	msg "Installing abuild..."
- 
 diff --git a/functions.sh.in b/functions.sh.in
 index 994494e..2ec4e87 100644
 --- a/functions.sh.in
