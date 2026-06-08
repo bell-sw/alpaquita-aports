@@ -1,18 +1,24 @@
 pkgname=crun
 pkgver=1.23.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Fast and lightweight fully featured OCI runtime and C library for running containers"
 url="https://github.com/containers/crun"
 license="GPL-2.0-or-later AND LGPL-2.1-or-later"
 arch="all"
 makedepends="libcap-dev libseccomp-dev yajl-dev musl:argp-standalone python3 go-md2man zstd"
 subpackages="$pkgname-doc $pkgname-static"
-source="https://github.com/containers/crun/releases/download/$pkgver/crun-$pkgver.tar.zst"
+source="https://github.com/containers/crun/releases/download/$pkgver/crun-$pkgver.tar.zst
+	0100-CVE-2026-30892.patch
+	0101-CVE-2026-47766.patch
+	"
 
 provides="oci-runtime"
 provider_priority=100 # highest, default provider
 
 # secfixes:
+#   1.23.1-r1:
+#     - CVE-2026-30892
+#     - CVE-2026-47766
 #   1.20-r0:
 #     - CVE-2025-24965
 #   1.4.4-r0:
@@ -35,4 +41,6 @@ package() {
 
 sha512sums="
 3ccff7a8031ae4ff78d738b8994e865d1b69733c3875c3a338d0620efdc9b9e1c0e3d051cf80c21e6dcda37e903aa538c4601b24c3d03493ddf68e65673798a5  crun-1.23.1.tar.zst
+85f0a698e3618ae3942a347d52a0b8464c64c36ed0d8df1b2458a06f9ea01a3bd403d0e9b8e2acaa31ce732dd54a74a10c32e4dfcb0b1eabc98f732292469c5d  0100-CVE-2026-30892.patch
+26acd7932673c186ea56d081e8772dce544cda1d834b17f66d2918f8a99b4896bacb11e69eba2bc1994b2a2a5800b1a733dac776150b639a5fb79e889f293464  0101-CVE-2026-47766.patch
 "
