@@ -2,7 +2,7 @@ pkgname=perl-html-parser
 #_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
 _pkgreal=HTML-Parser
 pkgver=3.80
-pkgrel=0
+pkgrel=1
 pkgdesc="HTML parser class"
 url="https://metacpan.org/release/HTML-Parser/"
 arch="all"
@@ -10,8 +10,15 @@ license="GPL-1.0-or-later OR Artistic-1.0-Perl"
 depends="perl perl-html-tagset perl-http-message perl-uri"
 makedepends="perl-dev"
 subpackages="$pkgname-doc"
-source="https://cpan.metacpan.org/authors/id/O/OA/OALDERS/HTML-Parser-$pkgver.tar.gz"
+source="https://cpan.metacpan.org/authors/id/O/OA/OALDERS/HTML-Parser-$pkgver.tar.gz
+
+	0100-CVE-2026-8829.patch
+	"
 builddir="$srcdir/$_pkgreal-$pkgver"
+
+# secfixes:
+#   3.80-r1:
+#     - CVE-2026-8829
 
 build() {
 	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
@@ -31,4 +38,5 @@ package() {
 
 sha512sums="
 0fa299791243cf15f07bc995109e4995ba3f851c3192345b64493e401fc2b4407d0196bfc79c58460791b041a3f5faf26625ec5da94660d071d1c06c954df415  HTML-Parser-3.80.tar.gz
+c4c76b0be97599b95b518ebb776dbcfad9bb3ed5099b5a0127460b307a89a98fc30c434f0f35047ffb4e977bb0ec2dbb6b8d3b5ce24fe5a03ee546206670bf12  0100-CVE-2026-8829.patch
 "
