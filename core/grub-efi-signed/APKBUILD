@@ -1,6 +1,6 @@
 pkgname=grub-efi-signed
 pkgver=2.12
-pkgrel=5
+pkgrel=6
 pkgdesc="Bootloader with support for Linux, Multiboot and more (EFI signed version)"
 url="https://www.gnu.org/software/grub/"
 arch="x86_64 aarch64"
@@ -9,7 +9,10 @@ depends="grub-efi"
 makedepends="sbsigntool grub-efi"
 install="$pkgname.post-install"
 options="!strip !check !annobin"
-source="../shim/bellsoft-uefi-ca.pem"
+source="
+	../shim/bellsoft-uefi-ca.pem
+	../shim/bellsoft-uefi-sign-2026.pem
+	"
 
 case "$CARCH" in
 aarch64) _format="arm64-efi";  _efi_sfx="aa64";;
@@ -20,7 +23,7 @@ sign_list="
 	boot/efi/EFI/$VENDOR_DISTRO/grub$_efi_sfx.efi
 	usr/lib/grub/$_format/unified/gcd$_efi_sfx.efi.signed
 "
-sign_verify="bellsoft-uefi-ca.pem"
+sign_verify="bellsoft-uefi-ca.pem bellsoft-uefi-sign-2026.pem"
 
 package() {
 	mkdir -p "$pkgdir"/boot/efi/EFI/"$VENDOR_DISTRO"/
@@ -35,4 +38,5 @@ package() {
 
 sha512sums="
 304d6a2d2c25af142b2cf2222079ebf59b8174f0825840dfc88e60016e5fcfe12973e0a250b4172ff7ea77cdb014cb5fec1a474965fee97478a6dcd0cbe6bdd3  bellsoft-uefi-ca.pem
+221aed90c73b1264bf270f2f5e970fd66e37fb977830b4b6c02219610ebe9685bf85c9d1f48c54837aec46b60c7e8153e3890c713fb3ae55b48b177b315d3623  bellsoft-uefi-sign-2026.pem
 "
