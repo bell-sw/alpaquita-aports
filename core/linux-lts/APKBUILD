@@ -3,7 +3,7 @@
 _flavor=lts
 pkgname=linux-${_flavor}
 pkgver=6.12.92
-pkgrel=0
+pkgrel=1
 _kernver=${pkgver%.*}
 pkgdesc="$VENDOR_DISTRO_NAME Linux lts kernel"
 url="https://www.kernel.org"
@@ -37,6 +37,7 @@ source="https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$_kernver
 	extramods.aarch64
 	x509.genkey
 	../shim/bellsoft-uefi-ca.pem
+	../shim/bellsoft-uefi-sign-2026.pem
 
 	0100-efi-Add-an-EFI_SECURE_BOOT-flag-to-indicate-secure-b.patch
 	0101-efi-Lock-down-the-kernel-if-booted-in-secure-boot-mo.patch
@@ -261,7 +262,7 @@ _package() {
 	local _abi_release="$(make -s kernelrelease)"
 
 	sign_list="boot/vmlinuz-${_abi_release}"
-	sign_verify="bellsoft-uefi-ca.pem"
+	sign_verify="bellsoft-uefi-ca.pem bellsoft-uefi-sign-2026.pem"
 
 	mkdir -p "$_outdir"/boot "$_outdir"/lib/modules
 
@@ -431,6 +432,7 @@ ba44e77280ebff9f364b48aa2b52126941cb73290534390c9d2f866a26a19cc17c6e1e769305ff98
 5e2b5eb280feaf15ced764117d052d8532096ab12d00674818814c954086549c81d38846043b7792663363b0588ff1279af6908282d322ff873434fe89ad860c  extramods.aarch64
 8ab1221f07d35b710da7e27d6e443ca303e03b69f29a21d2a8fef236a48e0b95b5521cd1e4adb1046d048a37a9d52989e5a5c55647da6f57f1ba7bb69230ce4f  x509.genkey
 304d6a2d2c25af142b2cf2222079ebf59b8174f0825840dfc88e60016e5fcfe12973e0a250b4172ff7ea77cdb014cb5fec1a474965fee97478a6dcd0cbe6bdd3  bellsoft-uefi-ca.pem
+221aed90c73b1264bf270f2f5e970fd66e37fb977830b4b6c02219610ebe9685bf85c9d1f48c54837aec46b60c7e8153e3890c713fb3ae55b48b177b315d3623  bellsoft-uefi-sign-2026.pem
 df2434a00fa8faae1e4a4531af60ccd983b6346cad7159f60676d6cef9c9d0508e50e8dc54640c99c4bbfbf2a690c6b529d75453ec64dff11b0bcae0aa2a0e2c  0100-efi-Add-an-EFI_SECURE_BOOT-flag-to-indicate-secure-b.patch
 f34f6243186ff0e3c2cb5280181adcc6285ecb4f45bc511cf9882c168caec0f48a23a2eeddf4fcb2ce1c4afb7fae80c1afff34d1230b74edd92a1cf0960eab7d  0101-efi-Lock-down-the-kernel-if-booted-in-secure-boot-mo.patch
 76b704de7bd90462798a5864c17679b10c1735cfb9baea6ef86ca5f47d11572cb81eb0394748b44258a77bad27aa17460e06e88f1ae107fd39b5f61e6e1a0680  0102-mtd-phram-slram-Disable-when-the-kernel-is-locked-do.patch
