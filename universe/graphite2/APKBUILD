@@ -1,7 +1,7 @@
 pkgname=graphite2
 _realname=${pkgname/2/}
 pkgver=1.3.14
-pkgrel=4
+pkgrel=5
 pkgdesc="reimplementation of the SIL Graphite text processing engine"
 options="!check" # Testsuite requires graphite 1
 url="https://graphite.sil.org/"
@@ -12,7 +12,13 @@ makedepends="$depends_dev cmake samurai"
 subpackages="$pkgname-static $pkgname-dev"
 source="$pkgname-$pkgver.tar.gz::https://github.com/silnrsi/$_realname/archive/$pkgver.tar.gz
 	cmake.patch
+
+	0100-CVE-2026-50593.patch
 	"
+
+# secfixes:
+#   1.3.14-r5:
+#     - CVE-2026-50593
 
 builddir="$srcdir"/$_realname-$pkgver
 
@@ -46,4 +52,5 @@ package() {
 sha512sums="
 49d127964d3f5c9403c7aecbfb5b18f32f25fe4919a81c49e0534e7123fe845423e16b0b8c8baaae21162b1150ab3e0f1c22c344e07d4364b6b8473c40a0822c  graphite2-1.3.14.tar.gz
 729fb5ce0b012dca27cda10ec2b8cdf90029394915072f3a11ee4a3ec1b62aa5d810ca118a428419ac88d0dd316b07de557601d1ce079d3f96bfff4be271addb  cmake.patch
+e91d0e03ee37ac4c3633e016beb723d829dc2e6f47e3a41966a4bbfbd717925f3b1c1c8e4b227d9c8dfe5907c5b5fe98faf621f2a7e9c7e5aa7518d37ecbf695  0100-CVE-2026-50593.patch
 "
