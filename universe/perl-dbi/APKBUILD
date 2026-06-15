@@ -2,7 +2,7 @@ pkgname=perl-dbi
 #_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
 _pkgreal=DBI
 pkgver=1.643
-pkgrel=4
+pkgrel=5
 pkgdesc="Database independent interface for Perl"
 url="https://metacpan.org/release/DBI/"
 arch="all"
@@ -10,10 +10,17 @@ license="GPL-1.0-or-later OR Artistic-1.0-Perl"
 depends="perl"
 makedepends="perl-dev"
 subpackages="$pkgname-doc"
-source="https://cpan.metacpan.org/authors/id/T/TI/TIMB/DBI-$pkgver.tar.gz"
+source="https://cpan.metacpan.org/authors/id/T/TI/TIMB/DBI-$pkgver.tar.gz
+
+	0100-CVE-2026-9698.patch
+	0101-CVE-2026-10879.patch
+	"
 builddir="$srcdir/$_pkgreal-$pkgver"
 
 # secfixes:
+#   1.643-r5:
+#     - CVE-2026-9698
+#     - CVE-2026-10879
 #   1.643-r0:
 #     - CVE-2020-14392
 #     - CVE-2020-14393
@@ -37,4 +44,6 @@ package() {
 
 sha512sums="
 03812f3eb1e43c8290dadb8cb14bbced9ec6e237228ea2a2ba91f22e52143906a91a7e82945dab30b1d1b9fc925073721111adafd9a09fac070808ab88f908b8  DBI-1.643.tar.gz
+08c155e20ece71baf63e3bb8eb69d92c32982f4f4209bf25ae811af3188d96e01e3ec93b7cdb80573753257d7c027bfc48bddf82a6614aa7d96c5b46177fcb33  0100-CVE-2026-9698.patch
+5884aeaf2c34b154ced766ed0e803660c96a2f9f442d35bada540e6c66e4f48da4b33e593f139b6bd1a870d8f58be35ccc14f2121741bc031d0dc54ee8a2ac25  0101-CVE-2026-10879.patch
 "
