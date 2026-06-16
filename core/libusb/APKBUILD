@@ -3,7 +3,7 @@
 
 pkgname=libusb
 pkgver=1.0.26
-pkgrel=0
+pkgrel=1
 pkgdesc="Userspace library to access to USB devices"
 url="https://libusb.info/"
 arch="all"
@@ -11,7 +11,17 @@ license="LGPL-2.0-or-later"
 subpackages="$pkgname-dev"
 replaces="libusbx"
 makedepends="linux-headers"
-source="https://github.com/libusb/libusb/releases/download/v$pkgver/libusb-$pkgver.tar.bz2"
+source="https://github.com/libusb/libusb/releases/download/v$pkgver/libusb-$pkgver.tar.bz2
+
+	0100-CVE-2026-23679.patch
+	"
+
+# secfixes:
+#   1.0.26-r1:
+#     - CVE-2026-23679
+#   0:
+#     - CVE-2026-47104
+
 
 build() {
 	./configure \
@@ -33,4 +43,5 @@ package() {
 
 sha512sums="
 fcdb85c98f21639668693c2fd522814d440972d65883984c4ae53d0555bdbdb7e8c7a32199cd4b01113556a1eb5be7841b750cc73c9f6bda79bfe1af80914e71  libusb-1.0.26.tar.bz2
+e8fb816c7a7a23bbf9542d3ff501c4a6dcd7fc5c20946dce4c4fc66d8f45b5f65ba0e03d9a30cf0faad5d4339a123b2385da63daab9d1bdb3bf9867e4ec366f6  0100-CVE-2026-23679.patch
 "
