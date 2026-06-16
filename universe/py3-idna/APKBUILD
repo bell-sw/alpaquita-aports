@@ -3,7 +3,7 @@
 pkgname=py3-idna
 _pkgname=idna
 pkgver=3.10
-pkgrel=0
+pkgrel=1
 pkgdesc="IDNA 2008 and UTS #46 for Python3"
 url="https://github.com/kjd/idna"
 arch="noarch"
@@ -17,13 +17,18 @@ makedepends="
 	"
 checkdepends="py3-pytest"
 subpackages="$pkgname-pyc"
-source="$_pkgname-$pkgver.tar.gz::https://github.com/kjd/idna/archive/v$pkgver.tar.gz"
+source="$_pkgname-$pkgver.tar.gz::https://github.com/kjd/idna/archive/v$pkgver.tar.gzo
+
+        0100-CVE-2026-45409.patch
+        "
 builddir="$srcdir/$_pkgname-$pkgver"
 
 replaces="py-idna" # Backwards compatibility
 provides="py-idna=$pkgver-r$pkgrel" # Backwards compatibility
 
 # secfixes:
+#   3.10-r1:
+#     - CVE-2026-45409
 #   3.7-r0:
 #     - CVE-2024-3651
 
@@ -46,4 +51,5 @@ package() {
 
 sha512sums="
 c3ab2d49ab0b3b96d390a6ca1634d2ea3813655df767868ca72f3d4cb0bf4c6e72830579fe0b43a49dba060cd28a66b041715ff0fd63bb27ed1b6bfa66030625  idna-3.10.tar.gz
+d8c9c01e186885e43faa35e7342b5649f6469031b3272701c5d28ab11035867601f3328fd6de7ef3e21b55c91840c630506eac9dadec0fc661410257d465b439  0100-CVE-2026-45409.patch
 "
