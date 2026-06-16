@@ -3,7 +3,7 @@
 
 pkgname=libusb
 pkgver=1.0.28
-pkgrel=0
+pkgrel=1
 pkgdesc="Userspace library to access to USB devices"
 url="https://libusb.info/"
 arch="all"
@@ -11,7 +11,16 @@ license="LGPL-2.1-or-later"
 subpackages="$pkgname-dev"
 replaces="libusbx"
 makedepends="linux-headers"
-source="https://github.com/libusb/libusb/releases/download/v$pkgver/libusb-$pkgver.tar.bz2"
+source="https://github.com/libusb/libusb/releases/download/v$pkgver/libusb-$pkgver.tar.bz2
+
+	0100-descriptor-Fix-two-memory-safety-bugs-in-malformed-c.patch
+	"
+
+# secfixes:
+#   1.0.28-r1:
+#     - CVE-2026-23679
+#     - CVE-2026-47104
+
 
 build() {
 	./configure \
@@ -33,4 +42,5 @@ package() {
 
 sha512sums="
 0f4efa6b54e6195d2e5446652c2dc07358583e205d63bf438c4409511b8637d1700a71268c40499755747827d23cc730d9122267386f847bf781993c045c519f  libusb-1.0.28.tar.bz2
+d25829c82992cb7d302c47bf19194165114a1201155b3eae64e59e2bc773bf54fc52c0e6c31df701ce9bd424d76f3c93089a179fd620b760ef312bf3bfc91ad3  0100-descriptor-Fix-two-memory-safety-bugs-in-malformed-c.patch
 "
