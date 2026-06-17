@@ -1,6 +1,6 @@
 pkgname=tmux
 pkgver=3.5a
-pkgrel=0
+pkgrel=1
 pkgdesc="Tool to control multiple terminals from a single terminal"
 url="https://tmux.github.io"
 arch="all"
@@ -8,9 +8,14 @@ license="ISC"
 depends="ncurses-terminfo-base"
 makedepends="bison libevent-dev ncurses-dev"
 subpackages="$pkgname-doc"
-source="https://github.com/tmux/tmux/releases/download/$pkgver/tmux-$pkgver.tar.gz"
+source="https://github.com/tmux/tmux/releases/download/$pkgver/tmux-$pkgver.tar.gz
+
+	0100-CVE-2026-11623.patch
+	"
 
 # secfixes:
+#   3.5a-r1:
+#     - CVE-2026-11623
 #   3.1c-r0:
 #     - CVE-2020-27347
 
@@ -46,4 +51,5 @@ package() {
 
 sha512sums="
 2383e99aec2dcdb1d899793d5ecab40a68b921194f84770d3f4d19712bfc85590657a99d2a9a7bec36d4ba5ab39fa713f13937b0acad3b61cd9b2302dba61d43  tmux-3.5a.tar.gz
+c69b82d2eef3400452607a4b844438f0629cc848b18bfcb6e8907596a0b0c748db106edfde37034f5ed30614ed36e2c34295ff58ce351c375299fa96980af721  0100-CVE-2026-11623.patch
 "
