@@ -1,7 +1,7 @@
 pkgname=opensc
 _realname=OpenSC
 pkgver=0.27.1
-pkgrel=0
+pkgrel=1
 pkgdesc="Open source smart card tools and middleware"
 url="https://github.com/OpenSC/OpenSC"
 arch="all"
@@ -11,11 +11,16 @@ depends_dev="zlib-dev pcsc-lite-dev openssl-dev>3 readline-dev"
 makedepends="$depends_dev automake autoconf m4 gettext libtool"
 checkdepends="bash"
 subpackages="$pkgname-dev $pkgname-doc $pkgname-bash-completion:bashcomp:noarch"
-source="$_realname-$pkgver.tar.gz::https://github.com/OpenSC/OpenSC/archive/$pkgver.tar.gz"
+source="$_realname-$pkgver.tar.gz::https://github.com/OpenSC/OpenSC/archive/refs/tags/$pkgver.tar.gz
+
+	0100-CVE-2026-10275.patch
+	"
 
 builddir="$srcdir/$_realname-$pkgver"
 
 # secfixes:
+#   0.27.1-r1:
+#     - CVE-2026-10275
 #   0.27.1-r0:
 #     - CVE-2025-13763
 #     - CVE-2025-49010
@@ -118,4 +123,5 @@ bashcomp() {
 
 sha512sums="
 c42d0ca7c1826c9b0b9c903df4140618c0a13c789af142f5a0e9ea4fe6688ba384e640324b5e66c49e59baffee2c8c3de95d92ce678b83dc0effe372a93a897f  OpenSC-0.27.1.tar.gz
+cd0014b6a68b6fca6716f7a9073c42b401a86b8f3ebae0722ba144a3aaaf6c02dd8175741ca85822467dd981b9af52a9a4aa4210d674825293de67baeb6b6570  0100-CVE-2026-10275.patch
 "
