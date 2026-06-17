@@ -1,4 +1,4 @@
-From 3c2f688675636a11ffeb4b551c1fca72d947f399 Mon Sep 17 00:00:00 2001
+From afbd8ba6bf4165f130111315754af91712d8e880 Mon Sep 17 00:00:00 2001
 From: David Howells <dhowells@redhat.com>
 Date: Mon, 18 Feb 2019 12:45:03 +0000
 Subject: [PATCH] efi: Add an EFI_SECURE_BOOT flag to indicate secure boot mode
@@ -30,10 +30,10 @@ cc: linux-efi@vger.kernel.org
  create mode 100644 drivers/firmware/efi/secureboot.c
 
 diff --git a/arch/x86/kernel/setup.c b/arch/x86/kernel/setup.c
-index f1fea506e20f..876ac9855f4f 100644
+index 383d4a4784f5..01f30c06abf1 100644
 --- a/arch/x86/kernel/setup.c
 +++ b/arch/x86/kernel/setup.c
-@@ -1070,19 +1070,7 @@ void __init setup_arch(char **cmdline_p)
+@@ -1160,19 +1160,7 @@ void __init setup_arch(char **cmdline_p)
  	/* Allocate bigger log buffer */
  	setup_log_buf(1);
  
@@ -55,7 +55,7 @@ index f1fea506e20f..876ac9855f4f 100644
  	reserve_initrd();
  
 diff --git a/drivers/firmware/efi/Makefile b/drivers/firmware/efi/Makefile
-index a2d0009560d0..4f3486e6a84b 100644
+index 8efbcf699e4f..96d5a1ca981d 100644
 --- a/drivers/firmware/efi/Makefile
 +++ b/drivers/firmware/efi/Makefile
 @@ -25,6 +25,7 @@ subdir-$(CONFIG_EFI_STUB)		+= libstub
@@ -112,14 +112,14 @@ index 000000000000..b6620669e32b
 +	}
 +}
 diff --git a/include/linux/efi.h b/include/linux/efi.h
-index 2f1bfd7562eb..7cfe7291c1a2 100644
+index a98cc39e7aaa..1d5f8fa07b4d 100644
 --- a/include/linux/efi.h
 +++ b/include/linux/efi.h
-@@ -876,6 +876,14 @@ static inline int efi_range_is_wc(unsigned long start, unsigned long len)
- #define EFI_MEM_ATTR		10	/* Did firmware publish an EFI_MEMORY_ATTRIBUTES table? */
- #define EFI_MEM_NO_SOFT_RESERVE	11	/* Is the kernel configured to ignore soft reservations? */
- #define EFI_PRESERVE_BS_REGIONS	12	/* Are EFI boot-services memory segments available? */
-+#define EFI_SECURE_BOOT		13	/* Are we in Secure Boot mode? */
+@@ -865,6 +865,14 @@ static inline int efi_range_is_wc(unsigned long start, unsigned long len)
+ #define EFI_MEM_ATTR		9	/* Did firmware publish an EFI_MEMORY_ATTRIBUTES table? */
+ #define EFI_MEM_NO_SOFT_RESERVE	10	/* Is the kernel configured to ignore soft reservations? */
+ #define EFI_PRESERVE_BS_REGIONS	11	/* Are EFI boot-services memory segments available? */
++#define EFI_SECURE_BOOT		12	/* Are we in Secure Boot mode? */
 +
 +enum efi_secureboot_mode {
 +	efi_secureboot_mode_unset,
@@ -130,7 +130,7 @@ index 2f1bfd7562eb..7cfe7291c1a2 100644
  
  #ifdef CONFIG_EFI
  /*
-@@ -900,6 +908,7 @@ static inline bool efi_rt_services_supported(unsigned int mask)
+@@ -889,6 +897,7 @@ static inline bool efi_rt_services_supported(unsigned int mask)
  	return (efi.runtime_supported_mask & mask) == mask;
  }
  extern void efi_find_mirror(void);
@@ -138,7 +138,7 @@ index 2f1bfd7562eb..7cfe7291c1a2 100644
  #else
  static inline bool efi_enabled(int feature)
  {
-@@ -919,6 +928,7 @@ static inline bool efi_rt_services_supported(unsigned int mask)
+@@ -908,6 +917,7 @@ static inline bool efi_rt_services_supported(unsigned int mask)
  }
  
  static inline void efi_find_mirror(void) {}
@@ -146,7 +146,7 @@ index 2f1bfd7562eb..7cfe7291c1a2 100644
  #endif
  
  extern int efi_status_to_err(efi_status_t status);
-@@ -1137,13 +1147,6 @@ static inline bool efi_runtime_disabled(void) { return true; }
+@@ -1126,13 +1136,6 @@ static inline bool efi_runtime_disabled(void) { return true; }
  extern void efi_call_virt_check_flags(unsigned long flags, const void *caller);
  extern unsigned long efi_call_virt_save_flags(void);
  
@@ -161,5 +161,5 @@ index 2f1bfd7562eb..7cfe7291c1a2 100644
  enum efi_secureboot_mode efi_get_secureboot_mode(efi_get_variable_t *get_var)
  {
 -- 
-2.25.1
+2.34.1
 
