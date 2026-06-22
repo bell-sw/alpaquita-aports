@@ -1,23 +1,26 @@
 pkgname=py3-jwt
-pkgver=2.10.1
-pkgrel=1
+pkgver=2.13.0
+pkgrel=0
 pkgdesc="Python3 JSON Web Token implementation"
 url="https://github.com/jpadilla/pyjwt"
 license="MIT"
 arch="noarch"
 makedepends="py3-gpep517 py3-installer py3-setuptools py3-wheel"
-checkdepends="py3-pytest"
+checkdepends="py3-tox"
 subpackages="$pkgname-pyc"
-source="https://github.com/jpadilla/pyjwt/archive/$pkgver/py3-jwt-$pkgver.tar.gz
-
-	0100-CVE-2026-32597.patch
-	"
+source="https://github.com/jpadilla/pyjwt/archive/$pkgver/py3-jwt-$pkgver.tar.gz"
 builddir="$srcdir/pyjwt-$pkgver"
 
 replaces="py-jwt" # Backwards compatibility
 provides="py-jwt=$pkgver-r$pkgrel" # Backwards compatibility
 
 # secfixes:
+#   2.13.0-r0:
+#     - CVE-2026-48522
+#     - CVE-2026-48523
+#     - CVE-2026-48524
+#     - CVE-2026-48525
+#     - CVE-2026-48526
 #   2.10.1-r1:
 #     - CVE-2026-32597
 #   2.4.0-r0:
@@ -30,7 +33,11 @@ build() {
 }
 
 check() {
-	pytest
+	# https://github.com/jpadilla/pyjwt/issues/1167
+	# test_decodes_complete_valid_jwt_with_compressed_payload
+	#   FutureWarning: invalid character '/' in URL-safe Base64 data
+	#   will be discarded in future Python versions
+	tox -e py312-crypto -- -W ignore::FutureWarning
 }
 
 package() {
@@ -39,6 +46,5 @@ package() {
 }
 
 sha512sums="
-9fc11a70960122799280669634bfeb9035222b9bda01eb31219d8f9a16d016a70617472ccd6873ceccc2124112dabfe160933d8eb24a096c14940625909dbe65  py3-jwt-2.10.1.tar.gz
-75ce347e9adb172100eb82b945e2d8381edfd4cc36a93b371bc1b2d342e9c5eb83969aa9e016c05d1b8328570daa51bfd31276dcdebd146cbb6b9254949bf811  0100-CVE-2026-32597.patch
+af83176e4b1342ae0eb67104634523ac2937075a13867006a3bf9e0f8452400a11883918ff83adac0613fd847191abc6f6cf69032678e8c4d1438e90ab0b79ec  py3-jwt-2.13.0.tar.gz
 "
