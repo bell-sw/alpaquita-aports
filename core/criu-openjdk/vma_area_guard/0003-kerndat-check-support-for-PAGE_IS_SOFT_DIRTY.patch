@@ -1,0 +1,66 @@
+From 57bd110ec6b4b300e57b793af1f9172353803e5f Mon Sep 17 00:00:00 2001
+From: Radostin Stoyanov <rstoyanov@fedoraproject.org>
+Date: Mon, 12 Feb 2024 11:52:41 +0000
+Subject: [PATCH] kerndat: check support for PAGE_IS_SOFT_DIRTY
+
+The commit introducing PAGE_IS_SOFT_DIRTY has not been merged
+in kernel v6.7.x.
+
+fs/proc/task_mmu: report SOFT_DIRTY bits through the PAGEMAP_SCAN ioctl
+https://github.com/torvalds/linux/commit/e6a9a2cbc13bf
+
+As a result, CRIU fails with the following error:
+
+Error (criu/pagemap-cache.c:199): pagemap-cache: PAGEMAP_SCAN: Invalid argument'
+Error (criu/pagemap-cache.c:225): pagemap-cache: Failed to fill cache for 63 (400000-402000)'
+
+This patch updates check_pagemap() in kerndat to check if PAGE_IS_SOFT_DIRTY is supported.
+Fixes: #2334
+
+Signed-off-by: Radostin Stoyanov <rstoyanov@fedoraproject.org>
+(cherry picked from commit e0f91e66ee7d4b5e52ae52cc6b891d1ffc0a0f7c)
+---
+ criu/kerndat.c | 18 +++++++++++-------
+ 1 file changed, 11 insertions(+), 7 deletions(-)
+
+diff --git a/criu/kerndat.c b/criu/kerndat.c
+index fbfd732b8..d573ade98 100644
+--- a/criu/kerndat.c
++++ b/criu/kerndat.c
+@@ -60,6 +60,14 @@ static int check_pagemap(void)
+ {
+ 	int ret, fd;
+ 	u64 pfn = 0;
++	struct pm_scan_arg args = {
++		.size = sizeof(struct pm_scan_arg),
++		.flags = 0,
++		.category_inverted = PAGE_IS_PFNZERO | PAGE_IS_FILE,
++		.category_mask = PAGE_IS_PFNZERO | PAGE_IS_FILE,
++		.category_anyof_mask = PAGE_IS_PRESENT | PAGE_IS_SWAPPED,
++		.return_mask = PAGE_IS_PRESENT | PAGE_IS_SWAPPED | PAGE_IS_SOFT_DIRTY,
++	};
+ 
+ 	fd = __open_proc(PROC_SELF, EPERM, O_RDONLY, "pagemap");
+ 	if (fd < 0) {
+@@ -72,15 +80,11 @@ static int check_pagemap(void)
+ 		return -1;
+ 	}
+ 
+-	if (ioctl(fd, PAGEMAP_SCAN, NULL) == 0) {
+-		pr_err("PAGEMAP_SCAN succeeded unexpectedly\n");
+-		return -1;
++	if (ioctl(fd, PAGEMAP_SCAN, &args) == 0) {
++		pr_debug("PAGEMAP_SCAN is supported\n");
++		kdat.has_pagemap_scan = true;
+ 	} else {
+ 		switch (errno) {
+-		case EFAULT:
+-			pr_debug("PAGEMAP_SCAN is supported\n");
+-			kdat.has_pagemap_scan = true;
+-			break;
+ 		case EINVAL:
+ 		case ENOTTY:
+ 			pr_debug("PAGEMAP_SCAN isn't supported\n");
+-- 
+2.34.1
+

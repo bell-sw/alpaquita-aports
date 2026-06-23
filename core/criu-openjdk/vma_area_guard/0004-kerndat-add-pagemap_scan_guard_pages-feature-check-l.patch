@@ -1,0 +1,115 @@
+From 9d0f18da6aa6375814150f182f2c17e84d53f705 Mon Sep 17 00:00:00 2001
+From: Alexander Mikhalitsyn <aleksandr.mikhalitsyn@canonical.com>
+Date: Sat, 19 Apr 2025 20:36:45 +0200
+Subject: [PATCH] kerndat: add pagemap_scan_guard_pages feature check logic
+
+Signed-off-by: Alexander Mikhalitsyn <aleksandr.mikhalitsyn@canonical.com>
+(cherry picked from commit 4fc07a8a41f468b72e912fe38c96be18d37518d6)
+
+Conflicts:
+	criu/cr-check.c
+---
+ criu/cr-check.c             |  9 +++++++++
+ criu/include/kerndat.h      |  3 +++
+ criu/include/pagemap_scan.h |  1 +
+ criu/kerndat.c              | 12 ++++++++++++
+ 4 files changed, 25 insertions(+)
+
+diff --git a/criu/cr-check.c b/criu/cr-check.c
+index 85520181c..ecc9c6693 100644
+--- a/criu/cr-check.c
++++ b/criu/cr-check.c
+@@ -1370,6 +1370,13 @@ static int check_pagemap_scan(void)
+ 	return 0;
+ }
+ 
++static int check_pagemap_scan_guard_pages(void)
++{
++	kerndat_warn_about_madv_guards();
++
++	return kdat.has_pagemap_scan_guard_pages ? 0 : -1;
++}
++
+ static int (*chk_feature)(void);
+ 
+ /*
+@@ -1494,6 +1501,7 @@ int cr_check(void)
+ 		ret |= check_openat2();
+ 		ret |= check_ptrace_get_rseq_conf();
+ 		ret |= check_pagemap_scan();
++		ret |= check_pagemap_scan_guard_pages();
+ 	}
+ 
+ 	/*
+@@ -1612,6 +1620,7 @@ static struct feature_list feature_list[] = {
+ 	{ "openat2", check_openat2 },
+ 	{ "get_rseq_conf", check_ptrace_get_rseq_conf },
+ 	{ "pagemap_scan", check_pagemap_scan },
++	{ "pagemap_scan_guard_pages", check_pagemap_scan_guard_pages },
+ 	{ NULL, NULL },
+ };
+ 
+diff --git a/criu/include/kerndat.h b/criu/include/kerndat.h
+index 881a5f1e6..6c52a5868 100644
+--- a/criu/include/kerndat.h
++++ b/criu/include/kerndat.h
+@@ -84,6 +84,7 @@ struct kerndat_s {
+ 	bool has_ptrace_get_rseq_conf;
+ 	bool has_pagemap_scan;
+ 	bool has_madv_guard;
++	bool has_pagemap_scan_guard_pages;
+ };
+ 
+ extern struct kerndat_s kdat;
+@@ -106,4 +107,6 @@ extern int kerndat_fs_virtualized(unsigned int which, u32 kdev);
+ 
+ extern int kerndat_has_nspid(void);
+ 
++extern void kerndat_warn_about_madv_guards(void);
++
+ #endif /* __CR_KERNDAT_H__ */
+diff --git a/criu/include/pagemap_scan.h b/criu/include/pagemap_scan.h
+index 0ad4c9bc0..9046e01ed 100644
+--- a/criu/include/pagemap_scan.h
++++ b/criu/include/pagemap_scan.h
+@@ -14,6 +14,7 @@
+ #define PAGE_IS_PFNZERO	   (1 << 5)
+ #define PAGE_IS_HUGE	   (1 << 6)
+ #define PAGE_IS_SOFT_DIRTY (1 << 7)
++#define PAGE_IS_GUARD	   (1 << 8)
+ 
+ /*
+  * struct page_region - Page region with flags
+diff --git a/criu/kerndat.c b/criu/kerndat.c
+index d573ade98..0523f0de9 100644
+--- a/criu/kerndat.c
++++ b/criu/kerndat.c
+@@ -83,6 +83,10 @@ static int check_pagemap(void)
+ 	if (ioctl(fd, PAGEMAP_SCAN, &args) == 0) {
+ 		pr_debug("PAGEMAP_SCAN is supported\n");
+ 		kdat.has_pagemap_scan = true;
++
++		args.return_mask |= PAGE_IS_GUARD;
++		if (ioctl(fd, PAGEMAP_SCAN, &args) == 0)
++			kdat.has_pagemap_scan_guard_pages = true;
+ 	} else {
+ 		switch (errno) {
+ 		case EINVAL:
+@@ -1521,6 +1525,14 @@ mmap_cleanup:
+ 	return -1;
+ }
+ 
++void kerndat_warn_about_madv_guards(void)
++{
++	if (kdat.has_madv_guard && !kdat.has_pagemap_scan_guard_pages)
++		pr_warn("ioctl(PAGEMAP_SCAN) doesn't support PAGE_IS_GUARD flag. "
++			"CRIU dump will fail if dumped processes use madvise(MADV_GUARD_INSTALL). "
++			"Please, consider updating your kernel.\n");
++}
++
+ /*
+  * Some features depend on resource that can be dynamically changed
+  * at the OS runtime. There are cases that we cannot determine the
+-- 
+2.34.1
+

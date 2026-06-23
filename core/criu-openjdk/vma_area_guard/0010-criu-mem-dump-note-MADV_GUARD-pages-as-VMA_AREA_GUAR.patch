@@ -1,0 +1,133 @@
+From 24cf82d77e58d6e3eb376e6e51ec84fadf42f1dc Mon Sep 17 00:00:00 2001
+From: Alexander Mikhalitsyn <aleksandr.mikhalitsyn@canonical.com>
+Date: Mon, 4 Aug 2025 10:48:47 +0200
+Subject: [PATCH] criu/mem: dump: note MADV_GUARD pages as VMA_AREA_GUARD VMAs
+
+Signed-off-by: Alexander Mikhalitsyn <aleksandr.mikhalitsyn@canonical.com>
+(cherry picked from commit 9c0f725a625126063e09d01ebc087d1e36a0dcc5)
+---
+ criu/cr-dump.c     | 17 ++++++++++++
+ criu/include/mem.h |  1 +
+ criu/mem.c         | 69 ++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 87 insertions(+)
+
+diff --git a/criu/cr-dump.c b/criu/cr-dump.c
+index 151c9a1da..87f4b1dab 100644
+--- a/criu/cr-dump.c
++++ b/criu/cr-dump.c
+@@ -130,6 +130,23 @@ int collect_mappings(pid_t pid, struct vm_area_list *vma_area_list, dump_filemap
+ 	if (ret < 0)
+ 		goto err;
+ 
++	/*
++	 * In addition to real process VMAs we should keep an info about
++	 * madvise(MADV_GUARD_INSTALL) pages. While these are not represented
++	 * as a struct vm_area_struct in the kernel, it is convenient to treat
++	 * them as mappings in CRIU and reuse the same VMA images but with only
++	 * VMA_AREA_GUARD flag set.
++	 *
++	 * Also, we don't need to dump them during pre-dump.
++	 */
++	if (dump_file) {
++		ret = collect_madv_guards(pid, vma_area_list);
++		if (ret < 0) {
++			pr_err("Collect MADV_GUARD_INSTALL pages (pid: %d) failed with %d\n", pid, ret);
++			goto err;
++		}
++	}
++
+ 	pr_info("Collected, longest area occupies %lu pages\n", vma_area_list->nr_priv_pages_longest);
+ 	pr_info_vma_list(&vma_area_list->h);
+ 
+diff --git a/criu/include/mem.h b/criu/include/mem.h
+index 184acd024..b14677709 100644
+--- a/criu/include/mem.h
++++ b/criu/include/mem.h
+@@ -31,6 +31,7 @@ extern int do_task_reset_dirty_track(int pid);
+ extern unsigned long dump_pages_args_size(struct vm_area_list *vmas);
+ extern int parasite_dump_pages_seized(struct pstree_item *item, struct vm_area_list *vma_area_list,
+ 				      struct mem_dump_ctl *mdc, struct parasite_ctl *ctl);
++extern int collect_madv_guards(pid_t pid, struct vm_area_list *vma_area_list);
+ 
+ #define PME_PRESENT	  (1ULL << 63)
+ #define PME_SWAP	  (1ULL << 62)
+diff --git a/criu/mem.c b/criu/mem.c
+index e0c07708a..7fb1bb883 100644
+--- a/criu/mem.c
++++ b/criu/mem.c
+@@ -1530,3 +1530,72 @@ int prepare_vmas(struct pstree_item *t, struct task_restore_args *ta)
+ 
+ 	return prepare_vma_ios(t, ta);
+ }
++
++int collect_madv_guards(pid_t pid, struct vm_area_list *vma_area_list)
++{
++	int pagemap_fd = -1;
++	struct page_region *regs = NULL;
++	long regs_len = 0;
++	int i, ret = -1;
++
++	struct pm_scan_arg args = {
++		.size = sizeof(struct pm_scan_arg),
++		.flags = 0,
++		.start = 0,
++		.end = kdat.task_size,
++		.walk_end = 0,
++		.vec_len = 1000, /* this should be enough for most cases */
++		.max_pages = 0,
++		.category_mask = PAGE_IS_GUARD,
++		.return_mask = PAGE_IS_GUARD,
++	};
++
++	if (!kdat.has_pagemap_scan_guard_pages) {
++		ret = 0;
++		goto out;
++	}
++
++	pagemap_fd = open_proc(pid, "pagemap");
++	if (pagemap_fd < 0)
++		goto out;
++
++	regs = xmalloc(args.vec_len * sizeof(struct page_region));
++	if (!regs)
++		goto out;
++	args.vec = (long)regs;
++
++	do {
++		/* start from where we finished the last time */
++		args.start = args.walk_end;
++		regs_len = ioctl(pagemap_fd, PAGEMAP_SCAN, &args);
++		if (regs_len == -1) {
++			pr_perror("PAGEMAP_SCAN");
++			goto out;
++		}
++
++		for (i = 0; i < regs_len; i++) {
++			struct vma_area *vma;
++
++			BUG_ON(!(regs[i].categories & PAGE_IS_GUARD));
++
++			vma = alloc_vma_area();
++			if (!vma)
++				goto out;
++
++			vma->e->start = regs[i].start;
++			vma->e->end = regs[i].end;
++			vma->e->status = VMA_AREA_GUARD;
++
++			list_add_tail(&vma->list, &vma_area_list->h);
++			vma_area_list->nr++;
++		}
++	} while (args.walk_end != kdat.task_size);
++
++	ret = 0;
++
++out:
++	xfree(regs);
++	if (pagemap_fd >= 0)
++		close(pagemap_fd);
++	return ret;
++}
+-- 
+2.34.1
+

@@ -1,0 +1,28 @@
+From b0358b06944ecd51bf057559474e8d99459121c7 Mon Sep 17 00:00:00 2001
+From: Alexander Mikhalitsyn <aleksandr.mikhalitsyn@canonical.com>
+Date: Sat, 19 Apr 2025 20:42:43 +0200
+Subject: [PATCH] cr-dump: warn if MADV_GUARD is supported but isn't shown in
+ pagemap
+
+Signed-off-by: Alexander Mikhalitsyn <aleksandr.mikhalitsyn@canonical.com>
+(cherry picked from commit 1873e8f502f2495d8792716df277664f6e3c4852)
+---
+ criu/cr-dump.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/criu/cr-dump.c b/criu/cr-dump.c
+index e4c78dbba..151c9a1da 100644
+--- a/criu/cr-dump.c
++++ b/criu/cr-dump.c
+@@ -2076,6 +2076,8 @@ int cr_dump_tasks(pid_t pid)
+ 	int pre_dump_ret = 0;
+ 	int ret = -1;
+ 
++	kerndat_warn_about_madv_guards();
++
+ 	pr_info("========================================\n");
+ 	pr_info("Dumping processes (pid: %d)\n", pid);
+ 	pr_info("========================================\n");
+-- 
+2.34.1
+

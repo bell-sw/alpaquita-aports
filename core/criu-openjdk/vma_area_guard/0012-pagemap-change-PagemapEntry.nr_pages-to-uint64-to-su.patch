@@ -1,0 +1,85 @@
+From 3411f873e45bd262a03d5a7772de16a9734bf086 Mon Sep 17 00:00:00 2001
+From: Andrei Vagin <avagin@gmail.com>
+Date: Thu, 18 Sep 2025 14:48:42 +0000
+Subject: [PATCH] pagemap: change PagemapEntry.nr_pages to uint64 to support
+ huge mappings
+
+Update the nr_pages field in PagemapEntry to uint64 to prepare for
+checkpointing and restoring huge memory mappings.
+
+Backward compatibility with older pagemap images is preserved.
+
+Signed-off-by: Andrei Vagin <avagin@gmail.com>
+(cherry picked from commit afb2e6c3f95dd0b15f739d9669bd7eaf120a2f31)
+---
+ criu/include/pagemap.h | 2 +-
+ criu/page-xfer.c       | 1 +
+ criu/pagemap.c         | 5 ++++-
+ images/pagemap.proto   | 3 ++-
+ 4 files changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/criu/include/pagemap.h b/criu/include/pagemap.h
+index 8085e38f1..8c7180559 100644
+--- a/criu/include/pagemap.h
++++ b/criu/include/pagemap.h
+@@ -116,7 +116,7 @@ extern int dedup_one_iovec(struct page_read *pr, unsigned long base, unsigned lo
+ 
+ static inline unsigned long pagemap_len(PagemapEntry *pe)
+ {
+-	return (unsigned long)pe->nr_pages * PAGE_SIZE;
++	return pe->nr_pages * PAGE_SIZE;
+ }
+ 
+ static inline bool page_read_has_parent(struct page_read *pr)
+diff --git a/criu/page-xfer.c b/criu/page-xfer.c
+index 782d4cafc..05008ad0f 100644
+--- a/criu/page-xfer.c
++++ b/criu/page-xfer.c
+@@ -311,6 +311,7 @@ static int write_pagemap_loc(struct page_xfer *xfer, struct iovec *iov, u32 flag
+ 	pe.nr_pages = iov->iov_len / PAGE_SIZE;
+ 	pe.has_flags = true;
+ 	pe.flags = flags;
++	pe.has_nr_pages = true;
+ 
+ 	if (flags & PE_PRESENT) {
+ 		if (opts.auto_dedup && xfer->parent != NULL) {
+diff --git a/criu/pagemap.c b/criu/pagemap.c
+index 83f69bba3..2ccd34119 100644
+--- a/criu/pagemap.c
++++ b/criu/pagemap.c
+@@ -171,7 +171,7 @@ static int seek_pagemap(struct page_read *pr, unsigned long vaddr)
+ static inline void pagemap_bound_check(PagemapEntry *pe, unsigned long vaddr, int nr)
+ {
+ 	if (vaddr < pe->vaddr || (vaddr - pe->vaddr) / PAGE_SIZE + nr > pe->nr_pages) {
+-		pr_err("Page read err %" PRIx64 ":%u vs %lx:%u\n", pe->vaddr, pe->nr_pages, vaddr, nr);
++		pr_err("Page read err %" PRIx64 ":%lu vs %lx:%u\n", pe->vaddr, pe->nr_pages, vaddr, nr);
+ 		BUG();
+ 	}
+ }
+@@ -682,6 +682,9 @@ static void init_compat_pagemap_entry(PagemapEntry *pe)
+ 		pe->flags |= PE_PARENT;
+ 	else if (!pe->has_flags)
+ 		pe->flags = PE_PRESENT;
++
++	if (!pe->has_nr_pages)
++		pe->nr_pages = pe->compat_nr_pages;
+ }
+ 
+ /*
+diff --git a/images/pagemap.proto b/images/pagemap.proto
+index e6d341b0f..f2436a51a 100644
+--- a/images/pagemap.proto
++++ b/images/pagemap.proto
+@@ -10,7 +10,8 @@ message pagemap_head {
+ 
+ message pagemap_entry {
+ 	required uint64 vaddr		= 1 [(criu).hex = true];
+-	required uint32 nr_pages	= 2;
++	required uint32 compat_nr_pages	= 2;
+ 	optional bool	in_parent	= 3;
+ 	optional uint32	flags		= 4 [(criu).flags = "pmap.flags" ];
++	optional uint64 nr_pages = 5;
+ }
+-- 
+2.34.1
+

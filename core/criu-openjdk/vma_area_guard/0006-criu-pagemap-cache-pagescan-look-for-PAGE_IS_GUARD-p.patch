@@ -1,0 +1,28 @@
+From d0dd513bab8a76939c83c6782622f4d1bef760b9 Mon Sep 17 00:00:00 2001
+From: Alexander Mikhalitsyn <aleksandr.mikhalitsyn@canonical.com>
+Date: Sun, 6 Apr 2025 20:51:24 +0200
+Subject: [PATCH] criu/pagemap-cache: pagescan: look for PAGE_IS_GUARD pages
+
+Signed-off-by: Alexander Mikhalitsyn <aleksandr.mikhalitsyn@canonical.com>
+(cherry picked from commit 42580fcb1614a002c54ab0115e81a77a81871418)
+---
+ criu/pagemap-cache.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/criu/pagemap-cache.c b/criu/pagemap-cache.c
+index 912c50ca8..493887aab 100644
+--- a/criu/pagemap-cache.c
++++ b/criu/pagemap-cache.c
+@@ -193,6 +193,9 @@ int pmc_fill(pmc_t *pmc, u64 start, u64 end)
+ 		};
+ 		long ret;
+ 
++		if (kdat.has_pagemap_scan_guard_pages)
++			args.return_mask |= PAGE_IS_GUARD;
++
+ 		ret = ioctl(pmc->fd, PAGEMAP_SCAN, &args);
+ 		if (ret == -1) {
+ 			pr_perror("PAGEMAP_SCAN");
+-- 
+2.34.1
+

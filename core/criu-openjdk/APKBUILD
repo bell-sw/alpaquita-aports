@@ -1,6 +1,6 @@
 pkgname=criu-openjdk
 pkgver=1.4
-pkgrel=6
+pkgrel=7
 pkgdesc="Checkpoint and Restore in Userspace"
 url="https://github.com/openjdk/crac"
 arch="aarch64 x86_64"
@@ -44,6 +44,22 @@ source="
 	criu-pr-2539-vdso-handle-vvar_vclock-vma-s.patch
 	musl:aarch64-musl-include.patch
 	vdso-switch-from-DT_HASH-to-DT_GNU_HASH-aarch64.patch
+
+	vma_area_guard/0001-criu-include-mman-define-MADV_GUARD_INSTALL.patch
+	vma_area_guard/0002-kerndat-add-madvise-MADV_GUARD_INSTALL-feature-detec.patch
+	vma_area_guard/0003-kerndat-check-support-for-PAGE_IS_SOFT_DIRTY.patch
+	vma_area_guard/0004-kerndat-add-pagemap_scan_guard_pages-feature-check-l.patch
+	vma_area_guard/0005-cr-dump-warn-if-MADV_GUARD-is-supported-but-isn-t-sh.patch
+	vma_area_guard/0006-criu-pagemap-cache-pagescan-look-for-PAGE_IS_GUARD-p.patch
+	vma_area_guard/0007-criu-mem-dump-skip-MADV_GUARD-pages-content-dump.patch
+	vma_area_guard/0008-criu-mem-vdso-cr-restore-introduce-VMA_AREA_GUARD-fa.patch
+	vma_area_guard/0009-criu-pie-restorer-add-madvise-MADV_GUARD_INSTALL-res.patch
+	vma_area_guard/0010-criu-mem-dump-note-MADV_GUARD-pages-as-VMA_AREA_GUAR.patch
+	vma_area_guard/0011-pagemap-prevent-integer-overflow-in-pagemap_len.patch
+	vma_area_guard/0012-pagemap-change-PagemapEntry.nr_pages-to-uint64-to-su.patch
+	vma_area_guard/0013-pagemap-use-unsigned-long-for-page-counts.patch
+	vma_area_guard/0014-pagemap-print-page-regions-in-the-format-start-end.patch
+	vma_area_guard/0015-pagemap-cache-stop-filling-cache-on-VMA_AREA_GUARD.patch
 	"
 
 builddir="$srcdir/checkpointrestore-criu-bell-sw-release-$pkgver-ga"
@@ -87,4 +103,19 @@ cd1f95f11b55466fe7173f22a0315b98fe5a487d3488750449aad04485fe7bb34a907b14651c5d7e
 3ea30b5178110902ed9eb111caf8241d41ad9804092955ccac5289879674db9f6138cf13d043ac2556b632743ecb7f4bdaf5836f0e5b3f050368c97873b526b8  criu-pr-2539-vdso-handle-vvar_vclock-vma-s.patch
 e7fc9943f0e4d5276296e07cc218e2d40bd8a77d15c296c80ffd32bd116d74c6568a59d96dff41185cf12a2734c2738d861929629b607ee3bec4e1ff8f751a97  aarch64-musl-include.patch
 d950cd6cc922c76a7fd8424628ab6cb4e69c05fd437c988d36199dbe8e096979538ab7d9af6c610b400c6e0337862bf93244498a2cd424ba80bf5ba28a7cdfe0  vdso-switch-from-DT_HASH-to-DT_GNU_HASH-aarch64.patch
+16289888711d33a13687034db01488df64eb0edaf611fe49b24bd2459d035ed8dd6957d5f1c0b0bbf5c84c14b4d2ee0530c9312adbc5345df6264b1e9c77e77b  0001-criu-include-mman-define-MADV_GUARD_INSTALL.patch
+7b67a6d5489325df9bfcf9229868862d5ae310b2edd90d535750ea299d82ecaf7b01200bc2af938a7372966f8b2413fa35a5df0062f963644531ea25b483ba0a  0002-kerndat-add-madvise-MADV_GUARD_INSTALL-feature-detec.patch
+a90c42197e9380bde0f1e17de2b4671bc802f053a77623be00e6fa9ba8ecbe43c678dfd8c91a531783372cebe2c484b9000b6c8d7113e91617ae56adbd5481f0  0003-kerndat-check-support-for-PAGE_IS_SOFT_DIRTY.patch
+9084d36464987078f29637b9e47b629c01a3987cf5a56f3d22d2ff67fd918467c4c972c2bf34d13430b5cb5bad8636a008f2888effda5a483c0310d3efbec43c  0004-kerndat-add-pagemap_scan_guard_pages-feature-check-l.patch
+fdec8aba8e4bab6a3912111f7f935bc74266cd81ef9e8a31c8423df29b0a6ddba64e6fa3964a237b1240127778e369ec936ad2eb88a387259067ecc45865701e  0005-cr-dump-warn-if-MADV_GUARD-is-supported-but-isn-t-sh.patch
+02c32647129f8f937acb9e314ea093640af8825b0bddeb36af7d72400fcf1013fc33e011d84fef4e9a9ac1a00b82032575ab93adef00e32421e06f7e2b7be15c  0006-criu-pagemap-cache-pagescan-look-for-PAGE_IS_GUARD-p.patch
+db1389d621f45a33a0e1d26245e64ec6748d1772e0a837c70d84ec94c95c79a1887dce962b89b9de29901b777cfc79346fdce913117861c042d529b8310b2b7f  0007-criu-mem-dump-skip-MADV_GUARD-pages-content-dump.patch
+5fde166d256af14a8ff0f3017a5e714c34e692ce8ceb2071c6be92c4e881c01f86488d42ff313ac8fb901d818833d5b83d3a33888828113340d6f5dae60ec0ff  0008-criu-mem-vdso-cr-restore-introduce-VMA_AREA_GUARD-fa.patch
+1d026395c9ee734944a7c4e4280a2a3190cde1227f4ba957378956b0091810099cac1a0121f037802646b4491a2ba96979993142f2389c6c1ad3d60a825bea27  0009-criu-pie-restorer-add-madvise-MADV_GUARD_INSTALL-res.patch
+e273aba53b240550f7f5a7df25f858ba53489d16f276da36b7bb1bbfd417483ba48820ff8922d6b8c1d27808cb774d418b8dd40066c65149c6203fb832b6a120  0010-criu-mem-dump-note-MADV_GUARD-pages-as-VMA_AREA_GUAR.patch
+5d1c5703838d2db2a9bfc3161c054abdb5e37c3abc98af78de101377ab56a3248a72d8c0a75838d0d9078cc129f06c052ccefbbe719d690b690579d78a2b80e0  0011-pagemap-prevent-integer-overflow-in-pagemap_len.patch
+4cfbe70bbd933c67f950e141fcc4eae8965a26f963e338718d0050657ac994259df17e5bfa93b95bcc229f9479ff920055bb692aa191395eea238bd10ad023fe  0012-pagemap-change-PagemapEntry.nr_pages-to-uint64-to-su.patch
+16a23ace137ba0482f56e061828225a300a85b7de29ed396246eaef654d9ab213790688e5fb4ef7449ecf629e0525445576877a5461bfaa79bafb893ef010d0d  0013-pagemap-use-unsigned-long-for-page-counts.patch
+81ea68d8d07ee7288ac7b7e528c0f3eef0ce7e0d36e76c0d91452f8e1c6b710359064a7022b22a55213b5ddf994334da3da50ac38ce8e421f6c9f9931a3e6dd8  0014-pagemap-print-page-regions-in-the-format-start-end.patch
+cf201f4913bb5648730772e3cc754ae732a17b45c613bada02a38a8aef54e106d18ff972331dd033f5144b61b92cb59392c88f4ca0de55b0000cb55533588bab  0015-pagemap-cache-stop-filling-cache-on-VMA_AREA_GUARD.patch
 "

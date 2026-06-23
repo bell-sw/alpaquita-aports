@@ -1,0 +1,72 @@
+From 00272986ee4f830b86ad53a52dfc9b50c1b86fad Mon Sep 17 00:00:00 2001
+From: Alexander Mikhalitsyn <aleksandr.mikhalitsyn@canonical.com>
+Date: Sun, 6 Apr 2025 20:10:10 +0200
+Subject: [PATCH] criu/pie/restorer: add madvise(MADV_GUARD_INSTALL) restore
+ logic
+
+Signed-off-by: Alexander Mikhalitsyn <aleksandr.mikhalitsyn@canonical.com>
+(cherry picked from commit 59b4d662ae8fd704dfc16f47628a676852f4c886)
+---
+ criu/pie/restorer.c | 32 ++++++++++++++++++++++++++++++++
+ 1 file changed, 32 insertions(+)
+
+diff --git a/criu/pie/restorer.c b/criu/pie/restorer.c
+index 697471ca6..874e68c7e 100644
+--- a/criu/pie/restorer.c
++++ b/criu/pie/restorer.c
+@@ -27,6 +27,7 @@
+ #include <compel/plugins/std/syscall.h>
+ #include <compel/plugins/std/log.h>
+ #include <compel/ksigset.h>
++#include "mman.h"
+ #include "signal.h"
+ #include "prctl.h"
+ #include "criu-log.h"
+@@ -1435,6 +1436,30 @@ static ssize_t mmap_image(int fd, const struct iovec *iov, int iovcnt,
+ 	return mmaped;
+ }
+ 
++static int restore_madv_guard_regions(struct task_restore_args *args)
++{
++	int i, ret;
++
++	for (i = 0; i < args->vmas_n; i++) {
++		VmaEntry *vma_entry = args->vmas + i;
++		size_t len;
++
++		if (!vma_entry_is(vma_entry, VMA_AREA_GUARD))
++			continue;
++
++		len = vma_entry->end - vma_entry->start;
++		ret = sys_madvise(vma_entry->start, len, MADV_GUARD_INSTALL);
++		if (ret) {
++			pr_err("madvise(%" PRIx64 ", %zu, MADV_GUARD_INSTALL) "
++			       "failed with %d\n",
++			       vma_entry->start, len, ret);
++			return -1;
++		}
++	}
++
++	return 0;
++}
++
+ /*
+  * The main routine to restore task via sigreturn.
+  * This one is very special, we never return there
+@@ -1727,6 +1752,13 @@ long __export_restore_task(struct task_restore_args *args)
+ 		}
+ 	}
+ 
++	/*
++	 * Restore madvise(MADV_GUARD_INSTALL)
++	 */
++	ret = restore_madv_guard_regions(args);
++	if (ret)
++		goto core_restore_end;
++
+ 	/*
+ 	 * Tune up the task fields.
+ 	 */
+-- 
+2.34.1
+

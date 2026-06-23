@@ -1,0 +1,36 @@
+From 21e7f40e37b50a3bbaf94ecda7079c9a5578bba5 Mon Sep 17 00:00:00 2001
+From: Andrei Vagin <avagin@gmail.com>
+Date: Wed, 4 Mar 2026 08:06:08 +0000
+Subject: [PATCH] pagemap-cache: stop filling cache on VMA_AREA_GUARD
+
+VMA_AREA_GUARD areas are added to the end of the vma_area_list and
+are not necessarily sorted by address. pmc_fill_cache() expects
+VMAs to be sorted and triggers BUG_ON() if it meets a VMA with
+a lower address than the current cache window.
+
+Since guard VMAs don't have pagemap entries and are skipped during
+dump, just stop the lookahead loop when we encounter one.
+
+Signed-off-by: Andrei Vagin <avagin@gmail.com>
+(cherry picked from commit f5974cc326c19d294956372067c28d160a1d29c5)
+---
+ criu/pagemap-cache.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/criu/pagemap-cache.c b/criu/pagemap-cache.c
+index 493887aab..768fcbccf 100644
+--- a/criu/pagemap-cache.c
++++ b/criu/pagemap-cache.c
+@@ -136,6 +136,9 @@ static int pmc_fill_cache(pmc_t *pmc, const struct vma_area *vma)
+ 			 nr_vmas, size_cov);
+ 
+ 		list_for_each_entry_continue(vma, pmc->vma_head, list) {
++			if (vma_area_is(vma, VMA_AREA_GUARD))
++				break;
++
+ 			if (vma->e->start > high || vma->e->end > high)
+ 				break;
+ 
+-- 
+2.34.1
+

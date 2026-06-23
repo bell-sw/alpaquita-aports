@@ -1,0 +1,157 @@
+From 334eb400333a91108416c2e273eb42d984a38420 Mon Sep 17 00:00:00 2001
+From: Alexander Mikhalitsyn <aleksandr.mikhalitsyn@canonical.com>
+Date: Mon, 4 Aug 2025 09:42:10 +0200
+Subject: [PATCH] criu/{mem, vdso, cr-restore}: introduce VMA_AREA_GUARD fake
+ VMAs
+
+Introduce a new kind of VMA - VMA_AREA_GUARD. In fact, it is not
+a real VMA as it is not represented as struct vm_area_struct in
+the kernel.
+
+We want to reuse an existing vma infrastructure in CRIU to dump
+an information about MADV_GUARD_INSTALL-covered address space
+ranges as VMAs. Then, on restore, we need to carefully skip
+those fake VMAs everywhere we expect a normal VMAs to be processed.
+And only in restorer we use these VMAs to get an information about
+where to call MADV_GUARD_INSTALL.
+
+Suggested-by: Andrei Vagin <avagin@gmail.com>
+Signed-off-by: Alexander Mikhalitsyn <aleksandr.mikhalitsyn@canonical.com>
+(cherry picked from commit 63c7029686ea90c649b2909f37ae93c111f11418)
+
+Conflicts:
+	criu/include/image.h
+---
+ criu/cr-restore.c    |  6 ++++--
+ criu/include/image.h |  7 +++++++
+ criu/mem.c           | 13 +++++++++++--
+ criu/vdso.c          |  6 ++++++
+ 4 files changed, 28 insertions(+), 4 deletions(-)
+
+diff --git a/criu/cr-restore.c b/criu/cr-restore.c
+index 82ca85d05..a354d1ec3 100644
+--- a/criu/cr-restore.c
++++ b/criu/cr-restore.c
+@@ -2729,7 +2729,8 @@ static long restorer_get_vma_hint(struct list_head *tgt_vma_list, struct list_he
+ 
+ 	while (1) {
+ 		if (prev_vma_end + vma_len > s_vma->e->start) {
+-			if (s_vma->list.next == self_vma_list) {
++			if ((s_vma->list.next == self_vma_list) ||
++			    vma_area_is(vma_next(s_vma), VMA_AREA_GUARD)) {
+ 				s_vma = &end_vma;
+ 				continue;
+ 			}
+@@ -2742,7 +2743,8 @@ static long restorer_get_vma_hint(struct list_head *tgt_vma_list, struct list_he
+ 		}
+ 
+ 		if (prev_vma_end + vma_len > t_vma->e->start) {
+-			if (t_vma->list.next == tgt_vma_list) {
++			if ((t_vma->list.next == tgt_vma_list) ||
++			    vma_area_is(vma_next(t_vma), VMA_AREA_GUARD)) {
+ 				t_vma = &end_vma;
+ 				continue;
+ 			}
+diff --git a/criu/include/image.h b/criu/include/image.h
+index 5cb01bde2..6a091d22f 100644
+--- a/criu/include/image.h
++++ b/criu/include/image.h
+@@ -66,6 +66,12 @@
+  *  	processing exiting with error; while the rest of bits
+  *  	are part of image ABI, this particular one must never
+  *  	be used in image.
++ *  - guard
++ *  	stands for a fake VMA (not represented in the kernel
++ *  	by a struct vm_area_struct). Used to keep an information
++ *  	about virtual address space ranges covered by
++ *  	MADV_GUARD_INSTALL guards. These ones must be always at
++ *  	the end of the vma_area_list and properly skipped a.e.
+  */
+ #define VMA_AREA_NONE	  (0 << 0)
+ #define VMA_AREA_REGULAR  (1 << 0)
+@@ -84,6 +90,7 @@
+ #define VMA_AREA_VVAR	 (1 << 12)
+ #define VMA_AREA_AIORING (1 << 13)
+ #define VMA_AREA_MEMFD	 (1 << 14)
++#define VMA_AREA_GUARD	 (1 << 16)
+ 
+ #define VMA_EXT_PLUGIN	  (1 << 27)
+ #define VMA_CLOSE	  (1 << 28)
+diff --git a/criu/mem.c b/criu/mem.c
+index 562abf961..e0c07708a 100644
+--- a/criu/mem.c
++++ b/criu/mem.c
+@@ -595,6 +595,9 @@ static int __parasite_dump_pages_seized(struct pstree_item *item, struct parasit
+ 		parent_predump_mode = mdc->parent_ie->pre_dump_mode;
+ 
+ 	list_for_each_entry(vma_area, &vma_area_list->h, list) {
++		if (vma_area_is(vma_area, VMA_AREA_GUARD))
++			continue;
++
+ 		ret = generate_vma_iovs(item, vma_area, pp, &xfer, args, ctl, &pmc, has_parent, mdc->pre_dump,
+ 					parent_predump_mode);
+ 		if (ret < 0)
+@@ -855,14 +858,14 @@ static void prepare_cow_vmas_for(struct vm_area_list *vmas, struct vm_area_list
+ 		/* <= here to shift from matching VMAs and ... */
+ 		while (vma->e->start <= pvma->e->start) {
+ 			vma = vma_next(vma);
+-			if (&vma->list == &vmas->h)
++			if ((&vma->list == &vmas->h) || vma_area_is(vma, VMA_AREA_GUARD))
+ 				return;
+ 		}
+ 
+ 		/* ... no == here since we must stop on matching pair */
+ 		while (pvma->e->start < vma->e->start) {
+ 			pvma = vma_next(pvma);
+-			if (&pvma->list == &pvmas->h)
++			if ((&pvma->list == &pvmas->h) || vma_area_is(pvma, VMA_AREA_GUARD))
+ 				return;
+ 		}
+ 	}
+@@ -1046,6 +1049,9 @@ static int premap_priv_vmas(struct pstree_item *t, struct vm_area_list *vmas, vo
+ 	filemap_ctx_init(true);
+ 
+ 	list_for_each_entry(vma, &vmas->h, list) {
++		if (vma_area_is(vma, VMA_AREA_GUARD))
++			continue;
++
+ 		if (task_size_check(vpid(t), vma->e)) {
+ 			ret = -1;
+ 			break;
+@@ -1251,6 +1257,9 @@ err_read:
+ 		unsigned long size, i = 0;
+ 		void *addr = decode_pointer(vma->premmaped_addr);
+ 
++		if (vma_area_is(vma, VMA_AREA_GUARD))
++			continue;
++
+ 		if (!vma_inherited(vma))
+ 			continue;
+ 
+diff --git a/criu/vdso.c b/criu/vdso.c
+index 1a51f1451..9f22dfb00 100644
+--- a/criu/vdso.c
++++ b/criu/vdso.c
+@@ -145,6 +145,9 @@ static void drop_rt_vdso(struct vm_area_list *vma_area_list, struct vdso_quarter
+ 	 * Also BTW search for rt-vvar to remove it later.
+ 	 */
+ 	list_for_each_entry(vma, &vma_area_list->h, list) {
++		if (vma_area_is(vma, VMA_AREA_GUARD))
++			continue;
++
+ 		if (vma->e->start == addr->orig_vdso) {
+ 			vma->e->status |= VMA_AREA_REGULAR | VMA_AREA_VDSO;
+ 			pr_debug("vdso: Restore orig vDSO status at %lx\n", (long)vma->e->start);
+@@ -276,6 +279,9 @@ int parasite_fixup_vdso(struct parasite_ctl *ctl, pid_t pid, struct vm_area_list
+ 	}
+ 
+ 	list_for_each_entry(vma, &vma_area_list->h, list) {
++		if (vma_area_is(vma, VMA_AREA_GUARD))
++			continue;
++
+ 		/*
+ 		 * Defer handling marked vdso until we walked over
+ 		 * all vmas and restore potentially remapped vDSO
+-- 
+2.34.1
+

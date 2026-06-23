@@ -1,0 +1,30 @@
+From ecc4b4a4f2b1995e5ae856f7abed58aa315ab81f Mon Sep 17 00:00:00 2001
+From: Lorenzo Fontana <fontanalorenz@gmail.com>
+Date: Thu, 18 Sep 2025 10:01:48 +0200
+Subject: [PATCH] pagemap: prevent integer overflow in pagemap_len
+
+Fixes #2738
+
+Original-patch-by: Andrey Vagin <avagin@google.com>
+Signed-off-by: Lorenzo Fontana <fontanalorenz@gmail.com>
+(cherry picked from commit 053a22a23bf05c91223d48dc609defa641354a87)
+---
+ criu/include/pagemap.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/criu/include/pagemap.h b/criu/include/pagemap.h
+index 8c7180559..8085e38f1 100644
+--- a/criu/include/pagemap.h
++++ b/criu/include/pagemap.h
+@@ -116,7 +116,7 @@ extern int dedup_one_iovec(struct page_read *pr, unsigned long base, unsigned lo
+ 
+ static inline unsigned long pagemap_len(PagemapEntry *pe)
+ {
+-	return pe->nr_pages * PAGE_SIZE;
++	return (unsigned long)pe->nr_pages * PAGE_SIZE;
+ }
+ 
+ static inline bool page_read_has_parent(struct page_read *pr)
+-- 
+2.34.1
+

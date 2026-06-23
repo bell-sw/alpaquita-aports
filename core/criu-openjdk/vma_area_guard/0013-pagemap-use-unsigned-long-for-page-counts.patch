@@ -1,0 +1,445 @@
+From 527765901bce88c95428dc0906a63178b22a94cc Mon Sep 17 00:00:00 2001
+From: Andrei Vagin <avagin@gmail.com>
+Date: Thu, 18 Sep 2025 15:20:32 +0000
+Subject: [PATCH] pagemap: use unsigned long for page counts
+
+Variables storing page counts were previously `unsigned int`, limiting
+them to a maximum of 2^32 pages. With a 4k page size, this corresponds
+to a 16TB memory mapping, which is insufficient for larger mappings.
+
+This commit changes the type for these variables to `unsigned long` to
+support larger memory mappings.
+
+Signed-off-by: Andrei Vagin <avagin@gmail.com>
+(cherry picked from commit 7e0da4d9757e67d8bd0ee8441a581483ad97b12e)
+---
+ criu/include/page-pipe.h |  6 +++---
+ criu/include/page-xfer.h |  6 +++---
+ criu/include/pagemap.h   |  6 +++---
+ criu/include/parasite.h  |  2 +-
+ criu/mem.c               |  2 +-
+ criu/page-pipe.c         |  6 +++---
+ criu/page-xfer.c         | 20 ++++++++++----------
+ criu/pagemap.c           | 22 +++++++++++-----------
+ criu/pie/parasite.c      |  2 +-
+ criu/uffd.c              | 25 ++++++++++++-------------
+ 10 files changed, 48 insertions(+), 49 deletions(-)
+
+diff --git a/criu/include/page-pipe.h b/criu/include/page-pipe.h
+index 15178c015..65292b7ab 100644
+--- a/criu/include/page-pipe.h
++++ b/criu/include/page-pipe.h
+@@ -92,9 +92,9 @@ struct kernel_pipe_buffer {
+ struct page_pipe_buf {
+ 	int p[2];		/* pipe with pages */
+ 	unsigned int pipe_size; /* how many pages can be fit into pipe */
+-	unsigned int pipe_off;	/* where this buf is started in a pipe */
+-	unsigned int pages_in;	/* how many pages are there */
+ 	unsigned int nr_segs;	/* how many iov-s are busy */
++	unsigned long pipe_off;	/* where this buf is started in a pipe */
++	unsigned long pages_in;	/* how many pages are there */
+ #define PPB_LAZY (1 << 0)
+ 	unsigned int flags;
+ 	struct iovec *iov;  /* vaddr:len map */
+@@ -149,7 +149,7 @@ struct pipe_read_dest {
+ };
+ 
+ extern int pipe_read_dest_init(struct pipe_read_dest *prd);
+-extern int page_pipe_read(struct page_pipe *pp, struct pipe_read_dest *prd, unsigned long addr, unsigned int *nr_pages,
++extern int page_pipe_read(struct page_pipe *pp, struct pipe_read_dest *prd, unsigned long addr, unsigned long *nr_pages,
+ 			  unsigned int ppb_flags);
+ 
+ #endif /* __CR_PAGE_PIPE_H__ */
+diff --git a/criu/include/page-xfer.h b/criu/include/page-xfer.h
+index 36fe67092..0d9b35019 100644
+--- a/criu/include/page-xfer.h
++++ b/criu/include/page-xfer.h
+@@ -69,9 +69,9 @@ extern int check_parent_page_xfer(int fd_type, unsigned long id);
+  */
+ 
+ /* async request/receive of remote pages */
+-extern int request_remote_pages(unsigned long img_id, unsigned long addr, int nr_pages);
++extern int request_remote_pages(unsigned long img_id, unsigned long addr, unsigned long nr_pages);
+ 
+-typedef int (*ps_async_read_complete)(unsigned long img_id, unsigned long vaddr, int nr_pages, void *);
+-extern int page_server_start_read(void *buf, int nr_pages, ps_async_read_complete complete, void *priv, unsigned flags);
++typedef int (*ps_async_read_complete)(unsigned long img_id, unsigned long vaddr, unsigned long nr_pages, void *);
++extern int page_server_start_read(void *buf, unsigned long nr_pages, ps_async_read_complete complete, void *priv, unsigned flags);
+ 
+ #endif /* __CR_PAGE_XFER__H__ */
+diff --git a/criu/include/pagemap.h b/criu/include/pagemap.h
+index 8c7180559..d3f4896c2 100644
+--- a/criu/include/pagemap.h
++++ b/criu/include/pagemap.h
+@@ -44,7 +44,7 @@
+ 
+ struct page_read {
+ 	/* reads page from current pagemap */
+-	int (*read_pages)(struct page_read *, unsigned long vaddr, int nr, void *, unsigned flags);
++	int (*read_pages)(struct page_read *, unsigned long vaddr, unsigned long nr, void *, unsigned flags);
+ 	/* Advance page_read to the next entry */
+ 	int (*advance)(struct page_read *pr);
+ 	void (*close)(struct page_read *);
+@@ -52,8 +52,8 @@ struct page_read {
+ 	int (*sync)(struct page_read *pr);
+ 	int (*seek_pagemap)(struct page_read *pr, unsigned long vaddr);
+ 	void (*reset)(struct page_read *pr);
+-	int (*io_complete)(struct page_read *, unsigned long vaddr, int nr);
+-	int (*maybe_read_page)(struct page_read *pr, unsigned long vaddr, int nr, void *buf, unsigned flags);
++	int (*io_complete)(struct page_read *, unsigned long vaddr, unsigned long nr);
++	int (*maybe_read_page)(struct page_read *pr, unsigned long vaddr, unsigned long nr, void *buf, unsigned flags);
+ 
+ 	/* Whether or not pages can be read in PIE code */
+ 	bool pieok;
+diff --git a/criu/include/parasite.h b/criu/include/parasite.h
+index d2a06889f..d1b26d018 100644
+--- a/criu/include/parasite.h
++++ b/criu/include/parasite.h
+@@ -63,7 +63,7 @@ struct parasite_dump_pages_args {
+ 	unsigned int add_prot;
+ 	unsigned int off;
+ 	unsigned int nr_segs;
+-	unsigned int nr_pages;
++	unsigned long nr_pages;
+ };
+ 
+ static inline struct parasite_vma_entry *pargs_vmas(struct parasite_dump_pages_args *a)
+diff --git a/criu/mem.c b/criu/mem.c
+index 7fb1bb883..c3f1d9178 100644
+--- a/criu/mem.c
++++ b/criu/mem.c
+@@ -350,7 +350,7 @@ static int drain_pages(struct page_pipe *pp, struct parasite_ctl *ctl, struct pa
+ 	list_for_each_entry(ppb, &pp->bufs, l) {
+ 		args->nr_segs = ppb->nr_segs;
+ 		args->nr_pages = ppb->pages_in;
+-		pr_debug("PPB: %d pages %d segs %u pipe %d off\n", args->nr_pages, args->nr_segs, ppb->pipe_size,
++		pr_debug("PPB: %ld pages %d segs %u pipe %d off\n", args->nr_pages, args->nr_segs, ppb->pipe_size,
+ 			 args->off);
+ 
+ 		ret = compel_rpc_call(PARASITE_CMD_DUMPPAGES, ctl);
+diff --git a/criu/page-pipe.c b/criu/page-pipe.c
+index 54dc3ccc4..25fd38248 100644
+--- a/criu/page-pipe.c
++++ b/criu/page-pipe.c
+@@ -374,7 +374,7 @@ int pipe_read_dest_init(struct pipe_read_dest *prd)
+ 	return 0;
+ }
+ 
+-int page_pipe_read(struct page_pipe *pp, struct pipe_read_dest *prd, unsigned long addr, unsigned int *nr_pages,
++int page_pipe_read(struct page_pipe *pp, struct pipe_read_dest *prd, unsigned long addr, unsigned long int *nr_pages,
+ 		   unsigned int ppb_flags)
+ {
+ 	struct page_pipe_buf *ppb;
+@@ -399,7 +399,7 @@ int page_pipe_read(struct page_pipe *pp, struct pipe_read_dest *prd, unsigned lo
+ 	}
+ 
+ 	/* clamp the request if it passes the end of iovec */
+-	len = min((unsigned long)iov->iov_base + iov->iov_len - addr, (unsigned long)(*nr_pages) * PAGE_SIZE);
++	len = min((unsigned long)iov->iov_base + iov->iov_len - addr, *nr_pages * PAGE_SIZE);
+ 	*nr_pages = len / PAGE_SIZE;
+ 
+ 	skip += ppb->pipe_off * PAGE_SIZE;
+@@ -439,7 +439,7 @@ void debug_show_page_pipe(struct page_pipe *pp)
+ 	pr_debug("Page pipe:\n");
+ 	pr_debug("* %u pipes %u/%u iovs:\n", pp->nr_pipes, pp->free_iov, pp->nr_iovs);
+ 	list_for_each_entry(ppb, &pp->bufs, l) {
+-		pr_debug("\tbuf %u pages, %u iovs, flags: %x pipe_off: %x :\n", ppb->pages_in, ppb->nr_segs, ppb->flags,
++		pr_debug("\tbuf %lu pages, %u iovs, flags: %x pipe_off: %lx :\n", ppb->pages_in, ppb->nr_segs, ppb->flags,
+ 			 ppb->pipe_off);
+ 		for (i = 0; i < ppb->nr_segs; i++) {
+ 			iov = &ppb->iov[i];
+diff --git a/criu/page-xfer.c b/criu/page-xfer.c
+index 05008ad0f..3403c6f01 100644
+--- a/criu/page-xfer.c
++++ b/criu/page-xfer.c
+@@ -31,7 +31,7 @@ static int page_server_sk = -1;
+ 
+ struct page_server_iov {
+ 	u32 cmd;
+-	u32 nr_pages;
++	u64 nr_pages;
+ 	u64 vaddr;
+ 	u64 dst_id;
+ };
+@@ -871,7 +871,7 @@ int page_xfer_dump_pages(struct page_xfer *xfer, struct page_pipe *pp)
+ 	list_for_each_entry(ppb, &pp->bufs, l) {
+ 		unsigned int i;
+ 
+-		pr_debug("\tbuf %d/%d\n", ppb->pages_in, ppb->nr_segs);
++		pr_debug("\tbuf %ld/%d\n", ppb->pages_in, ppb->nr_segs);
+ 
+ 		for (i = 0; i < ppb->nr_segs; i++) {
+ 			struct iovec iov = ppb->iov[i];
+@@ -1056,7 +1056,7 @@ static int page_server_add(int sk, struct page_server_iov *pi, u32 flags)
+ 	struct page_xfer *lxfer = &cxfer.loc_xfer;
+ 	struct iovec iov;
+ 
+-	pr_debug("Adding %" PRIx64 "/%u\n", pi->vaddr, pi->nr_pages);
++	pr_debug("Adding %" PRIx64 "/%lu\n", pi->vaddr, pi->nr_pages);
+ 
+ 	if (prep_loc_xfer(pi))
+ 		return -1;
+@@ -1333,7 +1333,7 @@ static int fill_page_pipe(struct page_read *pr, struct page_pipe *pp)
+ static int page_pipe_from_pagemap(struct page_pipe **pp, int pid)
+ {
+ 	struct page_read pr;
+-	int nr_pages = 0;
++	unsigned long nr_pages = 0;
+ 
+ 	if (open_page_read(pid, &pr, PR_TASK) <= 0) {
+ 		pr_err("Failed to open page read for %d\n", pid);
+@@ -1536,13 +1536,13 @@ struct ps_async_read {
+ 
+ static LIST_HEAD(async_reads);
+ 
+-static inline void async_read_set_goal(struct ps_async_read *ar, int nr_pages)
++static inline void async_read_set_goal(struct ps_async_read *ar, unsigned long nr_pages)
+ {
+ 	ar->goal = sizeof(ar->pi) + nr_pages * PAGE_SIZE;
+ 	ar->nr_pages = nr_pages;
+ }
+ 
+-static void init_ps_async_read(struct ps_async_read *ar, void *buf, int nr_pages, ps_async_read_complete complete,
++static void init_ps_async_read(struct ps_async_read *ar, void *buf, unsigned long nr_pages, ps_async_read_complete complete,
+ 			       void *priv)
+ {
+ 	ar->pages = buf;
+@@ -1552,7 +1552,7 @@ static void init_ps_async_read(struct ps_async_read *ar, void *buf, int nr_pages
+ 	async_read_set_goal(ar, nr_pages);
+ }
+ 
+-static int page_server_start_async_read(void *buf, int nr_pages, ps_async_read_complete complete, void *priv)
++static int page_server_start_async_read(void *buf, unsigned long nr_pages, ps_async_read_complete complete, void *priv)
+ {
+ 	struct ps_async_read *ar;
+ 
+@@ -1652,7 +1652,7 @@ int connect_to_page_server_to_recv(int epfd)
+ 	return epoll_add_rfd(epfd, &ps_rfd);
+ }
+ 
+-int request_remote_pages(unsigned long img_id, unsigned long addr, int nr_pages)
++int request_remote_pages(unsigned long img_id, unsigned long addr, unsigned long nr_pages)
+ {
+ 	struct page_server_iov pi = {
+ 		.cmd = PS_IOV_GET,
+@@ -1669,7 +1669,7 @@ int request_remote_pages(unsigned long img_id, unsigned long addr, int nr_pages)
+ 	return 0;
+ }
+ 
+-static int page_server_start_sync_read(void *buf, int nr, ps_async_read_complete complete, void *priv)
++static int page_server_start_sync_read(void *buf, unsigned long nr, ps_async_read_complete complete, void *priv)
+ {
+ 	struct ps_async_read ar;
+ 	int ret = 1;
+@@ -1680,7 +1680,7 @@ static int page_server_start_sync_read(void *buf, int nr, ps_async_read_complete
+ 	return ret;
+ }
+ 
+-int page_server_start_read(void *buf, int nr, ps_async_read_complete complete, void *priv, unsigned flags)
++int page_server_start_read(void *buf, unsigned long nr, ps_async_read_complete complete, void *priv, unsigned flags)
+ {
+ 	if (flags & PR_ASYNC)
+ 		return page_server_start_async_read(buf, nr, complete, priv);
+diff --git a/criu/pagemap.c b/criu/pagemap.c
+index 2ccd34119..9e378bf51 100644
+--- a/criu/pagemap.c
++++ b/criu/pagemap.c
+@@ -168,15 +168,15 @@ static int seek_pagemap(struct page_read *pr, unsigned long vaddr)
+ 	return 0;
+ }
+ 
+-static inline void pagemap_bound_check(PagemapEntry *pe, unsigned long vaddr, int nr)
++static inline void pagemap_bound_check(PagemapEntry *pe, unsigned long vaddr, unsigned long int nr)
+ {
+ 	if (vaddr < pe->vaddr || (vaddr - pe->vaddr) / PAGE_SIZE + nr > pe->nr_pages) {
+-		pr_err("Page read err %" PRIx64 ":%lu vs %lx:%u\n", pe->vaddr, pe->nr_pages, vaddr, nr);
++		pr_err("Page read err %" PRIx64 ":%lu vs %lx:%lu\n", pe->vaddr, pe->nr_pages, vaddr, nr);
+ 		BUG();
+ 	}
+ }
+ 
+-static int read_parent_page(struct page_read *pr, unsigned long vaddr, int nr, void *buf, unsigned flags)
++static int read_parent_page(struct page_read *pr, unsigned long vaddr, unsigned long int nr, void *buf, unsigned flags)
+ {
+ 	struct page_read *ppr = pr->parent;
+ 	int ret;
+@@ -195,7 +195,7 @@ static int read_parent_page(struct page_read *pr, unsigned long vaddr, int nr, v
+ 	 */
+ 
+ 	do {
+-		int p_nr;
++		unsigned long int p_nr;
+ 
+ 		pr_debug("\tpr%lu-%u Read from parent\n", pr->img_id, pr->id);
+ 		ret = ppr->seek_pagemap(ppr, vaddr);
+@@ -210,7 +210,7 @@ static int read_parent_page(struct page_read *pr, unsigned long vaddr, int nr, v
+ 		 * read as much as we can.
+ 		 */
+ 		p_nr = ppr->pe->nr_pages - (vaddr - ppr->pe->vaddr) / PAGE_SIZE;
+-		pr_info("\tparent has %u pages in\n", p_nr);
++		pr_info("\tparent has %lu pages in\n", p_nr);
+ 		if (p_nr > nr)
+ 			p_nr = nr;
+ 
+@@ -374,7 +374,7 @@ int pagemap_enqueue_iovec(struct page_read *pr, void *buf, unsigned long len, st
+ 	return 0;
+ }
+ 
+-static int maybe_read_page_local(struct page_read *pr, unsigned long vaddr, int nr, void *buf, unsigned flags)
++static int maybe_read_page_local(struct page_read *pr, unsigned long vaddr, unsigned long nr, void *buf, unsigned flags)
+ {
+ 	int ret;
+ 	unsigned long len = nr * PAGE_SIZE;
+@@ -402,7 +402,7 @@ static int maybe_read_page_local(struct page_read *pr, unsigned long vaddr, int
+  * We cannot use maybe_read_page_local() for streaming images as it uses
+  * pread(), seeking in the file. Instead, we use this custom page reader.
+  */
+-static int maybe_read_page_img_streamer(struct page_read *pr, unsigned long vaddr, int nr, void *buf, unsigned flags)
++static int maybe_read_page_img_streamer(struct page_read *pr, unsigned long vaddr, unsigned long nr, void *buf, unsigned flags)
+ {
+ 	unsigned long len = nr * PAGE_SIZE;
+ 	int fd;
+@@ -445,7 +445,7 @@ static int maybe_read_page_img_streamer(struct page_read *pr, unsigned long vadd
+ 	return ret;
+ }
+ 
+-static int read_page_complete(unsigned long img_id, unsigned long vaddr, int nr_pages, void *priv)
++static int read_page_complete(unsigned long img_id, unsigned long vaddr, unsigned long int nr_pages, void *priv)
+ {
+ 	int ret = 0;
+ 	struct page_read *pr = priv;
+@@ -463,7 +463,7 @@ static int read_page_complete(unsigned long img_id, unsigned long vaddr, int nr_
+ 	return ret;
+ }
+ 
+-static int maybe_read_page_remote(struct page_read *pr, unsigned long vaddr, int nr, void *buf, unsigned flags)
++static int maybe_read_page_remote(struct page_read *pr, unsigned long vaddr, unsigned long nr, void *buf, unsigned flags)
+ {
+ 	int ret;
+ 
+@@ -474,9 +474,9 @@ static int maybe_read_page_remote(struct page_read *pr, unsigned long vaddr, int
+ 	return ret;
+ }
+ 
+-static int read_pagemap_page(struct page_read *pr, unsigned long vaddr, int nr, void *buf, unsigned flags)
++static int read_pagemap_page(struct page_read *pr, unsigned long vaddr, unsigned long nr, void *buf, unsigned flags)
+ {
+-	pr_info("pr%lu-%u Read %lx %u pages\n", pr->img_id, pr->id, vaddr, nr);
++	pr_info("pr%lu-%u Read %lx %lu pages\n", pr->img_id, pr->id, vaddr, nr);
+ 	pagemap_bound_check(pr->pe, vaddr, nr);
+ 
+ 	if (pagemap_in_parent(pr->pe)) {
+diff --git a/criu/pie/parasite.c b/criu/pie/parasite.c
+index f75fe13bb..90038fc1c 100644
+--- a/criu/pie/parasite.c
++++ b/criu/pie/parasite.c
+@@ -101,7 +101,7 @@ static int dump_pages(struct parasite_dump_pages_args *args)
+ 	}
+ 	if (spliced_bytes != args->nr_pages * PAGE_SIZE) {
+ 		sys_close(p);
+-		pr_err("Can't splice all pages to pipe (%ld/%d)\n", spliced_bytes, args->nr_pages);
++		pr_err("Can't splice all pages to pipe (%ld/%ld)\n", spliced_bytes, args->nr_pages);
+ 		return -1;
+ 	}
+ 
+diff --git a/criu/uffd.c b/criu/uffd.c
+index e07b21b69..7636c9dd4 100644
+--- a/criu/uffd.c
++++ b/criu/uffd.c
+@@ -668,12 +668,11 @@ static int remap_iovs(struct lazy_pages_info *lpi, unsigned long from, unsigned
+  */
+ static int collect_iovs(struct lazy_pages_info *lpi)
+ {
++	unsigned long start, end, len, nr_pages = 0;
++	int n_vma = 0, max_iov_len = 0, ret = -1;
+ 	struct page_read *pr = &lpi->pr;
+ 	struct lazy_iov *iov;
+ 	MmEntry *mm;
+-	int nr_pages = 0, n_vma = 0, max_iov_len = 0;
+-	int ret = -1;
+-	unsigned long start, end, len;
+ 
+ 	mm = init_mm_entry(lpi);
+ 	if (!mm)
+@@ -728,7 +727,7 @@ free_mm:
+ 	return ret;
+ }
+ 
+-static int uffd_io_complete(struct page_read *pr, unsigned long vaddr, int nr);
++static int uffd_io_complete(struct page_read *pr, unsigned long vaddr, unsigned long nr);
+ 
+ static int ud_open(int client, struct lazy_pages_info **_lpi)
+ {
+@@ -822,7 +821,7 @@ static bool uffd_recoverable_error(int mcopy_rc)
+ 	return false;
+ }
+ 
+-static int uffd_check_op_error(struct lazy_pages_info *lpi, const char *op, int *nr_pages, long mcopy_rc)
++static int uffd_check_op_error(struct lazy_pages_info *lpi, const char *op, unsigned long *nr_pages, long mcopy_rc)
+ {
+ 	if (errno == ENOSPC || errno == ESRCH) {
+ 		handle_exit(lpi);
+@@ -844,7 +843,7 @@ static int uffd_check_op_error(struct lazy_pages_info *lpi, const char *op, int
+ 	return 0;
+ }
+ 
+-static int uffd_copy(struct lazy_pages_info *lpi, __u64 address, int *nr_pages)
++static int uffd_copy(struct lazy_pages_info *lpi, __u64 address, unsigned long *nr_pages)
+ {
+ 	struct uffdio_copy uffdio_copy;
+ 	unsigned long len = *nr_pages * page_size();
+@@ -865,12 +864,12 @@ static int uffd_copy(struct lazy_pages_info *lpi, __u64 address, int *nr_pages)
+ 	return 0;
+ }
+ 
+-static int uffd_io_complete(struct page_read *pr, unsigned long img_addr, int nr)
++static int uffd_io_complete(struct page_read *pr, unsigned long img_addr, unsigned long nr)
+ {
+ 	struct lazy_pages_info *lpi;
+-	unsigned long addr = 0;
+-	int req_pages, ret;
++	unsigned long addr = 0, req_pages;
+ 	struct lazy_iov *req;
++	int ret;
+ 
+ 	lpi = container_of(pr, struct lazy_pages_info, pr);
+ 
+@@ -920,7 +919,7 @@ static int uffd_io_complete(struct page_read *pr, unsigned long img_addr, int nr
+ 	return drop_iovs(lpi, addr, nr * PAGE_SIZE);
+ }
+ 
+-static int uffd_zero(struct lazy_pages_info *lpi, __u64 address, int nr_pages)
++static int uffd_zero(struct lazy_pages_info *lpi, __u64 address, unsigned long nr_pages)
+ {
+ 	struct uffdio_zeropage uffdio_zeropage;
+ 	unsigned long len = page_size() * nr_pages;
+@@ -946,7 +945,7 @@ static int uffd_zero(struct lazy_pages_info *lpi, __u64 address, int nr_pages)
+  * Returns 0 for zero pages, 1 for "real" pages and negative value on
+  * error
+  */
+-static int uffd_seek_pages(struct lazy_pages_info *lpi, __u64 address, int nr)
++static int uffd_seek_pages(struct lazy_pages_info *lpi, __u64 address, unsigned long nr)
+ {
+ 	int ret;
+ 
+@@ -961,7 +960,7 @@ static int uffd_seek_pages(struct lazy_pages_info *lpi, __u64 address, int nr)
+ 	return 0;
+ }
+ 
+-static int uffd_handle_pages(struct lazy_pages_info *lpi, __u64 address, int nr, unsigned flags)
++static int uffd_handle_pages(struct lazy_pages_info *lpi, __u64 address, unsigned long nr, unsigned flags)
+ {
+ 	int ret;
+ 
+@@ -1003,7 +1002,7 @@ static void update_xfer_len(struct lazy_pages_info *lpi, bool pf)
+ static int xfer_pages(struct lazy_pages_info *lpi)
+ {
+ 	struct lazy_iov *iov;
+-	unsigned int nr_pages;
++	unsigned long nr_pages;
+ 	unsigned long len;
+ 	int err;
+ 
+-- 
+2.34.1
+
