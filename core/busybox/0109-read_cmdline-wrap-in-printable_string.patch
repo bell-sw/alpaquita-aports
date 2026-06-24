@@ -1,0 +1,138 @@
+From 97135d16523f2311cb2dfcfada3393bbcb215912 Mon Sep 17 00:00:00 2001
+From: Valery Ushakov <valery.ushakov@bell-sw.com>
+Date: Fri, 22 Aug 2025 10:52:30 +0000
+Subject: [PATCH] read_cmdline: wrap in printable_string
+
+This is the same issue as CVE-2024-58251 for netstat -p vs. control
+characters in argv0.  read_cmdline() had rudimentary sanitation code
+that masked C0 controls, but there are C1 controls too and gnome
+terminal seems to always interpret them, and xterm interprets them in
+non-utf-8 mode.  So wrap read_cmdline() in a piece of advice that
+applies printable_string to the buffer and add init_unicode() calls to
+ps(1), top(1) and pmap(1) that call read_cmdline().
+
+Note that this is not _completely_ fool-proof as you may have C1 bytes
+as part of valid UTF-8 sequences for characters outside C1, e.g.
+\u3add0;Gotcha\u3adc is a valid UTF-8 string, but it also a valid OSC
+sequence _if_ interpreted as a single-byte 8-bit string.  procps-ng
+will pass that kind of sequence through as well.  But this is,
+strictly speaking, a misconfiguration, and you are supposed to use
+Ubik's self-winding Swiss chromium never-ending blade only as
+directed, and with caution.
+
+Signed-off-by: Valery Ushakov <valery.ushakov@bell-sw.com>
+---
+ libbb/procps.c | 19 ++++++++++++++++---
+ procps/pmap.c  |  3 +++
+ procps/ps.c    |  2 ++
+ procps/top.c   |  2 ++
+ 4 files changed, 23 insertions(+), 3 deletions(-)
+
+diff --git a/libbb/procps.c b/libbb/procps.c
+index de640d29e..63443accd 100644
+--- a/libbb/procps.c
++++ b/libbb/procps.c
+@@ -555,7 +555,7 @@ procps_status_t* FAST_FUNC procps_scan(procps_status_t* sp, int flags)
+ 	return sp;
+ }
+ 
+-int FAST_FUNC read_cmdline(char *buf, int col, unsigned pid, const char *comm)
++static int FAST_FUNC read_cmdline2(char *buf, int col, unsigned pid, const char *comm)
+ {
+ 	int sz;
+ 	char filename[sizeof("/proc/%u/cmdline") + sizeof(int)*3];
+@@ -584,8 +584,9 @@ int FAST_FUNC read_cmdline(char *buf, int col, unsigned pid, const char *comm)
+ 		 * list of NUL-strings into one string.
+ 		 */
+ 		while (sz >= 0) {
+-			if ((unsigned char)(buf[sz]) < ' ')
+-				buf[sz] = (buf[sz] ? /*ctrl*/'?' : /*NUL*/' ');
++			/* controls will be dealt with by printable_string */
++			if ((unsigned char)(buf[sz]) == '\0')
++				buf[sz] = ' ';
+ 			sz--;
+ 		}
+ 
+@@ -617,6 +618,18 @@ int FAST_FUNC read_cmdline(char *buf, int col, unsigned pid, const char *comm)
+ 	return 0;
+ }
+ 
++int FAST_FUNC read_cmdline(char *buf, int col, unsigned pid, const char *comm) {
++	int ret = read_cmdline2(buf, col, pid, comm);
++	if (ret < 0)
++		return ret;
++	char *printable = printable_string(buf);
++	if (printable == buf)
++		return 0;
++
++	snprintf(buf, col, "%s", printable);
++	return 0;
++}
++
+ /* from kernel:
+ 	//             pid comm S ppid pgid sid tty_nr tty_pgrp flg
+ 	sprintf(buffer,"%d (%s) %c %d  %d   %d  %d     %d       %lu %lu \
+diff --git a/procps/pmap.c b/procps/pmap.c
+index 0cac265c8..c68c00e66 100644
+--- a/procps/pmap.c
++++ b/procps/pmap.c
+@@ -26,6 +26,7 @@
+ //usage:     "\n	-q	Quiet"
+ 
+ #include "libbb.h"
++#include "unicode.h"
+ 
+ #if ULLONG_MAX == 0xffffffff
+ # define TABS "\t"
+@@ -211,6 +212,8 @@ int pmap_main(int argc UNUSED_PARAM, char **argv)
+ 	unsigned opts;
+ 	int ret;
+ 
++	init_unicode();
++
+ 	opts = getopt32(argv, "^" "xq" "\0" "-1"); /* min one arg */
+ 	argv += optind;
+ 
+diff --git a/procps/ps.c b/procps/ps.c
+index 5b521aebd..f184f25ac 100644
+--- a/procps/ps.c
++++ b/procps/ps.c
+@@ -109,6 +109,7 @@
+ //usage:       " 2990 andersen andersen R ps\n"
+ 
+ #include "libbb.h"
++#include "unicode.h"
+ #include "common_bufsiz.h"
+ #ifdef __linux__
+ # include <sys/sysinfo.h>
+@@ -576,6 +577,7 @@ int ps_main(int argc UNUSED_PARAM, char **argv)
+ 	G.kernel_HZ = bb_clk_tck(); /* this is sysconf(_SC_CLK_TCK) */
+ # endif
+ #endif
++	init_unicode();
+ 
+ 	// POSIX:
+ 	// -a  Write information for all processes associated with terminals
+diff --git a/procps/top.c b/procps/top.c
+index 7902e82f0..be1fe22d2 100644
+--- a/procps/top.c
++++ b/procps/top.c
+@@ -116,6 +116,7 @@
+ //kbuild:lib-$(CONFIG_TOP) += top.o
+ 
+ #include "libbb.h"
++#include "unicode.h"
+ 
+ #define ESC     "\033"
+ #define HOME    ESC"[H"
+@@ -1204,6 +1205,7 @@ int top_main(int argc UNUSED_PARAM, char **argv)
+ 	unsigned scan_mask = TOP_MASK;
+ 
+ 	INIT_G();
++	init_unicode();
+ 
+ //worth it?
+ //	setvbuf(stdout, /*buf*/ NULL, _IOFBF, /*size*/ 0);
+-- 
+2.55.0
+
