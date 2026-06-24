@@ -1,0 +1,27 @@
+From 2f78b4f4d8dff03ccbc379af0594256879a11532 Mon Sep 17 00:00:00 2001
+From: Takha Polat <takha.polat@bell-sw.com>
+Date: Wed, 24 Jun 2026 16:37:41 +0500
+Subject: [PATCH] follow-up on "archival/libarchive: sanitize filenames on
+ output"
+
+Sanitize when FEATURE_TAR_UNAME_GNAME is enabled also
+---
+ archival/libarchive/header_verbose_list.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/archival/libarchive/header_verbose_list.c b/archival/libarchive/header_verbose_list.c
+index e7a09430d..bc0de0e3f 100644
+--- a/archival/libarchive/header_verbose_list.c
++++ b/archival/libarchive/header_verbose_list.c
+@@ -40,7 +40,7 @@ void FAST_FUNC header_verbose_list(const file_header_t *file_header)
+ 		ptm->tm_hour,
+ 		ptm->tm_min,
+ 		ptm->tm_sec,
+-		file_header->name);
++		printable_string(file_header->name));
+ 
+ #else /* !FEATURE_TAR_UNAME_GNAME */
+ 
+-- 
+2.54.0
+
