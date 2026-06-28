@@ -4,7 +4,7 @@ pkgname=perl-gd
 #_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
 _pkgreal=GD
 pkgver=2.76
-pkgrel=0
+pkgrel=1
 pkgdesc="Perl interface to the gd2 graphics library"
 url="https://metacpan.org/release/GD/"
 arch="all"
@@ -14,8 +14,15 @@ makedepends="perl-dev perl-extutils-pkgconfig gd-dev libjpeg-turbo-dev zlib-dev
 	libpng-dev freetype-dev libwebp-dev"
 checkdepends="perl-test-fork"
 subpackages="$pkgname-doc"
-source="https://cpan.metacpan.org/authors/id/R/RU/RURBAN/GD-$pkgver.tar.gz"
+source="https://cpan.metacpan.org/authors/id/R/RU/RURBAN/GD-$pkgver.tar.gz
+
+	0100-CVE-2026-11526.patch
+"
 builddir="$srcdir/$_pkgreal-$pkgver"
+
+# secfixes:
+#   2.76-r1:
+#     - CVE-2026-11526
 
 build() {
 	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
@@ -35,4 +42,5 @@ package() {
 
 sha512sums="
 31c2d61440a7fef9804aed677ee5568f6c237e678cf5a2b7f48e98326ef7cddbf3624ce3965e6711ef9cec4148881a0cb4352c19b91ead4b78835fafaeefbe4d  GD-2.76.tar.gz
+9f402e7ac6e11bda9dcc193cfea8d795640167e84956181b6804ceb751a9e145add00b69d6e505dc63a34d19cb520ef143fdb43109241e79a0aa0198fc81d978  0100-CVE-2026-11526.patch
 "
