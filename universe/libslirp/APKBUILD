@@ -1,6 +1,6 @@
 pkgname=libslirp
 pkgver=4.8.0
-pkgrel=0
+pkgrel=1
 pkgdesc="A general purpose TCP-IP emulator"
 url="https://gitlab.freedesktop.org/slirp/libslirp"
 arch="all"
@@ -8,10 +8,15 @@ license="BSD-3-Clause"
 makedepends="meson glib-dev"
 subpackages="$pkgname-dev"
 options="!check" # no test suite
-source="https://gitlab.freedesktop.org/slirp/libslirp/-/archive/v$pkgver/libslirp-v$pkgver.tar.gz"
+source="https://gitlab.freedesktop.org/slirp/libslirp/-/archive/v$pkgver/libslirp-v$pkgver.tar.gz
+
+	0100-CVE-2026-9539.patch
+"
 builddir="$srcdir/$pkgname-v$pkgver"
 
 # secfixes:
+#   4.8.0-r1:
+#     - CVE-2026-9539
 #   4.6.0-r0:
 #     - CVE-2021-3592
 #     - CVE-2021-3593
@@ -36,4 +41,5 @@ package() {
 
 sha512sums="
 eef9d77f1588c4e3dcf91cd53e54db235d624998fc64df75d389657411635f28bfcbe0c81cd3b0ede7792eea1eb7ef716b8a87a199a6be1e9a29da27ca4a1df4  libslirp-v4.8.0.tar.gz
+cb16834cca79b25cbe30bc477708aa3fece160d3667857dce3ddc7fe56f0cc08c186b177215b1863dfd901f19d028e0771e5af11cb9666de6c0aaf2f32853679  0100-CVE-2026-9539.patch
 "
