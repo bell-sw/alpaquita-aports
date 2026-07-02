@@ -1,6 +1,6 @@
 pkgname=dhcpcd
 pkgver=10.3.2
-pkgrel=0
+pkgrel=1
 pkgdesc="RFC2131 compliant DHCP client"
 url="https://roy.marples.name/projects/dhcpcd"
 arch="all"
@@ -12,7 +12,19 @@ source="https://github.com/NetworkConfiguration/dhcpcd/releases/download/v$pkgve
 	busybox-logger.patch
 	fix-chrony-conf-location.patch
 	dhcpcd.initd
+
+	0100-CVE-2026-56113.patch
+	0101-CVE-2026-56114.patch
+	0102-CVE-2026-56116.patch
+	0103-CVE-2026-56117.patch
 	"
+
+# secfixes:
+#   10.3.2-r1:
+#     - CVE-2026-56113
+#     - CVE-2026-56114
+#     - CVE-2026-56116
+#     - CVE-2026-56117
 
 build() {
 	./configure \
@@ -48,4 +60,8 @@ sha512sums="
 b6bdaac9fc0d5d2d7e8c5e30d1a45db1cff2284d01f92f8821b2f03aaff4e0dbd8cbfbced96d8d9d934dc11f22b792a8345d634d8e4e3b84f43016b7e866e302  busybox-logger.patch
 1c19eed0f7a008ee96ea392beb327169ff8c83fc27fed20f65f05c9125f60629ebe3474c5e6a7cf4aeeea448fde4264c9b84916efacd67d47ab908c47b1fc3a5  fix-chrony-conf-location.patch
 7fb44b82a6fa25ee6249fc4835853a4c1fc7d327653efabd9fde303b1f306b3aa6956b2621b55a24fc007ec7ad878ce50e7418ebff0b17fece76e2fdd9e5190d  dhcpcd.initd
+60fcf132fba3ec55c2edcb046d2e36d8f2619d1daf5c45a67f889ecfb6d425bd2622d92527d742ad5bf655a20a7bdfef09d63667cb10a39bf6735b72415691f3  0100-CVE-2026-56113.patch
+2d1809a6bfdf4e930a92172ac22bd523d8b35deff16cf83d25a6975785d5577b50b4cdcc5da5e7e929aca37d078d38781ab2bf02845ea1de7d5b7becdf4e65d0  0101-CVE-2026-56114.patch
+b208160bcc9e539c33e52f8c527e54a1db856d7be55fc0be23e6e5ffaab720d74543c8876d37ec68d36e9972570303ee49d3a1d9ab8dd3fa1d30fa1d47ff7c2b  0102-CVE-2026-56116.patch
+f9baa4eb08a4cfa5d719ac767d64e7c9a7edc49f4e64d924a0aee472781be93fff0a8164e001d6a6660ed70789df6e5af28a614618154936d839a69f8a123275  0103-CVE-2026-56117.patch
 "
