@@ -1,0 +1,34 @@
+From 2773aeb59b1e80626c276c9de8dd2ac3d4ead796 Mon Sep 17 00:00:00 2001
+From: Takha Polat <takha.polat@bell-sw.com>
+Date: Wed, 8 Jul 2026 16:21:40 +0500
+Subject: [PATCH] bring back some more archs
+
+The test `abuild_strip` added in the 3.18.0_rc1 failing due to missing
+    triplets `powerpc-alpine-linux-musl` and `powerpc-chimera-linux-musl`.
+---
+ functions.sh.in | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/functions.sh.in b/functions.sh.in
+index 9e4d513..12ca6a5 100644
+--- a/functions.sh.in
++++ b/functions.sh.in
+@@ -8,6 +8,7 @@ arch_to_triplet() {
+ 	case "$1" in
+ 	aarch64)	echo "aarch64-$VENDOR_DISTRO-linux-@libc@" ;;
+ 	armhf)		echo "armv6-$VENDOR_DISTRO-linux-@libc@eabihf" ;;
++	ppc)		echo "powerpc-$VENDOR_DISTRO-linux-@libc@" ;;
+ 	ppc64le)	echo "powerpc64le-$VENDOR_DISTRO-linux-@libc@" ;;
+ 	s390x)		echo "s390x-$VENDOR_DISTRO-linux-@libc@" ;;
+ 	x86_64)		echo "x86_64-$VENDOR_DISTRO-linux-@libc@" ;;
+@@ -25,6 +26,7 @@ triplet_to_arch() {
+ 	aarch64-*-*-*)		echo "aarch64" ;;
+ 	#aarch64_be-*-*-*)	echo "aarch64_be" ;;
+ 	armv6*-*-*-*eabihf)	echo "armhf" ;;
++	powerpc-*-*-*)		echo "ppc" ;;
+ 	powerpc64le-*-*-*)	echo "ppc64le" ;;
+ 	s390x-*-*-*)		echo "s390x" ;;
+ 	x86_64-*-*-*)		echo "x86_64" ;;
+-- 
+2.55.0
+

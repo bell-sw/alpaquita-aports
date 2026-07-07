@@ -1,0 +1,66 @@
+From aa4d2dc32a5b0745162c7620204bc31727ea5725 Mon Sep 17 00:00:00 2001
+From: Takha Polat <takha.polat@bell-sw.com>
+Date: Wed, 8 Jul 2026 16:47:57 +0500
+Subject: [PATCH] tests/abuild_test: update strip test
+
+- Create a symbolic link to a dummy stip binary for glibc also
+- When `CHOST` is given as arch, not as a triplet, since the `CLIBC` can be
+both `glibc` and `musl`, update the `atf_check` to accept both `gnu` or `musl`
+in the triplet
+- Replace string `alpine` with `$VENDOR_DISTRO` across the test function
+`abuild_strip_body`
+---
+ tests/abuild_test | 16 +++++++++++-----
+ 1 file changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/tests/abuild_test b/tests/abuild_test
+index 7adccc5..0a1ed81 100755
+--- a/tests/abuild_test
++++ b/tests/abuild_test
+@@ -504,7 +504,13 @@ abuild_strip_body() {
+ 	EOF
+ 	chmod +x bin/strip
+ 	ln -s strip bin/powerpc-chimera-linux-musl-strip
+-	ln -s strip bin/powerpc-alpine-linux-musl-strip
++
++	FUNCS=$(atf_get_srcdir)/../functions.sh
++	local VENDOR_DISTRO=$(sh -e -c " . $FUNCS; echo \$VENDOR_DISTRO")
++
++	ln -s strip bin/powerpc-$VENDOR_DISTRO-linux-musl-strip
++	ln -s strip bin/powerpc-$VENDOR_DISTRO-linux-gnu-strip
++
+ 	PATH="$PWD/bin:$PATH"
+ 
+ 	mkdir -p testrepo/pkg
+@@ -551,10 +557,10 @@ abuild_strip_body() {
+ 		-o inline:'strip\n' \
+ 		sort -u pkg/pkg-cbuild*/usr/bin/*
+ 	atf_check -s exit:0 \
+-		-o inline:'powerpc-alpine-linux-musl-strip\n' \
++		-o match:"powerpc-$VENDOR_DISTRO-linux-(musl|gnu)-strip" \
+ 		sort -u pkg/pkg/usr/bin/* pkg/pkg-[!c]*/usr/bin/* pkg/pkg-c[!b]*/usr/bin/*
+ 
+-	CBUILD=powerpc-alpine-linux-musl CHOST=powerpc-chimera-linux-musl abuild rootpkg || atf_fail "abuild failed"
++	CBUILD=powerpc-$VENDOR_DISTRO-linux-musl CHOST=powerpc-chimera-linux-musl abuild rootpkg || atf_fail "abuild failed"
+ 	atf_check -s exit:0 \
+ 		-o inline:'strip\n' \
+ 		sort -u pkg/pkg-cbuild/usr/bin/*
+@@ -563,13 +569,13 @@ abuild_strip_body() {
+ 		sort -u pkg/pkg/usr/bin/* pkg/pkg-[!c]*/usr/bin/* pkg/pkg-c[!b]*/usr/bin/* \
+ 		pkg/pkg-cbuild-arch/usr/bin/*
+ 
+-	CBUILD=x86_64 CHOST=powerpc-alpine-linux-musl CTARGET=powerpc-chimera-linux-musl \
++	CBUILD=x86_64 CHOST=powerpc-$VENDOR_DISTRO-linux-musl CTARGET=powerpc-chimera-linux-musl \
+ 	abuild rootpkg || atf_fail "abuild failed"
+ 	atf_check -s exit:0 \
+ 		-o inline:'strip\n' \
+ 		sort -u pkg/pkg-cbuild*/usr/bin/*
+ 	atf_check -s exit:0 \
+-		-o inline:'powerpc-alpine-linux-musl-strip\n' \
++		-o inline:"powerpc-$VENDOR_DISTRO-linux-musl-strip\n" \
+ 		sort -u pkg/pkg/usr/bin/* pkg/pkg-[!c]*/usr/bin/* pkg/pkg-c[!bt]*/usr/bin/* \
+ 		pkg/pkg-ctarget-arch/usr/bin/*
+ 	atf_check -s exit:0 \
+-- 
+2.55.0
+
