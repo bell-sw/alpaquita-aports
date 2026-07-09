@@ -1,0 +1,427 @@
+_pkgname=nginx
+pkgname=$_pkgname-base
+# NOTE: Upgrade only to even-numbered versions (e.g. 1.14.z, 1.16.z)!
+# Odd-numbered versions are mainline (development) versions.
+pkgver=1.30.3
+pkgrel=0
+# Revision of nginx-tests to use for check().
+_tests_rev=4d1de3f357afeb91865d024b27516d6b67aad86e
+_njs_ver=0.9.9
+# Dependency of the naxsi module. The project is active, but they hasn't
+# released a new version since 2017, so we rather bundle it instead of
+# packaging (https://github.com/libinjection/libinjection/issues/50).
+_libinjection_rev=b9fcaaf9e50e9492807b23ffcc6af46ee1f203b9
+# if this isn't set higher than testing/openresty that comes first for some reason
+# even though this has a higher version..
+provider_priority=100
+pkgdesc="HTTP and reverse proxy server (stable version) with only base modules"
+url="https://www.nginx.org/"
+arch="all"
+license="BSD-2-Clause"
+# Build dependencies of nginx itself (without third-party modules).
+_makedepends_base="
+	gd-dev
+	geoip-dev
+  glibc:libxcrypt-dev
+	libxslt-dev
+	linux-headers
+	openssl-dev
+	pcre2-dev
+	perl-dev
+	zlib-dev
+	"
+makedepends="
+	$_makedepends_base
+	brotli-dev
+	"
+checkdepends="
+	gd
+	perl
+	perl-fcgi
+	perl-io-socket-ssl
+	perl-net-ssleay
+	perl-protocol-websocket
+	tzdata
+	uwsgi-python3
+	"
+pkgusers="nginx"
+_grp_ngx="nginx"
+_grp_www="www-data"
+pkggroups="$_grp_ngx $_grp_www"
+install="$pkgname.pre-install $pkgname.post-install $pkgname.pre-upgrade $pkgname.post-upgrade"
+subpackages="
+	$pkgname-debug
+	$pkgname-doc
+	$pkgname-openrc
+	$pkgname-vim::noarch
+	$pkgname-mod-dev:_mod_dev:noarch
+	"
+source="https://nginx.org/download/nginx-$pkgver.tar.gz
+	$_pkgname-tests-$_tests_rev.tar.gz::https://github.com/nginx/nginx-tests/archive/$_tests_rev.tar.gz
+	$_pkgname-njs-$_njs_ver.tar.gz::https://github.com/nginx/njs/archive/$_njs_ver.tar.gz
+	no-werror.patch
+	nginx.conf
+	default.conf
+	stream.conf
+	$_pkgname.logrotate
+	$_pkgname.initd
+	$_pkgname.confd
+	"
+builddir="$srcdir/$_pkgname-$pkgver"
+
+# secfixes:
+#   1.30.3-r0:
+#     - CVE-2026-42055
+#     - CVE-2026-48142
+#   1.30.2-r1:
+#     - CVE-2026-8711
+#   1.30.2-r0:
+#     - CVE-2026-9256
+#   1.30.1-r0:
+#     - CVE-2026-42945
+#     - CVE-2026-42946
+#     - CVE-2026-42934
+#     - CVE-2026-40460
+#     - CVE-2026-49975
+#   1.28.3-r0:
+#     - CVE-2026-27654
+#     - CVE-2026-27784
+#     - CVE-2026-32647
+#     - CVE-2026-27651
+#     - CVE-2026-28753
+#     - CVE-2026-28755
+#   1.28.2-r1:
+#     - CVE-2025-53859
+#     - CVE-2026-1642
+#   1.28.2-r0:
+#     - CVE-2025-53859
+#     - CVE-2026-1642
+#   1.26.3-r0:
+#     - CVE-2025-23419
+#   1.26.2-r0:
+#     - CVE-2024-7347
+#   1.24.0-r12:
+#     - CVE-2023-44487
+#   1.22.1-r0:
+#     - CVE-2022-41741
+#     - CVE-2022-41742
+#   1.20.2-r2:
+#     - CVE-2021-46461
+#     - CVE-2021-46462
+#     - CVE-2021-46463
+#     - CVE-2022-25139
+#   1.20.1-r1:
+#     - CVE-2021-3618
+#   1.20.1-r0:
+#     - CVE-2021-23017
+#   1.16.1-r6:
+#     - CVE-2019-20372
+#   1.16.1-r0:
+#     - CVE-2019-9511
+#     - CVE-2019-9513
+#     - CVE-2019-9516
+#   1.14.1-r0:
+#     - CVE-2018-16843
+#     - CVE-2018-16844
+#     - CVE-2018-16845
+#   1.12.1-r0:
+#     - CVE-2017-7529
+#   0:
+#     - CVE-2022-3638
+#     - CVE-2024-32760
+#     - CVE-2024-31079
+#     - CVE-2024-35200
+#     - CVE-2024-34161
+#     - CVE-2026-42926
+#     - CVE-2026-40701
+
+_modules_dir="usr/lib/$_pkgname/modules"
+_stream_js_depends="$pkgname-mod-stream"
+
+case "$CARCH" in
+	x86) _njs_mods= ;; # has failing tests
+	*) _njs_mods="http-js stream-js";;
+esac
+
+case "$CARCH" in
+	# FIXME: Some tests randomly fail on loongarch64.
+	loongarch64) options="!check";;
+esac
+
+# Built-in dynamic modules
+for _mod in \
+	http-geoip \
+	http-image-filter \
+	http-perl \
+	http-xslt-filter \
+	mail \
+	stream \
+	stream-geoip \
+	$_njs_mods
+do
+	subpackages="$subpackages $pkgname-mod-$_mod:_module"
+done
+
+# Third-party dynamic modules
+
+# For simplicity we assume that module is hosted on GitHub.
+_add_module() {
+	local name="$1" ver="$2" url="$3" subdir="$4" enabled="${5:-true}"
+	local dirname=${url##*/}-${ver#v}
+	local varprefix="_${name//-/_}"
+
+	eval "${varprefix}_ver='$ver'; ${varprefix}_url='$url'"
+
+	# Don't add new flag and source if it's already there, i.e. two or more
+	# modules share the same source (e.g. geoip2 that provides http-geoip2
+	# and stream-geoip2).
+	local present=false
+	case "$_extra_flags" in
+		*="$srcdir/$dirname"*) present=true;;
+	esac
+
+	if ! $present; then
+		source="$source $dirname.tar.gz::$url/archive/$ver.tar.gz"
+		# $source must be always in-sync with $sha512sums, so we have to
+		# add there source of a module that is disabled on the current arch.
+		[ "$enabled" = false ] && return
+
+		_extra_flags="$_extra_flags --add-dynamic-module=$srcdir/$dirname/$subdir"
+	fi
+	subpackages="$subpackages $pkgname-mod-$name:_module"
+}
+
+_add_module "http-brotli" "v1.0.0rc" "https://github.com/google/ngx_brotli"
+_http_brotli_so="ngx_http_brotli_filter_module.so ngx_http_brotli_static_module.so"
+
+prepare() {
+	local file; for file in $source; do
+		file=${file%%::*}
+
+		case $file in
+		*~*.patch)
+			msg $file
+			cd "$srcdir"/${file%%~*}-*
+			patch -p 1 -i "$srcdir/$file"
+			;;
+		*.patch)
+			msg $file
+			cd "$builddir"
+			patch -p 1 -i "$srcdir/$file"
+			;;
+		esac
+	done
+}
+
+_build() {
+	# Fix compilation with gcc 13.1.
+	# TODO: Remove after upgrade to njs 0.7.13.
+	#   https://github.com/nginx/njs/commit/e60d10f2007c332391d7a104453e13567ebbe52d
+	export NJS_CFLAGS="-Wno-error=dangling-pointer"
+
+	# Enable support for Redis store in the http-keyval module.
+	export NGX_HTTP_KEYVAL_ZONE_REDIS=1
+
+	./configure \
+		--prefix=/var/lib/$_pkgname \
+		--sbin-path=/usr/sbin/$_pkgname \
+		--modules-path=/$_modules_dir \
+		--conf-path=/etc/$_pkgname/$_pkgname.conf \
+		--pid-path=/run/$_pkgname/$_pkgname.pid \
+		--lock-path=/run/$_pkgname/$_pkgname.lock \
+		--http-client-body-temp-path=/var/lib/$_pkgname/tmp/client_body \
+		--http-proxy-temp-path=/var/lib/$_pkgname/tmp/proxy \
+		--http-fastcgi-temp-path=/var/lib/$_pkgname/tmp/fastcgi \
+		--http-uwsgi-temp-path=/var/lib/$_pkgname/tmp/uwsgi \
+		--http-scgi-temp-path=/var/lib/$_pkgname/tmp/scgi \
+		--with-perl_modules_path=/usr/lib/perl5/vendor_perl \
+		\
+		--user=$pkgusers \
+		--group=$_grp_ngx \
+		--with-threads \
+		--with-file-aio \
+		--with-compat \
+		\
+		--with-http_ssl_module \
+		--with-http_v2_module \
+		--with-http_realip_module \
+		--with-http_addition_module \
+		--with-http_xslt_module=dynamic \
+		--with-http_image_filter_module=dynamic \
+		--with-http_geoip_module=dynamic \
+		--with-http_sub_module \
+		--with-http_flv_module \
+		--with-http_mp4_module \
+		--with-http_gunzip_module \
+		--with-http_gzip_static_module \
+		--with-http_auth_request_module \
+		--with-http_random_index_module \
+		--with-http_secure_link_module \
+		--with-http_degradation_module \
+		--with-http_slice_module \
+		--with-http_stub_status_module \
+		--with-http_perl_module=dynamic \
+		--with-mail=dynamic \
+		--with-mail_ssl_module \
+		--with-stream=dynamic \
+		--with-stream_ssl_module \
+		--with-stream_realip_module \
+		--with-stream_geoip_module=dynamic \
+		--with-stream_ssl_preread_module \
+		\
+		${_njs_mods:+"--add-dynamic-module=$srcdir/njs-$_njs_ver/nginx"} \
+		$_extra_flags \
+		"$@"
+
+	make
+}
+
+build() {
+	_build --with-debug
+	mv objs objs-debug
+
+	make clean
+	_build
+}
+
+check() {
+	msg "Running nginx tests..."
+	cd "$srcdir"/nginx-tests-*
+
+	TEST_NGINX_BINARY="$builddir/objs/nginx" prove -j $((JOBS > 20 ? 20 : JOBS)) .
+
+	# FIXME: see !46437
+	#if [ -n "$_njs_mods" ]; then
+	#	msg "Running njs tests..."
+	#	cd "$srcdir"/njs-*
+	#	make test
+	#fi
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	chown root:root "$pkgdir"/usr/sbin/nginx
+
+	install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$_pkgname/LICENSE
+	install -Dm644 README.md "$pkgdir"/usr/share/doc/$_pkgname/README.md
+
+	install -Dm644 objs/$_pkgname.8 "$pkgdir"/usr/share/man/man8/$_pkgname.8
+
+	cd "$pkgdir"
+
+	install -Dm644 "$srcdir"/nginx.conf ./etc/$_pkgname/nginx.conf
+	install -dm755 ./etc/$_pkgname/http.d ./etc/$_pkgname/modules
+
+	install -Dm755 "$srcdir"/$_pkgname.initd ./etc/init.d/$_pkgname
+	install -Dm644 "$srcdir"/$_pkgname.confd ./etc/conf.d/$_pkgname
+	install -Dm644 "$srcdir"/$_pkgname.logrotate ./etc/logrotate.d/$_pkgname
+
+	install -dm750 -o $pkgusers -g $_grp_ngx ./var/lib/$_pkgname
+	install -dm700 -o $pkgusers -g $_grp_ngx ./var/lib/$_pkgname/tmp
+	install -dm755 -g $_grp_www ./var/www/localhost/htdocs
+
+	install -Dm644 "$srcdir"/default.conf ./usr/share/$_pkgname/http-default_server.conf
+
+	install -dm755 ./var/log
+	mv ./var/lib/$_pkgname/logs ./var/log/$_pkgname
+	chown $pkgusers:$_grp_ngx var/log/$_pkgname
+
+	ln -sf /$_modules_dir ./var/lib/$_pkgname/modules
+	ln -sf /var/log/$_pkgname ./var/lib/$_pkgname/logs
+	ln -sf /run/$_pkgname ./var/lib/$_pkgname/run
+
+	# Remove archaic charset maps.
+	rm ./etc/$_pkgname/koi-* ./etc/$_pkgname/win-utf
+
+	rm -rf ./run ./etc/$_pkgname/*.default
+}
+
+# http://nginx.org/en/docs/debugging_log.html
+debug() {
+	pkgdesc="nginx built with support for debugging log"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	options="!strip"
+
+	install -Dm755 "$builddir"/objs-debug/nginx "$subpkgdir"/usr/sbin/nginx-debug
+}
+
+vim() {
+	pkgdesc="$pkgdesc (vim syntax)"
+	install_if="vim $pkgname=$pkgver-r$pkgrel"
+	depends=
+
+	mkdir -p "$subpkgdir"/usr/share/vim
+	cp -r "$builddir"/contrib/vim "$subpkgdir"/usr/share/vim/vimfiles
+}
+
+_mod_dev() {
+	pkgdesc="NGINX module development files"
+	depends="$_makedepends_base"
+
+	mkdir -p "$subpkgdir"/usr/src/nginx-$pkgver
+	cd "$subpkgdir"/usr/src/nginx-$pkgver
+
+	cp -r "$builddir"/* .
+	cp -r "$srcdir/nginx-tests-$_tests_rev" tests
+	rm -rf objs objs-debug
+}
+
+_module() {
+	local name="${subpkgname#$pkgname-mod-}"; name="${name//-/_}"
+	local ver=$(getvar _${name}_ver)
+
+	pkgdesc="Nginx module ${name//_/-}"
+	[ "$ver" ] && pkgdesc="Nginx third-party module ${name//_/-} (version $ver)"
+
+	pkgdesc="$(getvar "_${name}_desc" "$pkgdesc")"
+	url=$(getvar "_${name}_url" "$url")
+	sonames=$(getvar "_${name}_so" "ngx_${name}_module.so")
+	depends="$pkgname=$pkgver-r$pkgrel $(getvar "_${name}_depends")"
+	provides=$(getvar "_${name}_provides")
+
+	# Numeric prefix for the module config to ensure that modules with
+	# dependencies on other modules will be loaded after their dependencies.
+	# For simplicity, we don't actually resolve dependency tree. Instead,
+	# we just prefix the module name with a number that reflects number of
+	# the module's dependencies times ten (e.g. 10, 20, 30, ...).
+	local conf_prefix="$(echo "$depends" | wc -w)0_"
+
+	mkdir -p "$subpkgdir"/$_modules_dir
+	mkdir -p "$subpkgdir"/etc/nginx/modules
+
+	cd "$subpkgdir"
+
+	local soname; for soname in $sonames; do
+		mv "$pkgdir"/$_modules_dir/$soname ./$_modules_dir/$soname
+		echo "load_module \"modules/$soname\";" >> ./etc/nginx/modules/${conf_prefix}$name.conf
+	done
+
+	case "$name" in
+		http_perl)
+			mv "$pkgdir"/usr/lib/perl5 "$subpkgdir"/usr/lib/
+		;;
+		stream)
+			mkdir -p ./etc/nginx/stream.d
+			install -m644 -D "$srcdir"/stream.conf ./etc/nginx/conf.d/stream.conf
+		;;
+	esac
+}
+
+# Print value of the specified variable, or the default if empty or not defined.
+getvar() {
+	eval "printf '%s\n' \"\${$1:-$2}\""
+}
+
+sha512sums="
+13b479cb2e80bbe7e0b977bd762e70b0cb95c7ce5dc80da61ab59fbcf2da19eca266dc82a8ef1a8b8c8c19c22948abd1aa6a3817bf490880ae175f7e2f692495  nginx-1.30.3.tar.gz
+60a42f953f73bf375ea70105bbe1df9d55eb2230a5d9fd7d5ca1db5b5f6a012c87426b7ab80b6704122cad369c0cfe4f3f3bc148c6763e955bd603db0e33df04  nginx-tests-4d1de3f357afeb91865d024b27516d6b67aad86e.tar.gz
+67b921c127fabb0ac0a8e53f63291af3227db0d2a9d67f32bfc853072403d9634f19ef736513a4007673fc98e1d3be8a5b3ac4832b04956852e43706891c38be  nginx-njs-0.9.9.tar.gz
+c89fab6d3d4226e37f2a8d2122d825046fc9a787e464fc75351a19fbda5b47016ddb907e0a61241a007304af921e11a0715895ba7b6d4c1112afe816177ed02a  no-werror.patch
+c209a220b6afc9354a1c4c39817199327425485b3da44778d632cdfd1d95b8412c58ba9b27a5c96599e7a34cc039f5b7d914ad82153c610b27dfbe21fdcdca77  nginx.conf
+0907f69dc2d3dc1bad3a04fb6673f741f1a8be964e22b306ef9ae2f8e736e1f5733a8884bfe54f3553fff5132a0e5336716250f54272c3fec2177d6ba16986f3  default.conf
+426f0c317322af7cab152f2070398c7aa5c059276ba504617a212f1e060bbb1dd9edc54e62d4cf5f14e3678235351c808ebeabe8b122757c74b3f505e8427106  stream.conf
+09b110693e3f4377349ccea3c43cb8199c8579ee351eae34283299be99fdf764b0c1bddd552e13e4d671b194501618b29c822e1ad53b34101a73a63954363dbb  nginx.logrotate
+ee10a5687740dde0c3d18d8b3555f49fcdc6abfc0a3bc2de1de3be0e99951a346fe8027d916aab73071ecd4e2c50871e7c867aca3a7a0fd16e3374c5caed1c57  nginx.initd
+0b9b9ed01ac077e334c034faa2679f6e26740fb3362eebf8cef82d22b2af2a3faaa53bae3c9e14af51cbf64720a7c66431905ca5cc43f978366456cc4e3b7f4a  nginx.confd
+05a880d5e48ac83be84498ed41fb4750211b827a9d7541acfd6ef494e5205a6e853d5594bfec3ab4ae668ea3f803e4f4b0ba550c76811971c8e266e42663c56d  ngx_brotli-1.0.0rc.tar.gz
+"
