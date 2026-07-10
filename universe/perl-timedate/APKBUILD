@@ -1,0 +1,35 @@
+pkgname=perl-timedate
+#_pkgreal is used by apkbuild-cpan to find modules at MetaCpan
+_pkgreal=TimeDate
+pkgver=2.35
+pkgrel=0
+pkgdesc="Perl module for TimeDate"
+provides="perl-time-date=$pkgver-r$pkgrel perl-date-format=$pkgver-r$pkgrel"
+replaces="perl-time-date perl-date-format"
+url="https://metacpan.org/release/TimeDate/"
+arch="noarch"
+license="GPL-1.0-or-later OR Artistic-1.0-Perl"
+depends="perl"
+subpackages="$pkgname-doc"
+source="https://cpan.metacpan.org/authors/id/A/AT/ATOOMIC/TimeDate-$pkgver.tar.gz"
+builddir="$srcdir/$_pkgreal-$pkgver"
+
+build() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL INSTALLDIRS=vendor
+	make
+}
+
+check() {
+	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	find "$pkgdir" \( -name perllocal.pod -o -name .packlist \) -delete
+}
+
+sha512sums="
+8c508a958e7ce98638ba9d16606b9b769da822ee61e7b8d8143e0ff5a45edb6b60710e826046510c966ecf5d3bf28f003dcf38a0b94f7319ba46c80c6e889f87  TimeDate-2.35.tar.gz
+"
