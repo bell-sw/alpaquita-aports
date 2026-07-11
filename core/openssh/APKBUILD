@@ -4,7 +4,7 @@
 pkgname=openssh
 pkgver=10.6_p1
 _myver=${pkgver%_*}${pkgver#*_}
-pkgrel=0
+pkgrel=1
 pkgdesc="Port of OpenBSD's free SSH release"
 url="https://www.openssh.com/portable.html"
 arch="all"
@@ -237,7 +237,7 @@ package() {
 		install -m755 -t "$pkgdir"/usr/lib/ssh/ \
 			sshd-session.pam sshd-auth.pam sshd-session.krb5 sshd-auth.krb5
 		install -m755 -t "$pkgdir"/usr/bin/ ssh.krb5
-		install -Dm644 "$srcdir"/sshd.pam "$pkgdir"/etc/pam.d/sshd
+		install -Dm644 "$srcdir"/sshd.pam "$pkgdir"/usr/lib/pam.d/sshd
 	fi
 
 	mkdir -p "$pkgdir"/etc/ssh/ssh_config.d
@@ -349,7 +349,7 @@ _server_with_flavor() {
 
 	# pam flavor also ships a pam entry
 	if [ "$_flavor" = "pam" ]; then
-		amove etc/pam.d/sshd
+		amove usr/lib/pam.d/sshd
 	fi
 
 	amove usr/sbin/sshd.$_flavor
