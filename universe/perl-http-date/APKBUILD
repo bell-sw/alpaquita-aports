@@ -1,7 +1,7 @@
 pkgname=perl-http-date
 _pkgreal=HTTP-Date
 pkgver=6.06
-pkgrel=0
+pkgrel=1
 pkgdesc="Perl module date conversion routines"
 url="https://metacpan.org/pod/HTTP::Date"
 arch="noarch"
@@ -9,8 +9,15 @@ license="GPL-1.0-or-later OR Artistic-1.0-Perl"
 depends="perl"
 replaces="perl-libwww"
 subpackages="$pkgname-doc"
-source="https://cpan.metacpan.org/authors/id/O/OA/OALDERS/HTTP-Date-$pkgver.tar.gz"
+source="https://cpan.metacpan.org/authors/id/O/OA/OALDERS/HTTP-Date-$pkgver.tar.gz
+	0100-CVE-2026-14741.patch
+	"
 builddir="$srcdir/$_pkgreal-$pkgver"
+
+# secfixes:
+#   6.06-r1:
+#     - CVE-2026-14741
+
 
 build() {
 	export CFLAGS=$(perl -MConfig -E 'say $Config{ccflags}')
@@ -30,4 +37,5 @@ package() {
 
 sha512sums="
 e1555a9b5dff3b2041594f9b480f12a022eb03b0f1628f884fc88a3aed687ba7a6c7d743198c4ca7ba32df22a98fd070bd4a2bc2494703ec72e16303c9cfb3e6  HTTP-Date-6.06.tar.gz
+5c103f322b52e68f32cf181a0c09732ca2808ee3549dd74737ce1a4bb32e2a56550918da45c2e9ba93ef7417d69402c2d83d9922542c4f73de3da6622bfd9d68  0100-CVE-2026-14741.patch
 "
