@@ -3,16 +3,20 @@
 
 pkgname=gzip
 pkgver=1.12
-pkgrel=1
+pkgrel=2
 pkgdesc="Data compression program"
 subpackages="$pkgname-doc $pkgname-dbg"
 url="https://www.gnu.org/software/gzip/"
 arch="all"
 license="GPL-3.0-or-later"
 depends="less"
-source="https://ftp.gnu.org/gnu/gzip/gzip-$pkgver.tar.xz"
+source="https://ftp.gnu.org/gnu/gzip/gzip-$pkgver.tar.xz
+	0100-CVE-2026-41992.patch
+"
 
 # secfixes:
+#   1.12-r2:
+#     - CVE-2026-41992
 #   1.12-r0:
 #     - CVE-2022-1271
 
@@ -45,4 +49,5 @@ package() {
 
 sha512sums="
 116326fe991828227de150336a0c016f4fe932dfbb728a16b4a84965256d9929574a4f5cfaf3cf6bb4154972ef0d110f26ab472c93e62ec9a5fd7a5d65abea24  gzip-1.12.tar.xz
+da08bc2deaa34024e391652dd1640d099c887c31ef01096c452595d2a9396e36daaf2299e1aa5b360d6031694f056f16728aae4cad693db6ad48df7aac28495d  0100-CVE-2026-41992.patch
 "
