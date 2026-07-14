@@ -1,0 +1,14 @@
+Add linking with libzmq to prevent the following kind of errors:
+
+  nginx: [emerg] dlopen() "/var/lib/nginx/modules/ngx_http_log_zmq_module.so" failed (/var/lib/nginx/modules/ngx_http_log_zmq_module.so: undefined symbol: zmq_socket) in /etc/nginx/modules/10_http_log_zmq.conf:1
+
+--- a/config
++++ b/config
+@@ -52,6 +52,7 @@
+ 	ngx_module_incs=
+ 	ngx_module_deps="$ZMQ_DEPS"
+ 	ngx_module_srcs="$ZMQ_SRCS"
++	ngx_module_libs="$ngx_feature_libs"
+ 
+ 	. auto/module
+ 
