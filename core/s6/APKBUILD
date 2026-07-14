@@ -1,5 +1,5 @@
 pkgname=s6
-pkgver=2.15.0.0
+pkgver=2.15.1.0
 pkgrel=0
 pkgdesc="skarnet.org's small & secure supervision software suite."
 url="https://skarnet.org/software/s6/"
@@ -11,7 +11,7 @@ depends="s6-ipcserver
 	execline"
 options="!check !libc_glibc"  # No test suite.
 subpackages="$pkgname-ipcserver $pkgname-static $pkgname-libs $pkgname-dev $pkgname-doc $pkgname-openrc"
-source="https://skarnet.org/software/s6/s6-$pkgver.tar.gz s6-svscanboot s6.initd"
+source="https://skarnet.org/software/s6/s6-$pkgver.tar.gz s6.initd"
 install="s6.pre-install s6.pre-upgrade"
 triggers="s6.trigger=/run/service"
 
@@ -31,7 +31,6 @@ build() {
 
 package() {
 	make DESTDIR="$pkgdir" install
-	install -D -m 0755 "$srcdir/s6-svscanboot" "$pkgdir/usr/libexec/s6/s6-svscanboot"
 	install -D -m 0755 "$srcdir/s6.initd" "$pkgdir/etc/init.d/s6"
 	install -D -m 0644 COPYING "$pkgdir/usr/share/licenses/$pkgname/COPYING"
 	mkdir -p "$pkgdir/usr/share/doc"
@@ -44,7 +43,6 @@ ipcserver() {
 }
 
 sha512sums="
-60121c248ddb9c8d3f72729fdad6d56f45d669b4faa7cdb82f8444f3ac001ff9bfc468b84799b2b00d990eabfe5717fa4cc018a9eb4cd62b521f192c2ac44505  s6-2.15.0.0.tar.gz
-206cdc275b81e60d8c8b7553ed1ce52ef0a868c853ccbb278e99459a8597fe650d1869973ca0a4526695664f0e853abfdae1a606276ab84db28d33d886f60751  s6-svscanboot
-f3d7b2678d60ebff743a40d92759524127dbf7d70f226979e0958fbb66fe9467b0eb87bc050815e449f1215b2286f65c73307c6b0243648dce6b5cb1fa1e244d  s6.initd
+0d66cf0db86f8df318cf92e7a9600dddd9f267b814a3aa5c6c25a18213f4f1b46f76424b96359eaf0ab7b93003afebb5a1846a8e273c7cb2723cf9766cb37a02  s6-2.15.1.0.tar.gz
+e27650eac7e8d42c7ee53895fedcd6e44147ea708b21b6818393e2890adb20ae4953cadee0d10faa6460f1016048455f6b86f69cf2daa107fec4506ca904d3fc  s6.initd
 "
