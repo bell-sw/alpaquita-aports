@@ -4,7 +4,7 @@
 pkgname=openssh
 pkgver=10.4_p1
 _myver=${pkgver%_*}${pkgver#*_}
-pkgrel=0
+pkgrel=1
 pkgdesc="OpenBSD SSH implementation"
 url="https://www.openssh.com/portable.html"
 arch="all"
@@ -33,7 +33,10 @@ fi
 
 makedepends="$makedepends_build $makedepends_host"
 
-install="$pkgname-server.post-upgrade"
+install="$pkgname-server.post-upgrade
+	$pkgname-server-pam.post-upgrade
+	$pkgname-server-krb5.post-upgrade
+	"
 subpackages="$pkgname-dbg
 	$subpackages
 	$pkgname-doc

@@ -1,12 +1,17 @@
 #!/bin/sh
 
-ver_old="$2"
-
-# Only when upgrading from an older version than 10.0_p1-r2
-# and the openssh-server-common-openrc package is installed
-if [ "$(apk version -t "$ver_old" '10.0_p1-r2')" = '<' ] \
-	&& apk info -e openssh-server-common-openrc > /dev/null
+# Only when the openssh-server-common-openrc package is installed
+if apk info -e openssh-server-common-openrc > /dev/null
 then
+	SSHD_BINARY=$(rc-service sshd checkconfig -d 2>&1 \
+		| busybox awk '/command=/ { c=$2 } END { print gensub(".+=", "", 1, c)}')
+	PKG_FLAVOR=${APK_PACKAGE/openssh-server/}
+	BIN_FLAVOR=${SSHD_BINARY/\/usr\/sbin\/sshd/}
+
+	# Try restarting the sshd service if only a sshd binary flavor matches
+	# a package flavor.
+	[ "${PKG_FLAVOR/-/.}" != "${BIN_FLAVOR}" ] && exit 0
+
 	# If started, print message
 	rc-service sshd status | grep -q started && cat >&2 <<-EOF
 *
