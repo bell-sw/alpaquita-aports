@@ -1,7 +1,7 @@
 pkgname=py3-msgpack
 _pkgname=msgpack-python
 pkgver=1.0.8
-pkgrel=1
+pkgrel=2
 pkgdesc="Python3 module for MessagePack serialization/deserialization"
 url="https://msgpack.org/"
 arch="all"
@@ -10,11 +10,17 @@ depends="python3"
 makedepends="python3-dev py3-gpep517 py3-setuptools cython py3-wheel"
 checkdepends="py3-pytest-xdist py3-pluggy"
 subpackages="$pkgname-pyc"
-source="$_pkgname-$pkgver.tar.gz::https://github.com/msgpack/msgpack-python/archive/v$pkgver.tar.gz"
+source="$_pkgname-$pkgver.tar.gz::https://github.com/msgpack/msgpack-python/archive/v$pkgver.tar.gz
+	0100-CVE-2026-57585.patch
+"
 builddir="$srcdir/msgpack-python-$pkgver"
 
 replaces="py-msgpack" # Backwards compatibility
 provides="py-msgpack=$pkgver-r$pkgrel" # Backwards compatibility
+
+# secfixes:
+#   1.0.8-r2:
+#     - CVE-2026-57585
 
 build() {
 	gpep517 build-wheel \
@@ -35,4 +41,5 @@ package() {
 
 sha512sums="
 a4d37bbc5b640ef49cc44cd2cb99710b149c94c112fb92e26a30c72de3fa7e206430c3242b03c88527874bc10b13a9d1862f61d782f202a612e2496aef7a8dbb  msgpack-python-1.0.8.tar.gz
+5bd26aab7a17ea6738589902e2c43ad8e628315114d1cdbb8f8fe5b8a747f149e73c644fb7878623306c422e94f30f16ae8fcaaf3694ddae37060f318c189e62  0100-CVE-2026-57585.patch
 "
