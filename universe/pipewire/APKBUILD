@@ -1,6 +1,6 @@
 pkgname=pipewire
 pkgver=1.6.8
-pkgrel=0
+pkgrel=1
 _so_ver=0.3
 pkgdesc="Multimedia processing graphs"
 url="https://pipewire.org/"
@@ -61,6 +61,9 @@ subpackages="
 	$pkgname-filter-graph-builtin:filter_graph_plugin
 	$pkgname-filter-graph-ladspa:filter_graph_plugin
 	$pkgname-filter-graph-sofa:filter_graph_plugin
+	$pkgname-snapcast
+	$pkgname-webrtc
+	$pkgname-rtp
 	"
 install="$pkgname.post-upgrade $pkgname.post-install"
 source="https://gitlab.freedesktop.org/PipeWire/pipewire/-/archive/$pkgver/pipewire-$pkgver.tar.gz
@@ -180,6 +183,7 @@ jack() {
 	amove usr/bin/pw-jack
 	amove usr/lib/spa-*/jack/libspa-jack.so
 	amove usr/share/pipewire/jack.conf
+	amove usr/lib/pipewire-*/libpipewire-module-*jack*
 }
 
 gst_plugin() {
@@ -272,6 +276,18 @@ filter_graph() {
 
 filter_graph_plugin() {
 	amove usr/lib/spa-*/filter-graph/libspa-filter-graph-plugin-${subpkgname#pipewire-filter-graph-}.so
+}
+
+snapcast() {
+	amove usr/lib/pipewire-*/libpipewire-module-snapcast*
+}
+
+webrtc() {
+	amove usr/lib/spa-*/aec/libspa-aec-webrtc.so
+}
+
+rtp() {
+	amove usr/lib/pipewire-*/libpipewire-module-rtp-*.so
 }
 
 sha512sums="
