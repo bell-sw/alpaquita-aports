@@ -2,7 +2,7 @@
 
 pkgname=mercurial
 pkgver=7.2.4
-pkgrel=0
+pkgrel=1
 pkgdesc="Scalable distributed SCM tool"
 url="https://www.mercurial-scm.org/"
 arch="all"
@@ -21,7 +21,10 @@ makedepends="
 checkdepends="
 	bash
 	diffutils
+	grep
 	py3-docutils
+	py3-pip
+	python3-zstd
 	sqlite
 	unzip
 	xz
@@ -37,17 +40,15 @@ subpackages="
 source="https://www.mercurial-scm.org/release/mercurial-$pkgver.tar.gz
 	blacklist.txt
 	"
-options="net !check"
+options="net"
 
 case "$CARCH" in
-aarch64|armhf)
-	# around 400 of 919 tests time out
-	options="$options !check"
-	;;
+# Timeout
+riscv64) options="$options !check" ;;
 esac
 case "$CARCH" in
-x86_64|armv7|armhf|aarch64|x86|ppc64le)
-	# Oxidation, limited by Rust
+loongarch64|riscv64|s390x) ;; # old libc crate
+*)
 	export HGWITHRUSTEXT=cpython
 	makedepends="$makedepends cargo"
 	subpackages="$subpackages $pkgname-chg"
@@ -131,5 +132,5 @@ lang() {
 
 sha512sums="
 3875fba0dc52a80ff3dfc299be14c9e5976f7e836829d43021d08d76fac6c3971b849ead54fc0fa3a28df7181fe5edfa41e50fb93acf10bbeb4b9ba8354c6434  mercurial-7.2.4.tar.gz
-b24e1b79ca36ac1d78a5af4e35eb87581f209255838327a7d9315c17175d41bfa4b7f98c66be078cfa1e7d27a41c1a12bba265fa6d3d30edb4e2ba599fe0ed18  blacklist.txt
+0581decd0a10d6434892a1a5ba1e989035fa4d6ff3f03ca96b275489a434aa64e4cb2518d74d6f737a947c6961565550a8c308b4ffcd3c1556311ffb840cf055  blacklist.txt
 "
