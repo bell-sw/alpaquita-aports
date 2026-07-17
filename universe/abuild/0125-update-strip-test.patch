@@ -40,8 +40,8 @@ index 7adccc5..0a1ed81 100755
 +		-o match:"powerpc-$VENDOR_DISTRO-linux-(musl|gnu)-strip" \
  		sort -u pkg/pkg/usr/bin/* pkg/pkg-[!c]*/usr/bin/* pkg/pkg-c[!b]*/usr/bin/*
  
--	CBUILD=powerpc-alpine-linux-musl CHOST=powerpc-chimera-linux-musl abuild rootpkg || atf_fail "abuild failed"
-+	CBUILD=powerpc-$VENDOR_DISTRO-linux-musl CHOST=powerpc-chimera-linux-musl abuild rootpkg || atf_fail "abuild failed"
+-	CBUILD=powerpc-alpine-linux-musl CHOST=powerpc-chimera-linux-musl abuild -dKf || atf_fail "abuild failed"
++	CBUILD=powerpc-$VENDOR_DISTRO-linux-musl CHOST=powerpc-chimera-linux-musl abuild -dKf || atf_fail "abuild failed"
  	atf_check -s exit:0 \
  		-o inline:'strip\n' \
  		sort -u pkg/pkg-cbuild/usr/bin/*
@@ -51,7 +51,7 @@ index 7adccc5..0a1ed81 100755
  
 -	CBUILD=x86_64 CHOST=powerpc-alpine-linux-musl CTARGET=powerpc-chimera-linux-musl \
 +	CBUILD=x86_64 CHOST=powerpc-$VENDOR_DISTRO-linux-musl CTARGET=powerpc-chimera-linux-musl \
- 	abuild rootpkg || atf_fail "abuild failed"
+ 	abuild -dKf || atf_fail "abuild failed"
  	atf_check -s exit:0 \
  		-o inline:'strip\n' \
  		sort -u pkg/pkg-cbuild*/usr/bin/*
