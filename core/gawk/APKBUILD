@@ -3,7 +3,7 @@
 
 pkgname=gawk
 pkgver=5.1.1
-pkgrel=1
+pkgrel=2
 pkgdesc="GNU awk pattern-matching language"
 url="https://www.gnu.org/software/gawk/gawk.html"
 arch="all"
@@ -11,11 +11,25 @@ license="GPL-3.0-or-later"
 checkdepends="coreutils diffutils"
 subpackages="$pkgname-doc"
 source="https://ftp.gnu.org/gnu/gawk/gawk-$pkgver.tar.xz
-	echild-strerror.patch"
+	echild-strerror.patch
+
+	0100-CVE-2026-40467.patch
+	0101-CVE-2026-40468.patch
+	0102-CVE-2026-40469.patch
+	0103-CVE-2026-40553.patch
+	"
 
 case "$CLIBC" in
 glibc) options="$options !check";
 esac
+
+# secfixes:
+#   5.1.1-r2:
+#     - CVE-2026-40467
+#     - CVE-2026-40468
+#     - CVE-2026-40469
+#     - CVE-2026-40553
+
 
 prepare() {
 	default_prepare
@@ -47,4 +61,8 @@ package() {
 sha512sums="
 794538fff03fdb9a8527a6898b26383d01988e8f8456f8d48131676387669a8bb3e706fa1a17f6b6316ddba0ebe653c24ad5dd769f357de509d6ec25f3ff1a43  gawk-5.1.1.tar.xz
 5bbb175da2d93c9c1d422a4e5a2c2400486c0204929ac6771bf2c2effbee37b84ef9441821a47e1fdc4a337e3cb8ad92cb67d473822876ea790dd373822d4dbd  echild-strerror.patch
+ad1e753abe88a4fa7e38dffb3b43444e85565d1a0616efff9066d6ca6e26cebd558be557434822692fbeabd545ee2d93aba99e2bbd5211683565788edce85393  0100-CVE-2026-40467.patch
+18459b4e5ebabb53aa20fa100efc190ae7fb7761401c108cdfa1c52710ec6bfbc610593b65c2f9804c15b685739fc6ad3dca659bb5755c0a4b8c14f69a43a707  0101-CVE-2026-40468.patch
+7c101a9a42cb60591e2894079482c8ab39b253c1b31c614b9a07ffba50b5e5cf7ad73d7bd7a670d4a662a7f6bd97dcb7f809a0e3af0e2004065dcd9ca91fe715  0102-CVE-2026-40469.patch
+6970d19bd741d6ed32017c6dd4fc96ba446803ba76e023159edd3829da648e0973526abb6c5426ad4f1e4325b2a078bdf962b2d0059715e0b944d199a5797bee  0103-CVE-2026-40553.patch
 "
