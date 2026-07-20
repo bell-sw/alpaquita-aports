@@ -1,0 +1,14 @@
+--- a/setup.py
++++ b/setup.py
+@@ -111,7 +111,10 @@
+             ['tests.__main__.suite']
+         )
+ 
+-        unittest.TextTestRunner(verbosity=2).run(suite)
++        res = unittest.TextTestRunner(verbosity=2).run(suite)
++
++        if res.failures or res.errors:
++            sys.exit(1)
+ 
+ params['cmdclass'] = {
+     'test': PyTest,
