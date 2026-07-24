@@ -1,6 +1,6 @@
 pkgname=simdjson
 pkgver=4.2.4
-pkgrel=0
+pkgrel=1
 pkgdesc="Parsing gigabytes of JSON per second"
 url="https://simdjson.org/"
 arch="all"
@@ -24,8 +24,10 @@ build() {
 }
 
 package() {
-	DESTDIR="$pkgdir" cmake --install builddir
 	DESTDIR="$pkgdir" cmake --install builddir-static
+	# We must install shared build after static build to use
+	# simdjsonTargets.cmake for shared build.
+	DESTDIR="$pkgdir" cmake --install builddir
 }
 
 sha512sums="
