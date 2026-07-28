@@ -1,15 +1,17 @@
 pkgname=bind
-pkgver=9.18.49
+pkgver=9.20.26
 _ver=${pkgver%_p*}
 _p=${pkgver#*_p}
 _major=${pkgver%%.*}
 [ "$_p" != "$pkgver" ] && _ver="$_ver-P$_p"
 pkgrel=0
 pkgdesc="The ISC DNS server"
-url="https://www.isc.org/"
+url="https://www.isc.org/bind/"
 arch="all"
 license="MPL-2.0"
-options="!check" # requires bind server
+# check: requires bind server
+# fhs: creates /var/run; TODO: fix?
+options="!check !fhs"
 pkgusers="named"
 pkggroups="named"
 depends="dns-root-hints bind-tools"
@@ -24,12 +26,14 @@ makedepends="
 	libcap-dev
 	libuv-dev
 	libxml2-dev
+	json-c-dev
 	linux-headers
 	nghttp2-dev
 	openldap-dev
 	openssl-dev>3
 	perl
 	protobuf-c-dev
+	userspace-rcu-dev
 	$_depends_root_keys
 	"
 install="$pkgname.pre-install $pkgname.post-install"
@@ -55,6 +59,16 @@ source="
 	"
 
 # secfixes:
+#   9.20.26-r0:
+#     - CVE-2026-10723
+#     - CVE-2026-10822
+#     - CVE-2026-11331
+#     - CVE-2026-11605
+#     - CVE-2026-11622
+#     - CVE-2026-11721
+#     - CVE-2026-12617
+#     - CVE-2026-13204
+#     - CVE-2026-13321
 #   9.18.49-r0:
 #     - CVE-2026-3039
 #     - CVE-2026-3592
@@ -186,6 +200,7 @@ build() {
 		--infodir=/usr/share/info \
 		--with-gssapi=yes \
 		--with-libxml2 \
+		--with-json-c \
 		--with-openssl=yes \
 		--enable-dnstap \
 		--enable-largefile \
@@ -237,7 +252,6 @@ _dnssec_tools() {
 		"$subpkgdir"/usr/bin/
 }
 
-
 plugins() {
 	pkgdesc="The ISC DNS server plugins"
 	depends="$_depends_plugins"
@@ -248,7 +262,7 @@ plugins() {
 
 tools() {
 	pkgdesc="The ISC DNS tools"
-	depends="$depends_tools"
+	depends=""
 
 	mkdir -p "$subpkgdir"/usr/bin
 	for i in "$pkgdir"/usr/bin/*; do
@@ -269,12 +283,12 @@ tools() {
 
 root_keys() {
 	pkgdesc="ISC BIND DNSSEC Root Keys"
-	depends="$depends_root_keys"
+	depends=""
 
 	local _dir _file _link
 	_dir="usr/share/$_root_keys_upstream"
 	_file="$pkgname-$_root_keys_upstream.keys"
-	_link="$pkgdir/etc/bind/bind.keys"
+	_link="$srcdir/$pkgname-$pkgver/bind.keys"
 
 	mkdir -p "$subpkgdir/$_dir"
 	cd "$subpkgdir/$_dir"
@@ -291,7 +305,7 @@ libs() {
 	pkgdesc="$pkgdesc (libraries)"
 	local dir= file=
 	for dir in lib usr/lib; do
-		for file in "$pkgdir"/$dir/lib*.so; do
+		for file in "$pkgdir"/"$dir"/lib*.so; do
 			[ -f "$file" ] || continue
 			mkdir -p "$subpkgdir"/$dir
 			mv "$file" "$subpkgdir"/$dir/
@@ -306,7 +320,7 @@ _gpgfingerprints="
 	"
 
 sha512sums="
-e5259db8b9fdb3940d4e1d95978514692777a3675fc85a83db30e049d80d8150d10e672d51eeb885a94c6bbd4573ff8fe49248117c24ff155197a24a26b09544  bind-9.18.49.tar.xz
+6d90452d86bfbd1cd6c1301f8c2d9c2251402c81a03d45ab30217f5db05ab1ca6ca7e01fac3642bcd7e1866bd535763e9a9526886312eb5eaf4e532431a92931  bind-9.20.26.tar.xz
 3d1d3e954aaee5e125f6b6f3cb660b51fc91d803df4cad43c47dbe97f19789cef20b5ca2834624668f0d761a5b81ac72db8959745d6eb293ca1154a1b390a007  named.initd
 127bdcc0b5079961f0951344bc3fad547450c81aee2149eac8c41a8c0c973ea0ffe3f956684c6fcb735a29c43d2ff48c153b6a71a0f15757819a72c492488ddf  named.confd
 d2f61d02d7829af51faf14fbe2bafe8bc90087e6b6697c6275a269ebbddcaa14a234fff5c41da793e945e8ff1de3de0858a40334e0d24289eab98df4bb721ac5  named.conf.authoritative
