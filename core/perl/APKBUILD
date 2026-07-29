@@ -1,9 +1,9 @@
 # Description:
 
 pkgname=perl
-pkgver=5.42.2
-pkgrel=2
-_cross=1.6.3
+pkgver=5.44.0
+pkgrel=0
+_cross=1.6.4
 _pkgver=${pkgver/_rc/-RC}
 pkgdesc="Larry Wall's Practical Extraction and Report Language"
 url="https://www.perl.org/"
@@ -14,6 +14,7 @@ makedepends_host="
 	bzip2-dev
 	glibc:libxcrypt-dev
 	zlib-dev
+	tzdata
 	"
 subpackages="$pkgname-doc $pkgname-dev $pkgname-utils::noarch"
 [ "$CBUILD" = "$CHOST" ] && subpackages="$subpackages miniperl"
@@ -22,18 +23,9 @@ source="https://www.cpan.org/src/5.0/perl-$_pkgver.tar.xz
 	digest-sha-cflags.patch
 	dont-write-packlist.patch
 	json-pp-options.patch
-	musl:musl-skip-dst-test.patch
 	musl:musl-stack-size.patch
 	skip-test-due-to-busybox-ps.patch
-
-	0100-cpan-Compress-Raw-Bzip2-Update-to-version-2.218.patch
-	0101-security-update-cpan-IO-Compress-Update-to-version-2.patch
-	0102-Treat-hardlinks-the-same-as-symlinks.patch
-	0103-CVE-2026-42496-CVE-2026-42497-Validate-symlink-and-h.patch
-	0104-CVE-2026-9538-Cpan-entry-size-during-read.patch
-	0105-CVE-2026-7010.patch
 	"
-builddir="$srcdir/$pkgname-$_pkgver"
 # creates empty usr/local/{lib,share} for local sitedirs
 options="!fhs"
 
@@ -263,18 +255,11 @@ utils() {
 }
 
 sha512sums="
-3c77dbede22df1a7ab3714c7dc6d675f14cb99b084fcc4e4d9b65aed1a080ac4d5ecf2cbf4759b2565f6452e52b337633f870dbcbf152dc66833cfe71f04fffc  perl-5.42.2.tar.xz
-eb8aa2d57121ef288e253f9443bd4f53ad8b23152096265a0f8211ca4f2a61fdf3fdd03ca1e7d1e1c4a8a408421c7254cfaf12d1f81333aa4a0bf53d74cfa223  perl-cross-1.6.3.tar.gz.noauto
+734d00d00678add11544e8f483bf953e61ae391aa6a2bba61ec4e7727275e243cc411525d30e6a73f70ccc0603ebe85bc0c6dd69b0106a6162e21a4595d11075  perl-5.44.0.tar.xz
+0a6152cfaef1da7611554fa8fc93ff1edb3ece83f0c8a746cf2e0006624f2dd0908cf84a53bb06b048995d14923aa0b4783ad3696f8a2e3d4f742107966e9923  perl-cross-1.6.4.tar.gz.noauto
 59afa4c166e4808d355e19cd70748540ffce9da5c6919c71648be7678de328409f9121ddea33415add73fc01a22e95ed9d9629f31b8ba20b3bbfc04dab926c63  digest-sha-cflags.patch
 abae709290306a8fbc96b604b9b38fc09a46ae178f3e77944813f1b46c78e2e3654e5c3b3a6aca96684a2d1061e2871376d508fbe82604864055309156b4d0d8  dont-write-packlist.patch
 4e8a655160e54a151e0bc4819fd1cd69e43c1e36844bcefbb9734f36130a2d9e1700b1aa64153a9d20a8deb875e904876dbe7b14dd278266b21a86a33d91eebd  json-pp-options.patch
-cd5bc95a526b0803d80b7d201ad36b347cca04451aff124e0297e8514f9cbdc87c3ce37dadf41ccb72d0e77ac82d7831e165a8d4f21f36be8a9a60872a0d6f14  musl-skip-dst-test.patch
 c004d6612ec754e5947255a2e2d15b5581f187c32495aeeec9f4fa286919bd9f40c72b63db61e3f4004b09288af2063a6a14b67e5c289e9a8b23ebd7c216e16f  musl-stack-size.patch
 7d8d19d295ad740f4aa43d68cb86726c8781940c624bff825811b9874438e3621befa7f24774d98fa8667349a05047c48119cc080977b232e48964aabe5aa93a  skip-test-due-to-busybox-ps.patch
-2d8a32a5d3b1cb6bb9b6ad049a6a608499d853818a89a5f7253094768a02746a41218b06db1cde9b0f0b96f6392458665bf71a3029afb6e05ccf09949f14b041  0100-cpan-Compress-Raw-Bzip2-Update-to-version-2.218.patch
-ee1b03c2e56e3ea8adc5ca915c054ec12c06e49d7d079394a1a8c34bb11fe5206f121b9d37e4489ede622de1cf17f2ec660feedf4532bf9f48d9c5aeaf30af52  0101-security-update-cpan-IO-Compress-Update-to-version-2.patch
-7774f266849d1c5e0645314c391491aee891f839c06e7047a3c1ba2899f7ca8799e8f1ad0b2651db5966db47f848bbad76153653bccb5f6a1e52b9b0fa6c6c6e  0102-Treat-hardlinks-the-same-as-symlinks.patch
-1e8f2b56b496db3e41e8e1f26d2c0b075680965e0cd54072ff2a8ca00aeed0cbdf6d3bf7f839463c7eedb50fbb963e4775a276f15e91e65765668985eedaeb3d  0103-CVE-2026-42496-CVE-2026-42497-Validate-symlink-and-h.patch
-f9290e724440964f2d5c77a6f2e1b87518467be37e5ab2013e1464aafdbcdf56c2e2872f8e1f8b79041d4180e514c0c376ad92d52f316f4fd6fd5eceffe80d19  0104-CVE-2026-9538-Cpan-entry-size-during-read.patch
-121faaac87c1129c7fd131fad32e2594ee89c0d5f636cb4bfa52f52e479c377b083f4761205f6c7d9ec87f83c4280a9f3b2c2f977e34bb535155b869b65faaac  0105-CVE-2026-7010.patch
 "
