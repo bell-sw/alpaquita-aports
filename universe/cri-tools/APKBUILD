@@ -1,13 +1,20 @@
 pkgname=cri-tools
 pkgver=1.35.0
-pkgrel=4
+pkgrel=5
 pkgdesc="CLI tool for Kubelet Container Runtime Interface (CRI)"
 url="https://github.com/kubernetes-sigs/cri-tools"
 arch="all !armhf"
 license="Apache-2.0"
 makedepends="go"
 options="!check" # no check available
-source="$pkgname-$pkgver.tar.gz::https://github.com/kubernetes-sigs/cri-tools/archive/v$pkgver.tar.gz"
+source="$pkgname-$pkgver.tar.gz::https://github.com/kubernetes-sigs/cri-tools/archive/v$pkgver.tar.gz
+
+	9999-go-mod.patch
+	"
+
+# secfixes:
+#   1.35.0-r5:
+#     - CVE-2026-32285
 
 export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
 export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
@@ -29,4 +36,5 @@ package() {
 
 sha512sums="
 ea34e736b457f851b610e8091ebbb608ac0f790c80156ad3e1a7080c76df4ea759091300b7ee6b5812a42ec93e165d71b6fa06f12424f46b4b181f5059b100bb  cri-tools-1.35.0.tar.gz
+ba702b0cf2ff053eb8c3d70aeac35f0b6e5cc0dc7de0517cae953a91ab2b63ab7fcfcfb21dfb7d94e1d345829e441b13e63fe4345f2057caf4094f4ecbd4a790  9999-go-mod.patch
 "
