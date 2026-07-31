@@ -3,7 +3,7 @@
 
 pkgname=libarchive
 pkgver=3.8.8
-pkgrel=0
+pkgrel=1
 pkgdesc="Multi-format archive and compression library"
 url="https://libarchive.org/"
 arch="all"
@@ -21,10 +21,14 @@ makedepends="
 	zstd-dev
 	"
 subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-tools"
-source="https://libarchive.org/downloads/libarchive-$pkgver.tar.xz"
+source="https://libarchive.org/downloads/libarchive-$pkgver.tar.xz
+
+	0100-CVE-2026-16517.patch"
 options="!check"
 
 # secfixes:
+#   3.8.8-r1:
+#     - CVE-2026-16517
 #   3.8.8-r0:
 #     - CVE-2026-14164
 #   3.8.7-r0:
@@ -79,4 +83,5 @@ tools() {
 
 sha512sums="
 6952aaa3f7aa275b1a678c03b3ca3a50111a1305f0eb50362b8a85599f1c13a0c771530c7caea6ddcc3c8ceead4c206abca851d8b2c4b64968773d8fd6fc64de  libarchive-3.8.8.tar.xz
+3de5342d75d88d203cb7742de421abaf4932c47523eeb8915debe10cb03cb327cf7bac0a064eefae95fc013922c918b564fd72d99582b8730db9d1e9a2c86541  0100-CVE-2026-16517.patch
 "
