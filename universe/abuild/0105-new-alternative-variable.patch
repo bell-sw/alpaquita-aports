@@ -1,4 +1,4 @@
-From 570ef06263b6601fa5f0657e66414198268ca8e4 Mon Sep 17 00:00:00 2001
+From f8ad408c15a11467c3aa01da3f3e3599fbe12742 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 1 Mar 2022 16:59:59 +0300
 Subject: [PATCH] new 'alternative' variable
@@ -9,10 +9,10 @@ Subject: [PATCH] new 'alternative' variable
  2 files changed, 15 insertions(+)
 
 diff --git a/APKBUILD.5.scd b/APKBUILD.5.scd
-index b5fbc8a..61b125e 100644
+index 1750cef..df2f293 100644
 --- a/APKBUILD.5.scd
 +++ b/APKBUILD.5.scd
-@@ -189,6 +189,12 @@ file.
+@@ -198,6 +198,12 @@ or be set with the *local* shell extension.
  	to decide which package should define the permissions of a directory
  	even without *replaces* set.
  
@@ -22,14 +22,14 @@ index b5fbc8a..61b125e 100644
 +	it will remove the already installed alternative package that it
 +	conflicts with.
 +
- *subpackages*
- 	Specifies subpackages or split packages built with this
- 	package. Typically, this will include _$pkgname-dev_ for development
+ *install_if*
+ 	List of conditions when apk(8) should automatically install the
+ 	(sub)package. For instance, the *default_openrc* split function set
 diff --git a/abuild.in b/abuild.in
-index a5e0529..880a1a3 100644
+index 317711d..28483c8 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -254,6 +254,11 @@ default_validate() {
+@@ -253,6 +253,11 @@ default_validate() {
  		*[!0-9]*) die "provider_priority must be a number" ;;
  	esac
  
@@ -41,7 +41,7 @@ index a5e0529..880a1a3 100644
  	# check pkgname and subpkgnames
  	for i in "$pkgname" $subpackages; do
  		i="${i%%:*}"
-@@ -1249,6 +1254,10 @@ prepare_metafiles() {
+@@ -1239,6 +1244,10 @@ prepare_metafiles() {
  		echo "provider_priority = $provider_priority" >> "$pkginfo"
  	fi
  
@@ -53,5 +53,5 @@ index a5e0529..880a1a3 100644
  	for i in $replaces; do
  		echo "replaces = $i" >> "$pkginfo"
 -- 
-2.55.0
+2.53.0
 

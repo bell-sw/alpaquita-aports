@@ -1,4 +1,4 @@
-From 9103c7d0060f78c4e332c49c081c8fdd6b623678 Mon Sep 17 00:00:00 2001
+From 8912ea8b902317da02dfe6599ee29c8c09659c36 Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
 Date: Thu, 20 Jan 2022 09:25:14 +0000
 Subject: [PATCH] Added support for glibc toolchains
@@ -11,7 +11,7 @@ Subject: [PATCH] Added support for glibc toolchains
  4 files changed, 36 insertions(+), 53 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index 257631d..9527000 100644
+index acda108..56dc767 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -8,6 +8,8 @@ sharedir		?= $(prefix)/share/$(PACKAGE)
@@ -32,7 +32,7 @@ index 257631d..9527000 100644
  SSL_CFLAGS	?= $(shell pkg-config --cflags openssl)
  SSL_LDFLAGS	?= $(shell pkg-config --cflags openssl)
 diff --git a/abuild.in b/abuild.in
-index 8bfd477..23fdfe8 100644
+index c9d2c0d..6645bda 100644
 --- a/abuild.in
 +++ b/abuild.in
 @@ -64,6 +64,25 @@ error() {
@@ -61,7 +61,7 @@ index 8bfd477..23fdfe8 100644
  amove() {
  	[ -n "$subpkgdir" ] || return 1
  
-@@ -273,7 +292,7 @@ default_validate() {
+@@ -272,7 +291,7 @@ default_validate() {
  		ensure_valid_filename "$f"
  		[ -e "$startdir"/$f ] || die "trigger script $f is missing"
  	done
@@ -70,7 +70,7 @@ index 8bfd477..23fdfe8 100644
  		if install_has "$i"; then
  			warning "You should not have \$install in source"
  		fi
-@@ -317,7 +336,7 @@ default_validate() {
+@@ -323,7 +342,7 @@ default_validate() {
  
  	# verify that things listed in checksum also is listed in source
  	# get number of checksums
@@ -79,7 +79,7 @@ index 8bfd477..23fdfe8 100644
  	local numsources=$#
  	set -- ${sha512sums:-$sha256sums}
  	if [ $# -ne $((numsources * 2)) ]; then
-@@ -442,7 +461,7 @@ default_fetch() {
+@@ -448,7 +467,7 @@ default_fetch() {
  	mkdir -p "$srcdir"
  	set -- ${sha512sums:-$sha256sums}
  
@@ -88,7 +88,7 @@ index 8bfd477..23fdfe8 100644
  		local file="$startdir/$s"
  		if is_remote "$s"; then
  			uri_fetch_mirror "$s" || return 1
-@@ -554,7 +573,7 @@ clean() {
+@@ -535,7 +554,7 @@ clean() {
  # cleanup fetched sources
  cleancache() {
  	local s
@@ -97,7 +97,7 @@ index 8bfd477..23fdfe8 100644
  		if is_remote "$s"; then
  			s=$(filename_from_uri $s)
  			msg "Cleaning downloaded $s ..."
-@@ -2453,7 +2472,7 @@ builddeps() {
+@@ -2382,7 +2401,7 @@ builddeps() {
  # replace the sha512sums in the APKBUILD
  checksum() {
  	local s files name
@@ -106,7 +106,7 @@ index 8bfd477..23fdfe8 100644
  		&& msg "Removing checksums from $APKBUILD"
  	sed -E -i \
  		-e '/^sha[0-9]+sums=".*"$/d' \
-@@ -2465,10 +2484,10 @@ checksum() {
+@@ -2394,10 +2413,10 @@ checksum() {
  
  	sha256sums=
  	sha512sums=
@@ -119,7 +119,7 @@ index 8bfd477..23fdfe8 100644
  		name="$(filename_from_uri $s)"
  		case " $files " in
  		*" $name "*) die "duplicate found in \$source: $name";;
-@@ -2756,7 +2775,7 @@ listpkg() {
+@@ -2699,7 +2718,7 @@ listpkg() {
  
  source_has() {
  	local i
@@ -128,7 +128,7 @@ index 8bfd477..23fdfe8 100644
  		[ "$1" = "${i##*/}" ] && return 0
  		[ "$1" = "${i%%::*}" ] && return 0
  	done
-@@ -3036,6 +3055,8 @@ cd "$startdir" || die
+@@ -2978,6 +2997,8 @@ cd "$startdir" || die
  
  builddir=${builddir:-"$srcdir/$pkgname-$pkgver"}
  
@@ -138,7 +138,7 @@ index 8bfd477..23fdfe8 100644
  if [ -z "$REPODEST" ]; then
  	warning "REPODEST is not set and is now required. Defaulting to $HOME/packages"
 diff --git a/functions.sh.in b/functions.sh.in
-index cd7b6a5..0ce6fa9 100644
+index a8f7713..ca33846 100644
 --- a/functions.sh.in
 +++ b/functions.sh.in
 @@ -6,29 +6,8 @@ program=${0##*/}
@@ -216,5 +216,5 @@ index fd6e594..8d738b0 100755
  			cat >script<<-EOF
  				unset $var
 -- 
-2.55.0
+2.53.0
 

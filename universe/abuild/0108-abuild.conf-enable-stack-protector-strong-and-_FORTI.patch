@@ -1,4 +1,4 @@
-From a12ddcb787076f14377152627a694dcfca743a76 Mon Sep 17 00:00:00 2001
+From 98921060b85c1ff4d497970eaa8ae2f351a498c1 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 16 Aug 2022 16:31:08 +0300
 Subject: [PATCH] abuild.conf: enable stack-protector-strong and
@@ -13,10 +13,10 @@ can be set to disable the test and building with the plugin.
  3 files changed, 86 insertions(+), 5 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index 2d34f86..9d29392 100644
+index 75ae13c..844db88 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -2071,7 +2071,9 @@ default_dbg() {
+@@ -2001,7 +2001,9 @@ default_dbg() {
  		if ! [ -e "$pkgbasedir/.dbg-tmp/$ino" ]; then
  			local tmp=$pkgbasedir/.dbg-tmp/${src##*/}
  			${CROSS_COMPILE}objcopy --only-keep-debug "$src" "$dst"
@@ -27,15 +27,15 @@ index 2d34f86..9d29392 100644
  			# preserve attributes, links
  			cat "$tmp" > "$src"
  			rm "$tmp"
-@@ -2309,6 +2311,7 @@ rootpkg() {
+@@ -2238,6 +2240,7 @@ rootpkg() {
+ 
  	do_fakeroot "$abuild_path" $forceroot $color_opt $keep_build $verbose \
- 		set_source_date \
  		package \
 +		hardening_check \
  		prepare_subpackages \
  		prepare_package \
  		create_apks
-@@ -2792,7 +2795,7 @@ stripbin() {
+@@ -2735,7 +2738,7 @@ stripbin() {
  
  		[ "$osabi" != "STANDALONE" ] || continue
  		local tmp="$pkgbasedir/.strip-tmp/${filename##*/}"
@@ -44,7 +44,7 @@ index 2d34f86..9d29392 100644
  		# only replace content to preserve attributes
  		cat "$tmp" > "$filename"
  		rm "$tmp"
-@@ -2800,6 +2803,59 @@ stripbin() {
+@@ -2743,6 +2746,59 @@ stripbin() {
  	rmdir "$pkgbasedir/.strip-tmp"
  }
  
@@ -104,7 +104,7 @@ index 2d34f86..9d29392 100644
  # simply list target apks
  listpkg() {
  	local name
-@@ -3133,6 +3189,26 @@ export GOTMPDIR="${GOTMPDIR:-"$tmpdir"}"
+@@ -3075,6 +3131,26 @@ export GOTMPDIR="${GOTMPDIR:-"$tmpdir"}"
  export CARGO_HOME="${CARGO_HOME:-"$tmpdir/cargo"}"
  export HARECACHE="${HARECACHE:-"$tmpdir/hare-cache"}"
  
@@ -132,7 +132,7 @@ index 2d34f86..9d29392 100644
  pkgdir="$pkgbasedir/$pkgname"
  controldir="$pkgbasedir"/.control.${subpkgname:-$pkgname}
 diff --git a/default.conf b/default.conf
-index 36fee76..8e5e096 100644
+index 350aff3..0cd4727 100644
 --- a/default.conf
 +++ b/default.conf
 @@ -1,5 +1,5 @@
@@ -144,11 +144,11 @@ index 36fee76..8e5e096 100644
  export LDFLAGS="-Wl,--as-needed,-O1,--sort-common"
  export GOFLAGS="-buildmode=pie -modcacherw -trimpath -buildvcs=false"
 diff --git a/tests/testrepo/dbgpkg/APKBUILD b/tests/testrepo/dbgpkg/APKBUILD
-index 25bb1c6..12a9a83 100644
+index 8ef1a51..da018a1 100644
 --- a/tests/testrepo/dbgpkg/APKBUILD
 +++ b/tests/testrepo/dbgpkg/APKBUILD
-@@ -16,7 +16,12 @@ prepare() {
- }
+@@ -11,7 +11,12 @@ source="hello.c"
+ builddir="$srcdir"
  
  build() {
 -	$CC -o hello hello.c
@@ -162,5 +162,5 @@ index 25bb1c6..12a9a83 100644
  
  check() {
 -- 
-2.55.0
+2.53.0
 

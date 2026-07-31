@@ -1,4 +1,4 @@
-From 0be34bf43a530dd6871b5289b4e5c26634dab5cb Mon Sep 17 00:00:00 2001
+From 14c712923bc52a5f316dec43fa3a91873f5fb01d Mon Sep 17 00:00:00 2001
 From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
 Date: Thu, 7 Dec 2023 19:43:25 +0300
 Subject: [PATCH] abuild: add option -X for skipping running the check command
@@ -9,10 +9,10 @@ Subject: [PATCH] abuild: add option -X for skipping running the check command
  1 file changed, 6 insertions(+), 4 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index 1465ddc..4e89dac 100644
+index dbf61ee..19dc0ab 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -1959,7 +1959,7 @@ build_abuildrepo() {
+@@ -1889,7 +1889,7 @@ build_abuildrepo() {
  	if options_has "checkroot"; then
  		_check=check_fakeroot
  	fi
@@ -21,7 +21,7 @@ index 1465ddc..4e89dac 100644
  		_check=
  	fi
  	if ! apk_up2date || [ -n "$force" ]; then
-@@ -2577,7 +2577,7 @@ rootbld_actions() {
+@@ -2506,7 +2506,7 @@ rootbld_actions() {
  	if options_has "checkroot"; then
  		_check=check_fakeroot
  	fi
@@ -30,15 +30,15 @@ index 1465ddc..4e89dac 100644
  		_check=
  	fi
  	for part in symlinksrc unpack prepare build $_check check_fmv rootpkg; do
-@@ -3080,6 +3080,7 @@ usage() {
+@@ -3023,6 +3023,7 @@ usage() {
  		 -r  Install missing dependencies from system repository (using \$SUDO_APK)
  		 -s  Set source package destination directory
  		 -v  Verbose: show every command as it is run (very noisy)
 +		 -X  Skip running the check command by default
  
  		Commands:
- 		  build       Compile and install package into \$pkgdir
-@@ -3113,8 +3114,8 @@ usage() {
+ 		  build       Compile package in \$builddir
+@@ -3055,8 +3056,8 @@ usage() {
  }
  
  APKBUILD="${APKBUILD:-./APKBUILD}"
@@ -49,7 +49,7 @@ index 1465ddc..4e89dac 100644
  	case $opt in
  		'A') echo "$CARCH"; exit 0;;
  		'c') enable_colors
-@@ -3136,6 +3137,7 @@ while getopts ":AcC:dD:fFhkKmnP:qrs:vV" opt; do
+@@ -3078,6 +3079,7 @@ while getopts ":AcC:dD:fFhkKmnP:qrs:vV" opt; do
  		's') SRCDEST=$OPTARG;;
  		'v') verbose="-v"; set -x;;
  		'V') echo "$program $program_version"; exit 0;;
@@ -58,5 +58,5 @@ index 1465ddc..4e89dac 100644
  	esac
  done
 -- 
-2.55.0
+2.53.0
 

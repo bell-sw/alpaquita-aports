@@ -1,4 +1,4 @@
-From ffee4cee44e969e3759249c27a10e94daf3be9ea Mon Sep 17 00:00:00 2001
+From 40dc618bcdd491960aa3cdabb5405224d1df42d4 Mon Sep 17 00:00:00 2001
 From: Stanislav Kholmanskikh <stanislav.kholmanskikh@bell-sw.com>
 Date: Wed, 18 Jan 2023 10:20:25 +0300
 Subject: [PATCH] Add distro naming customizations
@@ -9,23 +9,23 @@ Subject: [PATCH] Add distro naming customizations
  2 files changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index fb7d611..8bfd477 100644
+index fe54580..c9d2c0d 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -2640,7 +2640,7 @@ rootbld() {
+@@ -2567,7 +2567,7 @@ rootbld() {
  	$ROOTBLD_APK add "$@" --initdb --update \
  		--arch $CBUILD_ARCH \
  		--root "$BUILD_ROOT" \
--		abuild alpine-base $hostdeps $builddeps
-+		abuild distro-base $hostdeps $builddeps
+-		abuild alpine-base $builddeps
++		abuild distro-base $builddeps
  
- 	# busybox adduser/addgroup check if uid is 0 so we need to generate the files manually
- 	awk -F: -v pkggroups="$pkggroups" -v pkgusers="$pkgusers" -v root="$BUILD_ROOT" 'BEGIN {
+ 	if cross_compiling || cross_creating; then
+ 		mkdir -p -- "$BUILD_ROOT/home/user/sysroot-$CTARGET_ARCH"
 diff --git a/functions.sh.in b/functions.sh.in
-index 35ec2ab..8cc8c06 100644
+index 3167da3..a828258 100644
 --- a/functions.sh.in
 +++ b/functions.sh.in
-@@ -132,7 +132,7 @@ readconfig() {
+@@ -138,7 +138,7 @@ readconfig() {
  		if [ -n "$gitbase" ]; then
  			case $($git remote get-url origin 2>/dev/null || true) in
  			# '.git' for SSH URLs, and no suffix for HTTPS URLs
@@ -35,5 +35,5 @@ index 35ec2ab..8cc8c06 100644
  			esac
  		else
 -- 
-2.55.0
+2.53.0
 

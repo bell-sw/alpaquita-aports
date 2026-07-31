@@ -1,4 +1,4 @@
-From e886c88df7a94ddf35cc1d54fd17b473e7a790b3 Mon Sep 17 00:00:00 2001
+From 0ace096d1e2fb8994d9577ff1d09fc714ed82d41 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Fri, 8 Sep 2023 14:53:40 +0000
 Subject: [PATCH] support fmv_targets and fmv_functions variables
@@ -13,10 +13,10 @@ Subject: [PATCH] support fmv_targets and fmv_functions variables
  1 file changed, 54 insertions(+), 2 deletions(-)
 
 diff --git a/abuild.in b/abuild.in
-index 7d6ed09..1465ddc 100644
+index 676c3a8..dbf61ee 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -771,6 +771,7 @@ default_prepare() {
+@@ -754,6 +754,7 @@ default_prepare() {
  
  	[ -n "$builddir" -a -d "$builddir" ] && cd "$builddir"
  	if ! have_patches; then
@@ -24,7 +24,7 @@ index 7d6ed09..1465ddc 100644
  		return 0
  	fi
  	[ -d "$builddir" ] || { error "Is \$builddir set correctly?"; return 1; }
-@@ -791,6 +792,9 @@ default_prepare() {
+@@ -774,6 +775,9 @@ default_prepare() {
  				;;
  		esac
  	done
@@ -34,7 +34,7 @@ index 7d6ed09..1465ddc 100644
  	if [ -z "$failed" ]; then
  		return 0
  	fi
-@@ -1969,7 +1973,7 @@ build_abuildrepo() {
+@@ -1899,7 +1903,7 @@ build_abuildrepo() {
  		set_source_date
  
  		for part in remove_libc_tags validate builddeps clean fetch unpack prepare mkusers build \
@@ -43,7 +43,7 @@ index 7d6ed09..1465ddc 100644
  			runpart $part
  		done
  		_endtime=$(date -u +%s)
-@@ -2576,7 +2580,7 @@ rootbld_actions() {
+@@ -2505,7 +2509,7 @@ rootbld_actions() {
  	if ! want_check; then
  		_check=
  	fi
@@ -52,7 +52,7 @@ index 7d6ed09..1465ddc 100644
  		runpart $part
  	done
  }
-@@ -3224,6 +3228,54 @@ remove_cflags()
+@@ -3166,6 +3170,54 @@ remove_cflags()
  	export CPPFLAGS="${CPPFLAGS//$f/}"
  }
  
@@ -108,5 +108,5 @@ index 7d6ed09..1465ddc 100644
  	remove_cflags "-fplugin=annobin"
  fi
 -- 
-2.55.0
+2.53.0
 

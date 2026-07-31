@@ -1,4 +1,4 @@
-From 2711f5d08fec7b139e29fc42dd154625869c8308 Mon Sep 17 00:00:00 2001
+From 767d060a93ee3a624b46cea35710defe94143756 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Wed, 2 Feb 2022 17:41:55 +0300
 Subject: [PATCH] handle libc tags in depends/makedepends
@@ -8,10 +8,10 @@ Subject: [PATCH] handle libc tags in depends/makedepends
  1 file changed, 26 insertions(+), 1 deletion(-)
 
 diff --git a/abuild.in b/abuild.in
-index 23fdfe8..312a886 100644
+index 6645bda..a3c3778 100644
 --- a/abuild.in
 +++ b/abuild.in
-@@ -201,6 +201,28 @@ ensure_valid_filename() {
+@@ -200,6 +200,28 @@ ensure_valid_filename() {
  	[ -z "$invalid" ] || die "Forbidden character(s) in filename $1: $invalid"
  }
  
@@ -40,7 +40,7 @@ index 23fdfe8..312a886 100644
  # check if apkbuild is valid
  default_validate() {
  	local i= j= found
-@@ -1144,6 +1166,8 @@ prepare_metafiles() {
+@@ -1134,6 +1156,8 @@ prepare_metafiles() {
  	mkdir -p "$controldir"
  	local builddate="$SOURCE_DATE_EPOCH"
  
@@ -49,7 +49,7 @@ index 23fdfe8..312a886 100644
  	# Fix package size on several filesystems
  	case "$(stat -f -c "%T" .)" in
  	btrfs|ecryptfs|zfs)
-@@ -1905,7 +1929,7 @@ build_abuildrepo() {
+@@ -1835,7 +1859,7 @@ build_abuildrepo() {
  		# make sure SOURCE_DATE_EPOCH is set
  		set_source_date
  
@@ -58,7 +58,7 @@ index 23fdfe8..312a886 100644
  				$_check rootpkg; do
  			runpart $part
  		done
-@@ -2564,6 +2588,7 @@ rootbld() {
+@@ -2491,6 +2515,7 @@ rootbld() {
  	set_source_date
  
  	# networking business
@@ -67,5 +67,5 @@ index 23fdfe8..312a886 100644
  	clean
  	fetch
 -- 
-2.55.0
+2.53.0
 
