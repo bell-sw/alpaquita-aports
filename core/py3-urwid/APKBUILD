@@ -1,7 +1,7 @@
 pkgname=py3-urwid
 _pyname=urwid
 pkgver=2.2.3
-pkgrel=0
+pkgrel=1
 pkgdesc="A console user interface library for Python3"
 url="https://urwid.org/"
 arch="all"
@@ -16,11 +16,18 @@ checkdepends="
 	py3-pytest-cov
 	py3-twisted
 	"
-source="https://files.pythonhosted.org/packages/source/u/$_pyname/$_pyname-$pkgver.tar.gz"
+source="https://files.pythonhosted.org/packages/source/u/$_pyname/$_pyname-$pkgver.tar.gz
+
+	0100-CVE-2026-9323.patch
+	"
 builddir="$srcdir"/$_pyname-$pkgver
 
 replaces="py-urwid" # Backwards compatibility
 provides="py-urwid=$pkgver-r$pkgrel" # Backwards compatibility
+
+# secfixes:
+#   2.2.3-r1:
+#     - CVE-2026-9323
 
 build() {
 	gpep517 build-wheel \
@@ -45,4 +52,5 @@ package() {
 
 sha512sums="
 48588d0c819b229bdaaa70bec3a279c3bf232b8520d95e1f45a83bea927244634e91fd47cc161647c2d8155e523543549bc5ed2ccb5eac29843e12515e5dfd22  urwid-2.2.3.tar.gz
+15fc88ba2750d45a2b885f0bcc3fa31479aed9bfb70c27d4c798e8e4a6723c344ff780812b1a6d06a731e546b60bf16dbe3e7e4b5b276bb9b354645ad0e4ef4c  0100-CVE-2026-9323.patch
 "
