@@ -1,5 +1,5 @@
 pkgname=py3-pip
-pkgver=26.1.2
+pkgver=26.2
 pkgrel=0
 pkgdesc="Tool for installing and managing Python packages"
 url="https://pip.pypa.io"
@@ -15,6 +15,7 @@ makedepends="
 	py3-wheel
 	"
 checkdepends="
+	py3-cryptography
 	py3-freezegun
 	py3-pytest
 	py3-scripttest
@@ -29,17 +30,15 @@ subpackages="
 	$pkgname-zsh-completion
 	$pkgname-bash-completion
 	"
-source="https://github.com/pypa/pip/archive/$pkgver/pip-$pkgver.tar.gz
-
-	0101-CVE-2026-44431.patch
-	0102-CVE-2026-44432.patch
-	"
+source="https://github.com/pypa/pip/archive/$pkgver/pip-$pkgver.tar.gz"
 builddir="$srcdir/pip-$pkgver"
 
 provides="py-pip=$pkgver-r$pkgrel" # Backwards compatibility
 replaces="py-pip" # Backwards compatibility
 
 # secfixes:
+#   26.2-r0:
+#     - CVE-2026-13346
 #   26.1.1-r2:
 #     - CVE-2026-44431
 #     - CVE-2026-44432
@@ -106,7 +105,5 @@ package() {
 }
 
 sha512sums="
-e29c98a7da5e329183b7eef86a66f9d6c3473051f64aa6e762714306148547eb0de4220824484071822a9a62bd01a62a09ab16bba4c26e4b847bfc2609728608  pip-26.1.2.tar.gz
-71e04788d088b76d420dd2ab388f4880942cb599dc06a01c923d87b4f7e0eda0db5178f4c20735555f3271900ea9d09b847398ba7cec407c8481a300344c6c97  0101-CVE-2026-44431.patch
-7e716c51e57253ee8d78904617b1a94972656a8aaeef5e9ed7e194297e3823850f84ae2c40af0a42575841384fb1cc286db1dace6c6bf60b6a940f32d3592ee7  0102-CVE-2026-44432.patch
+83c8ee08e9768dcf3e77557487b0f21c0120803af5c2432ac30712ef65666406519bcd79c3b64da170a5bfc167680b3607929aaa32a70fbad6eca3e0b8aacfb0  pip-26.2.tar.gz
 "
