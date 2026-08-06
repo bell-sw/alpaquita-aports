@@ -1,14 +1,21 @@
 pkgname=calicoctl
 pkgver=3.31.3
-pkgrel=2
+pkgrel=3
 pkgdesc="Optional command line interface (CLI) to manage Calico resources"
 url="https://github.com/projectcalico/calico"
 arch="all"
 license="Apache-2.0"
 makedepends="go"
-source="$pkgname-$pkgver.tar.gz::https://github.com/projectcalico/calico/archive/refs/tags/v$pkgver.tar.gz"
+source="$pkgname-$pkgver.tar.gz::https://github.com/projectcalico/calico/archive/refs/tags/v$pkgver.tar.gz
+
+	9999-go-mod.patch
+	"
 builddir="$srcdir/calico-$pkgver/calicoctl"
 options="!check"
+
+# secfixes:
+#   3.31.3-r3:
+#     - CVE-2026-46600
 
 build() {
 	mkdir -p bin
@@ -28,4 +35,5 @@ package() {
 
 sha512sums="
 622acf4902e8e5ea436892056950c200049d215b3e4b70912a39bf890ba37146f1e6843986749ce62e288334c48f6725dd5b1db944c02d1c54afefd8e5ba452c  calicoctl-3.31.3.tar.gz
+d157deb31e8f8005ea9e2d76ef546f34e5db60be1a1ff32acb8b7f53f8b31a8132132865b202ee89e3d715010015348fa2da10188a8daa04336a55cb452cf40a  9999-go-mod.patch
 "
