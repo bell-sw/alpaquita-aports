@@ -3,7 +3,7 @@ pkgname=containerd
 # NOTE: containerd's Makefile tries to get REVISION from git, but we're building from a tarball.
 _commit=fcd43222d6b07379a4be9786bda52438f0dd16a1
 pkgver=2.2.4
-pkgrel=2
+pkgrel=3
 pkgdesc="An open and reliable container runtime"
 url="https://containerd.io/"
 arch="all"
@@ -19,10 +19,14 @@ subpackages="
 source="containerd-$pkgver.tar.gz::https://github.com/containerd/containerd/archive/v$pkgver.tar.gz
 	containerd.confd
 	containerd.initd
-"
+
+	9999-go-mod.patch
+	"
 options="net"
 
 # secfixes:
+#   2.2.4-r3:
+#     - CVE-2026-46600
 #   2.2.4-r0:
 #     - CVE-2026-46680
 #   2.1.5-r0:
@@ -131,4 +135,5 @@ sha512sums="
 99255b13fb113b9ba2ec9ab83c4cae5728c672fcd67c8dce915eda4a56a4a5766dd297cf35a17920001a995ed6924131bbc85b9a48d78d86939c987748345ce7  containerd-2.2.4.tar.gz
 5fb37b88554422738cc75b944b75836c123d87d418a16c6a25b9d49da023bd0e654d1aa694e60026de42c055ccf7469f5b4778a4876e94720ec2f40d618db580  containerd.confd
 c6aaa6efecc292222e931e5add7276143ab60fb124d58a3c01a94da508e7318358cad721b417b2ae3714ca750d4b9b6a679cdc2a8181756a712b52200cba934a  containerd.initd
+e0138ec46610f90a7fff4b670b75ed60bc5a40953d93cf088103b15eda8b21f9e32eea61512d88b55b1d82b613502efc7dcc57e0159752f5fc927e7839568dda  9999-go-mod.patch
 "
