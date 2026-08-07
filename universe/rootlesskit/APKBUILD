@@ -1,6 +1,6 @@
 pkgname=rootlesskit
 pkgver=3.0.2
-pkgrel=0
+pkgrel=1
 pkgdesc="Linux-native fake root for implementing rootless containers"
 url="https://github.com/rootless-containers/rootlesskit"
 arch="all"
@@ -11,8 +11,15 @@ subpackages="
 	$pkgname-docker-proxy:_docker_proxy
 	$pkgname-doc
 	"
-source="$pkgname-$pkgver.tar.gz::https://github.com/rootless-containers/rootlesskit/archive/refs/tags/v$pkgver.tar.gz"
+source="$pkgname-$pkgver.tar.gz::https://github.com/rootless-containers/rootlesskit/archive/refs/tags/v$pkgver.tar.gz
+
+	9999-go-mod.patch
+	"
 options="net" # fetch dependencies
+
+# secfixes:
+#   3.0.2-r1:
+#     - CVE-2026-46600
 
 build() {
 	mkdir -v build
@@ -40,4 +47,5 @@ _docker_proxy() {
 
 sha512sums="
 4e7882e48a82f4e5248fa5555f1f701a470dce13990ab9a647561bacba673e2bf8d93a5c8c1292a84cb635f3eb2dd454143abab3b6c2460ad65480c6995a4ca7  rootlesskit-3.0.2.tar.gz
+6bd0e65a1d722f3ead099cacb2d97b6483d41d313b3e0a05a5d2d1f8fc25eead1515a405e6a24f4c5153d4ddcd6dba046e02279efc88813dc3766769ebdf4dd0  9999-go-mod.patch
 "
