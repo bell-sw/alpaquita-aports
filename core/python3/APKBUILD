@@ -3,9 +3,9 @@
 
 pkgname=python3
 # the python3-tkinter's pkgver needs to be synchronized with this.
-pkgver=3.14.5
+pkgver=3.14.7
 _basever="${pkgver%.*}"
-pkgrel=5
+pkgrel=0
 pkgdesc="Python programming language"
 url="https://www.python.org/"
 arch="all"
@@ -23,12 +23,14 @@ subpackages="
 	$pkgname-gdbm
 	pyc:_pyc_meta:noarch
 	"
-depends="libssl3>=3.3.0"
+# explicit expat>=2.8 dependency for hash flooding protection
+# https://github.com/python/cpython/issues/149018
+depends="libssl3>=3.3.0 libexpat>=2.8.0"
 makedepends="
 	!gettext-dev
 	bluez-headers
 	bzip2-dev
-	expat-dev
+	expat-dev>=2.8.0
 	gdbm-dev
 	glibc:libxcrypt-dev
 	libffi-dev
@@ -46,8 +48,6 @@ makedepends="
 source="https://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz
 	externally-managed
 	musl:musl-find_library.patch
-	s390x-c-stack-size.patch
-
 
 	0100-test_urllib-skip-test_url_host_with_-test-cases.patch
 	0101-Unset-BASH_XTRACEFD-in-tests.patch
@@ -68,6 +68,9 @@ options="net" # Required for tests
 builddir="$srcdir/Python-$pkgver"
 
 # secfixes:
+#   3.14.7-r0:
+#     - CVE-2026-3276
+#     - CVE-2026-6879
 #   3.14.5-r5:
 #     - CVE-2026-4360
 #     - CVE-2026-15308
@@ -343,10 +346,9 @@ pyc2() {
 }
 
 sha512sums="
-efbaf629703cd004f6b7bc75fb16df794185589adaf8807cd45928f212271045a399df3cd9573e47c8708fb5c5002f9d4efe4e41dde4313b81a3e9d73158769f  Python-3.14.5.tar.xz
+3d4e2e2f983b320dec47005c408d7178d3656a6de0c4430ce21514797174b972f461200898b25d3dfac2a455019ef87e45d0fb2bb6ec2ca887124d10037a2a07  Python-3.14.7.tar.xz
 46dd8230ee2ab66e9c4157c10b2bd9c414fd7f30be0bee73e21a9eea88f63fff362d47828e0fc77ddc59df097b414b21505f8b5f98bc866381115c58ae3f4862  externally-managed
 ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e960c4889568d25753b9e4a1494834fea48291b33f07000ec2  musl-find_library.patch
-c2723de145c8ea6fb50e3b350b7241b5dcb3b7e79639d42014d1f3e664ad1c9f018656f9d8a32d0ebeef5d315a8418cc678667ce60e7de68dc7e7b60f575b6ab  s390x-c-stack-size.patch
 942f13ecef2efa251b948b5ad4a58cb9b7237e399a05b184ddbfad62419d60f2f810478097d2fb58997543540c55035469b3df394ff0cb87c99da11007454d2e  0100-test_urllib-skip-test_url_host_with_-test-cases.patch
 adb479a85ead4b8ccdfd9ae0cb9817b62bf1887bf6a2a5bf22b27e0895208836867e08b39455ca31916b6924b5ee8f44cf614bd12a20c892cafdcc979faba282  0101-Unset-BASH_XTRACEFD-in-tests.patch
 3a8164f9973c4eb476f2c966b50aba2db83a81e6642c8c532a671d31ed722c01809beff0e4fda36e7142ce564c1e33e48806c3cef6c211396b65b6ce8275c864  0102-Allow-overriding-ftp-host-in-urllib2net-tests.patch
