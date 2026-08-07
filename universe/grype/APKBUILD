@@ -1,6 +1,6 @@
 pkgname=grype
 pkgver=0.114.0
-pkgrel=2
+pkgrel=3
 pkgdesc="Vulnerability scanner for container images, filesystems, and SBOMs"
 url="https://github.com/anchore/grype"
 license="Apache-2.0"
@@ -11,10 +11,14 @@ subpackages="
 	"
 source="https://github.com/anchore/grype/archive/v$pkgver/grype-$pkgver.tar.gz
 	disable-update-check.patch
+
+	9999-go-mod.patch
 	"
 options="net !check" # Go modules, tests need docker
 
 # secfixes:
+#   0.114.0-r3:
+#     - CVE-2026-46600
 #   0.114.0-r0:
 #     - CVE-2024-3817
 #     - CVE-2024-6257
@@ -49,4 +53,5 @@ package() {
 sha512sums="
 fe3e3358445f49d9d5f01035ce4aa2c505d9112c9e32f43c0627a3849808f5e0e73ca651002854977c13b6cdaba41fed83f5a14bf23fa98d4d85981724edd059  grype-0.114.0.tar.gz
 ba6bf89ade82b3f31dc0f39346ba1ce18fc9096464d8173b1eec2c03aead327fac9f65dd91d4fff1b35b02042e32b8d47a79ee9f5da94a38468135aa345d77e3  disable-update-check.patch
+285ed6143c49f9563fa39d4b156e597a963db38c6be110f789d0e5b92bb66ea82899cfa08d9784e0009881d2e92d27ee6d9329d94489e127cbb02a8ea0e88358  9999-go-mod.patch
 "
