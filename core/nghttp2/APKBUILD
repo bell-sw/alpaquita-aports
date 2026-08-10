@@ -3,7 +3,7 @@
 
 pkgname=nghttp2
 pkgver=1.69.0
-pkgrel=1
+pkgrel=2
 pkgdesc="HTTP/2 implementation"
 url="https://nghttp2.org"
 arch="all"
@@ -12,9 +12,13 @@ makedepends_host="libev-dev openssl-dev>3 zlib-dev c-ares-dev"
 checkdepends="cunit-dev"
 subpackages="$pkgname-static $pkgname-doc $pkgname-dev $pkgname-libs"
 source="https://github.com/nghttp2/nghttp2/releases/download/v$pkgver/nghttp2-$pkgver.tar.xz
+
+	0100-CVE-2026-58055.patch
 	"
 
 # secfixes:
+#   1.65.0-r2:
+#     - CVE-2026-58055
 #   1.65.0-r1:
 #     - CVE-2026-27135
 #   1.61.0-r0:
@@ -80,4 +84,5 @@ package() {
 
 sha512sums="
 31858cfd4a85995d006753c40393a7c23d2bfdd54fdb355757bef1a72b42177d31fff958e9e765a19d83e949eac77998e2bbe933b9390d1f2a1365506f5f6271  nghttp2-1.69.0.tar.xz
+885e9903bc9a4e9fac04e0d94fe4f6bb2c92ce5e523a78a7c9c90dd00ee16344775e918ae88395e49630b66d8911e66303e240856e134edccc9aaf182edb2225  0100-CVE-2026-58055.patch
 "
