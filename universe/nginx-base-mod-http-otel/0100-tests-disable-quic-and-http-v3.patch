@@ -1,0 +1,21 @@
+The "quic" parameter requires ngx_http_v3_module which is not enabeld in nginx-base.
+
+--- a/tests/test_otel.py
++++ b/tests/test_otel.py
+@@ -34,7 +34,6 @@
+ 
+     server {
+         listen       127.0.0.1:18443 ssl;
+-        listen       127.0.0.1:18443 quic;
+         listen       127.0.0.1:18080;
+ 
+         http2 on;
+@@ -144,7 +143,7 @@
+     assert span.name == "/ok"
+ 
+ 
+-@pytest.mark.parametrize("http_ver", ["1.1", "2.0", "3.0"])
++@pytest.mark.parametrize("http_ver", ["1.1", "2.0"])
+ @pytest.mark.parametrize(
+     ("path", "status"),
+     [("/ok", 200), ("/err", 500)],
