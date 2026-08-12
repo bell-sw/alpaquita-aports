@@ -1,0 +1,18 @@
+diff --git a/sdk/include/opentelemetry/sdk/common/custom_hash_equality.h b/sdk/include/opentelemetry/sdk/common/custom_hash_equality.h
+index d1b5555b..b529c92a 100644
+--- a/sdk/include/opentelemetry/sdk/common/custom_hash_equality.h
++++ b/sdk/include/opentelemetry/sdk/common/custom_hash_equality.h
+@@ -144,13 +144,7 @@ struct StringViewEqual
+ template <typename MapType>
+ inline auto find_heterogeneous(MapType &&map, opentelemetry::nostd::string_view key)
+ {
+-#if defined(_LIBCPP_VERSION) || \
+-    (!defined(OPENTELEMETRY_STL_VERSION) || OPENTELEMETRY_STL_VERSION < 2020)
+   return map.find(std::string(key));
+-#else
+-  // libstdc++ + C++20: heterogeneous lookup works
+-  return map.find(key);
+-#endif
+ }
+ }  // namespace common
+ }  // namespace sdk
