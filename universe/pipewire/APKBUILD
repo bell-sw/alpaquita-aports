@@ -1,6 +1,6 @@
 pkgname=pipewire
 pkgver=1.4.7
-pkgrel=0
+pkgrel=1
 _so_ver=0.3
 pkgdesc="Multimedia processing graphs"
 url="https://pipewire.org/"
@@ -60,10 +60,16 @@ source="https://gitlab.freedesktop.org/PipeWire/pipewire/-/archive/$pkgver/pipew
 	pipewire-launcher.sh
 	pipewire.initd
 	pipewire-pulse.initd
+
+	0100-CVE-2026-14324.patch
 	"
 
 # put libs last to steal residual files taken by some prior extras
 subpackages="$subpackages $pkgname-libs"
+
+# secfixes:
+#   1.4.7-r1:
+#     - CVE-2026-14324
 
 build() {
 	CFLAGS="$CFLAGS -O2" \
@@ -234,4 +240,5 @@ b70b05151bcf4b7f13d68b2731d789b9c062fadfcb91f4ed6bdb0d495390b0010f57034fb115a053
 1ab91358462f079f215f09728f3efb22e6e5a83d035740933f9536a907ef842642f9b2394233b7848dfe72c323df2a9e5c76640f3a574fc86391f68b04b91a7f  pipewire-launcher.sh
 d3cbe05f621b42beabfad1abfca9f2acb4dfa73489bfd6bdcfd6331c7e35f62c6447ae6f08db8b4ac7b682e73f55a1a679dc8122d4cc7a7d43a39bdd5f55025f  pipewire.initd
 eff6ce635d47f801a845cf6774d909b2eaf64a83e59919d4dd47955d51f1c6e2f12e7d8c6972766829101e4aa920d622fea9806ea2b27d915e3f58f4f48128bb  pipewire-pulse.initd
+c57a6343fce854c77e7a95f2146d775993ce4d33e17df0ff87405ad436e824a4fe0e0fa7ea3a9d1dda2825c61a65a1eb32ffa96aa0232329d090a73f90b70838  0100-CVE-2026-14324.patch
 "
