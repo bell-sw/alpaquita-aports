@@ -1,4 +1,4 @@
-From cdd27fcab0d24a5e97e259d19e89e07ce8b7edba Mon Sep 17 00:00:00 2001
+From ced767e4552e61fd1c9f607551c191c8add5d757 Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
 Date: Mon, 27 Dec 2021 14:10:24 +0000
 Subject: [PATCH] Get rid of separation of /sbin /lib and their /usr
@@ -31,7 +31,7 @@ index 9e977a02..09b2df2d 100644
  MANDIR		:= /usr/share/man
  DOCDIR		:= /usr/share/doc/apk
 diff --git a/doc/apk.8.scd b/doc/apk.8.scd
-index f9ce0ecf..ff93f388 100644
+index b6d76b68..6c6e69cc 100644
 --- a/doc/apk.8.scd
 +++ b/doc/apk.8.scd
 @@ -505,22 +505,22 @@ timeout 120
@@ -107,7 +107,7 @@ index 3369ae9b..aabfac55 100644
  		&ctx->dbi, apk_ctx_get_trust(ac));
  	if (r == 0) {
 diff --git a/src/database.c b/src/database.c
-index 5176bd02..d53a5d62 100644
+index 65568587..0d7cae19 100644
 --- a/src/database.c
 +++ b/src/database.c
 @@ -45,7 +45,7 @@
@@ -130,17 +130,17 @@ index 5176bd02..d53a5d62 100644
  	default:
  		assert(!"invalid layer");
  		return 0;
-@@ -2302,7 +2302,7 @@ int apk_db_write_config(struct apk_database *db)
+@@ -2307,7 +2307,7 @@ int apk_db_write_config(struct apk_database *db)
  		return 0;
  
  	if (db->ctx->open_flags & APK_OPENF_CREATE) {
 -		apk_make_dirs(db->root_fd, "lib/apk/db", 0755, 0755);
 +		apk_make_dirs(db->root_fd, "var/lib/apk/db", 0755, 0755);
  		apk_make_dirs(db->root_fd, "etc/apk", 0755, 0755);
- 	} else if (db->lock_fd == 0) {
+ 	} else if (db->lock_fd < 0) {
  		apk_err(out, "Refusing to write db without write lock!");
 diff --git a/src/package.c b/src/package.c
-index e7d1d2f4..e5230c18 100644
+index 4740f433..fb684e50 100644
 --- a/src/package.c
 +++ b/src/package.c
 @@ -738,9 +738,9 @@ int apk_ipkg_run_script(struct apk_installed_package *ipkg,
@@ -169,10 +169,10 @@ index f31fc257..79ab0775 100755
  		"@REPO @"*)
  			tag="${ln#* }"
 diff --git a/test/testlib.sh b/test/testlib.sh
-index 11af4d39..0532a8ef 100644
+index 97e66e49..6311873f 100644
 --- a/test/testlib.sh
 +++ b/test/testlib.sh
-@@ -40,12 +40,12 @@ setup_apkroot() {
+@@ -50,12 +50,12 @@ setup_apkroot() {
  	APK="$APK --root $TEST_ROOT"
  
  	mkdir -p "$TEST_ROOT/etc/apk/cache" \
@@ -188,5 +188,5 @@ index 11af4d39..0532a8ef 100644
  	cd "$TEST_ROOT/tmp"
  }
 -- 
-2.52.0
+2.53.0
 

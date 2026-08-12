@@ -1,4 +1,4 @@
-From 1525112750a1916a255a82e678529a4780c9c48c Mon Sep 17 00:00:00 2001
+From 5a209eba26e95c0b1c6538410061ba31fbbbf77b Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 22 Feb 2022 18:18:06 +0300
 Subject: [PATCH] add alternative packages support
@@ -13,7 +13,7 @@ Subject: [PATCH] add alternative packages support
  6 files changed, 134 insertions(+), 11 deletions(-)
 
 diff --git a/src/apk_package.h b/src/apk_package.h
-index 63c3ce18..4e433151 100644
+index c63814e6..3f207046 100644
 --- a/src/apk_package.h
 +++ b/src/apk_package.h
 @@ -97,6 +97,7 @@ struct apk_package {
@@ -22,7 +22,7 @@ index 63c3ce18..4e433151 100644
  	unsigned char layer : 3;
 +	unsigned char alternative : 1;
  	uint8_t digest_alg;
- 	uint8_t digest[];
+ 	uint8_t digest[0];
  };
 diff --git a/src/apk_solver.h b/src/apk_solver.h
 index 37f85b70..6af5c86f 100644
@@ -68,7 +68,7 @@ index fdcef7ab..3c4df35f 100644
  		}
  	}
 diff --git a/src/package.c b/src/package.c
-index e5230c18..9e941d9c 100644
+index fb684e50..fbd89dcf 100644
 --- a/src/package.c
 +++ b/src/package.c
 @@ -522,6 +522,9 @@ int apk_pkgtmpl_add_info(struct apk_package_tmpl *tmpl, char field, apk_blob_t v
@@ -89,7 +89,7 @@ index e5230c18..9e941d9c 100644
  	};
  	apk_blob_t l, r;
  	int i;
-@@ -875,6 +879,10 @@ int apk_pkg_write_index_header(struct apk_package *info, struct apk_ostream *os)
+@@ -872,6 +876,10 @@ int apk_pkg_write_index_header(struct apk_package *info, struct apk_ostream *os)
  		apk_blob_push_blob(&bbuf, APK_BLOB_STR("\nk:"));
  		apk_blob_push_uint(&bbuf, info->provider_priority, 10);
  	}
@@ -335,5 +335,5 @@ index 1fefd585..397c81e7 100644
  }
  
 -- 
-2.52.0
+2.53.0
 
