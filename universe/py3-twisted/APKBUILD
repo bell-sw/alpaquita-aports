@@ -1,6 +1,6 @@
 pkgname=py3-twisted
 pkgver=26.4.0
-pkgrel=0
+pkgrel=1
 pkgdesc="Asynchronous networking framework written in Python3"
 url="https://twistedmatrix.com/"
 arch="noarch"
@@ -32,6 +32,7 @@ checkdepends="xvfb-run py3-appdirs tzdata py3-asn1 py3-bcrypt"
 subpackages="$pkgname-doc $pkgname-tests $pkgname-pyc"
 source="https://github.com/twisted/twisted/archive/twisted-$pkgver.tar.gz
 	hanging-test.patch
+	pyopenssl-26.4-x509req.patch
 	"
 options="net" # Tests require network access
 case "$CLIBC" in
@@ -48,6 +49,8 @@ case "$CARCH" in
 esac
 
 # secfixes:
+#   26.4.0-r1:
+#     - CVE-2026-42304
 #   26.4.0-r0:
 #     - CVE-2026-42304
 #   22.4.0-r0:
@@ -115,4 +118,5 @@ doc() {
 sha512sums="
 3ce57341b2fddf5c1fb0f0abef3dfb65f40caeaf35f72f3da2bf1e2e33776f47b877e0454f2687049dd476006a58e7d8256f359667b4f3fad4c9bca910256647  twisted-26.4.0.tar.gz
 523a4d89343cc2c9914e15fdfd25b9f89c9bee2a00d6b10c808ad4af4dd46689f5f0ebe529bd2ba4855dc7d80192e79f829192bc9171a5b2ae13dc04a181e352  hanging-test.patch
+a50a226f518b9c7a11b2622ead5cf7bcc32bf844addb85343776df655d7d14e506eed6500438229c926bf38e8e09a547b164a1f123058d03d4a3a7c0b5e6f3e0  pyopenssl-26.4-x509req.patch
 "
