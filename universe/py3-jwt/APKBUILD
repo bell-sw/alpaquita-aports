@@ -6,7 +6,7 @@ url="https://github.com/jpadilla/pyjwt"
 license="MIT"
 arch="noarch"
 makedepends="py3-gpep517 py3-installer py3-setuptools py3-wheel"
-checkdepends="py3-tox"
+checkdepends="py3-pytest"
 subpackages="$pkgname-pyc"
 source="https://github.com/jpadilla/pyjwt/archive/$pkgver/py3-jwt-$pkgver.tar.gz"
 builddir="$srcdir/pyjwt-$pkgver"
@@ -33,7 +33,9 @@ build() {
 }
 
 check() {
-	tox -e py314-crypto
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/*.whl
+	.testenv/bin/python3 -m pytest
 }
 
 package() {
