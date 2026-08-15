@@ -2,14 +2,22 @@
 
 pkgname=diffutils
 pkgver=3.12
-pkgrel=0
+pkgrel=1
 pkgdesc="Show differences among files"
 subpackages="$pkgname-doc"
 url="https://www.gnu.org/software/diffutils/"
 arch="all"
 license="GPL-3.0-or-later"
 checkdepends="perl"
-source="https://ftp.gnu.org/pub/gnu/diffutils/diffutils-$pkgver.tar.xz"
+source="https://ftp.gnu.org/pub/gnu/diffutils/diffutils-$pkgver.tar.xz
+
+	0100-CVE-2026-53910-part1.patch
+	0100-CVE-2026-53910-part2.patch
+	"
+
+# secfixes:
+#   3.12-r1:
+#     - CVE-2026-53910
 
 build() {
 	CFLAGS="$CFLAGS -flto=auto" \
@@ -34,4 +42,6 @@ package() {
 
 sha512sums="
 10b17cf1dcdfa9ca0e5db91d62c4a079ebe9fd7eafa3aaebd4eb7e6206e4d753f348496622aa281e1bd7f7fcde65ce4a886dcc4acbb59332ef980f224197b4e4  diffutils-3.12.tar.xz
+987a712afbb7498f8f202a167ce94ef50887703c6f3d41778a958b9b03ce74dea5a1f4c48eb7a7c6304b7ef0d3b20d135d5dc5974b6a9c1b0d7c39f6b8d71080  0100-CVE-2026-53910-part1.patch
+5c99f6ba2516d286453b9ebb7eb80fd8434a36c120983697f9983fb93d666bf5d605ca554ec6ae3f297a26011fff53b299dafe385702151ff42ab249ef51d3b2  0100-CVE-2026-53910-part2.patch
 "
