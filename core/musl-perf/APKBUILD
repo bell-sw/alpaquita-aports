@@ -7,7 +7,7 @@
 
 pkgname=musl-perf
 pkgver=1.2.6
-pkgrel=3
+pkgrel=4
 _mimalloc_ver=2.2.4
 pkgdesc="the musl c library (libc) implementation (optimized for performance)"
 url="https://musl.libc.org/"
@@ -48,6 +48,7 @@ esac
 source="https://musl.libc.org/releases/musl-$pkgver.tar.gz
 	mimalloc-$_mimalloc_ver.tar.gz::https://github.com/microsoft/mimalloc/archive/refs/tags/v$_mimalloc_ver.tar.gz
 	0001-add-stub-for-pthread_mutexattr_setprioceiling.patch
+	0001-fix-toctou-race-in-popen-children-s-closing-of-other.patch
 	fix-loongarch64-zero-len-extcontext.patch
 	CVE-2026-6042.patch
 	CVE-2026-40200.patch
@@ -211,6 +212,7 @@ sha512sums="
 1adad96eddb3a2eb0cacb3e363b0046568925fcdd75cf8b0503f2139df1f693d64730779ca0ce8131b7624ab2d37f4247bb1d3393c523de6e30d2b1d7732555c  musl-1.2.6.tar.gz
 5218fcd3ad285687ed3f78b4651d7d3aee92b6f28e6c563a884975e654a43c94c4e5c02c5ed0322c3d3627d83d4843df2d2d8441f09aa18d00674ca9fd657345  mimalloc-2.2.4.tar.gz
 83ec0f774dbb5d4f4d4b917d149ea0ef609d028d18ae7624e90fedda6e3174c91ade93751bfd376adfa2848155110fc4dd02b6790363b98e5395c4787e8731e8  0001-add-stub-for-pthread_mutexattr_setprioceiling.patch
+9ef51d5ac37fb24cdd0a86952d88c9f0dcbb318a71762ac0cee44db8c35b5197fd14d5b61059a476d46da79389f002ba29ab5ab2773c4fe256efb1ea6616b448  0001-fix-toctou-race-in-popen-children-s-closing-of-other.patch
 6eae45aa82db69bc96386aedf3d1bfe83dfa0a7b4b824326c1c7e1bab31100d635ed0e8930c26a1694697fad59167a42e2b5f3a2ac51b07e36d85f047e268cff  fix-loongarch64-zero-len-extcontext.patch
 f7849abeab0e4eab992a80464afa07b9c8aae5cee76040523b9dbc0931435f28ea8f5792b8a4a0cd6d608ac2f37e3225e89afcb3171a0a6df44450ed57cee83b  CVE-2026-6042.patch
 a64ab7688d1a85e560b5687783df482d2467a79a74400da5a1601382847d6b4e6a79b7529a8dc80c46ddda8dc2a812f2261557fc8ee98dc3bdf7322761bd6d9c  CVE-2026-40200.patch
