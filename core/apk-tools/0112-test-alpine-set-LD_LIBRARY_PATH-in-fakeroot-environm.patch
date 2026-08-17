@@ -1,4 +1,4 @@
-From a24e31326de0aef4363fc96e22400cc418274fd9 Mon Sep 17 00:00:00 2001
+From fe2c0a86694ca4fc97543110b0985bae4f201e78 Mon Sep 17 00:00:00 2001
 From: Stanislav Kholmanskikh <stanislav.kholmanskikh@bell-sw.com>
 Date: Wed, 12 Aug 2026 10:41:13 +0000
 Subject: [PATCH] test/alpine: set LD_LIBRARY_PATH in fakeroot environment
@@ -18,7 +18,7 @@ prepending it with a dir containing the built libapk.so.3.0.0.
  1 file changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/test/alpine/Makefile b/test/alpine/Makefile
-index 4f1ea8f0..c73160d8 100644
+index 4f1ea8f0..8fbaeb5d 100644
 --- a/test/alpine/Makefile
 +++ b/test/alpine/Makefile
 @@ -11,7 +11,7 @@ QEMU_EMULATOR	?=
@@ -37,7 +37,7 @@ index 4f1ea8f0..c73160d8 100644
 -	if ! $(SUDO) LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" APK="$(APK) --keys-dir /etc/apk/keys" ROOT="$(testroot)" SYSREPO="$(SYSREPO)" \
 -		fakeroot sh -ex ./$< > $(basename $@).out 2>&1; then\
 +	if ! $(SUDO) APK="$(APK) --keys-dir /etc/apk/keys" ROOT="$(testroot)" SYSREPO="$(SYSREPO)" \
-+		fakeroot sh -c 'LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$${LD_LIBRARY_PATH}" set -ex ./$<' > $(basename $@).out 2>&1; then\
++		fakeroot sh -c 'LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):$${LD_LIBRARY_PATH}" sh -ex ./$<' > $(basename $@).out 2>&1; then\
  		echo " FAIL";\
  		printf '%s\n' "------------- output -------------" >&2;\
  		cat $(basename $@).out >&2;\
