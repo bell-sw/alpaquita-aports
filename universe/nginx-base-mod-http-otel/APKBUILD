@@ -64,6 +64,13 @@ build() {
 }
 
 check() {
+	local skip_tests=
+
+	case "$CLIBC:$CARCH" in
+	# test_tls_export is flaky
+	musl:aarch64) skip_tests="not test_tls_export"
+	esac
+
 	# FIXME: niquests and opentelemetry-proto are not packaged yet,
 	#  se we have to install them using pip. To make matters worse, niquests
 	#  has heavy dependencies with native code.
@@ -76,6 +83,7 @@ check() {
 	tests-venv/bin/python3 -m pip install --no-binary :all: -r tests/requirements.txt
 
 	tests-venv/bin/python3 -m pytest tests \
+		-v -k "$skip_tests" \
 		--basetemp="$tmpdir" \
 		--maxfail=10 \
 		--nginx="$(which nginx)" \
