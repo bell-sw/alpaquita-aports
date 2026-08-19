@@ -3,17 +3,30 @@
 
 pkgname=popt
 pkgver=1.19
-pkgrel=4
+pkgrel=5
 pkgdesc="Command line option parser"
 url="https://github.com/rpm-software-management/popt"
 arch="all"
 license="MIT"
 subpackages="$pkgname-doc $pkgname-static $pkgname-dev"
-source="http://ftp.rpm.org/popt/releases/popt-${pkgver%.*}.x/popt-$pkgver.tar.gz"
+makedepends="
+	autoconf
+	automake
+	gettext-dev
+	libtool
+"
+source="http://ftp.rpm.org/popt/releases/popt-${pkgver%.*}.x/popt-$pkgver.tar.gz
+
+	0100-CVE-2026-18739.patch
+"
+
+# secfixes:
+#   1.19-r5:
+#     - CVE-2026-18739
 
 prepare() {
 	default_prepare
-	update_config_sub
+	./autogen.sh
 }
 
 build() {
@@ -35,4 +48,5 @@ package() {
 
 sha512sums="
 5d1b6a15337e4cd5991817c1957f97fc4ed98659870017c08f26f754e34add31d639d55ee77ca31f29bb631c0b53368c1893bd96cf76422d257f7997a11f6466  popt-1.19.tar.gz
+a305da65974d6087f5f2d9972c6c67660fdc80e025f2ef930a8b8dcbd0b8ecea91f675649749b83537f7af1db84f89c317dcee6a863b2a40bec175dcaca86352  0100-CVE-2026-18739.patch
 "
