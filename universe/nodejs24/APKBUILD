@@ -37,7 +37,7 @@ source="https://nodejs.org/dist/v$pkgver/node-v$pkgver.tar.gz
 	v8-disable-trap-handler-on-riscv-sv39.patch
 	v8-int64-lowering-reducer.patch
 	v8-ppc_vsx-inl.patch
-	$pkgname.pc.in
+	nodejs.pc.in
 	node_sea.patch
 	node_snapshotable.patch
 	"
@@ -261,7 +261,7 @@ build() {
 	_build --shared
 	cp out/Release/lib/libnode.so* out/Release/
 
-	sed "s/@VERSION@/$pkgver/" "$srcdir"/$pkgname.pc.in > out/Release/$pkgname.pc
+	sed "s/@VERSION@/$pkgver/" "$srcdir"/nodejs.pc.in > out/Release/nodejs.pc
 }
 
 _build() {
@@ -319,7 +319,7 @@ package() {
 	# node binary built without libnode.so.
 	install -D -m755 out/node -t "$pkgdir"/usr/bin/
 
-	install -D -m644 out/Release/$pkgname.pc -t "$pkgdir"/usr/lib/pkgconfig/
+	install -D -m644 out/Release/nodejs.pc -t "$pkgdir"/usr/lib/pkgconfig/
 
 	(cd "$pkgdir"/usr/lib; ln -sf libnode.so.* libnode.so)
 }
