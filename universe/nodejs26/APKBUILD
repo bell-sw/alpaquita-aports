@@ -6,9 +6,7 @@ url="https://nodejs.org/"
 arch="all"
 license="MIT"
 depends="ca-certificates"
-depends_dev="
-	libuv-dev
-	"
+depends_dev=""
 makedepends="
 	$depends_dev
 	ada-dev
@@ -32,7 +30,6 @@ source="https://nodejs.org/dist/v$pkgver/node-v$pkgver.tar.xz
 	nodejs.pc.in
 
 	elf.patch
-	unbundle-uv.patch
 	google-sucks.patch
 	riscv-trap-handler.patch
 	v8-disable-trap-handler-on-riscv-sv39.patch
@@ -53,7 +50,6 @@ prepare() {
 	default_prepare
 	# unbundle
 	rm \
-		deps/uv/uv.gyp \
 		deps/zlib/zlib.gyp
 }
 
@@ -95,7 +91,6 @@ _build() {
 		--prefix=/usr \
 		--shared-brotli \
 		--shared-zlib \
-		--shared-libuv \
 		--shared-openssl \
 		--shared-cares \
 		--shared-nghttp2 \
@@ -154,7 +149,6 @@ sha512sums="
 d7dd7bf0485369c29ad90740c404b647696efd79c6a59f6a3da0b72cdb2740a5855fd62a55985516b8649d9c3359ce4141840f6e6a93427eaa5c87a3cd93e9c9  node-v26.7.0.tar.xz
 f908fa93f6194ec4f6c5e9d76ed7c918721c7f5d46afcc12de1f84683c185401a27a174b7a7c6a76085a4d0826f964e7088bf5596d4e6901a15bf751846299a6  nodejs.pc.in
 185083993f76a9baa2f88dc06279b3be7577d66ca94b1b898b81297256355033520f9b721ba21efc9e4fb3f55c655c5278c2174fd67d6d4d521431b01fd3eee2  elf.patch
-e152b58869a588390ff535b8e0ab873e52d3f467302a5cf32e0ac15d7bd3726b0329b7634c068855ac66d030313dd1ced30b67b0f996d55294f43d590f7fd890  unbundle-uv.patch
 fc795e2e61d266d286350ec3e2f7df2e3a874df60325ad11af319c376fc35a71d2c21821171ac6f02c9c9b099c1de346c7447d791b28ea16b1db2ed53c7708db  google-sucks.patch
 aee447854f4055e68104fcf5bd4c05f7c2a607961cb0735afdd3d356c96a9568ff2f6dd5aac46428524b005151a16f479f9cce342503b7bc1c5855b02972cc2d  riscv-trap-handler.patch
 be11f111280f2f8af99dfdd56d23a5929bc77a19575d6166847ef31af9c1c79f65ba591644e15b95a35ff8dc763486d63b64825be71eb455eb0c90830a0c8092  v8-disable-trap-handler-on-riscv-sv39.patch
