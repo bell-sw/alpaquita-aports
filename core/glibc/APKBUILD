@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.37.0
-pkgrel=24
+pkgrel=25
 _glibcver=${pkgver%.*}
 _patch_ver="glibc-2.37-182-g3d6b49f9fe"
 pkgdesc="GNU C Library"
@@ -29,7 +29,8 @@ source="
 	0107-resolv-Add-test-case-tst-ns_sprintrr-bug-34033-bug-3.patch
 	0108-CVE-2026-6791-posix-Fix-stack-overflow-in-wordexp-ti.patch
 	0109-delocalize-sh-scripts.patch
-"
+	0110-CVE-2026-19542.patch
+	"
 builddir="$srcdir/glibc-$_glibcver"
 options="!libc_musl lib64 ldpath-recursive !check !annobin"
 [ "$BOOTSTRAP" != "nolibc" ] && triggers="$pkgname-utils.trigger=/usr/lib:/usr/lib64:/usr/local/lib"
@@ -43,6 +44,8 @@ subpackages="
 "
 
 # secfixes:
+#   2.37.0-r25:
+#     - CVE-2026-19542
 #   2.37.0-r24:
 #     - CVE-2026-5435
 #     - CVE-2026-6238
@@ -279,4 +282,5 @@ dc718712e39fc096a102707c929ccd5fb4b3f2345dd97af0dff489943d01596749c5f559cb99384e
 284d7b4931e063c70bbe355175519c89a5e2b4723f6cd1f3600a860883cefc64ad60ce947d77ddc46dc0440656c94d3280da3f07785bf0c784871065b4a226e5  0107-resolv-Add-test-case-tst-ns_sprintrr-bug-34033-bug-3.patch
 a303cdde2458674acb1a17a138c7f6c87ff0b20d813c71181f83eb78f81ebfafafd607cee39e3fe2ab9db61da71aeadc17e9587b231e3d45a735a27a36d70eca  0108-CVE-2026-6791-posix-Fix-stack-overflow-in-wordexp-ti.patch
 2e6dbe2373c1b0e61413a23832f15a4a891aa3769afdff052ca5885f306c1ecc2ccd86f5c6fd5a91325809c59f7e39bb99e0afe1844eddf6c1fe22bf33cce657  0109-delocalize-sh-scripts.patch
+11367a6598f4bdb431d7bc16c517c7c6997d9745c64b3606972a364435bee8ddb7e99a05bb187cbbaa0263f8847344f0d68d1d08d4263072c97987e466ed5305  0110-CVE-2026-19542.patch
 "
