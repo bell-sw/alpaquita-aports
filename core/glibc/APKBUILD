@@ -16,6 +16,10 @@ makedepends="bison perl python3 texinfo gawk grep sed coreutils"
 source="
 	https://ftp.gnu.org/gnu/libc/glibc-$_glibcver.tar.xz
 	${VENDOR_URL/\/\//\/\/packages.}${VENDOR_DISTRO}/distfiles/${_patch_ver}.patch.xz
+	ld.so.conf
+	locale.gen.in
+	locale-gen
+	ldconfig.trigger.c
 	0100-delocalize-glibc-utils-scripts-use-bin-sh.patch
 	0101-resolv-Declare-__p_class_syms-__p_type_syms-for-inte.patch
 	0102-resolv-Fix-ns_sprintrrf-formatting-of-class-type-val.patch
@@ -26,10 +30,6 @@ source="
 	0107-resolv-Add-test-case-tst-ns_sprintrr-bug-34033-bug-3.patch
 	0108-CVE-2026-6791-posix-Fix-stack-overflow-in-wordexp-ti.patch
 	0109-rtld-cache-cpuid-results-on-the-stack-for-intel.patch
-	ld.so.conf
-	locale.gen.in
-	locale-gen
-	ldconfig.trigger.c
 "
 builddir="$srcdir/glibc-$_glibcver"
 options="!libc_musl lib64 ldpath-recursive !check !annobin"
@@ -294,6 +294,10 @@ gconv_extra() {
 sha512sums="
 818f58172a52815b4338ea9f2a69ecaa3335492b9f8f64cbf8afb24c0d737982341968ecd79631cae3d3074ab0ae4bc6056fc4ba3ffe790849dc374835cd57e2  glibc-2.39.tar.xz
 f3eb11c75f87900443eeea080f99c1a9591613d672965407a7dd833890e020d07c16b7bd71e932e779808257885ecee20e093369fb4efa6a766ca01ac644856e  glibc-2.39-298-gbe1e627cd7.patch.xz
+73bfefd8a1366f3bc7bbfd3f34b599b49f48278f783eb2837a414eb914ac3ae9995fe4e9fec58b9d1da1eb6ed36ccc889257ffc54031f1731e041dc18e096e6f  ld.so.conf
+47a686c2fda0f32a1e9e975f723ed96ab8125619541cf8711fa80d94428862be77c46d06f5ff17f6a978eb22c9f86929ee9bf79888e6f824beeb023f78512151  locale.gen.in
+14dd69e1eb42b3dc3e67eaf96938fe2bc9895b14e820b2a53a9a6f540a5224b2797d28585473bf4c6b1cd398c2e08d8571113db93a6ba7474e04c0b699104629  locale-gen
+519f6d7fd227b2ceeda345bd2ca48146d961655fbff6a3d709d7726f64eef2ceedf55943b1e71b802b79309ef4dfe9b99251a5073a1c9169db3ac6a788b244d5  ldconfig.trigger.c
 0b24df8805d1b96b6399ab8dd5751d8c66da8270868d29dc267626851b9212bfae28eec7d22de4cce33ec11558d384c074e441c1000c71e6706c790246f418d4  0100-delocalize-glibc-utils-scripts-use-bin-sh.patch
 660e53ace9a0b8bb3ab5e0318b9352121ef83b074dfa36f618039359b9e0c8bc127062144ec6125c34d3468e7017c4a9be5829b19df73c383c2855c73a72f3c1  0101-resolv-Declare-__p_class_syms-__p_type_syms-for-inte.patch
 a3985e3a6e4477471d42fb1ba3038f85382ed032eb4d1407bf6357f21a0a47ef60bcf9df416787681310ecf326f743d8acf81721bb3cf9afaad4e77a03089ab5  0102-resolv-Fix-ns_sprintrrf-formatting-of-class-type-val.patch
@@ -304,8 +308,4 @@ a3985e3a6e4477471d42fb1ba3038f85382ed032eb4d1407bf6357f21a0a47ef60bcf9df41678768
 faf5fcde4055fb094ccf6a2ba5b15335938bf9e432d2ec05c38f955506cfdc1ac26b58b05ea0915e0871388c0e9c6c513940af57372a2800cbdd4c291df26269  0107-resolv-Add-test-case-tst-ns_sprintrr-bug-34033-bug-3.patch
 0c40ff3a7103bcb949d6b81067739bcbbe8626eea36695413194693c160a322642e6fc17b6a0d3feb2574332e27d5e6127142071dca1c438888a614b2d6fe8b4  0108-CVE-2026-6791-posix-Fix-stack-overflow-in-wordexp-ti.patch
 f58f65ff2263fff7466e805970548f8375d2159e5abe9ef5f070b7eb246cb265b4e50874075d552bb31f8a4bd946809604bc629bb6e4dbdf33088bc065dd65b1  0109-rtld-cache-cpuid-results-on-the-stack-for-intel.patch
-73bfefd8a1366f3bc7bbfd3f34b599b49f48278f783eb2837a414eb914ac3ae9995fe4e9fec58b9d1da1eb6ed36ccc889257ffc54031f1731e041dc18e096e6f  ld.so.conf
-47a686c2fda0f32a1e9e975f723ed96ab8125619541cf8711fa80d94428862be77c46d06f5ff17f6a978eb22c9f86929ee9bf79888e6f824beeb023f78512151  locale.gen.in
-14dd69e1eb42b3dc3e67eaf96938fe2bc9895b14e820b2a53a9a6f540a5224b2797d28585473bf4c6b1cd398c2e08d8571113db93a6ba7474e04c0b699104629  locale-gen
-519f6d7fd227b2ceeda345bd2ca48146d961655fbff6a3d709d7726f64eef2ceedf55943b1e71b802b79309ef4dfe9b99251a5073a1c9169db3ac6a788b244d5  ldconfig.trigger.c
 "
