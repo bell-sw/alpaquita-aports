@@ -1,10 +1,10 @@
 pkgname=libkcapi
-pkgver=1.4.0
+pkgver=1.5.1
 pkgrel=0
 pkgdesc="Linux Kernel Crypto API User Space Interface Library"
-url="https://www.chronox.de/libkcapi.html"
+url="https://www.chronox.de/libkcapi/index.html"
 arch="all"
-license="BSD-3-Clause OR GPL-2.0-or-later"
+license="BSD-3-Clause OR GPL-2.0-only"
 makedepends="
 	autoconf
 	automake
@@ -13,11 +13,16 @@ makedepends="
 	"
 checkdepends="bash openssl"
 subpackages="$pkgname-dev $pkgname-tools $pkgname-doc"
-source="https://www.chronox.de/libkcapi/libkcapi-$pkgver.tar.xz
-	no-werror.patch
+source="$pkgname-$pkgver.tar.gz::https://github.com/smuellerDD/libkcapi/archive/refs/tags/v$pkgver.tar.gz
 	"
 # requires AF_ALG support and enablement of ktls on running kernel
 options="!check"
+
+# secfixes:
+#   1.5.1-r0:
+#     - CVE-2026-71225
+#     - CVE-2026-71226
+#     - CVE-2026-71227
 
 prepare() {
 	default_prepare
@@ -37,7 +42,8 @@ build() {
 		--enable-kcapi-encapp \
 		--enable-kcapi-dgstapp \
 		--enable-kcapi-test \
-		--disable-static
+		--disable-static \
+		--disable-werror
 	make
 }
 
@@ -61,25 +67,15 @@ package() {
 
 	rm "$pkgdir"/usr/lib/.[!.]*
 	rm "$pkgdir"/usr/bin/.[!.]*
-	rm "$pkgdir"/usr/bin/fips*
-	rm -r "$pkgdir"/usr/libexec/
-
-	cd "$pkgdir"/usr/bin
-
-	# rename generic utils to not conflict with generic names. the options
-	# aren't guaranteed to be compatible
-	for tool in sha* md5* sm3*; do
-		mv $tool kcapi-$tool
-	done
 }
 
 tools() {
 	pkgdesc="$pkgdesc (commandline utilities)"
 
 	amove usr/bin
+	amove usr/libexec
 }
 
 sha512sums="
-fa3df1fe22eba32585de5df044f907d3ad189c33f5704fe29b0fdeda92e772ef077055b80e17bc1646a8cdedaf4f195aadf0b133f493597f0f7657b04ea93a99  libkcapi-1.4.0.tar.xz
-a5b38f49a7bb07eb57523566e065bad702999d8be21fa6cd8a01af1b60e9bd8fbb6fd9cf71f70dca7d616aa381475273d995841b8580f91418fb0094263e6402  no-werror.patch
+bcabfcad2e39baa719f89da1018ed46600aa21f8db5a592cb2ee8333cf7c7ce378ae2726b7f6cafbb73cd66611aea14cd4deb299de0aa4f1b5a91d5ae567f4f6  libkcapi-1.5.1.tar.gz
 "
