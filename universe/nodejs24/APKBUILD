@@ -1,9 +1,7 @@
-pkgname=nodejs
-# Note: Update only to LTS versions! Other versions are supported only for
-#  9 months by upstream.
+pkgname=nodejs24
 pkgver=24.18.1
-pkgrel=2
-pkgdesc="JavaScript runtime built on V8 engine - LTS version"
+pkgrel=3
+pkgdesc="JavaScript runtime built on V8 engine (v24)"
 url="https://nodejs.org/"
 arch="all"
 license="MIT"
@@ -25,15 +23,13 @@ makedepends="
 	zlib-dev
 	zstd-dev
 	"
-install="$pkgname.post-upgrade"
 subpackages="
 	$pkgname-dev
 	$pkgname-libs
 	$pkgname-doc
 	"
-provider_priority=100  # highest priority (other provider is nodejs-current)
-provides="nodejs-lts=$pkgver-r$pkgrel"  # for backward compatibility
-replaces="nodejs-current nodejs-lts"  # nodejs-lts for backward compatibility
+provides="nodejs=$pkgver-r$pkgrel"
+replaces="nodejs"
 source="https://nodejs.org/dist/v$pkgver/node-v$pkgver.tar.gz
 	remove-unused-openssl-config.patch
 	v8-ppc64le-compat.patch
@@ -42,7 +38,7 @@ source="https://nodejs.org/dist/v$pkgver/node-v$pkgver.tar.gz
 	v8-disable-trap-handler-on-riscv-sv39.patch
 	v8-int64-lowering-reducer.patch
 	v8-ppc_vsx-inl.patch
-	$pkgname.pc.in
+	nodejs.pc.in
 	node_sea.patch
 	node_snapshotable.patch
 	"
@@ -273,7 +269,7 @@ build() {
 	_build --shared
 	cp out/Release/lib/libnode.so* out/Release/
 
-	sed "s/@VERSION@/$pkgver/" "$srcdir"/$pkgname.pc.in > out/Release/$pkgname.pc
+	sed "s/@VERSION@/$pkgver/" "$srcdir"/nodejs.pc.in > out/Release/nodejs.pc
 }
 
 _build() {
@@ -331,14 +327,29 @@ package() {
 	# node binary built without libnode.so.
 	install -D -m755 out/node -t "$pkgdir"/usr/bin/
 
-	install -D -m644 out/Release/$pkgname.pc -t "$pkgdir"/usr/lib/pkgconfig/
+	install -D -m644 out/Release/nodejs.pc -t "$pkgdir"/usr/lib/pkgconfig/
 
 	(cd "$pkgdir"/usr/lib; ln -sf libnode.so.* libnode.so)
 }
 
+_subpkg_provides() {
+	provides="nodejs${subpkgname#"$pkgname"}=$pkgver-r$pkgrel"
+	replaces="nodejs${subpkgname#"$pkgname"}"
+}
+
 dev() {
-	provides="nodejs-lts-dev=$pkgver"  # for backward compatibility
 	default_dev
+	_subpkg_provides
+}
+
+libs() {
+	default_libs
+	_subpkg_provides
+}
+
+doc() {
+	default_doc
+	_subpkg_provides
 }
 
 sha512sums="
