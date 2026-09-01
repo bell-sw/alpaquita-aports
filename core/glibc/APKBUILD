@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.39.0
-pkgrel=11
+pkgrel=12
 _glibcver=${pkgver%.*}
 _patch_ver="glibc-2.39-298-gbe1e627cd7"
 pkgdesc="GNU C Library"
@@ -31,6 +31,11 @@ source="
 	0108-CVE-2026-6791-posix-Fix-stack-overflow-in-wordexp-ti.patch
 	0109-rtld-cache-cpuid-results-on-the-stack-for-intel.patch
 	0110-CVE-2026-19542.patch
+	0111-CVE-2026-6368-posix-Fix-wordexp-WRDE_APPEND-to-prese.patch
+	0112-CVE-2026-19499-stdlib-Fix-right-justification-in-str.patch
+	0113-CVE-2026-77117-iconvdata-SHIFT_JISX0213-decoding-lac.patch
+	0114-CVE-2026-80489-iconvdata-EUC_JISX0213-decoding-lacks.patch
+	0115-iconvdata-Test-case-for-bug-34556-bug-34568.patch
 	"
 builddir="$srcdir/glibc-$_glibcver"
 options="!libc_musl lib64 ldpath-recursive !check !annobin"
@@ -46,6 +51,11 @@ subpackages="
 "
 
 # secfixes:
+#   2.39.0-r12:
+#     - CVE-2026-6368
+#     - CVE-2026-19499
+#     - CVE-2026-77117
+#     - CVE-2026-80489
 #   2.39.0-r11:
 #     - CVE-2026-19542
 #   2.39.0-r9:
@@ -312,4 +322,9 @@ faf5fcde4055fb094ccf6a2ba5b15335938bf9e432d2ec05c38f955506cfdc1ac26b58b05ea0915e
 0c40ff3a7103bcb949d6b81067739bcbbe8626eea36695413194693c160a322642e6fc17b6a0d3feb2574332e27d5e6127142071dca1c438888a614b2d6fe8b4  0108-CVE-2026-6791-posix-Fix-stack-overflow-in-wordexp-ti.patch
 f58f65ff2263fff7466e805970548f8375d2159e5abe9ef5f070b7eb246cb265b4e50874075d552bb31f8a4bd946809604bc629bb6e4dbdf33088bc065dd65b1  0109-rtld-cache-cpuid-results-on-the-stack-for-intel.patch
 11367a6598f4bdb431d7bc16c517c7c6997d9745c64b3606972a364435bee8ddb7e99a05bb187cbbaa0263f8847344f0d68d1d08d4263072c97987e466ed5305  0110-CVE-2026-19542.patch
+50c8d36329fd92f6615e8bcd499c0935605b871e9ae5f1afdd2f26754d12d704f2fbb7978a0ffa3bfe592cf0edfd0fe6b17b787e55a2111e3477d8486e9ed708  0111-CVE-2026-6368-posix-Fix-wordexp-WRDE_APPEND-to-prese.patch
+d6202e31e8a9787870ff9019b55977fbfe793e3d4645c49dc56d4404efe169dc2b2180e3097406585ae719062a22a2a63a59291837fa07dfd855dc3c6cca4e69  0112-CVE-2026-19499-stdlib-Fix-right-justification-in-str.patch
+b0c7c632895012f4d26d6b352149e6926ed268fb08e1b513bf547d76b9c04b4e9edf6a93aa646c4aafbf2cb77a5766a0a0d1eb42c40e5eb093cde0f5e023d8ff  0113-CVE-2026-77117-iconvdata-SHIFT_JISX0213-decoding-lac.patch
+db320db650a606748553edff1444e0d41fc8977fcb3835e49515b7fb1f82cfe26fb6b98724111d0230029dbcf1bbb01e845bf56fa135e58bc5c7fa5448997b00  0114-CVE-2026-80489-iconvdata-EUC_JISX0213-decoding-lacks.patch
+98c400caff07d6d135913111e180808e46299eb34d10089447d7701fb38b2bfa96a8d55874158f7187e3881f370630ac473411842cbc471d6a0020bece56f83e  0115-iconvdata-Test-case-for-bug-34556-bug-34568.patch
 "
