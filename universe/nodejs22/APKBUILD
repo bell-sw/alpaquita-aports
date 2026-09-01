@@ -1,0 +1,355 @@
+pkgname=nodejs22
+pkgver=22.23.2
+pkgrel=0
+pkgdesc="JavaScript runtime built on V8 engine (v22)"
+url="https://nodejs.org/"
+arch="all"
+license="MIT"
+depends="ca-certificates"
+makedepends="
+	ada-dev
+	brotli-dev
+	c-ares-dev
+	icu-dev
+	linux-headers
+	nghttp2-dev
+	openssl-dev
+	py3-jinja2
+	python3
+	samurai
+	simdjson-dev
+	simdutf-dev
+	sqlite-dev
+	zlib-dev
+	zstd-dev
+	"
+subpackages="
+	$pkgname-dev
+	$pkgname-libs
+	$pkgname-doc
+	"
+provides="nodejs"
+source="https://nodejs.org/dist/v$pkgver/node-v$pkgver.tar.gz
+	v8-ppc64le-compat.patch
+	v8-riscv-trap-handler.patch
+	v8-no-static-zlib.patch
+	v8-disable-trap-handler-on-riscv-sv39.patch
+	nodejs.pc.in
+	node_sea.patch
+	node_snapshotable.patch
+	"
+builddir="$srcdir/node-v$pkgver"
+
+# secfixes:
+#   22.23.2-r0:
+#     - CVE-2026-56846
+#     - CVE-2026-56848
+#     - CVE-2026-58043
+#     - CVE-2026-56850
+#     - CVE-2026-58040
+#     - CVE-2026-58042
+#     - CVE-2026-58045
+#     - CVE-2026-56847
+#     - CVE-2026-58039
+#     - CVE-2026-58044
+#   22.23.0-r0:
+#     - CVE-2026-48618
+#     - CVE-2026-48933
+#     - CVE-2026-48937
+#     - CVE-2026-48930
+#     - CVE-2026-48619
+#     - CVE-2026-48615
+#     - CVE-2026-48934
+#     - CVE-2026-48928
+#     - CVE-2026-48617
+#     - CVE-2026-48931
+#     - CVE-2026-48935
+#   22.22.2-r0:
+#     - CVE-2026-21637
+#     - CVE-2026-21710
+#     - CVE-2026-21713
+#     - CVE-2026-21714
+#     - CVE-2026-21715
+#     - CVE-2026-21716
+#     - CVE-2026-21717
+#   22.22.0-r0:
+#     - CVE-2025-55130
+#     - CVE-2025-55131
+#     - CVE-2025-55132
+#     - CVE-2025-59465
+#     - CVE-2025-59466
+#     - CVE-2026-21637
+#   22.16.0-r0:
+#     - CVE-2025-23166
+#   22.13.1-r0:
+#     - CVE-2025-23083
+#     - CVE-2025-23084
+#     - CVE-2025-23085
+#     - CVE-2025-22150
+#   20.15.1-r0:
+#     - CVE-2024-22018
+#     - CVE-2024-22020
+#     - CVE-2024-36137
+#   20.12.1-r0:
+#     - CVE-2024-27982
+#     - CVE-2024-27983
+#   18.18.2-r0:
+#     - CVE-2023-45143
+#     - CVE-2023-38552
+#     - CVE-2023-39333
+#   18.17.1-r0:
+#     - CVE-2023-32002
+#     - CVE-2023-32006
+#     - CVE-2023-32559
+#   18.14.1-r0:
+#     - CVE-2023-23918
+#     - CVE-2023-23919
+#     - CVE-2023-23920
+#     - CVE-2023-23936
+#     - CVE-2023-24807
+#   18.12.1-r0:
+#     - CVE-2022-3602
+#     - CVE-2022-3786
+#     - CVE-2022-43548
+#   16.17.1-r0:
+#     - CVE-2022-32213
+#     - CVE-2022-32214
+#     - CVE-2022-32215
+#     - CVE-2022-35255
+#     - CVE-2022-35256
+#   16.13.2-r0:
+#     - CVE-2021-44531
+#     - CVE-2021-44532
+#     - CVE-2021-44533
+#     - CVE-2022-21824
+#   14.18.1-r0:
+#     - CVE-2021-22959
+#     - CVE-2021-22960
+#   14.17.6-r0:
+#     - CVE-2021-37701
+#     - CVE-2021-37712
+#     - CVE-2021-37713
+#     - CVE-2021-39134
+#     - CVE-2021-39135
+#   14.17.5-r0:
+#     - CVE-2021-3672
+#     - CVE-2021-22931
+#     - CVE-2021-22939
+#   14.17.4-r0:
+#     - CVE-2021-22930
+#   14.16.1-r0:
+#     - CVE-2020-7774
+#   14.16.0-r0:
+#     - CVE-2021-22883
+#     - CVE-2021-22884
+#   14.15.5-r0:
+#     - CVE-2021-21148
+#   14.15.4-r0:
+#     - CVE-2020-8265
+#     - CVE-2020-8287
+#   14.15.1-r0:
+#     - CVE-2020-8277
+#   12.18.4-r0:
+#     - CVE-2020-8201
+#     - CVE-2020-8252
+#   12.18.0-r0:
+#     - CVE-2020-8172
+#     - CVE-2020-11080
+#     - CVE-2020-8174
+#   12.15.0-r0:
+#     - CVE-2019-15606
+#     - CVE-2019-15605
+#     - CVE-2019-15604
+#   10.16.3-r0:
+#     - CVE-2019-9511
+#     - CVE-2019-9512
+#     - CVE-2019-9513
+#     - CVE-2019-9514
+#     - CVE-2019-9515
+#     - CVE-2019-9516
+#     - CVE-2019-9517
+#     - CVE-2019-9518
+#   10.15.3-r0:
+#     - CVE-2019-5737
+#   10.14.0-r0:
+#     - CVE-2018-12121
+#     - CVE-2018-12122
+#     - CVE-2018-12123
+#     - CVE-2018-0735
+#     - CVE-2018-0734
+#   8.11.4-r0:
+#     - CVE-2018-12115
+#   8.11.3-r0:
+#     - CVE-2018-7167
+#     - CVE-2018-7161
+#     - CVE-2018-1000168
+#   8.11.0-r0:
+#     - CVE-2018-7158
+#     - CVE-2018-7159
+#     - CVE-2018-7160
+#   8.9.3-r0:
+#     - CVE-2017-15896
+#     - CVE-2017-15897
+#   6.11.5-r0:
+#     - CVE-2017-14919
+#   6.11.1-r0:
+#     - CVE-2017-1000381
+#   0:
+#     - CVE-2021-43803
+#     - CVE-2022-32212
+#     - CVE-2023-44487
+#     - CVE-2024-36138
+#     - CVE-2024-37372
+
+prepare() {
+	default_prepare
+
+	# openssl.cnf is required for build.
+	mv deps/openssl/nodejs-openssl.cnf .
+
+	# Remove bundled dependencies that we're not using.
+	#
+	# NOTE: nghttp3 and ngtcp2 are only used when building with OpenSSL
+	#  that supports QUIC. After the QUIC support is added to openssl, add
+	#  options --shared-nghttp3 and --shared-ngtcp2.
+	#
+	# NOTE: All bundled dependencies are described in
+	#  doc/contributing/maintaining/maintaining-dependencies.md.
+	rm -rf deps/ada \
+		deps/brotli \
+		deps/cares \
+		deps/corepack \
+		deps/nghttp2 \
+		deps/nghttp3 \
+		deps/ngtcp2 \
+		deps/openssl/* \
+		deps/simdjson \
+		deps/simdutf \
+		deps/sqlite \
+		deps/v8/third_party/jinja2 \
+		deps/zlib \
+		deps/zstd \
+		tools/inspector_protocol/jinja2
+
+	mv nodejs-openssl.cnf deps/openssl/
+}
+
+build() {
+	# Add defines recommended in libuv readme.
+	local common_flags="-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
+	# Disable use of OpenSSL ENGINE API - it's deprecated since OpenSSL 3.0
+	#   (https://issues.redhat.com/browse/RHEL-33743).
+	common_flags="$common_flags -DOPENSSL_NO_ENGINE"
+
+	# -Os overwrites the optimizations enabled by BUILDTYPE=Release.
+	# Compiling with O2 instead of Os increases binary size by ~10%
+	# (53.1 MiB -> 58.6 MiB), but also increases performance by ~20%
+	# according to v8/web-tooling-benchmark. Node.js is quite huge anyway;
+	# there are better options for size constrained environments.
+	export CFLAGS="${CFLAGS/-Os} $common_flags"
+	export CXXFLAGS="${CXXFLAGS/-Os} $common_flags"
+	export CPPFLAGS="${CPPFLAGS/-Os} $common_flags"
+
+	# When building shared libnode.so, the resulting package size is +15 %
+	# (~8 MiB), so we rather build it twice to keep the node binary smaller
+	# (there are currently no packages using libnode.so).
+	msg 'Building node binary'
+	_build
+	cp out/Release/node out/
+
+	msg 'Building libnode.so'
+	_build --shared
+	cp out/Release/lib/libnode.so* out/Release/
+
+	sed "s/@VERSION@/$pkgver/" "$srcdir"/nodejs.pc.in > out/Release/nodejs.pc
+}
+
+_build() {
+	# NOTE: We use bundled libuv because they don't care much about backward
+	# compatibility and it has happened several times in past that we
+	# couldn't upgrade nodejs package in stable branches to fix CVEs due to
+	# libuv incompatibility.
+	#
+	# NOTE: We don't package the bundled npm - it's a separate project with
+	# its own release cycle and version numbering, so it's better to keep
+	# it in a standalone aport.
+	#
+	# TODO: Fix and enable corepack.
+	# TODO: Create aport for amaro and use --shared-builtin-amaro (amaro
+	#   contains pre-built wasm binary).
+	python3 configure.py \
+		--prefix=/usr \
+		--ninja \
+		--enable-lto \
+		--shared-ada \
+		--shared-brotli \
+		--shared-zlib \
+		--shared-openssl \
+		--shared-cares \
+		--shared-nghttp2 \
+		--shared-simdjson \
+		--shared-simdutf \
+		--shared-sqlite \
+		--shared-zstd \
+		--openssl-use-def-ca-store \
+		--with-icu-default-data-dir="$(icu-config --icudatadir)" \
+		--with-intl=system-icu \
+		--without-corepack \
+		--without-npm \
+		"$@"
+
+	make BUILDTYPE=Release
+}
+
+# TODO Run provided test suite.
+check() {
+	cd "$builddir"/out/Release
+
+	./node -e 'console.log("Hello, world!")'
+	./node -e "require('assert').equal(process.versions.node, '$pkgver')"
+	./node -e 'require("assert").equal(
+		Buffer.from(Buffer.from("foo").toString("base64"), "base64").toString("ascii"),
+		"foo")'
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+
+	# node binary built without libnode.so.
+	install -D -m755 out/node -t "$pkgdir"/usr/bin/
+
+	install -D -m644 out/Release/nodejs.pc -t "$pkgdir"/usr/lib/pkgconfig/
+
+	(cd "$pkgdir"/usr/lib; ln -sf libnode.so.* libnode.so)
+}
+
+_subpkg_provides() {
+	provides="nodejs${subpkgname#"$pkgname"}=$pkgver-r$pkgrel"
+	replaces="nodejs${subpkgname#"$pkgname"}"
+}
+
+dev() {
+	default_dev
+	_subpkg_provides
+}
+
+libs() {
+	default_libs
+	_subpkg_provides
+}
+
+doc() {
+	default_doc
+	_subpkg_provides
+}
+
+sha512sums="
+c8a886f8d444dfef8261e32d8708d40d14d8a1a43f0ef601d07c8b7d8cad0da2a1a991619c2809a2fefc8e42f711fc11850451177d46c97a266a2f53efeb8dd5  node-v22.23.2.tar.gz
+37dc38704eae165e6940393c08bb182120dcec119739bda4961706f3aa955bf9669c371bcfa0317269f8f08e01d4c6c204f2c595d583d649433a659a44113bfb  v8-ppc64le-compat.patch
+4ad794959735ad46653496e6026e6404356237a5b7c1911a5897dea6c9e1b5989e8506f0dcfc2d237f9d8d15938d6a20c05b018ccef78da043b92755b8911d10  v8-riscv-trap-handler.patch
+c80cb6297994d290b4d620a44e571a8a663ee9a364008c8b56c19e6e5559e12b8d4ed9e55414046847027ff38af21ba0f1c08a07a0eb16f0115dbb919fe9478b  v8-no-static-zlib.patch
+0668bfedb608b3abb3ded8e9a0cef6611cc11dbd0089c6dfadc60a2ba9b78861e3cb18cf3d768b4f7a924d573765f38983bd03485087d1229095296e92177ccc  v8-disable-trap-handler-on-riscv-sv39.patch
+f908fa93f6194ec4f6c5e9d76ed7c918721c7f5d46afcc12de1f84683c185401a27a174b7a7c6a76085a4d0826f964e7088bf5596d4e6901a15bf751846299a6  nodejs.pc.in
+30c8572aaa5c0caf53d42650ccc6dbb0614e81e709b8604ea0a592aa5ca60803bb901b94f1b1822c180cbf9c2e28c46b38d22206245b0507d320e97e5af3c9ed  node_sea.patch
+f904dd76f8e13d15b553e2b9b0226f82f108afe592b11d61118f32e9a74e4375b1146855c96fce916c662a10e7ecf3e1e30e34e924ec01eda99d74b0cc748b34  node_snapshotable.patch
+"
