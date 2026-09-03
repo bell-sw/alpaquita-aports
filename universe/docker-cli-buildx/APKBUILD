@@ -1,6 +1,6 @@
 pkgname=docker-cli-buildx
 pkgver=0.36.1
-pkgrel=1
+pkgrel=2
 _commit=1d8dde89b8aba914e05e45366770736fea1fd690
 pkgdesc="A Docker CLI plugin for extended build capabilities"
 url="https://docs.docker.com/engine/reference/commandline/buildx_build"
@@ -9,9 +9,14 @@ license="Apache-2.0"
 makedepends="go"
 checkdepends="git"
 options="net"
-source="buildx-$pkgver.tar.gz::https://github.com/docker/buildx/archive/v$pkgver.tar.gz"
+source="buildx-$pkgver.tar.gz::https://github.com/docker/buildx/archive/v$pkgver.tar.gz
+
+	9999-go-mod.patch
+	"
 
 # secfixes:
+#   0.36.1-r2:
+#     - CVE-2026-17106
 #   0.36.1-r0:
 #     - CVE-2026-46600
 #   0.32.0-r0:
@@ -46,4 +51,5 @@ package() {
 
 sha512sums="
 669a1fa58570f56dfc6d5a0cf79f09e5a326b997a26a79e9bdbc263b1b847200d6bcc8fa1a37be43a77573d32c04d093959ec793cfd503cef524cbfdb9332339  buildx-0.36.1.tar.gz
+a0b679f75c10990b0c4c22851109a5c7932f842f6ab2842734639ce4ab42200d482e0721619488ce279630baec46b88a568cfab7b77e173b4445eb86d41ab1ab  9999-go-mod.patch
 "
