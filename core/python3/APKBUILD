@@ -5,7 +5,7 @@ pkgname=python3
 # the python3-tkinter's pkgver needs to be synchronized with this.
 pkgver=3.14.7
 _basever="${pkgver%.*}"
-pkgrel=1
+pkgrel=2
 pkgdesc="Python programming language"
 url="https://www.python.org/"
 arch="all"
@@ -20,7 +20,6 @@ subpackages="
 	$pkgname-pycache-pyc2
 	$pkgname-pycache-pyc1
 	$pkgname-pycache-pyc0
-	$pkgname-gdbm
 	pyc:_pyc_meta:noarch
 	"
 # explicit expat>=2.8 dependency for hash flooding protection
@@ -31,7 +30,6 @@ makedepends="
 	bluez-headers
 	bzip2-dev
 	expat-dev>=2.8.0
-	gdbm-dev
 	glibc:libxcrypt-dev
 	libffi-dev
 	linux-headers
@@ -199,7 +197,6 @@ build() {
 		--with-lto \
 		--with-pymalloc \
 		--with-computed-gotos \
-		--with-dbmliborder=gdbm:ndbm \
 		--with-system-expat \
 		--with-system-libmpdec \
 		--without-ensurepip
@@ -290,12 +287,6 @@ tests() {
 	pkgdesc="The test modules from the main python package"
 
 	amove usr/lib/python$_basever/test
-}
-
-gdbm() {
-	pkgdesc="Python backend for GNU gdbm"
-
-	amove usr/lib/python3*/lib-dynload/_gdbm.cpython*
 }
 
 _pyc_meta() {
