@@ -1,6 +1,6 @@
 pkgname=buildah
 pkgver=1.41.8
-pkgrel=6
+pkgrel=7
 pkgdesc="tool that facilitates building OCI container images"
 url="https://github.com/containers/buildah"
 license="Apache-2.0"
@@ -9,9 +9,14 @@ depends="oci-runtime shadow-subids slirp4netns containers-common"
 makedepends="go go-md2man lvm2-dev gpgme-dev libseccomp-dev btrfs-progs-dev bash"
 subpackages="$pkgname-doc"
 options="!check" # tests require root privileges
-source="https://github.com/containers/buildah/archive/v$pkgver/buildah-$pkgver.tar.gz"
+source="https://github.com/containers/buildah/archive/v$pkgver/buildah-$pkgver.tar.gz
+
+	9999-go-mod.patch
+	"
 
 # secfixes:
+#   1.41.8-r7:
+#     - CVE-2026-17106
 #   1.41.6-r0:
 #     - CVE-2025-52881
 #   1.38.1-r0:
@@ -53,4 +58,5 @@ package() {
 
 sha512sums="
 42b11fe322bc4271c575aff5fc615578e04e7a2a41eaba529a74c138eb5c5f1fd7319450b0eddca5a057689f3fcfae34b34cc8d5d27004f8bf2e046fa4621f1a  buildah-1.41.8.tar.gz
+6af5d90acc1bfc55899e1d8f21e47ddf0d5e42c4b5a6f62948c17012d66327571a605a054e9ea0cf3b50bd9b0c031c4bdcf19e5cb26feb5dfb34ca74c7ecc107  9999-go-mod.patch
 "
