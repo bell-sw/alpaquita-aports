@@ -1,8 +1,19 @@
 # golang.org/x/net@v0.56.0
 #   - CVE-2026-46600
+# github.com/moby/go-archive@v0.3.0
+#   - CVE-2026-17106
 
---- a/go.mod
-+++ b/go.mod
+--- a/go.mod	2026-08-13 17:03:04.000000000 +0000
++++ b/go.mod.new	2026-09-03 17:02:05.788000000 +0000
+@@ -45,7 +45,7 @@
+ 	github.com/mdlayher/vsock v1.2.1
+ 	github.com/moby/docker-image-spec v1.3.1
+ 	github.com/moby/sys/capability v0.4.0
+-	github.com/moby/sys/user v0.4.0
++	github.com/moby/sys/user v0.4.1
+ 	github.com/moby/term v0.5.2
+ 	github.com/nxadm/tail v1.4.11
+ 	github.com/onsi/ginkgo/v2 v2.28.0
 @@ -70,7 +70,7 @@
  	go.podman.io/image/v5 v5.39.2
  	go.podman.io/storage v1.62.0
@@ -12,8 +23,71 @@
  	golang.org/x/sync v0.21.0
  	golang.org/x/sys v0.46.0
  	golang.org/x/term v0.44.0
---- a/go.sum
-+++ b/go.sum
+@@ -128,7 +128,7 @@
+ 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
+ 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+ 	github.com/jinzhu/copier v0.4.0 // indirect
+-	github.com/klauspost/compress v1.18.0 // indirect
++	github.com/klauspost/compress v1.18.7 // indirect
+ 	github.com/kr/fs v0.1.0 // indirect
+ 	github.com/letsencrypt/boulder v0.0.0-20240620165639-de9c06129bec // indirect
+ 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
+@@ -138,10 +138,10 @@
+ 	github.com/miekg/pkcs11 v1.1.1 // indirect
+ 	github.com/mistifyio/go-zfs/v3 v3.1.0 // indirect
+ 	github.com/moby/buildkit v0.25.1 // indirect
+-	github.com/moby/go-archive v0.1.0 // indirect
+-	github.com/moby/patternmatcher v0.6.0 // indirect
++	github.com/moby/go-archive v0.3.0 // indirect
++	github.com/moby/patternmatcher v0.6.1 // indirect
+ 	github.com/moby/sys/mountinfo v0.7.2 // indirect
+-	github.com/moby/sys/sequential v0.6.0 // indirect
++	github.com/moby/sys/sequential v0.7.0 // indirect
+ 	github.com/moby/sys/userns v0.1.0 // indirect
+ 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
+ 	github.com/modern-go/reflect2 v1.0.2 // indirect
+--- a/go.sum	2026-08-13 17:03:04.000000000 +0000
++++ b/go.sum.new	2026-09-03 17:02:05.788000000 +0000
+@@ -221,8 +221,8 @@
+ github.com/kevinburke/ssh_config v1.4.0/go.mod h1:q2RIzfka+BXARoNexmF9gkxEX7DmvbW9P4hIVx2Kg4M=
+ github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
+ github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
+-github.com/klauspost/compress v1.18.0 h1:c/Cqfb0r+Yi+JtIEq73FWXVkRonBlf0CRNYc8Zttxdo=
+-github.com/klauspost/compress v1.18.0/go.mod h1:2Pp+KzxcywXVXMr50+X0Q/Lsb43OQHYWRCY2AiWywWQ=
++github.com/klauspost/compress v1.18.7 h1:aUyZsS4kH3QTKurYhAOwAHxllVPnOthb3vPfnF1Ehjw=
++github.com/klauspost/compress v1.18.7/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
+ github.com/klauspost/pgzip v1.2.6 h1:8RXeL5crjEUFnR2/Sn6GJNWtSQ3Dk8pq4CL3jvdDyjU=
+ github.com/klauspost/pgzip v1.2.6/go.mod h1:Ch1tH69qFZu15pkjo5kYi6mth2Zzwzt50oCQKQE9RUs=
+ github.com/kr/fs v0.1.0 h1:Jskdu9ieNAYnjxsi0LbQp1ulIKZV1LAFgK1tWhpZgl8=
+@@ -267,20 +267,20 @@
+ github.com/moby/buildkit v0.25.1/go.mod h1:phM8sdqnvgK2y1dPDnbwI6veUCXHOZ6KFSl6E164tkc=
+ github.com/moby/docker-image-spec v1.3.1 h1:jMKff3w6PgbfSa69GfNg+zN/XLhfXJGnEx3Nl2EsFP0=
+ github.com/moby/docker-image-spec v1.3.1/go.mod h1:eKmb5VW8vQEh/BAr2yvVNvuiJuY6UIocYsFu/DxxRpo=
+-github.com/moby/go-archive v0.1.0 h1:Kk/5rdW/g+H8NHdJW2gsXyZ7UnzvJNOy6VKJqueWdcQ=
+-github.com/moby/go-archive v0.1.0/go.mod h1:G9B+YoujNohJmrIYFBpSd54GTUB4lt9S+xVQvsJyFuo=
+-github.com/moby/patternmatcher v0.6.0 h1:GmP9lR19aU5GqSSFko+5pRqHi+Ohk1O69aFiKkVGiPk=
+-github.com/moby/patternmatcher v0.6.0/go.mod h1:hDPoyOpDY7OrrMDLaYoY3hf52gNCR/YOUYxkhApJIxc=
++github.com/moby/go-archive v0.3.0 h1:nos4BtzzUIqB406BgQnWGMI4qib9BZ8XUHU+ucv/n1c=
++github.com/moby/go-archive v0.3.0/go.mod h1:Npdv43fFqlhZW7Xo8fbm3ZMYFvAGNviUPqX21VERbcE=
++github.com/moby/patternmatcher v0.6.1 h1:qlhtafmr6kgMIJjKJMDmMWq7WLkKIo23hsrpR3x084U=
++github.com/moby/patternmatcher v0.6.1/go.mod h1:hDPoyOpDY7OrrMDLaYoY3hf52gNCR/YOUYxkhApJIxc=
+ github.com/moby/sys/atomicwriter v0.1.0 h1:kw5D/EqkBwsBFi0ss9v1VG3wIkVhzGvLklJ+w3A14Sw=
+ github.com/moby/sys/atomicwriter v0.1.0/go.mod h1:Ul8oqv2ZMNHOceF643P6FKPXeCmYtlQMvpizfsSoaWs=
+ github.com/moby/sys/capability v0.4.0 h1:4D4mI6KlNtWMCM1Z/K0i7RV1FkX+DBDHKVJpCndZoHk=
+ github.com/moby/sys/capability v0.4.0/go.mod h1:4g9IK291rVkms3LKCDOoYlnV8xKwoDTpIrNEE35Wq0I=
+ github.com/moby/sys/mountinfo v0.7.2 h1:1shs6aH5s4o5H2zQLn796ADW1wMrIwHsyJ2v9KouLrg=
+ github.com/moby/sys/mountinfo v0.7.2/go.mod h1:1YOa8w8Ih7uW0wALDUgT1dTTSBrZ+HiBLGws92L2RU4=
+-github.com/moby/sys/sequential v0.6.0 h1:qrx7XFUd/5DxtqcoH1h438hF5TmOvzC/lspjy7zgvCU=
+-github.com/moby/sys/sequential v0.6.0/go.mod h1:uyv8EUTrca5PnDsdMGXhZe6CCe8U/UiTWd+lL+7b/Ko=
+-github.com/moby/sys/user v0.4.0 h1:jhcMKit7SA80hivmFJcbB1vqmw//wU61Zdui2eQXuMs=
+-github.com/moby/sys/user v0.4.0/go.mod h1:bG+tYYYJgaMtRKgEmuueC0hJEAZWwtIbZTB+85uoHjs=
++github.com/moby/sys/sequential v0.7.0 h1:ASQNGNROJSuOO6LL6bPHbKvuZu6NU8P4ldPWk31zj/8=
++github.com/moby/sys/sequential v0.7.0/go.mod h1:NfSTAp6V3fw4tmkD62PEcOKeZKquXT8VKCkf7aVR79o=
++github.com/moby/sys/user v0.4.1 h1:RgjRlaDKi/Xmyrz4t8lyzXT6v2ooFeO/7xtchmhVWE0=
++github.com/moby/sys/user v0.4.1/go.mod h1:E9QsW5WRe1kUAf7kW8hXKwu1uhsZEAdPLYHYSDudF4Y=
+ github.com/moby/sys/userns v0.1.0 h1:tVLXkFOxVu9A64/yh59slHVv9ahO9UIev4JZusOLG/g=
+ github.com/moby/sys/userns v0.1.0/go.mod h1:IHUYgu/kao6N8YZlp9Cf444ySSvCmDlmzUcYfDHOl28=
+ github.com/moby/term v0.5.2 h1:6qk3FJAFDs6i/q3W/pQ97SX192qKfZgGjCQqfCJkgzQ=
 @@ -513,8 +513,8 @@
  golang.org/x/net v0.15.0/go.mod h1:idbUs1IY1+zTqbi8yxTbhexhEEk5ur9LInksu6HrEpk=
  golang.org/x/net v0.21.0/go.mod h1:bIjVDfnllIU7BJ2DNgfnXvpSvtn8VRwhlsaeUTyUS44=
@@ -25,8 +99,51 @@
  golang.org/x/oauth2 v0.32.0 h1:jsCblLleRMDrxMN29H3z/k1KliIvpLgCkE6R8FXXNgY=
  golang.org/x/oauth2 v0.32.0/go.mod h1:lzm5WQJQwKZ3nwavOZ3IS5Aulzxi68dUSgRHujetwEA=
  golang.org/x/sync v0.0.0-20190423024810-112230192c58/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
---- a/vendor/modules.txt
-+++ b/vendor/modules.txt
+--- a/vendor/modules.txt	2026-08-13 17:03:04.000000000 +0000
++++ b/vendor/modules.txt.new	2026-09-03 17:02:05.789000000 +0000
+@@ -379,8 +379,8 @@
+ # github.com/kevinburke/ssh_config v1.4.0
+ ## explicit; go 1.18
+ github.com/kevinburke/ssh_config
+-# github.com/klauspost/compress v1.18.0
+-## explicit; go 1.22
++# github.com/klauspost/compress v1.18.7
++## explicit; go 1.24
+ github.com/klauspost/compress
+ github.com/klauspost/compress/flate
+ github.com/klauspost/compress/fse
+@@ -445,12 +445,12 @@
+ # github.com/moby/docker-image-spec v1.3.1
+ ## explicit; go 1.18
+ github.com/moby/docker-image-spec/specs-go/v1
+-# github.com/moby/go-archive v0.1.0
+-## explicit; go 1.23.0
++# github.com/moby/go-archive v0.3.0
++## explicit; go 1.25
+ github.com/moby/go-archive
+ github.com/moby/go-archive/compression
+ github.com/moby/go-archive/tarheader
+-# github.com/moby/patternmatcher v0.6.0
++# github.com/moby/patternmatcher v0.6.1
+ ## explicit; go 1.19
+ github.com/moby/patternmatcher
+ # github.com/moby/sys/capability v0.4.0
+@@ -459,11 +459,11 @@
+ # github.com/moby/sys/mountinfo v0.7.2
+ ## explicit; go 1.17
+ github.com/moby/sys/mountinfo
+-# github.com/moby/sys/sequential v0.6.0
+-## explicit; go 1.17
++# github.com/moby/sys/sequential v0.7.0
++## explicit; go 1.24.0
+ github.com/moby/sys/sequential
+-# github.com/moby/sys/user v0.4.0
+-## explicit; go 1.17
++# github.com/moby/sys/user v0.4.1
++## explicit; go 1.18
+ github.com/moby/sys/user
+ # github.com/moby/sys/userns v0.1.0
+ ## explicit; go 1.21
 @@ -985,7 +985,7 @@
  # golang.org/x/mod v0.36.0
  ## explicit; go 1.25.0
@@ -36,8 +153,8 @@
  ## explicit; go 1.25.0
  golang.org/x/net/bpf
  golang.org/x/net/html
---- a/test/tools/go.mod
-+++ b/test/tools/go.mod
+--- a/test/tools/go.mod	2026-08-13 17:03:04.000000000 +0000
++++ b/test/tools/go.mod.new	2026-09-03 17:02:05.789000000 +0000
 @@ -3,7 +3,7 @@
  // Warning: if there is a "toolchain" directive anywhere in this file (and most of the
  // time there shouldn't be), its version must be an exact match to the "go" directive.
@@ -47,7 +164,20 @@
  
  require (
  	github.com/cpuguy83/go-md2man/v2 v2.0.7
-@@ -59,13 +59,13 @@
+@@ -29,6 +29,7 @@
+ 	github.com/go-openapi/swag v0.23.0 // indirect
+ 	github.com/go-openapi/validate v0.24.0 // indirect
+ 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
++	github.com/google/go-cmp v0.7.0 // indirect
+ 	github.com/google/uuid v1.6.0 // indirect
+ 	github.com/gorilla/handlers v1.5.2 // indirect
+ 	github.com/hashicorp/hcl v1.0.0 // indirect
+@@ -55,17 +56,18 @@
+ 	github.com/spf13/cast v1.6.0 // indirect
+ 	github.com/spf13/pflag v1.0.5 // indirect
+ 	github.com/spf13/viper v1.18.2 // indirect
++	github.com/stretchr/testify v1.10.0 // indirect
+ 	github.com/subosito/gotenv v1.6.0 // indirect
  	github.com/toqueteos/webbrowser v1.2.0 // indirect
  	go.mongodb.org/mongo-driver v1.14.0 // indirect
  	go.uber.org/multierr v1.11.0 // indirect
@@ -67,8 +197,30 @@
  	gopkg.in/ini.v1 v1.67.0 // indirect
  	gopkg.in/yaml.v2 v2.4.0 // indirect
  	gopkg.in/yaml.v3 v3.0.1 // indirect
---- a/test/tools/go.sum
-+++ b/test/tools/go.sum
+--- a/test/tools/go.sum	2026-08-13 17:03:04.000000000 +0000
++++ b/test/tools/go.sum.new	2026-09-03 17:02:05.789000000 +0000
+@@ -46,8 +46,8 @@
+ github.com/go-swagger/go-swagger v0.32.3/go.mod h1:lAwO1nKff3qNRJYVQeTCl1am5pcNiiA2VyDf8TqzS24=
+ github.com/go-viper/mapstructure/v2 v2.4.0 h1:EBsztssimR/CONLSZZ04E8qAkxNYq4Qp9LvH92wZUgs=
+ github.com/go-viper/mapstructure/v2 v2.4.0/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
+-github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
+-github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
++github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
++github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
+ github.com/google/uuid v1.1.1/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+ github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
+ github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+@@ -120,8 +120,8 @@
+ github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
+ github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
+ github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
+-github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
+-github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
++github.com/stretchr/testify v1.10.0 h1:Xv5erBjTwe/5IxqUQTdXv5kgmIvbHo3QQyRwhJsOfJA=
++github.com/stretchr/testify v1.10.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
+ github.com/subosito/gotenv v1.6.0 h1:9NlTDc1FTs4qu0DDq7AEtTPNw6SVm7uBMsUCUjABIf8=
+ github.com/subosito/gotenv v1.6.0/go.mod h1:Dk4QP5c2W3ibzajGcXpNraDfq2IrhjMIvMSWPKKo0FU=
+ github.com/toqueteos/webbrowser v1.2.0 h1:tVP/gpK69Fx+qMJKsLE7TD8LuGWPnEV71wBN9rrstGQ=
 @@ -134,21 +134,21 @@
  golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
  golang.org/x/crypto v0.0.0-20210921155107-089bfa567519/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
@@ -126,9 +278,27 @@
  golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
  gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
  gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=
---- a/test/tools/vendor/modules.txt
-+++ b/test/tools/vendor/modules.txt
-@@ -205,8 +205,8 @@
+--- a/test/tools/vendor/modules.txt	2026-08-13 17:03:04.000000000 +0000
++++ b/test/tools/vendor/modules.txt.new	2026-09-03 17:02:05.789000000 +0000
+@@ -80,6 +80,8 @@
+ ## explicit; go 1.18
+ github.com/go-viper/mapstructure/v2
+ github.com/go-viper/mapstructure/v2/internal/errors
++# github.com/google/go-cmp v0.7.0
++## explicit; go 1.21
+ # github.com/google/uuid v1.6.0
+ ## explicit
+ github.com/google/uuid
+@@ -187,6 +189,8 @@
+ github.com/spf13/viper/internal/encoding/toml
+ github.com/spf13/viper/internal/encoding/yaml
+ github.com/spf13/viper/internal/features
++# github.com/stretchr/testify v1.10.0
++## explicit; go 1.17
+ # github.com/subosito/gotenv v1.6.0
+ ## explicit; go 1.18
+ github.com/subosito/gotenv
+@@ -205,8 +209,8 @@
  # go.uber.org/multierr v1.11.0
  ## explicit; go 1.19
  go.uber.org/multierr
@@ -139,7 +309,7 @@
  golang.org/x/crypto/bcrypt
  golang.org/x/crypto/blowfish
  golang.org/x/crypto/pbkdf2
-@@ -218,20 +218,20 @@
+@@ -218,20 +222,20 @@
  golang.org/x/exp/slog
  golang.org/x/exp/slog/internal
  golang.org/x/exp/slog/internal/buffer
@@ -168,7 +338,7 @@
  golang.org/x/text/encoding
  golang.org/x/text/encoding/internal
  golang.org/x/text/encoding/internal/identifier
-@@ -240,9 +240,11 @@
+@@ -240,9 +244,11 @@
  golang.org/x/text/runes
  golang.org/x/text/transform
  golang.org/x/text/unicode/norm
@@ -182,7 +352,7 @@
  golang.org/x/tools/go/gcexportdata
  golang.org/x/tools/go/packages
  golang.org/x/tools/go/types/objectpath
-@@ -257,7 +259,6 @@
+@@ -257,7 +263,6 @@
  golang.org/x/tools/internal/gocommand
  golang.org/x/tools/internal/gopathwalk
  golang.org/x/tools/internal/imports
