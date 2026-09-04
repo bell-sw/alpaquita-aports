@@ -1,6 +1,6 @@
 pkgname=podman
 pkgver=5.6.2
-pkgrel=12
+pkgrel=13
 pkgdesc="Simple management tool for pods, containers and images"
 url="https://podman.io/"
 license="Apache-2.0"
@@ -104,6 +104,12 @@ export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
 export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
 export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
 
+prepare() {
+	default_prepare
+	# update the vendor directory since we patched go.mod and go.sum files
+	go mod vendor
+}
+
 build() {
 	# https://github.com/mattn/go-sqlite3/issues/1164
 	export CGO_CFLAGS="$CFLAGS -D_LARGEFILE64_SOURCE"
@@ -162,5 +168,5 @@ sha512sums="
 f8941dc3f8c6b08b288e3347ef2d782140f6e46809da0353f3695338a2de75a971b312e57d09b0a0ea51557568d888b367e3b234be550aea8386321878f4a22f  podman.initd
 ec6e6d3f72d0ab6c90a30b2cca5152c0d0f1e402ae671289263d7bf3b5141de9d67c3593f20b6075cedd214b7fb1506e69ff7b4f9691b43b391389343ab9b9b1  podman.confd
 a050b8cd5dc81672284789676ac0414c075dbcdbbfd852450e288f23e77df9c965e31c0a5dc45b024b42479dd45be9776ea62d1ad6f75fcf4feddddbb34b991d  0100-CVE-2026-55686.patch
-aa33b867fd048bb494e28bce312c40cbe4afb32978d4bc7a53b706cc4cb1e11d003854460be3b9bbfed3ea4ce0d28632abb4eb7d2e1c95a06a200a2c4be9798a  9999-go-mod.patch
+304b4d068cb27a2b3e55fe302de658f4c9e98508be6efd7490929e4113e4c645b0fa31b01f7a28f1fc4b89569beac4a7dbc00605d00d9cc78c4fd85c6d2e5de7  9999-go-mod.patch
 "

@@ -1,6 +1,6 @@
 pkgname=buildah
 pkgver=1.41.8
-pkgrel=7
+pkgrel=8
 pkgdesc="tool that facilitates building OCI container images"
 url="https://github.com/containers/buildah"
 license="Apache-2.0"
@@ -47,6 +47,12 @@ export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
 export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
 export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
 
+prepare() {
+	default_prepare
+	# update the vendor directory since we patched go.mod and go.sum files
+	go mod vendor
+}
+
 build() {
 	GIT_COMMIT="$pkgver" make buildah
 	GIT_COMMIT="$pkgver" make -C docs GOMD2MAN="$(which go-md2man)"
@@ -58,5 +64,5 @@ package() {
 
 sha512sums="
 42b11fe322bc4271c575aff5fc615578e04e7a2a41eaba529a74c138eb5c5f1fd7319450b0eddca5a057689f3fcfae34b34cc8d5d27004f8bf2e046fa4621f1a  buildah-1.41.8.tar.gz
-6af5d90acc1bfc55899e1d8f21e47ddf0d5e42c4b5a6f62948c17012d66327571a605a054e9ea0cf3b50bd9b0c031c4bdcf19e5cb26feb5dfb34ca74c7ecc107  9999-go-mod.patch
+66053008f82e9e2d5322ec4e84f2efcd873c438c9746a3b0360d429ae26f8e16d8fe7d678ee4aea88e984aa91fcae2c69567d67b2810bd93413464b9bf0295ee  9999-go-mod.patch
 "
