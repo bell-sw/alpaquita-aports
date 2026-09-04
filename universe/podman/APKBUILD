@@ -53,6 +53,7 @@ source="https://github.com/containers/podman/archive/v$pkgver/podman-$pkgver.tar
 	podman.initd
 	podman.confd
 
+	0100-Revert-remove-aliases-for-deprecated-types-and-funct.diff
 	9999-go-mod.patch
 	"
 
@@ -117,6 +118,14 @@ prepare() {
 	default_prepare
 	# update the vendor directory since we patched go.mod and go.sum files
 	go mod vendor
+
+	# This is needed to work around the following errors due to upgrade of
+	# go-archive from v0.1.0 to v0.3.0:
+	#
+	#   vendor/github.com/fsouza/go-dockerclient/tar.go:62:28: undefined: archive.Uncompressed
+	#
+	patch -d "vendor/github.com/moby/go-archive" -p1 \
+		-i "$srcdir"/0100-Revert-remove-aliases-for-deprecated-types-and-funct.diff
 }
 
 build() {
@@ -199,5 +208,6 @@ ea1fff069868edf0050080e94f6a8a87cdb6dc950ab8d6e532577afc70e7a59eb5658efc351d3bd6
 09df9b7b3085c60fa2ca4225452835632ca809a7543b816118d0705205f29aa653ce0e00cbc8a52cb34294fe665a5834d106096373b067543c0185e0f240a1d7  28586.patch
 2fbded8bf4680441dd04f12909e1af828525f4aa08678bf465c66958339fc6cd52cdfdac8e7fdfaf9fe5b6464545e8b071f47c6147d58d4c644c2c5447b3098b  podman.initd
 ec6e6d3f72d0ab6c90a30b2cca5152c0d0f1e402ae671289263d7bf3b5141de9d67c3593f20b6075cedd214b7fb1506e69ff7b4f9691b43b391389343ab9b9b1  podman.confd
+620ad0b99e91e09bb57645eb8116d0076271f98d750536cbbf35a87e5d4c96cbffce58e50a534f2035a55caf44400bbd6bfad66bcbe906da8da75844cd638afd  0100-Revert-remove-aliases-for-deprecated-types-and-funct.diff
 d0e825e0b918a4117ef5e63a562d1ed118a08bb217ddfeb899f6c747fd69ff5bf5a14ff7c2d2d7ec8cabe6ab47f0df8bc9b1bb7631a5777929667d66fe405297  9999-go-mod.patch
 "
