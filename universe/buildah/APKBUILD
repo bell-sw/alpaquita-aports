@@ -1,6 +1,6 @@
 pkgname=buildah
 pkgver=1.44.0
-pkgrel=5
+pkgrel=6
 pkgdesc="tool that facilitates building OCI container images"
 url="https://github.com/containers/buildah"
 license="Apache-2.0"
@@ -45,6 +45,12 @@ source="https://github.com/containers/buildah/archive/v$pkgver/buildah-$pkgver.t
 #   1.14.4-r0:
 #     - CVE-2020-10696
 
+prepare() {
+	default_prepare
+	# update the vendor directory since we patched go.mod and go.sum files
+	go mod vendor
+}
+
 build() {
 	GIT_COMMIT="$pkgver" make buildah
 	GIT_COMMIT="$pkgver" make -C docs GOMD2MAN="$(which go-md2man)"
@@ -56,5 +62,5 @@ package() {
 
 sha512sums="
 660f29ff9b8c8f7f3776e96391bb803feb54622c92aaf78f5ac37783bdc77573353acd5f692502b61169ad58f6b89a8e8268ec41c0cb080dfec3f8466dd6419e  buildah-1.44.0.tar.gz
-f7e38f928ac131a9fdd546e6b8104b0ead5b69f094f1d9a45a812909b8fdc16799f5864519d9ed0acd32f4ee5192f4fe0ccf7fe2ad947a40ede2ca837d9427ca  9999-go-mod.patch
+f5fc39d9d120dd98999a9bb063be0414aabceb653ee7b0a488c2dcca451a6e5d9a0dd44c7f9d45e0499030ad144f98a7f75c1eb53b11f3ec4cb950287dce54be  9999-go-mod.patch
 "

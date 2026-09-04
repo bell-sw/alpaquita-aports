@@ -1,6 +1,6 @@
 pkgname=docker-cli-buildx
 pkgver=0.36.1
-pkgrel=2
+pkgrel=3
 _commit=1d8dde89b8aba914e05e45366770736fea1fd690
 pkgdesc="A Docker CLI plugin for extended build capabilities"
 url="https://docs.docker.com/engine/reference/commandline/buildx_build"
@@ -28,6 +28,12 @@ _buildx_installdir="/usr/libexec/docker/cli-plugins"
 
 builddir="$srcdir"/buildx-"$pkgver"
 
+prepare() {
+	default_prepare
+	# update the vendor directory since we patched go.mod and go.sum files
+	go mod vendor
+}
+
 build() {
 	PKG=github.com/docker/buildx
 	local ldflags="-X $PKG/version.Version=v$pkgver -X $PKG/version.Revision=$_commit -X $PKG/version.Package=$PKG"
@@ -51,5 +57,5 @@ package() {
 
 sha512sums="
 669a1fa58570f56dfc6d5a0cf79f09e5a326b997a26a79e9bdbc263b1b847200d6bcc8fa1a37be43a77573d32c04d093959ec793cfd503cef524cbfdb9332339  buildx-0.36.1.tar.gz
-a0b679f75c10990b0c4c22851109a5c7932f842f6ab2842734639ce4ab42200d482e0721619488ce279630baec46b88a568cfab7b77e173b4445eb86d41ab1ab  9999-go-mod.patch
+110c19c66e517e59ade1402b35aeff1a57030ae90b63d71f6422431fcdd5c22fcb18e5706f95759d0f84578020f78c90e6f65fe08e9713faf0702039cd9690c8  9999-go-mod.patch
 "

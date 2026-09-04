@@ -1,7 +1,7 @@
 pkgname=runc
 _commit=bb14dabeb7185bb72c8c86735d090dcb20f36587
 pkgver=1.5.1
-pkgrel=2
+pkgrel=3
 pkgdesc="CLI tool for spawning and running containers according to the OCI specification"
 url="https://www.opencontainers.org"
 arch="all"
@@ -50,6 +50,12 @@ provider_priority=90
 #   1.0.0_rc7-r0:
 #     - CVE-2019-5736
 
+prepare() {
+	default_prepare
+	# update the vendor directory since we patched go.mod and go.sum files
+	go mod vendor
+}
+
 build() {
 	# libpathrs is not yet packaged in Alpine
 	make \
@@ -66,5 +72,5 @@ package() {
 sha512sums="
 4a96870af3146203a001e08d9a0330f6234f8f0b2efe62e123a4f9b131b73967482954f658d53258e19444630c18981b5d7ef805ab736ca16a69f783f39db182  runc-1.5.1.tar.gz
 ff69c6d7f9bb16ff20e5290cff6da29c9c344fa9f990238b1a299fd5dfeed24943f5d7a12491317d5a2cf620247d14dfeb8df239f7fe3fe37b592aab75ac41aa  add-seccomp-for-loongarch64.patch
-26274c1a4822e4dd6a16f835ff3c412d233a7ba2eef46bb7f2b87dc37709ca93d154d82d85ebd2598cf6179872e2fba7f80ebbc3d43c23adff758c269cb0b6e7  9999-go-mod.patch
+afa2ec19ea5a71c8fc9f38338a71443430041260241c36fc247c3c3c0f31b489cca34c988006ab37be767b1e676423e4dd80703dae8933005c11f2b248cda721  9999-go-mod.patch
 "

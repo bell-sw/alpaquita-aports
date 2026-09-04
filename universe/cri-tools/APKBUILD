@@ -1,6 +1,6 @@
 pkgname=cri-tools
 pkgver=1.35.0
-pkgrel=7
+pkgrel=8
 pkgdesc="CLI tool for Kubelet Container Runtime Interface (CRI)"
 url="https://github.com/kubernetes-sigs/cri-tools"
 arch="all !armhf"
@@ -22,6 +22,12 @@ export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
 export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
 export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
 
+prepare() {
+	default_prepare
+	# update the vendor directory since we patched go.mod and go.sum files
+	go mod vendor
+}
+
 build() {
 case "$CARCH" in
 	armv7|riscv64|s390x|x86|loongarch64) CGO_ENABLED=1 make all;;
@@ -38,5 +44,5 @@ package() {
 
 sha512sums="
 ea34e736b457f851b610e8091ebbb608ac0f790c80156ad3e1a7080c76df4ea759091300b7ee6b5812a42ec93e165d71b6fa06f12424f46b4b181f5059b100bb  cri-tools-1.35.0.tar.gz
-d5911844139896dd6641209c529dafa9954e5feba5a6808ac3ff1c991330286990df05370cbc40124ce79f2925eeb6790d99fdc9a97eb3a9ae6ed64048eba251  9999-go-mod.patch
+01d4d76ed6b3c18557246739562441ee67640c3fd59b502925f9edffa59b59a848374dbdf96355dcca075f0c0770aeddb5cc43c2888a5d33be5541a76527885a  9999-go-mod.patch
 "
