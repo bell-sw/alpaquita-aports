@@ -39,7 +39,7 @@ source="
 	0116-CVE-2026-18374.patch
 	"
 builddir="$srcdir/glibc-$_glibcver"
-options="!libc_musl lib64 ldpath-recursive !check !annobin"
+options="!libc_musl lib64 ldpath-recursive !annobin"
 [ "$BOOTSTRAP" != "nolibc" ] && triggers="$pkgname-utils.trigger=/usr/lib:/usr/lib64:/usr/local/lib"
 subpackages="
 	$pkgname-dbg
@@ -165,7 +165,9 @@ build() {
 
 check() {
 	cd glibc-build
-	make check
+	# make check
+
+	make test t=libio/tst-fopen-ccs-empty # CVE-2026-18374
 }
 
 _install_hwcaps()
