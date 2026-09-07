@@ -11,6 +11,7 @@ subpackages="$pkgname-doc"
 options="!check" # tests require root privileges
 source="https://github.com/containers/buildah/archive/v$pkgver/buildah-$pkgver.tar.gz
 
+	0100-Revert-remove-aliases-for-deprecated-types-and-funct.diff
 	9999-go-mod.patch
 	"
 
@@ -51,6 +52,15 @@ prepare() {
 	default_prepare
 	# update the vendor directory since we patched go.mod and go.sum files
 	go mod vendor
+
+	# This is needed to work around the following errors due to upgrade of
+	# go-archive from v0.1.0 to v0.3.0:
+	#
+	#   vendor/github.com/docker/docker/pkg/archive/archive_deprecated.go:103:47: undefined: archive.Compression
+	#   vendor/github.com/docker/docker/pkg/archive/archive_deprecated.go:159:43: undefined: archive.Compression
+	#
+	patch -d "vendor/github.com/moby/go-archive" -p1 \
+		-i "$srcdir"/0100-Revert-remove-aliases-for-deprecated-types-and-funct.diff
 }
 
 build() {
@@ -64,5 +74,6 @@ package() {
 
 sha512sums="
 42b11fe322bc4271c575aff5fc615578e04e7a2a41eaba529a74c138eb5c5f1fd7319450b0eddca5a057689f3fcfae34b34cc8d5d27004f8bf2e046fa4621f1a  buildah-1.41.8.tar.gz
+620ad0b99e91e09bb57645eb8116d0076271f98d750536cbbf35a87e5d4c96cbffce58e50a534f2035a55caf44400bbd6bfad66bcbe906da8da75844cd638afd  0100-Revert-remove-aliases-for-deprecated-types-and-funct.diff
 66053008f82e9e2d5322ec4e84f2efcd873c438c9746a3b0360d429ae26f8e16d8fe7d678ee4aea88e984aa91fcae2c69567d67b2810bd93413464b9bf0295ee  9999-go-mod.patch
 "
