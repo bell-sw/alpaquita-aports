@@ -1,24 +1,17 @@
 From: Julian Andres Klode <julian.klode@canonical.com>
 Date: Mon, 24 Jul 2023 15:26:10 +0200
-Subject: efi: Provide a shim for load_image, start_image, unload_image
-
-Provide custom implementations of load_image(), start_image(),
-and unload_image() to workaround shim just forwarding those
-calls to the firmware.
+Subject: efi/peimage: Provide an implementation of load_image, start_image,
+ unload_image
 
 The code consumes a PE-COFF image loaded into memory. The functions
 
 * check validity of header
 * copy the sections
 * relocate the code
+* set memory attributes
 * invalidate the instruction cache
 * execute the image
 * return to caller
-
-This was previously in use in Ubuntu on riscv64 and arm64 only,
-exposed as a single function  grub_efi_run_image(). It was
-originally written by Heinrich and split up into 3 functions
-by Julian to integrate with the upstream boot loader.
 
 Caveats:
 
@@ -28,19 +21,20 @@ Caveats:
 
 Signed-off-by: Heinrich Schuchardt <heinrich.schuchardt@canonical.com>
 Signed-off-by: Julian Andres Klode <julian.klode@canonical.com>
+Signed-off-by: Mate Kukri <mate.kukri@canonical.com>
 ---
  grub-core/Makefile.core.def    |  13 +
- grub-core/loader/efi/peimage.c | 826 +++++++++++++++++++++++++++++++++++++++++
+ grub-core/loader/efi/peimage.c | 937 +++++++++++++++++++++++++++++++++++++++++
  include/grub/efi/peimage.h     |  19 +
- 3 files changed, 858 insertions(+)
+ 3 files changed, 969 insertions(+)
  create mode 100644 grub-core/loader/efi/peimage.c
  create mode 100644 include/grub/efi/peimage.h
 
 diff --git a/grub-core/Makefile.core.def b/grub-core/Makefile.core.def
-index 333d3fe..7e7e360 100644
+index 67bcbf0..70a5bcf 100644
 --- a/grub-core/Makefile.core.def
 +++ b/grub-core/Makefile.core.def
-@@ -1875,6 +1875,19 @@ module = {
+@@ -1932,6 +1932,19 @@ module = {
    common = lib/cmdline.c;
  };
  
@@ -62,10 +56,10 @@ index 333d3fe..7e7e360 100644
    efi = loader/efi/fdt.c;
 diff --git a/grub-core/loader/efi/peimage.c b/grub-core/loader/efi/peimage.c
 new file mode 100644
-index 0000000..b04fc61
+index 0000000..2ce369e
 --- /dev/null
 +++ b/grub-core/loader/efi/peimage.c
-@@ -0,0 +1,826 @@
+@@ -0,0 +1,937 @@
 +/* peimage.c - load EFI PE binaries (for Secure Boot support) */
 +
 +// SPDX-License-Identifier: GPL-3.0+
@@ -76,6 +70,7 @@ index 0000000..b04fc61
 +#include <grub/efi/efi.h>
 +#include <grub/efi/pe32.h>
 +#include <grub/efi/peimage.h>
++#include <grub/efi/sb.h>
 +#include <grub/env.h>
 +#include <grub/misc.h>
 +#include <grub/mm.h>
@@ -90,6 +85,7 @@ index 0000000..b04fc61
 +  void *data;
 +  grub_efi_uint32_t data_size;
 +  grub_efi_device_path_t *file_path;
++  grub_efi_uint8_t nx_compat;
 +  grub_efi_uint16_t machine;
 +  grub_efi_uint16_t num_sections;
 +  struct grub_pe32_section_table *section;
@@ -169,12 +165,12 @@ index 0000000..b04fc61
 +
 +  if (info->data_size < sizeof (struct grub_msdos_image_header))
 +    {
-+      grub_error (GRUB_ERR_BAD_OS, "truncated image");
++      grub_dprintf ("peimage", "truncated image\n");
 +      return GRUB_EFI_LOAD_ERROR;
 +    }
 +  if (dos_stub->msdos_magic != GRUB_PE32_MAGIC)
 +    {
-+      grub_error (GRUB_ERR_BAD_OS, "not a PE-COFF file");
++      grub_dprintf ("peimage", "not a PE-COFF file\n");
 +      return GRUB_EFI_UNSUPPORTED;
 +    }
 +  if (info->data_size < dos_stub->pe_image_header_offset
@@ -182,14 +178,14 @@ index 0000000..b04fc61
 +			    + sizeof (struct grub_pe32_coff_header)
 +			    + sizeof (struct grub_pe64_optional_header))
 +    {
-+      grub_error (GRUB_ERR_BAD_OS, "truncated image");
++      grub_dprintf ("peimage", "truncated image\n");
 +      return GRUB_EFI_LOAD_ERROR;
 +    }
 +  pe_magic
 +      = (void *)((unsigned long)info->data + dos_stub->pe_image_header_offset);
 +  if (grub_memcmp (pe_magic, GRUB_PE32_SIGNATURE, GRUB_PE32_SIGNATURE_SIZE))
 +    {
-+      grub_error (GRUB_ERR_BAD_OS, "not a PE-COFF file");
++      grub_dprintf ("peimage", "not a PE-COFF file\n");
 +      return GRUB_EFI_LOAD_ERROR;
 +    }
 +
@@ -199,8 +195,7 @@ index 0000000..b04fc61
 +
 +  if (check_machine_type (info->machine) != GRUB_EFI_SUCCESS)
 +    {
-+      grub_error (GRUB_ERR_BAD_OS, "wrong machine type %u",
-+		  coff_header->machine);
++      grub_dprintf ("peimage", "wrong machine type %u\n", coff_header->machine);
 +      return GRUB_EFI_LOAD_ERROR;
 +    }
 +
@@ -212,9 +207,11 @@ index 0000000..b04fc61
 +    case GRUB_PE32_PE32_MAGIC:
 +      if (pe32_header->subsystem != GRUB_PE32_SUBSYSTEM_EFI_APPLICATION)
 +	{
-+	  grub_error (GRUB_ERR_BAD_OS, "expected EFI application");
++	  grub_dprintf ("peimage", "expected EFI application\n");
 +	  return GRUB_EFI_LOAD_ERROR;
 +	}
++      info->nx_compat =
++	(pe32_header->dll_characteristics & GRUB_PE32_NX_COMPAT) != 0;
 +      info->section_alignment = pe32_header->section_alignment;
 +      info->image_base = pe32_header->image_base;
 +      info->image_size = pe32_header->image_size;
@@ -222,7 +219,7 @@ index 0000000..b04fc61
 +      info->header_size = pe32_header->header_size;
 +      if (info->data_size < info->header_size)
 +	{
-+	  grub_error (GRUB_ERR_BAD_OS, "truncated image");
++	  grub_dprintf ("peimage", "truncated image\n");
 +	  return GRUB_EFI_LOAD_ERROR;
 +	}
 +
@@ -238,9 +235,11 @@ index 0000000..b04fc61
 +    case GRUB_PE32_PE64_MAGIC:
 +      if (pe64_header->subsystem != GRUB_PE32_SUBSYSTEM_EFI_APPLICATION)
 +	{
-+	  grub_error (GRUB_ERR_BAD_OS, "expected EFI application");
++	  grub_dprintf ("peimage", "expected EFI application\n");
 +	  return GRUB_EFI_LOAD_ERROR;
 +	}
++      info->nx_compat =
++	(pe64_header->dll_characteristics & GRUB_PE32_NX_COMPAT) != 0;
 +      info->section_alignment = pe64_header->section_alignment;
 +      info->image_base = pe64_header->image_base;
 +      info->image_size = pe64_header->image_size;
@@ -248,7 +247,7 @@ index 0000000..b04fc61
 +      info->header_size = pe64_header->header_size;
 +      if (info->data_size < info->header_size)
 +	{
-+	  grub_error (GRUB_ERR_BAD_OS, "truncated image");
++	  grub_dprintf ("peimage", "truncated image\n");
 +	  return GRUB_EFI_LOAD_ERROR;
 +	}
 +
@@ -262,7 +261,13 @@ index 0000000..b04fc61
 +			   * sizeof (struct grub_pe32_data_directory));
 +      break;
 +    default:
-+      grub_error (GRUB_ERR_BAD_OS, "not a PE-COFF file");
++      grub_dprintf ("peimage", "not a PE-COFF file\n");
++      return GRUB_EFI_LOAD_ERROR;
++    }
++
++  if (info->nx_compat && info->section_alignment < GRUB_EFI_PAGE_SIZE)
++    {
++      grub_dprintf ("peimage", "NX compatible image with sub-page section alignment\n");
 +      return GRUB_EFI_LOAD_ERROR;
 +    }
 +
@@ -270,11 +275,11 @@ index 0000000..b04fc61
 +	  + info->num_sections * sizeof (*info->section)
 +      > (unsigned long)info->data + info->data_size)
 +    {
-+      grub_error (GRUB_ERR_BAD_OS, "truncated image");
++      grub_dprintf ("peimage", "truncated image\n");
 +      return GRUB_EFI_LOAD_ERROR;
 +    }
 +
-+  grub_dprintf ("linux", "PE-COFF header checked\n");
++  grub_dprintf ("peimage", "PE-COFF header checked\n");
 +
 +  return GRUB_EFI_SUCCESS;
 +}
@@ -291,11 +296,12 @@ index 0000000..b04fc61
 +{
 +  struct grub_pe32_section_table *section;
 +  unsigned long align_mask = 0xfff;
++  grub_addr_t section_addr;
 +
 +  /* Section alignment must be a power of two */
 +  if (info->section_alignment & (info->section_alignment - 1))
 +    {
-+      grub_error (GRUB_ERR_BAD_OS, "invalid section alignment");
++      grub_dprintf ("peimage", "invalid section alignment\n");
 +      return GRUB_EFI_LOAD_ERROR;
 +    }
 +
@@ -321,24 +327,44 @@ index 0000000..b04fc61
 +	  || (section->raw_data_size
 +	      && section->raw_data_offset < info->header_size))
 +	{
-+	  grub_error (GRUB_ERR_BAD_OS, "section inside header");
++	  grub_dprintf ("peimage", "section inside header\n");
 +	  return GRUB_EFI_LOAD_ERROR;
 +	}
 +      if (section->raw_data_offset + section->raw_data_size > info->data_size)
 +	{
-+	  grub_error (GRUB_ERR_BAD_OS, "truncated image");
++	  grub_dprintf ("peimage", "truncated image\n");
 +	  return GRUB_EFI_LOAD_ERROR;
 +	}
 +      if (section->virtual_address + section->virtual_size > info->image_size)
 +	{
-+	  grub_error (GRUB_ERR_BAD_OS, "section outside image");
++	  grub_dprintf ("peimage", "section outside image\n");
 +	  return GRUB_EFI_LOAD_ERROR;
 +	}
 +
-+      grub_memset ((void *)((unsigned long)info->image_addr + section->virtual_address),
-+		   0, section->virtual_size);
++      if (section->raw_data_size)
++	{
++	  if (section->raw_data_offset < info->header_size)
++	    {
++	      grub_dprintf ("peimage", "section data inside header\n");
++	      return GRUB_EFI_LOAD_ERROR;
++	    }
++	  if (section->raw_data_offset + section->raw_data_size > info->data_size)
++	    {
++	      grub_dprintf ("peimage", "section data outside file\n");
++	      return GRUB_EFI_LOAD_ERROR;
++	    }
++	  if (section->raw_data_size > ALIGN_UP(section->virtual_size, GRUB_EFI_PAGE_SIZE))
++	    {
++	      grub_dprintf ("peimage", "section data larger than virtual size\n");
++	      return GRUB_EFI_LOAD_ERROR;
++	    }
++	}
++
++      section_addr = (grub_addr_t)info->image_addr + section->virtual_address;
++
++      grub_memset ((void *) section_addr, 0, section->virtual_size);
 +      grub_memcpy (
-+	  (void *)((unsigned long)info->image_addr + section->virtual_address),
++	  (void *) section_addr,
 +	  (void *)((unsigned long)info->data + section->raw_data_offset),
 +	  section->raw_data_size);
 +    }
@@ -346,7 +372,7 @@ index 0000000..b04fc61
 +  info->entry_point = (void *)((unsigned long)info->entry_point
 +			       + (unsigned long)info->image_addr);
 +
-+  grub_dprintf ("linux", "sections loaded\n");
++  grub_dprintf ("peimage", "sections loaded\n");
 +
 +  return GRUB_EFI_SUCCESS;
 +}
@@ -548,13 +574,13 @@ index 0000000..b04fc61
 +
 +  if (!info->reloc || !(info->reloc->size))
 +    {
-+      grub_dprintf ("linux", "no relocations\n");
++      grub_dprintf ("peimage", "no relocations\n");
 +      return GRUB_EFI_SUCCESS;
 +    }
 +
 +  if (info->reloc->rva + info->reloc->size > info->image_size)
 +    {
-+      grub_error (GRUB_ERR_BAD_OS, "relocation block outside image");
++      grub_dprintf ("peimage", "relocation block outside image\n");
 +      return GRUB_EFI_LOAD_ERROR;
 +    }
 +
@@ -671,15 +697,69 @@ index 0000000..b04fc61
 +	}
 +    }
 +
-+  grub_dprintf ("linux", "image relocated\n");
++  grub_dprintf ("peimage", "image relocated\n");
 +
 +  return GRUB_EFI_SUCCESS;
 +
 +bad_reloc:
-+  grub_error (GRUB_ERR_BAD_OS, "unsupported relocation type %d, rva 0x%08lx\n",
++  grub_dprintf ("peimage", "unsupported relocation type %d, rva 0x%08lx\n",
 +	      *reloc_entry >> 12,
 +	      (unsigned long)reloc_entry - (unsigned long)info->image_addr);
 +  return GRUB_EFI_LOAD_ERROR;
++}
++
++static grub_efi_status_t
++set_section_mem_attrs (struct image_info *info)
++{
++  struct grub_pe32_section_table *section;
++  grub_addr_t section_addr;
++  grub_err_t err;
++  grub_uint64_t section_set_mem_attr, section_clear_mem_attr;
++
++  for (section = &info->section[0];
++       section < &info->section[info->num_sections]; ++section)
++    {
++      section_addr = (grub_addr_t)info->image_addr + section->virtual_address;
++
++      if (section_addr & (GRUB_EFI_PAGE_SIZE - 1))
++        {
++          grub_dprintf ("peimage", "NX compatible image with badly aligned section\n");
++          return GRUB_EFI_LOAD_ERROR;
++        }
++
++      if ((section->characteristics & GRUB_PE32_SCN_MEM_WRITE) && (section->characteristics & GRUB_PE32_SCN_MEM_EXECUTE))
++        {
++          grub_dprintf ("peimage", "NX compatible image with W|X section\n");
++          return GRUB_EFI_LOAD_ERROR;
++        }
++
++      section_set_mem_attr = 0;
++      section_clear_mem_attr = 0;
++      if (section->characteristics & GRUB_PE32_SCN_MEM_READ)
++        section_set_mem_attr |= GRUB_MEM_ATTR_R;
++      else
++        section_clear_mem_attr |= GRUB_MEM_ATTR_R;
++      if (section->characteristics & GRUB_PE32_SCN_MEM_WRITE)
++        section_set_mem_attr |= GRUB_MEM_ATTR_W;
++      else
++        section_clear_mem_attr |= GRUB_MEM_ATTR_W;
++      if (section->characteristics & GRUB_PE32_SCN_MEM_EXECUTE)
++        section_set_mem_attr |= GRUB_MEM_ATTR_X;
++      else
++        section_clear_mem_attr |= GRUB_MEM_ATTR_X;
++
++      err = grub_update_mem_attrs (section_addr,
++                                   GRUB_EFI_BYTES_TO_PAGES(section->virtual_size) * GRUB_EFI_PAGE_SIZE,
++                                   section_set_mem_attr, section_clear_mem_attr);
++      if (err != GRUB_ERR_NONE)
++        {
++          grub_dprintf ("peimage", "Failed to set PE section memory attributes\n");
++          return GRUB_EFI_LOAD_ERROR;
++        }
++    }
++
++  grub_dprintf ("peimage", "PE section memory attributes set\n");
++  return GRUB_EFI_SUCCESS;
 +}
 +
 +/**
@@ -705,7 +785,7 @@ index 0000000..b04fc61
 +
 +  if (image_handle != started_image.image_handle)
 +    {
-+      grub_dprintf ("linux", "delegating Exit()\n");
++      grub_dprintf ("peimage", "delegating Exit()\n");
 +      return started_image.exit (image_handle, exit_status, exit_data_size,
 +				(grub_efi_char16_t *)exit_data);
 +    }
@@ -771,7 +851,7 @@ index 0000000..b04fc61
 +    }
 +  else
 +    {
-+      grub_dprintf ("linux", "Loaded image protocol missing\n");
++      grub_dprintf ("peimage", "Loaded image protocol missing\n");
 +    }
 +
 +  ret = grub_setjmp (started_image.jmp);
@@ -786,7 +866,7 @@ index 0000000..b04fc61
 +  grub_efi_system_table->boot_services->exit = efi_exit;
 +
 +  grub_dprintf (
-+      "linux",
++      "peimage",
 +      "Executing image loaded at 0x%lx\nEntry point 0x%lx\nSize 0x%08x\n",
 +      (unsigned long)info->image_addr, (unsigned long)info->entry_point,
 +      info->image_size);
@@ -796,7 +876,7 @@ index 0000000..b04fc61
 +
 +  status = info->entry_point (started_image.image_handle, grub_efi_system_table);
 +
-+  grub_dprintf ("linux", "Application returned\n");
++  grub_dprintf ("peimage", "Application returned\n");
 +
 +  return efi_exit (started_image.image_handle, status, 0, NULL);
 +}
@@ -814,7 +894,7 @@ index 0000000..b04fc61
 +  grub_efi_status_t ret = GRUB_EFI_SUCCESS;
 +  if (info.data != NULL)
 +    {
-+      grub_error (GRUB_ERR_BAD_OS, "cannot load multiple images");
++      grub_dprintf ("peimage", "cannot load multiple images\n");
 +      return GRUB_EFI_LOAD_ERROR;
 +    }
 +
@@ -838,9 +918,19 @@ index 0000000..b04fc61
 +  if (ret != GRUB_EFI_SUCCESS)
 +    goto err;
 +
++  if (info.nx_compat)
++    {
++      ret = set_section_mem_attrs (&info);
++      if (ret != GRUB_EFI_SUCCESS)
++        goto err;
++    }
++
 +  // We are hacking this up as we go along
 +  *image_handle = grub_efi_image_handle;
++  return GRUB_EFI_SUCCESS;
++
 +err:
++  do_unload_image (NULL); // NOTE: arg unused
 +  return ret;
 +}
 +
@@ -851,7 +941,7 @@ index 0000000..b04fc61
 +{
 +  if (info.data == NULL)
 +    {
-+      grub_error (GRUB_ERR_BAD_OS, "image not loaded");
++      grub_dprintf ("peimage", "image not loaded\n");
 +      return GRUB_EFI_LOAD_ERROR;
 +    }
 +  return start_image (&info);
@@ -862,7 +952,7 @@ index 0000000..b04fc61
 +{
 +  if (info.data == NULL)
 +    {
-+      grub_error (GRUB_ERR_BAD_OS, "image not loaded");
++      grub_dprintf ("peimage", "image not loaded\n");
 +      return GRUB_EFI_LOAD_ERROR;
 +    }
 +  if (info.alloc_addr)
@@ -882,15 +972,30 @@ index 0000000..b04fc61
 +  .unload_image = do_unload_image,
 +};
 +
++static int registered;
++
 +GRUB_MOD_INIT (peimage)
 +{
-+  grub_efi_register_loader (&peimage_loader);
++  static grub_guid_t shim_loader_guid = GRUB_EFI_SHIM_IMAGE_LOADER_GUID;
++
 +  my_mod = mod;
++
++  /*
++   * When shim provides its own image loader protocol grub uses that (see
++   * grub-core/kern/efi/sb.c), which registers it as the override loader. Do
++   * not register a second one.
++   */
++  if (grub_efi_locate_protocol (&shim_loader_guid, 0) != NULL)
++    return;
++
++  grub_efi_register_loader (&peimage_loader);
++  registered = 1;
 +}
 +
 +GRUB_MOD_FINI (peimage)
 +{
-+  grub_efi_unregister_loader (&peimage_loader);
++  if (registered)
++    grub_efi_unregister_loader (&peimage_loader);
 +}
 diff --git a/include/grub/efi/peimage.h b/include/grub/efi/peimage.h
 new file mode 100644
