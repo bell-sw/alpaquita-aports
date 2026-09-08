@@ -1,0 +1,48 @@
+From fdf43b5ca3a39f25636c496d8f455f78fd188085 Mon Sep 17 00:00:00 2001
+From: "Michael S. Tsirkin" <mst@redhat.com>
+Date: Fri, 24 Jul 2026 07:26:20 -0400
+Subject: [PATCH] libvhost-user: validate last_batch_head in
+ vu_check_queue_inflights
+
+vu_check_queue_inflights uses last_batch_head from the frontend-controlled
+inflight shared memory as an index into desc[] without bounds checking.
+A malicious or buggy frontend can set last_batch_head >= desc_num,
+causing an out-of-bounds write.
+
+Validate last_batch_head before using it.
+Note: the value is not guest-accessible so not a security vulnerability.
+
+Resolves: https://gitlab.com/qemu-project/qemu/-/work_items/3974
+Fixes: 5f9ff1eff3 ("libvhost-user: Support tracking inflight I/O in shared memory")
+Cc: Xie Yongji <xieyongji@bytedance.com>
+Cc: Stefano Garzarella <sgarzare@redhat.com>
+Reported-by: BB CC <wywwzjj@gmail.com>
+Signed-off-by: Michael S. Tsirkin <mst@redhat.com>
+Message-Id: <8133770c75c9907578dd551f4d468140a0a75cd2.1784892981.git.mst@redhat.com>
+(cherry picked from commit bf21298c082cc5561072bbfd79216d478861a5cd)
+Signed-off-by: Michael Tokarev <mjt@tls.msk.ru>
+(cherry picked from commit a458d49618f45fd074e98d70e38b4484e9f3b138)
+---
+ subprojects/libvhost-user/libvhost-user.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/subprojects/libvhost-user/libvhost-user.c b/subprojects/libvhost-user/libvhost-user.c
+index c029ee317f..d2807e88dd 100644
+--- a/subprojects/libvhost-user/libvhost-user.c
++++ b/subprojects/libvhost-user/libvhost-user.c
+@@ -1373,6 +1373,12 @@ vu_check_queue_inflights(VuDev *dev, VuVirtq *vq)
+     vq->counter = 0;
+ 
+     if (unlikely(vq->inflight->used_idx != vq->used_idx)) {
++        if (vq->inflight->last_batch_head >= vq->inflight->desc_num) {
++            vu_panic(dev, "vu_check_queue_inflights: last_batch_head %u "
++                     "out of range (desc_num %u)",
++                     vq->inflight->last_batch_head, vq->inflight->desc_num);
++            return -1;
++        }
+         vq->inflight->desc[vq->inflight->last_batch_head].inflight = 0;
+ 
+         barrier();
+-- 
+2.34.1
+

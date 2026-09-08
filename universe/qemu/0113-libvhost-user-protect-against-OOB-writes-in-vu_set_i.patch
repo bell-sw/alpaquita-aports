@@ -1,0 +1,90 @@
+From 4f25b14979236ed2687f64ecda43b072641696a8 Mon Sep 17 00:00:00 2001
+From: "Michael S. Tsirkin" <mst@redhat.com>
+Date: Wed, 8 Jul 2026 11:33:18 -0400
+Subject: [PATCH] libvhost-user: protect against OOB writes in
+ vu_set_inflight_fd
+
+vu_set_inflight_fd() trusts the num_queues value from the
+VHOST_USER_SET_INFLIGHT_FD message without checking it against
+dev->max_queues, so an oversized value causes out-of-bounds writes to
+dev->vq.
+
+Front end is generally trusted so not a security problem, but OOB isn't
+a nice way to handle frontend bugs.  Let's harden this a bit:
+check num_queues and panic if it's invalid.
+
+Fixes: 5f9ff1eff3 ("libvhost-user: Support tracking inflight I/O in shared memory")
+Resolves: https://gitlab.com/qemu-project/qemu/-/work_items/3740
+Cc: Stefano Garzarella <sgarzare@redhat.com>
+Reported-by: xlabai <xlabai@tencent.com>
+Signed-off-by: Michael S. Tsirkin <mst@redhat.com>
+Message-ID: <23b3f12388c1035f208550df9de9944c22d8d534.1784899127.git.mst@redhat.com>
+(cherry picked from commit fbdfdbb9920cb69408d53cb86a8e079a2054581e)
+Signed-off-by: Michael Tokarev <mjt@tls.msk.ru>
+(cherry picked from commit da3e8591f3d344f7bba5daab3a5711f9768a07d3)
+---
+ subprojects/libvhost-user/libvhost-user.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/subprojects/libvhost-user/libvhost-user.c b/subprojects/libvhost-user/libvhost-user.c
+index a879149fef..d8d9bb0df5 100644
+--- a/subprojects/libvhost-user/libvhost-user.c
++++ b/subprojects/libvhost-user/libvhost-user.c
+@@ -1902,6 +1902,8 @@ vu_get_inflight_fd(VuDev *dev, VhostUserMsg *vmsg)
+ 
+     if (vmsg->size != sizeof(vmsg->payload.inflight)) {
+         vu_panic(dev, "Invalid get_inflight_fd message:%d", vmsg->size);
++        vmsg_close_fds(vmsg);
++        vmsg->fd_num = 0;
+         vmsg->payload.inflight.mmap_size = 0;
+         return true;
+     }
+@@ -1909,6 +1911,15 @@ vu_get_inflight_fd(VuDev *dev, VhostUserMsg *vmsg)
+     num_queues = vmsg->payload.inflight.num_queues;
+     queue_size = vmsg->payload.inflight.queue_size;
+ 
++    if (num_queues > dev->max_queues) {
++        vu_panic(dev, "Invalid get_inflight_fd num_queues: %"PRId16,
++                 num_queues);
++        vmsg_close_fds(vmsg);
++        vmsg->fd_num = 0;
++        vmsg->payload.inflight.mmap_size = 0;
++        return true;
++    }
++
+     DPRINT("set_inflight_fd num_queues: %"PRId16"\n", num_queues);
+     DPRINT("set_inflight_fd queue_size: %"PRId16"\n", queue_size);
+ 
+@@ -1956,6 +1967,7 @@ vu_set_inflight_fd(VuDev *dev, VhostUserMsg *vmsg)
+         vmsg->size != sizeof(vmsg->payload.inflight)) {
+         vu_panic(dev, "Invalid set_inflight_fd message size:%d fds:%d",
+                  vmsg->size, vmsg->fd_num);
++        vmsg_close_fds(vmsg);
+         return false;
+     }
+ 
+@@ -1965,6 +1977,13 @@ vu_set_inflight_fd(VuDev *dev, VhostUserMsg *vmsg)
+     num_queues = vmsg->payload.inflight.num_queues;
+     queue_size = vmsg->payload.inflight.queue_size;
+ 
++    if (num_queues > dev->max_queues) {
++        vu_panic(dev, "Invalid set_inflight_fd num_queues: %"PRId16,
++                 num_queues);
++        close(fd);
++        return false;
++    }
++
+     DPRINT("set_inflight_fd mmap_size: %"PRId64"\n", mmap_size);
+     DPRINT("set_inflight_fd mmap_offset: %"PRId64"\n", mmap_offset);
+     DPRINT("set_inflight_fd num_queues: %"PRId16"\n", num_queues);
+@@ -1975,6 +1994,7 @@ vu_set_inflight_fd(VuDev *dev, VhostUserMsg *vmsg)
+ 
+     if (rc == MAP_FAILED) {
+         vu_panic(dev, "set_inflight_fd mmap error: %s", strerror(errno));
++        close(fd);
+         return false;
+     }
+ 
+-- 
+2.34.1
+

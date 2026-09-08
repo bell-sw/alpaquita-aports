@@ -1,0 +1,46 @@
+From b7ee32a0531b3f488caffb2aba1d636072931dd1 Mon Sep 17 00:00:00 2001
+From: Stefan Hajnoczi <stefanha@redhat.com>
+Date: Thu, 23 Jul 2026 10:45:18 -0400
+Subject: [PATCH] dmg: refuse to open files with no chunks
+
+The dmg block driver expects the disk image file to contain at least one
+chunk. Refuse to open such files. This ensures that dmg block driver
+state always has non-NULL s->sectors[] and related fields.
+
+Note that the previous commit fixed the only known way to trigger a
+crash. This patch is just for defense - let's avoid opening the file and
+having NULL pointers in dmg block driver state.
+
+Resolves: https://gitlab.com/qemu-project/qemu/-/work_items/4021
+Reported-by: Tristan Madani <tristan@talencesecurity.com>
+Signed-off-by: Stefan Hajnoczi <stefanha@redhat.com>
+Message-ID: <20260723144519.364701-3-stefanha@redhat.com>
+Reviewed-by: Kevin Wolf <kwolf@redhat.com>
+Signed-off-by: Kevin Wolf <kwolf@redhat.com>
+(cherry picked from commit ab7b872f0c38ee2a576b93cf37b9945f622d48fb)
+Signed-off-by: Michael Tokarev <mjt@tls.msk.ru>
+(cherry picked from commit c594e1bc6099f9506dd4216c0a2fa19c7ed89595)
+---
+ block/dmg.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/block/dmg.c b/block/dmg.c
+index e325127d14..6f8120e033 100644
+--- a/block/dmg.c
++++ b/block/dmg.c
+@@ -559,6 +559,12 @@ static int dmg_open(BlockDriverState *bs, QDict *options, int flags,
+         goto fail;
+     }
+ 
++    /* There must be at least one chunk */
++    if (s->n_chunks == 0) {
++        ret = -EINVAL;
++        goto fail;
++    }
++
+     /* initialize zlib engine */
+     s->compressed_chunk = qemu_try_blockalign(bs->file->bs,
+                                               ds.max_compressed_size + 1);
+-- 
+2.34.1
+

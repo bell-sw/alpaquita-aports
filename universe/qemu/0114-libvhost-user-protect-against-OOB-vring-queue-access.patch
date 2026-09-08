@@ -1,0 +1,97 @@
+From b229d86284e494394d3978639e0cfadbce14123a Mon Sep 17 00:00:00 2001
+From: "Michael S. Tsirkin" <mst@redhat.com>
+Date: Wed, 8 Jul 2026 11:33:33 -0400
+Subject: [PATCH] libvhost-user: protect against OOB vring queue access
+
+SET_VRING_NUM, SET_VRING_ADDR, SET_VRING_BASE, and GET_VRING_BASE
+handlers all use the queue index from the message to access dev->vq[]
+without checking that it is below dev->max_queues, so a malformed
+message causes an out-of-bounds heap access.
+
+Frontend is trusted so not a security problem, but
+an OOB access is not a nice way to handle errors.
+Check, and panic.
+
+Fixes: 7b2e5c65f4 ("contrib: add libvhost-user")
+Resolves: https://gitlab.com/qemu-project/qemu/-/work_items/3741
+Cc: Stefano Garzarella <sgarzare@redhat.com>
+Reported-by: xlabai <xlabai@tencent.com>
+Signed-off-by: Michael S. Tsirkin <mst@redhat.com>
+Message-ID: <dbba777b25f86587c8d131891a2b4b2be97e5c5b.1784899069.git.mst@redhat.com>
+(cherry picked from commit 758ef96a2dba157e930af7709f327435a153f7a3)
+Signed-off-by: Michael Tokarev <mjt@tls.msk.ru>
+(cherry picked from commit ec31478bd89b48bba573c1ffa321755a10f07191)
+---
+ subprojects/libvhost-user/libvhost-user.c | 28 ++++++++++++++++++++++-
+ 1 file changed, 27 insertions(+), 1 deletion(-)
+
+diff --git a/subprojects/libvhost-user/libvhost-user.c b/subprojects/libvhost-user/libvhost-user.c
+index d8d9bb0df5..c029ee317f 100644
+--- a/subprojects/libvhost-user/libvhost-user.c
++++ b/subprojects/libvhost-user/libvhost-user.c
+@@ -1194,6 +1194,12 @@ vu_set_vring_num_exec(VuDev *dev, VhostUserMsg *vmsg)
+ 
+     DPRINT("State.index: %u\n", index);
+     DPRINT("State.num:   %u\n", num);
++
++    if (index >= dev->max_queues) {
++        vu_panic(dev, "Invalid vring_num index: %u", index);
++        return false;
++    }
++
+     dev->vq[index].vring.num = num;
+ 
+     return false;
+@@ -1204,7 +1210,7 @@ vu_set_vring_addr_exec(VuDev *dev, VhostUserMsg *vmsg)
+ {
+     struct vhost_vring_addr addr = vmsg->payload.addr, *vra = &addr;
+     unsigned int index = vra->index;
+-    VuVirtq *vq = &dev->vq[index];
++    VuVirtq *vq;
+ 
+     DPRINT("vhost_vring_addr:\n");
+     DPRINT("    index:  %d\n", vra->index);
+@@ -1214,6 +1220,12 @@ vu_set_vring_addr_exec(VuDev *dev, VhostUserMsg *vmsg)
+     DPRINT("    avail_user_addr:  0x%016" PRIx64 "\n", (uint64_t)vra->avail_user_addr);
+     DPRINT("    log_guest_addr:   0x%016" PRIx64 "\n", (uint64_t)vra->log_guest_addr);
+ 
++    if (index >= dev->max_queues) {
++        vu_panic(dev, "Invalid vring_addr index: %u", index);
++        return false;
++    }
++
++    vq = &dev->vq[index];
+     vq->vra = *vra;
+     vq->vring.flags = vra->flags;
+     vq->vring.log_guest_addr = vra->log_guest_addr;
+@@ -1250,6 +1262,12 @@ vu_set_vring_base_exec(VuDev *dev, VhostUserMsg *vmsg)
+ 
+     DPRINT("State.index: %u\n", index);
+     DPRINT("State.num:   %u\n", num);
++
++    if (index >= dev->max_queues) {
++        vu_panic(dev, "Invalid vring_base index: %u", index);
++        return false;
++    }
++
+     dev->vq[index].shadow_avail_idx = dev->vq[index].last_avail_idx = num;
+ 
+     return false;
+@@ -1261,6 +1279,14 @@ vu_get_vring_base_exec(VuDev *dev, VhostUserMsg *vmsg)
+     unsigned int index = vmsg->payload.state.index;
+ 
+     DPRINT("State.index: %u\n", index);
++
++    if (index >= dev->max_queues) {
++        vu_panic(dev, "Invalid vring_base index: %u", index);
++        vmsg->payload.state.num = 0;
++        vmsg->size = sizeof(vmsg->payload.state);
++        return true;
++    }
++
+     vmsg->payload.state.num = dev->vq[index].last_avail_idx;
+     vmsg->size = sizeof(vmsg->payload.state);
+ 
+-- 
+2.34.1
+
