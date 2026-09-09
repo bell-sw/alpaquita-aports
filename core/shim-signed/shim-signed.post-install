@@ -1,8 +1,88 @@
 #!/bin/sh
 
-if [ -d "/sys/firmware/efi" ]; then
+_efi_dest="/boot/efi/EFI"
+_src_base="/usr/lib/shim"
+_cert_dir="cert-2023"
+
+install_shim() {
+	# Create destination directories and copy EFI files
+	mkdir -p "$_efi_dest"
+	cp -rf "$_src_base/$_cert_dir"/* "$_efi_dest"/
+
 	echo "Applying latest SBAT revocations"
-	mokutil --set-sbat-policy latest
+	mokutil --set-sbat-policy latest 2>/dev/null || true
+}
+
+if [ ! -d "/sys/firmware/efi" ]; then
+	install_shim
+	exit 0
 fi
 
+if ! mokutil --sb-state | grep -q enabled; then
+	cat <<-EOF
+	Secure Boot is disabled. Skipping certificate compatibility checks.
+	Before enabling Secure Boot, make sure the Microsoft UEFI CA 2023
+	certificate is installed in the Secure Boot signature database (db),
+	since this shim is signed with that certificate.
+	EOF
+	install_shim
+	exit 0
+fi
+
+echo "Secure Boot enabled. Detecting Microsoft UEFI CA certificate version..."
+if mokutil --db 2>/dev/null | grep -qi "Microsoft UEFI CA 2023"; then
+	echo "MS UEFI CA 2023 certificate detected - installing shim 16.1 (2023-signed)"
+	install_shim
+	exit 0
+fi
+
+if mokutil --db 2>/dev/null | grep -qi "Microsoft Corporation UEFI CA 2011"; then
+	cat <<-EOF
+	WARNING: The Microsoft UEFI CA 2023 certificate was not found in the
+	         Secure Boot signature database (db). The expired Microsoft
+	         Corporation UEFI CA 2011 certificate was detected instead.
+
+	         shim 16.1 is signed with the Microsoft UEFI CA 2023 certificate
+	         and will not load under Secure Boot until that certificate is
+	         enrolled in the firmware, so falling back to shim 15.8 (signed
+	         with the 2011 certificate).
+
+	         Note: the 2011 certificate expired in July 2026, but Secure Boot
+	         policy still allows it unless it is explicitly blocked in dbx on
+	         this machine.
+
+	         To boot shim 16.1, update the firmware db to include the Microsoft
+	         UEFI CA 2023 certificate and then reinstall shim-signed:
+
+	             apk fix shim-signed
+
+	         If you will not update the certificate, pin the old shim-signed
+	         version to avoid this warning and version confusion on future
+	         upgrades:
+
+	             apk add shim-signed=15.8-r2
+
+	         Check the currently enrolled certificates with:
+
+	             mokutil --db
+
+	EOF
+	_cert_dir="cert-2011"
+	install_shim
+	exit 0
+fi
+
+cat <<EOF
+WARNING: No Microsoft UEFI CA certificates were found in the Secure Boot
+         signature database (db), but Secure Boot is enabled. shim 16.1 is
+         signed with the Microsoft UEFI CA 2023 certificate and will not
+         boot until that certificate is enrolled in the firmware.
+
+         Check the currently enrolled certificates with:
+
+             mokutil --db
+
+EOF
+
+install_shim
 exit 0

@@ -1,42 +1,64 @@
 pkgname=shim-signed
 
-_build="20240729"
-pkgver=15.8
-pkgrel=2
+# shim 15.8 signed with 2011 MS cert — fallback when 2023 cert is not present
+_build_2011="20240729"
+# shim 16.1 signed with 2023 MS cert
+_build_2023="20260522"
+
+pkgver=16.1
+pkgrel=0
 
 case "${CARCH:-$(arch)}" in
 x86_64)  _efi_sfx="x64" ;;
-aarch64) _efi_sfx="aa64";;
+aarch64) _efi_sfx="aa64" ;;
 esac
 pkgdesc="shim, a first-stage UEFI bootloader (signed)"
 url="https://github.com/rhboot/shim"
 arch="x86_64 aarch64"
 license="BSD-2-Clause-Patent"
 makedepends="sbsigntool"
+depends="mokutil"
 options="!strip !check !tracedeps"
 install="$pkgname.post-install $pkgname.post-upgrade"
 source="
-	$VENDOR_REPO_BASE_URL/$VENDOR_DISTRO/distfiles/shim-$_build.x86_64.tar.xz
-	$VENDOR_REPO_BASE_URL/$VENDOR_DISTRO/distfiles/shim-$_build.aarch64.tar.xz
+	$VENDOR_REPO_BASE_URL/$VENDOR_DISTRO/distfiles/shim-$_build_2011.x86_64.tar.xz
+	$VENDOR_REPO_BASE_URL/$VENDOR_DISTRO/distfiles/shim-$_build_2011.aarch64.tar.xz
+	$VENDOR_REPO_BASE_URL/$VENDOR_DISTRO/distfiles/shim-$_build_2023.x86_64.tar.gz
+	$VENDOR_REPO_BASE_URL/$VENDOR_DISTRO/distfiles/shim-$_build_2023.aarch64.tar.gz
 	../shim/bellsoft-uefi-ca.pem
+	../shim/bellsoft-uefi-sign-2026.pem
 "
-builddir="$srcdir/shim-$_build.$CARCH"
+builddir_2011="$srcdir/shim-$_build_2011.$CARCH"
+builddir_2023="$srcdir/shim-$_build_2023.$CARCH"
 _efi="boot/efi/EFI"
 
 sign_list="
-	$_efi/BOOT/mm${_efi_sfx}.efi
-	$_efi/$VENDOR_DISTRO/mm${_efi_sfx}.efi
-	$_efi/BOOT/fb${_efi_sfx}.efi
+	usr/lib/shim/cert-2011/BOOT/mm${_efi_sfx}.efi
+	usr/lib/shim/cert-2011/$VENDOR_DISTRO/mm${_efi_sfx}.efi
+	usr/lib/shim/cert-2011/BOOT/fb${_efi_sfx}.efi
+	usr/lib/shim/cert-2023/BOOT/mm${_efi_sfx}.efi
+	usr/lib/shim/cert-2023/$VENDOR_DISTRO/mm${_efi_sfx}.efi
+	usr/lib/shim/cert-2023/BOOT/fb${_efi_sfx}.efi
 "
-sign_verify="bellsoft-uefi-ca.pem"
+sign_verify="bellsoft-uefi-ca.pem bellsoft-uefi-sign-2026.pem"
 
 package() {
-	mkdir -p "$pkgdir"
-	cp -rf "$builddir"/boot "$pkgdir"
+	# Create target directories for both MS cert versions
+	mkdir -p "$pkgdir"/usr/lib/shim/cert-2011
+	mkdir -p "$pkgdir"/usr/lib/shim/cert-2023
+
+	# Copy fallback 2011 MS cert shim files (shim 15.8)
+	cp -rf "$builddir_2011"/$_efi/* "$pkgdir"/usr/lib/shim/cert-2011/
+
+	# Copy 2023 MS cert shim files (shim 16.1)
+	cp -rf "$builddir_2023"/$_efi/* "$pkgdir"/usr/lib/shim/cert-2023/
 }
 
 sha512sums="
 9c6e9683c0205238382eaaaca96f809f03f7bf36093a36e7da8b669dc759dbd6a978856fcc0b6ed11754a45001333e4be53efc8ddea071c3ef6bf98d4a2a66dc  shim-20240729.x86_64.tar.xz
 2ee9580c3728b5a71899122caf8951955d2a969edfbca7461fb3f1524f4f686859d9bd5f7da16d6f0f00072b15b6e28f90da47413d71409702aa5636576b3cbd  shim-20240729.aarch64.tar.xz
+08dfeb628950941e0312995560988b2b78aa7e479f94f05639487640c618f4302c66b08581069b0af10c54148e805ae02ef7c7522b0511bebd40afc168069eb5  shim-20260522.x86_64.tar.gz
+a629b366c62855097bc74cbf21bb2bd588738172c709a0463fc390ea66c46de28a054c7de28f4da4d67a101ada5f66a0697184cc380fc556489a1c17ecbcb50f  shim-20260522.aarch64.tar.gz
 304d6a2d2c25af142b2cf2222079ebf59b8174f0825840dfc88e60016e5fcfe12973e0a250b4172ff7ea77cdb014cb5fec1a474965fee97478a6dcd0cbe6bdd3  bellsoft-uefi-ca.pem
+221aed90c73b1264bf270f2f5e970fd66e37fb977830b4b6c02219610ebe9685bf85c9d1f48c54837aec46b60c7e8153e3890c713fb3ae55b48b177b315d3623  bellsoft-uefi-sign-2026.pem
 "
