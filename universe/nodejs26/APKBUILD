@@ -1,6 +1,6 @@
 pkgname=nodejs26
 pkgver=26.8.1
-pkgrel=0
+pkgrel=1
 pkgdesc="JavaScript runtime built on V8 engine (v26)"
 url="https://nodejs.org/"
 arch="all"
@@ -9,17 +9,19 @@ depends="ca-certificates"
 depends_dev=""
 makedepends="
 	$depends_dev
-	ada-dev
 	brotli-dev
 	c-ares-dev
 	cargo
+	gtest-dev
 	icu-dev
 	linux-headers
 	nghttp2-dev
 	openssl-dev>3
 	python3
 	samurai
+	sqlite-dev
 	zlib-dev
+	zstd-dev
 	"
 subpackages="
 	$pkgname-dev
@@ -56,7 +58,14 @@ prepare() {
 	default_prepare
 	# unbundle
 	rm \
-		deps/zlib/zlib.gyp
+		deps/brotli/brotli.gyp \
+		deps/cares/cares.gyp \
+		deps/googletest/googletest.gyp \
+		deps/nghttp2/nghttp2.gyp \
+		deps/openssl/openssl.gyp \
+		deps/sqlite/sqlite.gyp \
+		deps/zlib/zlib.gyp \
+		deps/zstd/zstd.gyp
 
 	# convert the little-endian timezone data for big-endian s390x
 	if [ "$CARCH" = "s390x" ]; then
@@ -72,10 +81,6 @@ build() {
 	# there are better options for size constrained environments.
 	export CFLAGS="${CFLAGS/-Os/}"
 	export CXXFLAGS="${CXXFLAGS/-Os/} -Wno-deprecated-declarations"
-
-	if [ "$CARCH" = "loongarch64" ]; then
-		export CXXFLAGS="$CXXFLAGS -mlasx"
-	fi
 
 	if [ "$CARCH" = "armhf" ]; then
 		export CXXFLAGS="$CXXFLAGS -DCAN_USE_ARMV7_INSTRUCTIONS=1 -DCAN_USE_VFP3_INSTRUCTIONS=1"
@@ -101,10 +106,13 @@ _build() {
 	./configure \
 		--prefix=/usr \
 		--shared-brotli \
-		--shared-zlib \
-		--shared-openssl \
 		--shared-cares \
+		--shared-gtest \
 		--shared-nghttp2 \
+		--shared-openssl \
+		--shared-sqlite \
+		--shared-zlib \
+		--shared-zstd \
 		--ninja \
 		--with-intl=system-icu \
 		--without-npm \
