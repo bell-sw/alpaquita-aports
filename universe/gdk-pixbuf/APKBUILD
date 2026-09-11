@@ -1,6 +1,6 @@
 pkgname=gdk-pixbuf
 pkgver=2.44.7
-pkgrel=1
+pkgrel=2
 pkgdesc="GTK+ image loading library"
 url="https://gitlab.gnome.org/GNOME/gdk-pixbuf"
 arch="all"
@@ -17,7 +17,9 @@ makedepends="
 install="$pkgname.pre-deinstall"
 triggers="$pkgname.trigger=/usr/lib/gdk-pixbuf-2.0/*/loaders"
 subpackages="$pkgname-dbg $pkgname-doc $pkgname-lang $pkgname-dev $pkgname-loaders"
-source="https://download.gnome.org/sources/gdk-pixbuf/${pkgver%.*}/gdk-pixbuf-$pkgver.tar.xz"
+source="https://download.gnome.org/sources/gdk-pixbuf/${pkgver%.*}/gdk-pixbuf-$pkgver.tar.xz
+	0100-CVE-2026-81893.patch
+	"
 options="!check" # fails on glycin loader
 
 case "$CARCH" in
@@ -28,6 +30,8 @@ x86|arm*)
 esac
 
 # secfixes:
+#   2.44.7-r2:
+#     - CVE-2026-81893
 #   2.44.6-r0:
 #     - CVE-2026-5201
 #   2.42.12-r0:
@@ -73,4 +77,5 @@ loaders() {
 
 sha512sums="
 6f6a9aeeafe244267be7afe914ac5c239c2b44daa677e6cfb83bfbdb81421b209db3fc8a5d7a78e228e8939f00bf464e1bdb9e691b6e40228180e8a8d1d4ecc7  gdk-pixbuf-2.44.7.tar.xz
+af040e4c785143a3e80d612d5af679b8d8fef02629415adfa3e04c64aa26ec0fc23c97e4e0689b4bbd9adf931f493ffa7068ac99043bb43bb542b41de1e858bf  0100-CVE-2026-81893.patch
 "
