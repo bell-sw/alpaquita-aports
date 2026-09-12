@@ -1,6 +1,6 @@
 pkgname=scudo-malloc
 pkgver=23.1.1
-pkgrel=2
+pkgrel=3
 _pkgver=${pkgver/_/-}
 # NOTE: Upgrade together with the whole LLVM suite.
 _llvmver=${pkgver%%.*}
@@ -41,7 +41,7 @@ ppc64le)
 esac
 
 build() {
-	CXXFLAGS="-DSCUDO_DISABLE_TBI" \
+	CXXFLAGS="-DSCUDO_DISABLE_TBI -DSCUDO_CAN_USE_PRIMARY64=0" \
 	CC=clang-$_llvmver \
 	CXX=clang++-$_llvmver \
 	cmake -B build -G Ninja -Wno-dev \
