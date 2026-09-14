@@ -1,0 +1,40 @@
+From fa4232682e22b66e20217fb0954ee1b1d4741ac6 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Mon, 14 Sep 2026 09:50:12 +0000
+Subject: [PATCH] linux: fall back to clone() on clone3() EPERM
+
+Older Docker's default seccomp profile lacks a clone3 rule, so clone3
+can return EPERM (commit [1] changed it to return ENOSYS); treat EPERM
+like ENOSYS so pthread_create() falls back to clone.
+
+[1] 9f6b562dd12e ("seccomp: add support for "clone3" syscall in default policy").
+    https://github.com/moby/moby/commit/9f6b562dd12ef7b1f9e2f8e6f2ab6477790a6594
+---
+ sysdeps/unix/sysv/linux/clone-internal.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sysdeps/unix/sysv/linux/clone-internal.c b/sysdeps/unix/sysv/linux/clone-internal.c
+index 40ef30303f..5bafcb0245 100644
+--- a/sysdeps/unix/sysv/linux/clone-internal.c
++++ b/sysdeps/unix/sysv/linux/clone-internal.c
+@@ -80,7 +80,7 @@ __clone3_internal (struct clone_args *cl_args, int (*func) (void *args),
+   if (atomic_load_relaxed (&clone3_supported) == 1)
+     {
+       int ret = __clone3 (cl_args, sizeof (*cl_args), func, arg);
+-      if (ret != -1 || errno != ENOSYS)
++      if (ret != -1 || (errno != ENOSYS && errno != EPERM))
+ 	return ret;
+ 
+       atomic_store_relaxed (&clone3_supported, 0);
+@@ -98,7 +98,7 @@ __clone_internal (struct clone_args *cl_args,
+ #ifdef HAVE_CLONE3_WRAPPER
+   int saved_errno = errno;
+   int ret = __clone3_internal (cl_args, func, arg);
+-  if (ret != -1 || errno != ENOSYS)
++  if (ret != -1 || (errno != ENOSYS && errno != EPERM))
+     return ret;
+ 
+   /* NB: Restore errno since errno may be checked against non-zero
+-- 
+2.34.1
+
