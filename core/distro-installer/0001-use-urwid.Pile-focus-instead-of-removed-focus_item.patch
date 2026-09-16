@@ -1,0 +1,56 @@
+From c8bf36bbaba21e8f7b74619d59845fa85d228538 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Wed, 16 Sep 2026 15:37:28 +0000
+Subject: [PATCH] use urwid.Pile focus() instead of removed focus_item()
+
+focus_item() was deprecated in v3 and removed in v4:
+
+commit f9fcb2fccef9 ("Drop deprecated public methods announced to be removed
+in v4 (#1085)")
+
+The actual error:
+  ...
+  File "/usr/lib/python3.14/site-packages/alpaquero/app/application.py", line 111, in keypress
+    return super().keypress(size, key)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/usr/lib/python3.14/site-packages/urwid/widget/widget.py", line 842, in keypress
+    return get_delegate(self).keypress(size, key)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/usr/lib/python3.14/site-packages/urwid/widget/widget.py", line 842, in keypress
+    return get_delegate(self).keypress(size, key)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/usr/lib/python3.14/site-packages/urwid/widget/pile.py", line 993, in keypress
+    if (processed := self.focus.keypress(size_args[i], key)) is not None:  # type: ignore[union-attr]
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/site-packages/subiquitycore/view.py", line 107, in keypress
+    key = super().keypress(size, key)
+  File "/usr/lib/python3.14/site-packages/urwid/widget/widget.py", line 842, in keypress
+    return get_delegate(self).keypress(size, key)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/usr/lib/python3.14/site-packages/urwid/widget/padding.py", line 423, in keypress
+    return self._original_widget.keypress(maxvals, key)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/site-packages/subiquitycore/ui/container.py", line 237, in keypress
+    if self.focus_item.move_cursor_to_coords(
+       ^^^^^^^^^^^^^^^
+AttributeError: 'FocusTrackingPile' object has no attribute 'focus_item'
+---
+ subiquitycore/ui/container.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/subiquitycore/ui/container.py b/subiquitycore/ui/container.py
+index a5de739..82aa3d6 100644
+--- a/subiquitycore/ui/container.py
++++ b/subiquitycore/ui/container.py
+@@ -234,7 +234,7 @@ class TabCyclingPile(urwid.Pile):
+                 rowlist = list(range(rows))
+             for row in rowlist:
+                 tsize = self.get_item_size(size, j, True, item_rows)
+-                if self.focus_item.move_cursor_to_coords(
++                if self.focus.move_cursor_to_coords(
+                         tsize, self.pref_col, row):
+                     break
+             return
+-- 
+2.34.1
+
