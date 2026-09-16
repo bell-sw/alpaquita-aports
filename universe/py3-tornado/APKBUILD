@@ -1,7 +1,7 @@
 pkgname=py3-tornado
 _pkgname=tornado
 pkgver=6.5.5
-pkgrel=0
+pkgrel=1
 pkgdesc="Python3 web framework and asynchronous networking library"
 options="!check" # 3 Tests fail by failure to resolve 'localhost'
 url="https://www.tornadoweb.org/"
@@ -12,6 +12,8 @@ makedepends="python3-dev py3-gpep517 py3-setuptools py3-wheel"
 checkdepends="py3-curl py3-mock py3-twisted"
 subpackages="$pkgname-pyc"
 source="https://files.pythonhosted.org/packages/source/${_pkgname:0:1}/$_pkgname/$_pkgname-$pkgver.tar.gz
+
+	0100-CVE-2026-82397.patch
 	"
 builddir="$srcdir/$_pkgname-$pkgver"
 
@@ -19,6 +21,8 @@ replaces="py-tornado" # Backwards compatibility
 provides="py-tornado=$pkgver-r$pkgrel" # Backwards compatibility
 
 # secfixes:
+#   6.5.5-r1:
+#     - CVE-2026-82397
 #   6.5.5-r0:
 #     - CVE-2026-35536
 #     - CVE-2026-31958
@@ -50,4 +54,5 @@ package() {
 
 sha512sums="
 fbf1e4f74920e8d9a17663e75ff39c34dbefefd0e3df692716d01abae0e1747578e0a59c174591f8f03980702f18a0c935105840953cd3f7ef2c200e9f3cf491  tornado-6.5.5.tar.gz
+81b7882c83596e90514b623da7a032d094a5d9c880c622b8d42ab92f0dd27415428ecb4dfc491b68d48d98d62c03682194a2d4616fc876b422270a6a19c86f29  0100-CVE-2026-82397.patch
 "
