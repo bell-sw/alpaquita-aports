@@ -1,0 +1,33 @@
+From 2e36454aa303d5eaccf31e4962a49e11f6bede4e Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Thu, 17 Sep 2026 16:59:49 +0000
+Subject: [PATCH] fix PaddingWarning by widening selector popup to account for
+ linebox border
+
+Otherwise urwid v4 raises the warning when renders popup widget:
+
+/usr/lib/python3.14/site-packages/urwid/widget/listbox.py:762: PaddingWarning:
+  <Padding selectable fixed/flow widget <AttrWrap selectable fixed/flow widget
+  <FocusTrackingColumns selectable fixed/flow widget (3 items) focus_column=1>
+  attr='menu_button' focus_attr='menu_button focus'> width=11>.render(size=(9,),
+  focus=False): too narrow size (9 < 11)
+---
+ subiquitycore/ui/selector.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/subiquitycore/ui/selector.py b/subiquitycore/ui/selector.py
+index 8ec5965..4ce9a0a 100644
+--- a/subiquitycore/ui/selector.py
++++ b/subiquitycore/ui/selector.py
+@@ -252,7 +252,7 @@ class Selector(WidgetWrap):
+     def get_pop_up_parameters(self):
+         # line on left, space, line on right
+         return {'left': 0, 'top': -self.index - 1,
+-                'overlay_width': self._padding.width,
++                'overlay_width': self._padding.width + 2,
+                 'overlay_height': len(self._options) + 2}
+ 
+     def open_pop_up(self):
+-- 
+2.34.1
+
