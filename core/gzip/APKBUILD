@@ -2,8 +2,8 @@
 # gunzip can uncompress .Z files created by compress utility.
 
 pkgname=gzip
-pkgver=1.14
-pkgrel=1
+pkgver=1.15
+pkgrel=0
 pkgdesc="Data compression program"
 subpackages="$pkgname-doc $pkgname-dbg"
 url="https://www.gnu.org/software/gzip/"
@@ -13,8 +13,9 @@ license="GPL-3.0-or-later"
 [ "$CARCH" = 'x86_64' ] && makedepends="fmv"
 depends="less"
 checkdepends="diffutils grep perl"
-source="https://ftp.gnu.org/gnu/gzip/gzip-$pkgver.tar.xz
-	0100-CVE-2026-41992.patch
+source="
+	https://ftp.gnu.org/gnu/gzip/gzip-$pkgver.tar.xz
+	0001-build-avoid-failure-to-build-on-linux-aarch64.patch
 "
 fmv_targets="x86-64-v3 default"
 fmv_check_files="gzip"
@@ -63,6 +64,6 @@ package() {
 }
 
 sha512sums="
-82aef53188b3e69b51b7ddab5b8c44a11a5b73c0039b22a315a0c7d244694feab0146748add4265901eb1b4c0cee8a9eb69594995f098830d964091af97079c5  gzip-1.14.tar.xz
-dbe2af1cc3bf7ce5794e5beef799f1ad834d408d5129b25dd5b1625e16058673f868365f9f6e0bbc1b07538b5c51841e77196e1059073e1b5ab302766efa0748  0100-CVE-2026-41992.patch
+4a2ff92df8a49e1bbcbf65c3a70434660ad02f084d1b453f7dcaa8ee84f248cc4bb06f62bd8e57fea1e05ba1275c7c584ce97a58856e4ca6105f6417c8efbc3c  gzip-1.15.tar.xz
+13affefadbf680b0846483ce66e335f1c19a7b1b72517fb62ab7d23d8a52b38e3a0aa99d672df4e858d8d2b7caee0f8df0fad33b6a4e66f1aee7fe4c8a4a20bf  0001-build-avoid-failure-to-build-on-linux-aarch64.patch
 "
