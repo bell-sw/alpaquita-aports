@@ -65,6 +65,7 @@ prepare() {
 }
 
 build() {
+	cp  rrsync.1 support/rrsync.1
 	CFLAGS="$CFLAGS -flto=auto" \
 	./configure \
 		--build=$CBUILD \
@@ -76,8 +77,10 @@ build() {
 		--enable-acl-support \
 		--enable-xattr-support \
 		--enable-xxhash \
+		--with-rrsync \
 		--without-included-popt \
 		--without-included-zlib \
+		--disable-md2man \
 		--disable-openssl
 		# openssl is disabled since xxh checksums are faster anyway
 	make
@@ -94,7 +97,6 @@ package() {
 	install -Dm644 "$srcdir"/rsyncd.conf "$pkgdir"/etc/rsyncd.conf
 	install -Dm644 "$srcdir"/rsyncd.confd "$pkgdir"/etc/conf.d/rsyncd
 	install -Dm644 "$srcdir"/rsyncd.logrotate "$pkgdir"/etc/logrotate.d/rsyncd
-	install -Dm644 support/rrsync -t "$pkgdir"/usr/bin/
 }
 
 rrsync() {
