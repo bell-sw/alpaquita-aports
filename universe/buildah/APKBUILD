@@ -1,11 +1,11 @@
 pkgname=buildah
-pkgver=1.45.0
-pkgrel=1
+pkgver=1.45.1
+pkgrel=0
 pkgdesc="tool that facilitates building OCI container images"
-url="https://github.com/containers/buildah"
+url="https://github.com/podman-container-tools/buildah"
 license="Apache-2.0"
 arch="all"
-depends="oci-runtime shadow-subids slirp4netns containers-common"
+depends="oci-runtime shadow-subids passt container-libs"
 makedepends="go go-md2man lvm2-dev gpgme-dev libseccomp-dev btrfs-progs-dev bash"
 subpackages="$pkgname-doc"
 options="!check" # tests require root privileges
@@ -15,6 +15,8 @@ source="https://github.com/containers/buildah/archive/v$pkgver/buildah-$pkgver.t
 	"
 
 # secfixes:
+#   1.45.1-r0:
+#     - CVE-2026-79705
 #   1.44.0-r6:
 #     - CVE-2026-17106
 #     - CVE-2026-46600
@@ -60,6 +62,6 @@ package() {
 }
 
 sha512sums="
-570b68c0b6791e2e832b6e39906373da058308c017f6b460a658466e281d3b9eac5b5b842488e658438bb41c9926c160a90c956ba12ba57afcef88f523354ffe  buildah-1.45.0.tar.gz
+e3fe336421e20938fb486a06f0321729c22e3b457ae9c9ec81c6ffeb0bdc85470bfe42caba152e383c1fe9cd2625eea90e9c593726f384c2fbe4bf64de3a8ddd  buildah-1.45.1.tar.gz
 70e1871b8ad5180ce74d7ce4df5a829195a9caee259ba1b96a901868f99386ee9c4223d430f1e80dccc9b7e0783a3b26ff7abd00bf1ac9cb819e4a6d20411509  9999-go-mod.patch
 "
