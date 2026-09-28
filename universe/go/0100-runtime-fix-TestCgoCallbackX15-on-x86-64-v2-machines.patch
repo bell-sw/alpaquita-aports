@@ -1,0 +1,29 @@
+From 487820c97af936e33548a455f7f784167c91439d Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Mon, 28 Sep 2026 12:11:33 +0000
+Subject: [PATCH] runtime: fix TestCgoCallbackX15 on x86-64-v2 machines
+
+The test clobbers X15 with the AVX/VEX-encoded vmovdqu instruction,
+which requires x86-64-v3 and faults with SIGILL on v2-only CPUs. Use
+the SSE2 movdqu instruction instead, which targets XMM15 as well,
+but runs on v2 CPU.
+---
+ src/runtime/testdata/testprogcgo/callback_amd64.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/runtime/testdata/testprogcgo/callback_amd64.go b/src/runtime/testdata/testprogcgo/callback_amd64.go
+index 5466745ea8..d9856bcdd9 100644
+--- a/src/runtime/testdata/testprogcgo/callback_amd64.go
++++ b/src/runtime/testdata/testprogcgo/callback_amd64.go
+@@ -16,7 +16,7 @@ static void call_go_callback_amd64() {
+ 	// Clobber X15.
+ 	uint64_t val = 42;
+ 	asm volatile(
+-		"vmovdqu %0, %%xmm15;"
++		"movdqu %0, %%xmm15;"
+ 		:
+ 		: "m" (val)
+ 		: "xmm15");
+-- 
+2.34.1
+
