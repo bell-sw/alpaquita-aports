@@ -25,6 +25,7 @@ subpackages="$pkgname-openrc"
 source="$pkgname-$pkgver.tar.gz::https://github.com/sched-ext/scx/archive/refs/tags/v$pkgver.tar.gz
 	$pkgname.initd
 	$pkgname.confd
+	0100-scx_rustland_core-fix-musl-build-with-libc-crate-0.2.patch
 	"
 builddir="$srcdir/scx-$pkgver"
 
@@ -35,29 +36,19 @@ prepare() {
 }
 
 build() {
-	# Build schedulers (production ready)
-
-	C_SCHEDS="\
-		scx_ftalcg \
-		scx_nest \
-		scx_simple \
-		" \
-		make all
-
 	cargo auditable build --release --frozen --workspace \
+		--exclude scx_flow \
+		--exclude scx_mlfq \
 		--exclude scx_rlfifo \
-		--exclude scx_wd40 \
 		--exclude scx_mitosis \
-		--exclude scx_chaos \
-		--exclude scx_tickless \
-		--exclude scxcash \
 		--exclude xtask \
 		--exclude vmlinux_docify \
-		--exclude scx_arena_selftests
+		--exclude scx_arena_selftests \
+		--exclude scx_forge_agent
 }
 
 package() {
-	find build/scheds/c target/release -maxdepth 1 -type f -executable \
+	find target/release -maxdepth 1 -type f -executable \
 		! -name '*.so' \
 		-exec install -Dm755 -t "$pkgdir/usr/bin/" {} +
 
@@ -69,4 +60,5 @@ sha512sums="
 dfed9d7b4a4eead1f6a2923c302ed089d1718a45a299365e89ddda226023ddd2dd9da7c3e18fe7030230efda6e3443697454a90a0a08e651aff95723ca0709e1  scx-scheds-1.1.3.tar.gz
 0d47e29fec1439396c9ac0d02bb004d7c5aab9789607d9d32686a2909c91e1846526d2b390453a45ee5fc11985abc3f8f185ee8e65e2eb8c58a89d7e3260018e  scx-scheds.initd
 eeb34b2c94b3d9324fe5b04dc6dd9da67bb759c6271e7baf87695eeea7b22904c160aed6f9fdaeb28e8becf16a2cbe9a06e6b75254498ef75350b4e100b64b5a  scx-scheds.confd
+93aaef53a7f8c854e6d5d8f5dca6941ab93dad1660ebae8cb14f1d6c1c5662c80347d2ba8549a17b0dbed43464e6526d6da2a60de55419f3d1bb926d6536c06b  0100-scx_rustland_core-fix-musl-build-with-libc-crate-0.2.patch
 "

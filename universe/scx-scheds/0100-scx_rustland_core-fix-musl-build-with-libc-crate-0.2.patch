@@ -1,0 +1,62 @@
+From 85ae365a54fe8e529830bb396aae918864189242 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Tue, 29 Sep 2026 18:18:45 +0000
+Subject: [PATCH] scx_rustland_core: fix musl build with libc crate >= 0.2.179
+
+Starting with libc crate 0.2.179, when built for musl with
+RUST_LIBC_UNSTABLE_MUSL_V1_2_3 set, struct sched_param no longer
+exposes the sched_ss_* fields; they are private reserved fields.
+But use_sched_ext() still sets these fields by name on musl, so
+the build fails as follows:
+
+  error[E0560]: struct `sched_param` has no field named `sched_ss_low_priority`
+
+To fix this, zero-initialize sched_param and set only sched_priority,
+which works on both glibc and musl regardless of the struct layout.
+---
+ rust/scx_rustland_core/assets/bpf.rs | 22 +++-------------------
+ 1 file changed, 3 insertions(+), 19 deletions(-)
+
+diff --git a/rust/scx_rustland_core/assets/bpf.rs b/rust/scx_rustland_core/assets/bpf.rs
+index da9cafc7b..c1b57f2fa 100644
+--- a/rust/scx_rustland_core/assets/bpf.rs
++++ b/rust/scx_rustland_core/assets/bpf.rs
+@@ -31,9 +31,6 @@ use libbpf_rs::ProgramInput;
+ 
+ use libc::{c_char, pthread_self, pthread_setschedparam, sched_param};
+ 
+-#[cfg(target_env = "musl")]
+-use libc::timespec;
+-
+ use scx_utils::compat;
+ use scx_utils::scx_ops_attach;
+ use scx_utils::scx_ops_load;
+@@ -473,22 +470,9 @@ impl<'cb> BpfScheduler<'cb> {
+ 
+     // Set scheduling class for the scheduler itself to SCHED_EXT
+     fn use_sched_ext() -> i32 {
+-        #[cfg(target_env = "gnu")]
+-        let param: sched_param = sched_param { sched_priority: 0 };
+-        #[cfg(target_env = "musl")]
+-        let param: sched_param = sched_param {
+-            sched_priority: 0,
+-            sched_ss_low_priority: 0,
+-            sched_ss_repl_period: timespec {
+-                tv_sec: 0,
+-                tv_nsec: 0,
+-            },
+-            sched_ss_init_budget: timespec {
+-                tv_sec: 0,
+-                tv_nsec: 0,
+-            },
+-            sched_ss_max_repl: 0,
+-        };
++        // Zero-initialize: on musl, sched_param has private reserved fields.
++        let mut param: sched_param = unsafe { std::mem::zeroed() };
++        param.sched_priority = 0;
+ 
+         unsafe { pthread_setschedparam(pthread_self(), SCHED_EXT, &param as *const sched_param) }
+     }
+-- 
+2.34.1
+
