@@ -1,6 +1,6 @@
 pkgname=dotnet8-stage0
 pkgver=8.0.126
-pkgrel=0
+pkgrel=1
 
 [ "$CBUILD" != "$CHOST" ] && _cross="-$CARCH" || _cross=""
 [ "$CLIBC" = "musl" ] && _musl="-musl" || _musl=""
@@ -29,7 +29,7 @@ _patches="
 	runtime_reverse-101869-transition-1es-template-work.patch
 	runtime_disable-crossgen-on-riscv64.patch
 	runtime_disable-local-exec-tls-riscv64.patch
-	runtime_clang-20.patch
+	runtime_clang-22.patch
 	"
 
 _pkgver_macro=${pkgver%.*}
@@ -65,7 +65,7 @@ source="
 	$_patches
 	"
 
-_llvmver=20
+_llvmver=22
 makedepends_host="
 	distro-release
 	autoconf
@@ -507,5 +507,5 @@ e748953eeeb13963f4e680fe6d38a5d0d1fc34b45fe9c62ba0b15ea647b23be826aaa7dd6466765c
 5b882e17c92a040a784742f637a19e7c09f10ed9e922436eaedaf0e2238e31fd67547821d073eaff6f7f61110be44af9d9e1786b6227659f72e8e1e549f6f540  runtime_reverse-101869-transition-1es-template-work.patch
 8348b51168709cd1f9e946dbfb02eaf3088d7c68e986390cf5fd861a057e188064013fbc008aa1e12d19d12b9ad7a4091732cd1b0fb8b629ef2a880718def5a7  runtime_disable-crossgen-on-riscv64.patch
 93454767eaa812ac39b38b04764bd41480fea9b5a78f32d2ea1baa072a20eb31d302c475e8737b0fb2a3b8a6f47567795ddd0a7603369e90e7c5944b11357b00  runtime_disable-local-exec-tls-riscv64.patch
-829f67ea6b3aae77a073a21ddc184f9751e44f3e721588907db9a6e00cd694a123a6e3866749aaee0e57290250ef3e67a8da8604f806e1d9a356fe9bc3fc9cdd  runtime_clang-20.patch
+08b5d8da2f88114d976fdb371eac91c67a2983659b2b2ef54dfbdb5a97c08d7595307fb6aed8567ae427be847c556cfabd828eaa8b5d2b924e96e9ea622c9b66  runtime_clang-22.patch
 "
