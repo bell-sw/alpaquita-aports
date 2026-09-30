@@ -1,6 +1,6 @@
 pkgname=libjxl
 pkgver=0.11.2
-pkgrel=1
+pkgrel=2
 _testdata_commit=73695d303670c90e4d506ea89d9901b081385089
 pkgdesc="JPEG XL image format reference implementation"
 url="https://jpeg.org/jpegxl/"
@@ -9,7 +9,7 @@ license="Apache-2.0"
 makedepends="
 	asciidoc
 	brotli-dev
-	clang21
+	clang23
 	cmake
 	gflags-dev
 	giflib-dev
@@ -18,8 +18,8 @@ makedepends="
 	lcms2-dev
 	libjpeg-turbo-dev
 	libpng-dev
-	lld21
-	llvm21
+	lld23
+	llvm23
 	openexr-dev
 	samurai
 	zlib-dev
@@ -47,8 +47,8 @@ prepare() {
 build() {
 	export CFLAGS="$CFLAGS -flto=thin"
 	export CXXFLAGS="$CXXFLAGS -flto=thin"
-	export CC=clang-21
-	export CXX=clang++-21
+	export CC=clang-23
+	export CXX=clang++-23
 	case "$CARCH" in
 	s390x|ppc) ;; # broken lld with PIC
 	*) export LDFLAGS="$LDFLAGS -fuse-ld=lld" ;;
