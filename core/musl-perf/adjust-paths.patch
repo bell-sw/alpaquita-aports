@@ -1,0 +1,30 @@
+In some cases, Alpine deviates from the default values for macros defined in
+musl's <path.h>. For example, Alpine only supports utmp through main/utmps
+and utmps uses "/run/utmps/utmp" for  _PATH_UTMP and _PATH_WTMP and defines
+those macros in utmps/utmp.h.
+
+Therefore, having a conflicting definition in <paths.h> causes re-definitions
+for software including both <paths.h> and utmps <utmp.h>. This was discussed
+on the 2025-10-01 on musl's IRC channel:
+
+	1790800782 (dalias) i wonder if we should add a #warning for paths.h
+	1790800793 (dalias) also, distros should customize it if it doesn't match their policy
+	…
+	1790856418 (dalias) rather the distro is wrong to leave an unpatched paths.h present if the distro policy is using utmps
+	1790859364 (nmeum) dalias: just to make sure I understand your distro-remark correctly: as alpine relies on utmps for utmp support, it should patch musl's path.h?
+	…
+	1790860205 (skarnet) nmeum: yes, Alpine should patch musl's paths.h to remove the utmp definitions, since these definitions will be provided by utmps's utmp.h anyway
+	1790861494 (dalias) nmeum, yes, if alpine policy is that they use a non-bitbucketed utmp backend via utmps, then paths.h should probably reflect that
+
+--- musl-1.2.6.orig/include/paths.h
++++ musl-1.2.6/include/paths.h
+@@ -18,9 +18,7 @@
+ #define	_PATH_SHADOW	"/etc/shadow"
+ #define	_PATH_SHELLS	"/etc/shells"
+ #define	_PATH_TTY	"/dev/tty"
+-#define _PATH_UTMP	"/dev/null/utmp"
+ #define	_PATH_VI	"/usr/bin/vi"
+-#define _PATH_WTMP	"/dev/null/wtmp"
+ 
+ #define	_PATH_DEV	"/dev/"
+ #define	_PATH_TMP	"/tmp/"
