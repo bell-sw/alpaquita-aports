@@ -3,9 +3,9 @@
 
 pkgname=python3
 # the python3-tkinter's pkgver needs to be synchronized with this.
-pkgver=3.12.14
+pkgver=3.12.15
 _basever="${pkgver%.*}"
-pkgrel=2
+pkgrel=0
 pkgdesc="Python programming language"
 url="https://www.python.org/"
 arch="all"
@@ -56,13 +56,18 @@ source="https://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz
 	0110-CVE-2025-15367.patch
 	0113-CVE-2025-12781-pre.patch
 	0114-CVE-2025-12781.patch
-	0115-CVE-2026-19672.patch
-	0116-CVE-2026-15310.patch
 	"
 options="net" # Required for tests
 builddir="$srcdir/Python-$pkgver"
 
 # secfixes:
+#   3.12.15-r0:
+#     - CVE-2026-15806
+#     - CVE-2026-17084
+#     - CVE-2026-19445
+#     - CVE-2026-19553
+#     - CVE-2026-82049
+#     - CVE-2026-87910
 #   3.12.14-r2:
 #     - CVE-2026-15310
 #   3.12.14-r1:
@@ -346,7 +351,7 @@ pyc2() {
 }
 
 sha512sums="
-9007399ffdd3a493c91a98cd7a6cb93acfb8de80f3be2f5480cda36f134d49b5043a60bc6b5c62ed18cc6a2e4e3c81cb7556ac5f337e2cd58ff3449a8099ed22  Python-3.12.14.tar.xz
+def68bdc3e3aba4d285ae8b305c90f2319297b5a7b1888f582b3cef979bf7f43db0d3047b23312935904576982336f9f78506183b109f388905bf4db33e6abea  Python-3.12.15.tar.xz
 46dd8230ee2ab66e9c4157c10b2bd9c414fd7f30be0bee73e21a9eea88f63fff362d47828e0fc77ddc59df097b414b21505f8b5f98bc866381115c58ae3f4862  externally-managed
 ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e960c4889568d25753b9e4a1494834fea48291b33f07000ec2  musl-find_library.patch
 606cf7b3df0c81c90571c6bc65e4f07e065867739fa0d36e9c8e1ad2d6bcd64d265f90c4a7881880fc7e0c85eed94d1f72655a5c70d92ca63e5cc4bd3be8f145  test_posix-nodev-disable.patch
@@ -358,6 +363,4 @@ ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e9
 45ad9a75fb81fe1a8035cf540dcf24e8bbdafd883ba74c9359de386bb31162742760a4e6d7c553d41b4465a9728d4ec631af16f2a2ca8c0e3bfd4e3440b5bc88  0110-CVE-2025-15367.patch
 2e6d138b1df2d5eae1e6b4f9865f2dbdab068d9b9f4ca715401028ad8d11d2f9f9a976d3fd5e55c9e845bd10d3106338d24be7ab9f771efad790300edf53c968  0113-CVE-2025-12781-pre.patch
 cc7e492ed7d260f8e278b9c0bbe42134efacd22558e80fe38fe4b701fea2d55f70b79a0afff0d415800bac99b2bfc02f83f395100fa9079ac95a1bbbd8f409f0  0114-CVE-2025-12781.patch
-8e72742141e657b88b4341cc6d37df44745c1f75cb973aabd669334924bb5fc0b37d33a9b1d6139f17c9e469462e0e15cfd23dca05e7a76d82b872e100397bbf  0115-CVE-2026-19672.patch
-e97d69d924c11769185facd7e1670139eac68b5d846beb2e14207be2eb98945d21af88a4a4515d19672003d13177457b55cb15fe9848e4829a3f6eaf5cb8c47c  0116-CVE-2026-15310.patch
 "
