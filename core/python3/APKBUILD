@@ -2,8 +2,8 @@
 # language, comparable to Perl, Ruby, Scheme, or Java.
 
 pkgname=python3
-# the python3-tkinter's pkgver needs to be synchronized with this.
-pkgver=3.14.7
+# python3-extra's pkgver needs to be synchronized with this.
+pkgver=3.14.8
 _basever="${pkgver%.*}"
 pkgrel=3
 pkgdesc="Python programming language"
@@ -50,13 +50,14 @@ source="https://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz
 	0100-test_urllib-skip-test_url_host_with_-test-cases.patch
 	0101-Unset-BASH_XTRACEFD-in-tests.patch
 	0102-Allow-overriding-ftp-host-in-urllib2net-tests.patch
-	0103-CVE-2026-19672.patch
-	0104-CVE-2026-15310.patch
 	"
 options="net" # Required for tests
 builddir="$srcdir/Python-$pkgver"
 
 # secfixes:
+#   3.14.8-r0:
+#     - CVE-2026-19445
+#     - CVE-2026-19553
 #   3.14.7-r3:
 #     - CVE-2026-15310
 #   3.14.7-r1:
@@ -335,12 +336,10 @@ pyc2() {
 }
 
 sha512sums="
-3d4e2e2f983b320dec47005c408d7178d3656a6de0c4430ce21514797174b972f461200898b25d3dfac2a455019ef87e45d0fb2bb6ec2ca887124d10037a2a07  Python-3.14.7.tar.xz
+f9e6809b0c45d90fcc174b8051e15058a3037981c9136c598d110a118a22cbbb8263fbd677e07b2b9d93e1aa83cd9cb835b61b6af898fd301d1080a29c2156fe  Python-3.14.8.tar.xz
 46dd8230ee2ab66e9c4157c10b2bd9c414fd7f30be0bee73e21a9eea88f63fff362d47828e0fc77ddc59df097b414b21505f8b5f98bc866381115c58ae3f4862  externally-managed
 ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e960c4889568d25753b9e4a1494834fea48291b33f07000ec2  musl-find_library.patch
 942f13ecef2efa251b948b5ad4a58cb9b7237e399a05b184ddbfad62419d60f2f810478097d2fb58997543540c55035469b3df394ff0cb87c99da11007454d2e  0100-test_urllib-skip-test_url_host_with_-test-cases.patch
 adb479a85ead4b8ccdfd9ae0cb9817b62bf1887bf6a2a5bf22b27e0895208836867e08b39455ca31916b6924b5ee8f44cf614bd12a20c892cafdcc979faba282  0101-Unset-BASH_XTRACEFD-in-tests.patch
 3a8164f9973c4eb476f2c966b50aba2db83a81e6642c8c532a671d31ed722c01809beff0e4fda36e7142ce564c1e33e48806c3cef6c211396b65b6ce8275c864  0102-Allow-overriding-ftp-host-in-urllib2net-tests.patch
-ae5bb2aad6f4a9f8aef205725b23c7f4fbf65cba8129952d802924fc11aa472a52a236d7bc19f04f087fb7d844a8d8f82ba680c57f7797bce3ee02ad8e44d764  0103-CVE-2026-19672.patch
-3b801ef9e3dfbbd4d3b2ac19d8c0ccc134e0a505208fc4346a051fb82b3215b8a84eb86a5dc32c44f65cdcf8a77db97080c0f419972fe96a58ec7b7e98acf8c1  0104-CVE-2026-15310.patch
 "
