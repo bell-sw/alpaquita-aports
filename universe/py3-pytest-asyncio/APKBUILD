@@ -1,0 +1,39 @@
+pkgname=py3-pytest-asyncio
+pkgver=1.4.0
+pkgrel=0
+pkgdesc="Pytest support for asyncio"
+url="https://github.com/pytest-dev/pytest-asyncio"
+arch="noarch"
+license="Apache-2.0"
+# typing-extensions: needed with python <3.13
+depends="py3-pytest py3-typing-extensions"
+makedepends="py3-setuptools py3-setuptools_scm py3-gpep517 py3-installer py3-wheel"
+checkdepends="py3-async_generator py3-coverage py3-hypothesis py3-flaky py3-pytest-trio"
+subpackages="$pkgname-pyc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/pytest-dev/pytest-asyncio/archive/v$pkgver.tar.gz
+	0100-test-Make-test_class_scope-ready-for-pytest-v9.1.patch
+	"
+builddir="$srcdir/pytest-asyncio-$pkgver"
+
+build() {
+	export SETUPTOOLS_SCM_PRETEND_VERSION=$pkgver
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/pytest_asyncio-*.whl
+	.testenv/bin/python3 -m pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/pytest_asyncio-*.whl
+}
+
+sha512sums="
+13fda75ac4fdbd5f866e7bbc20d84a00058cb6c3a89d2d4fda4678b60ed45afa6b4b83aa4907ad64344780ea23896889a3ecea248bf148dff1d38306b6c69f4b  py3-pytest-asyncio-1.4.0.tar.gz
+0aa71ed358d42b67b39c9093ea6428cc906bb249c414b9f78f8ce4da36a8b480ea198c2fa3a12214d6206e30881b6f370adf61625ddf36fcecd2794d75d3762f  0100-test-Make-test_class_scope-ready-for-pytest-v9.1.patch
+"
