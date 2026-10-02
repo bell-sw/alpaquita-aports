@@ -3,9 +3,9 @@
 
 pkgname=python3
 # the python3-tkinter's pkgver needs to be synchronized with this.
-pkgver=3.11.16
+pkgver=3.11.17
 _basever="${pkgver%.*}"
-pkgrel=2
+pkgrel=0
 pkgdesc="Python programming language"
 url="https://www.python.org/"
 arch="all"
@@ -52,13 +52,18 @@ source="https://www.python.org/ftp/python/$pkgver/Python-$pkgver.tar.xz
 	0116-CVE-2025-12781-pre.patch
 	0117-CVE-2025-12781.patch
 	0118-Fix-running-xattr-tests-on-systems-with-lower-limits.patch
-	0119-CVE-2026-19672.patch
-	0120-CVE-2026-15310.patch
 	"
 options="net" # Required for tests
 builddir="$srcdir/Python-$pkgver"
 
 # secfixes:
+#   3.11.17-r0:
+#     - CVE-2026-15806
+#     - CVE-2026-17084
+#     - CVE-2026-19445
+#     - CVE-2026-19553
+#     - CVE-2026-82049
+#     - CVE-2026-87910
 #   3.11.16-r2:
 #     - CVE-2026-15310
 #   3.11.16-r1:
@@ -328,7 +333,7 @@ gdbm() {
 }
 
 sha512sums="
-f4e168d35596c2df080663d8e8b3472f03bace987d46b49b8410f2425ba193215b9880c7d03d4653ec31c83b72209d95866fc1cb6d666799145075b092f64a48  Python-3.11.16.tar.xz
+17bcb2ee4edc7431bc8a166b46288643ae37cae46a8f707a61c3b146f34e47d7e980a72e97a6376e3ca79d7dee3af6e88a1ffaf888df083573ac681afe3ac6f3  Python-3.11.17.tar.xz
 ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e960c4889568d25753b9e4a1494834fea48291b33f07000ec2  musl-find_library.patch
 563dc931e442a2b1a0837cc37b445768e3b76e33e4b6c5a3821428a46f3bb4512bc6f5a0160573b2567a2f20c0da27c19d5aa39a1bbaada8f409c1d3d83db7ad  0100-skip-test_url_host_with-test-cases.patch
 24d774c1aaff858fa36706e925a1e1a2d8d01a0ba738673d82ffae08c15a8557a27502bae5a48552d113118b3924fdfc9c3ded94a68ab879afd4263b6c2fe9d3  0101-AVX2-and-AVX512-support.diff
@@ -340,6 +345,4 @@ c9d607055f2147b19da871324c9cb67974e37dda871e776674c5e02be89683ae47af6a6da66a91cd
 713f0116981e8b69ef035551f5a39932655dd8983e22e98149c318f859b77fdb3ec8799ce3355f556708dec27de8da7ada7d28472fe74d3c4c35998c44662c10  0116-CVE-2025-12781-pre.patch
 e1a4a7a98e6bf3fd29a39d50094e46c34df10e733230315b08ec3b60dde09867d6e5e6316b58ded2fc92ae2f3fe35946cb7031d4b1b504853af8e0db5393d965  0117-CVE-2025-12781.patch
 f34de7d035477d9db297444d24196be58c937b50ef538f7ea389b1db2a0a4d5d70b328a069d18ffc02ec1e75441b025722ed91c1db5f95c4f1c1f69f33c58bcf  0118-Fix-running-xattr-tests-on-systems-with-lower-limits.patch
-8e72742141e657b88b4341cc6d37df44745c1f75cb973aabd669334924bb5fc0b37d33a9b1d6139f17c9e469462e0e15cfd23dca05e7a76d82b872e100397bbf  0119-CVE-2026-19672.patch
-469c0be9a7da8e772e534acded0317c1ec81dec156fc1a3ababe2ce29bab5e1550f5826678ffdad02939d1c25690ffe305efcf4e9686b434ad54cdbf7ed83a83  0120-CVE-2026-15310.patch
 "
