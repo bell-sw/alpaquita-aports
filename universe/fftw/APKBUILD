@@ -22,12 +22,6 @@ source="http://www.fftw.org/fftw-$_pkgver.tar.gz
 
 _precision="single double long-double"
 
-# disable tests for arm due to bug with gcc >= 9
-# see https://github.com/FFTW/fftw3/issues/213
-case "$CARCH" in
-	armhf|armv7) options="$options !check";;
-esac
-
 prepare() {
 	default_prepare
 	update_config_sub || true
