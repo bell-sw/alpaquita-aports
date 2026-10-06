@@ -4,7 +4,7 @@
 pkgname=openssl
 pkgver=3.0.22
 _abiver=${pkgver%.*.*}
-pkgrel=0
+pkgrel=1
 pkgdesc="Toolkit for general-purpose cryptography and secure communication (v.3)"
 url="https://www.openssl.org/"
 arch="all"
@@ -18,10 +18,24 @@ subpackages="$pkgname-dbg $pkgname-libs-static $pkgname-dev $pkgname-doc
 source="https://github.com/openssl/openssl/releases/download/openssl-$pkgver/openssl-$pkgver.tar.gz
 	0100-rsa-implicit-rejection-in-PKCS-1-v1.5.patch
 	0101-CVE-2024-41996.patch
+	0102-CVE-2026-75805-Guard-comparision-when-values-are-NUL.patch
+	0103-Add-test-for-CVE-2026-75805.patch
+	0104-CVE-2026-75806-TLS-Reject-undersized-TLS-1.2-AEAD-re.patch
+	0105-CVE-2026-35189-Defer-computation-of-relative-CRLDP-n.patch
+	0106-CVE-2026-84782-dtls-reset-init_off-before-retransmit.patch
+	0107-CVE-2026-54872-ec-make-ossl_ec_scalar_mul_ladder-sca.patch
+	0108-CVE-2026-77696-sm2-make-sm2_sig_gen-constant-time.patch
 	"
 builddir="$srcdir/openssl-$pkgver"
 
 # secfixes:
+#   3.0.22-r1:
+#     - CVE-2026-35189
+#     - CVE-2026-54872
+#     - CVE-2026-75805
+#     - CVE-2026-75806
+#     - CVE-2026-77696
+#     - CVE-2026-84782
 #   3.0.22-r0:
 #     - CVE-2026-54874
 #     - CVE-2026-63072
@@ -251,4 +265,11 @@ sha512sums="
 88f5cffd8949b9e236f989f414eefcd4e924145b9e8cb303a969534908e055a9ff2a4b29bd1619425c84240d9ae40aab0d84dbee0f338d20fac81cf7b2f20492  openssl-3.0.22.tar.gz
 90e4f4ef7701bc0ef90612839af30981b51b0723cf0c3c5c004157086cf70d2628508f71f3ba9c58c77da40bfc2e81c769864b9f3e106d27247c93758958518f  0100-rsa-implicit-rejection-in-PKCS-1-v1.5.patch
 1c82a1a8428de881297b570bb338b0cab53e73408c4356759304ff58683db1c0cd0aa0ad7f058d5d60194e86f038e02d634dff7eb9b9b9ddc94cf7f00b9a0e35  0101-CVE-2024-41996.patch
+bd602d4e8840d2451dc38565b01264734f017a0a74edb3e949f37dd84dc24feb9360951c0470a45f5c69a53dbb80192c91262d073b16d308afcf42f42cbebfd2  0102-CVE-2026-75805-Guard-comparision-when-values-are-NUL.patch
+1e614d9d96de80127c63ecb644f2934704cb6b0068940ace76373c755f6c21f9cf2ad57c2644fd35c8603ef1336bed67800377a5f12ee501544cdb9b142bf572  0103-Add-test-for-CVE-2026-75805.patch
+cd7974ba82c16ec8391b067f99780df33bf8e0d7a94006375ac9e06e7f022c74d0f44006d09db884c4b1fb661b2a61ffd76eeb7590bee41a99787ebfda6ced0b  0104-CVE-2026-75806-TLS-Reject-undersized-TLS-1.2-AEAD-re.patch
+85da849a1483124168e4b4ec388fc1da083eea036fe91a62678e83fed6c80f19d2adbc1a9fde2929aae2801b9c154b8cac9c133760b0c06b0f3352eda6bd085c  0105-CVE-2026-35189-Defer-computation-of-relative-CRLDP-n.patch
+534990ede52bd5ca9d1861dd9557d83d4e1832355e8b8774b039f2f0882d726e12037a9a171358515506396b5694569743b4e2a33442d8c3e5e764e5eb4ebd11  0106-CVE-2026-84782-dtls-reset-init_off-before-retransmit.patch
+6c2d32c73340461881921555890552eaf1f284371d5aa61f3b5112ce1ce1dff9dff53b650daf597120c919761550b90cac776230a132b1272bf66ef608f1a0d7  0107-CVE-2026-54872-ec-make-ossl_ec_scalar_mul_ladder-sca.patch
+844931e7909867e2f0a1174be8bcb2ab3f81b1e3926ac174cb5fb8e294295ebf8e478e73842e3b407b52a555950e61fb48d8882d7d7d3afb2c304a2cdeb16e8d  0108-CVE-2026-77696-sm2-make-sm2_sig_gen-constant-time.patch
 "
