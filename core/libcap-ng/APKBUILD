@@ -3,18 +3,29 @@
 # libcap library.
 
 pkgname=libcap-ng
-pkgver=0.8.5
-pkgrel=2
+pkgver=0.9.6
+pkgrel=0
 pkgdesc="POSIX 1003.1e capabilities next-gen library"
 url="https://people.redhat.com/sgrubb/libcap-ng/index.html"
 arch="all"
 license="GPL-2.0-or-later AND LGPL-2.1-or-later"
 depends_dev="linux-headers"
-makedepends="$depends_dev python3-dev swig"
-subpackages="$pkgname-static $pkgname-dev $pkgname-doc $pkgname-utils py3-$pkgname:_py3"
-source="https://people.redhat.com/sgrubb/libcap-ng/libcap-ng-$pkgver.tar.gz
-	apply-disable.patch
+makedepends="$depends_dev autoconf automake libtool python3-dev swig"
+subpackages="$pkgname-static
+	$pkgname-bash-completion
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-utils
+	py3-$pkgname:_py3
 	"
+source="$pkgname-$pkgver.tar.gz::https://github.com/stevegrubb/libcap-ng/archive/v$pkgver/libcap-ng-$pkgver.tar.gz"
+
+prepare() {
+	default_prepare
+
+	touch NEWS # or autoreconf will fail
+	autoreconf -vif
+}
 
 build() {
 	./configure \
@@ -51,6 +62,5 @@ _py3() {
 }
 
 sha512sums="
-89fb86454847f354c012411ecdc7e17f07bb40d7e9719ca0b93ea81c436113685bbbb5c1b9cb1b7ac92d216c105c687285304135beb156aedd55ab1c61e4f269  libcap-ng-0.8.5.tar.gz
-5f362d5d3f791d1bddc5d9ef3b31e5089c54f852904e12bc3b58dcd22fa87086766cfc095ae8b485bee1b3c4fd854575b89821052b77967a6fdca4ff7e0a0397  apply-disable.patch
+77bc255688606cbc3a9d40cc1d417ebf748d04b8d837d793708b58431857ebfaa077f00cebfcf03c58ce56985feb63f9f8eb70cce21ba304ca3418a0fe1b61d1  libcap-ng-0.9.6.tar.gz
 "
