@@ -139,8 +139,10 @@ check() {
 
 	local skip_packages="test/e2e,pkg/bindings,hack,pkg/machine/e2e,pkg/machine/wsl,pkg/machine/hyperv"
 
-	# TestUnitDirs execs /proc/self/exe, which fails on non-x86_64 builders.
-	[ "$CARCH" = x86_64 ] || skip_packages="$skip_packages,pkg/systemd/quadlet"
+	# TestUnitDirs fails on our chrooted builders because this test invokes
+	# an unshare(CLONE_NEWUSER) syscall and CLONE_NEWUSER is forbidden in a
+	# chroot environment according to unshare(2).
+	skip_packages="$skip_packages,pkg/systemd/quadlet"
 
 	# podman machine and its tests only build on amd64/arm64.
 	case "$CARCH" in
