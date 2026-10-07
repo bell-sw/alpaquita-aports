@@ -1,0 +1,17 @@
+fix build on armhf & armv7 by reverting relevant part of
+
+https://gitlab.freedesktop.org/xorg/xserver/-/commit/71c7824e806b1f216a2a90e12d3d3b7de9d1a7a9
+
+https://gitlab.freedesktop.org/xorg/xserver/-/work_items/1929
+
+--- a/meson.build
++++ b/meson.build
+@@ -252,7 +252,7 @@ if int10 == 'auto'
+     if host_machine.cpu_family() == 'ppc' and host_machine.system() == 'freebsd'
+         int10 = 'stub'
+     endif
+-    if host_machine.cpu_family() == 'arm'
++    if host_machine.cpu() == 'arm'
+         int10 = 'stub'
+     endif
+ endif
