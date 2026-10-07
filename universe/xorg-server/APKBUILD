@@ -1,5 +1,5 @@
 pkgname=xorg-server
-pkgver=21.1.24
+pkgver=21.1.25
 pkgrel=0
 pkgdesc="X.Org X servers"
 url="https://www.x.org/wiki"
@@ -55,13 +55,28 @@ makedepends="
 	xorgproto
 	xtrans
 	"
-source="https://www.x.org/releases/individual/xserver/xorg-server-$pkgver.tar.xz"
+source="https://www.x.org/releases/individual/xserver/xorg-server-$pkgver.tar.xz
+	int10-stub.patch
+	"
 
 # the modesetting driver is now shipped with xorg server
 provides="xf86-video-modesetting=$pkgver-r$pkgrel"
 replaces="xf86-video-modesetting"
 
 # secfixes:
+#   21.1.25-r0:
+#     - CVE-2026-88812
+#     - CVE-2026-93515
+#     - CVE-2026-93516
+#     - CVE-2026-93517
+#     - CVE-2026-93518
+#     - CVE-2026-93519
+#     - CVE-2026-93520
+#     - CVE-2026-93521
+#     - CVE-2026-93522
+#     - CVE-2026-93523
+#     - CVE-2026-93524
+#     - CVE-2026-93536
 #   21.1.24-r0:
 #     - CVE-2026-55999
 #     - CVE-2026-56000
@@ -260,5 +275,6 @@ common() {
 }
 
 sha512sums="
-f51372b04fe21632fc778ff240705161ed2dccc0114dbe3ee25156d8ac85ec945e2ac05d8638bc7d8d54bad4dfc89cb26b6bd2058b7804d54ab7179e1ac2eb13  xorg-server-21.1.24.tar.xz
+ccb807df73fa3bd1eacd0558425010cabeb90c11843b2d895166335823107766bbb14ad4ce33943453b81c689a90134b936572304138c290811d76d5e5d93360  xorg-server-21.1.25.tar.xz
+3f9fbffa2aaac6f463e8d8e29b04bea62dc5aa7617eff23660b40472967f609ce3aef687dda07a289d3e35a904dff7c856442e947a6d174fb77dfdd442f74b8e  int10-stub.patch
 "
