@@ -1,6 +1,6 @@
 pkgname=openjpeg
 pkgver=2.5.4
-pkgrel=1
+pkgrel=2
 pkgdesc="Open-source implementation of JPEG2000 image codec"
 url="https://www.openjpeg.org/"
 arch="all"
@@ -10,9 +10,15 @@ license="BSD-2-Clause"
 depends_dev="$pkgname-tools"
 makedepends="libpng-dev tiff-dev lcms2-dev doxygen cmake samurai"
 subpackages="$pkgname-dev $pkgname-tools"
-source="https://github.com/uclouvain/openjpeg/archive/v$pkgver/openjpeg-v$pkgver.tar.gz"
+source="https://github.com/uclouvain/openjpeg/archive/v$pkgver/openjpeg-v$pkgver.tar.gz
+	CVE-2026-6192.patch
+	OSV-2025-219.patch
+	"
 
 # secfixes:
+#   2.5.4-r2:
+#     - CVE-2026-6192
+#     - OSV-2025-219
 #   2.5.3-r1:
 #     - CVE-2025-54874
 #   2.5.3-r0:
@@ -76,4 +82,6 @@ tools() {
 
 sha512sums="
 702a10e20caaf8209684ded7c9fcf32f5ba6a972cf2d9fcf2611cdc6a446d2c3bb60324205758e6b6f92278c8cf4ef0fbae511e6ffb45ed6e8df514db0c6ab25  openjpeg-v2.5.4.tar.gz
+542711529351db10cf05c0dcd04a8e8734cbf27558f9b374cf443629e573dee0fae66fcb80ded3267df1f474dd53d8332dd6c24ffecb8fa3d8adc43aae3bea1d  CVE-2026-6192.patch
+9f71cef7ff8feff5455820abe399d180a543510ac1e599b3252cfba7805925314640843339a9cdfeab2843e3d291084baddec7c518571b90697fd194c34828ed  OSV-2025-219.patch
 "
