@@ -1,6 +1,6 @@
 pkgname=polkit
 pkgver=127
-pkgrel=1
+pkgrel=2
 pkgdesc="Application development toolkit for controlling system-wide privileges"
 url="https://github.com/polkit-org/polkit"
 arch="all"
@@ -57,7 +57,6 @@ _build() {
 		-Db_lto=true \
 		-Dtests="$(want_check && echo true || echo false)" \
 		-Dman=true \
-		-Dpam_prefix=/etc/pam.d \
 		"$@" \
 		. "$outdir"
 	meson compile -C "$outdir"
@@ -81,7 +80,7 @@ package() {
 	cd "$pkgdir"
 
 	# Use our own polkit rules, upstream may change them
-	install -m644 "$srcdir"/alpine-polkit.pam etc/pam.d/polkit-1
+	install -m644 "$srcdir"/alpine-polkit.pam usr/lib/pam.d/polkit-1
 
 	# See polkit's configure script which tells us what permissions to set
 	chmod 4755 usr/lib/polkit-1/polkit-agent-helper-1
