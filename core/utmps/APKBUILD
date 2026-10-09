@@ -14,7 +14,7 @@ options="!check !libc_glibc"  # No test suite
 license="ISC"
 depends="s6-ipcserver"
 depends_static="skalibs-static"
-makedepends="skalibs-dev"
+makedepends_host="skalibs-dev"
 subpackages="$pkgname-static $pkgname-libs $pkgname-dev $pkgname-doc $pkgname-openrc"
 source="https://skarnet.org/software/utmps/utmps-$pkgver.tar.gz
 	utmp-prepare.initd
@@ -36,7 +36,10 @@ build() {
 		--enable-shared \
 		--disable-allstatic \
 		--with-pkgconfig \
-		--with-include=/usr/include/utmps \
+		--with-sysdeps="$CBUILDROOT"/usr/lib/skalibs/sysdeps \
+		--with-include="$CBUILDROOT"/usr/include/utmps \
+		--with-lib="$CBUILDROOT"/usr/lib \
+		--with-dynlib="$CBUILDROOT"/usr/lib \
 		--enable-pkgconfig \
 		--enable-utmp
 	make
