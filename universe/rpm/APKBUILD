@@ -1,6 +1,6 @@
 pkgname=rpm
 pkgver=4.19.1.1
-pkgrel=4
+pkgrel=5
 case $pkgver in
 	*.*.*.*)	_majorver=${pkgver%.*.*} ;;
 	*.*.*)		_majorver=${pkgver%.*} ;;
@@ -57,9 +57,13 @@ subpackages="$subpackages $pkgname-libs"
 source="https://ftp.osuosl.org/pub/rpm/releases/rpm-$_majorver.x/rpm-$pkgver.tar.bz2
 	fix-glibc-glob.patch
 	targets.patch
+
+	0100-CVE-2026-84233.patch
 	"
 
 # secfixes:
+#   4.19.1.1-r5:
+#     - CVE-2026-84233
 #   4.18.0-r0:
 #     - CVE-2021-35937
 #     - CVE-2021-35938
@@ -135,4 +139,5 @@ sha512sums="
 3364c453c29903c144a3680ceca7a17426eb085c288b6313fb7e857a42a5e0a965f623882e0f58e633f8b8770e839d9df9f7653d99c73759af5c89d0a981908d  rpm-4.19.1.1.tar.bz2
 2db5afbbc25088f1c64cf9d34e1823faefaa4bd39729a406123129407019eac4964733a20645815221a5abfa304afb3655219d261b18876ed4bef1cac5aaeed1  fix-glibc-glob.patch
 ca75b07ae7abeb688aefca9c48c48556d5153e47ca376502ad92ed2f36ba175ecb93702767db82fe4774f19f5d68a6654c7a17ad0f163b7b8ae86d811876fccf  targets.patch
+67599f255e250e256b1a6cbd4cfcee3efa0c941f05ed12c4322007fc734e30dfd7f90e664bad8c0bda48d0532636858b4a000c95b6f39fcde80ba3aa8859fd0a  0100-CVE-2026-84233.patch
 "
