@@ -1,7 +1,7 @@
 pkgname=docker-cli-buildx
-pkgver=0.37.2
+pkgver=0.38.0
 pkgrel=0
-_commit=2d379c0c3f22da0d2759d132a0ec81ca949098f0
+_commit=0dbe87f36ed472fe36b6796c3f70b4210a731fc5
 pkgdesc="A Docker CLI plugin for extended build capabilities"
 url="https://docs.docker.com/engine/reference/commandline/buildx_build"
 arch="all"
@@ -47,7 +47,10 @@ check() {
 	git init -q .
 	# gitutil tests do not succeed inside abuild environment
 	local pkgs="$(go list -modcacherw ./... | grep -Ev 'gitutil')"
-	go test -modcacherw -short $pkgs
+	# Invalid UTF-8 hostname is rejected with Go 1.27.
+	go test -modcacherw -short \
+		-skip '^TestNormalizeHTTPHost$/^https_\x{FFFD}\.EXAMPLE\.COM$' \
+		$pkgs
 	./docker-buildx version
 }
 
@@ -56,6 +59,6 @@ package() {
 }
 
 sha512sums="
-38f5ab6405ee786617f44a8f84ac82f4ad0b8d1818e500fd5b825fb2f5adcf3859671103e6b6c78319984a3dfcfa70847b11a03531c17c43e132b6e018639712  buildx-0.37.2.tar.gz
+b5370d871345d8d2269fd8a22eb3170bc5672ca0b6513ab47ea5aaa33b8cb45590537a38f0bbe3cb47571d51312925fc9303ed1a115350ccba16eb16990a4bf0  buildx-0.38.0.tar.gz
 dd04bcc0b1f803c01a93348376c84c375d99503a797a9723d56b492e3f49e626d912e3b5bcb633a78dec7c37e7328c9da94638ef397682b968b1ac71b65f3c07  9999-go-mod.patch
 "
