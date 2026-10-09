@@ -4,7 +4,7 @@
 pkgname=openssh
 pkgver=9.1_p1
 _myver=${pkgver%_*}${pkgver#*_}
-pkgrel=15
+pkgrel=16
 pkgdesc="OpenBSD SSH implementation"
 url="https://www.openssh.com/portable.html"
 arch="all"
@@ -84,9 +84,30 @@ source="https://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-$_myver.tar
 	0113-CVE-2026-35414.patch
 	0114-CVE-2026-35385.patch
 	0115-CVE-2026-35386.patch
+	0116-CVE-2026-106584-upstream-Correct-handling-of-DST-whe.patch
+	0117-CVE-2026-106586-upstream-Propagate-authorized_keys-r.patch
+	0118-CVE-2026-106587-upstream-Correctly-handle-some-optio.patch
+	0119-CVE-2026-106555-upstream-Reset-GSSAPI-client-state-b.patch
+	0120-CVE-2026-106553-upstream-Only-store-GSSAPI-creds-whe.patch
+	0121-CVE-2026-106586-upstream-correctly-check-sshauthopt-.patch
+	0122-CVE-2026-106586-upstream-simpler.patch
+	0123-CVE-2026-106582-upstream-Disable-LZ77-dictionary-cod.patch
+	0124-CVE-2026-106585-upstream-Check-that-compressed-paylo.patch
+	0125-CVE-2026-106552-upstream-sftp-be-stricter-in-accepti.patch
+	0126-CVE-2026-106583-upstream-Further-restrict-the-charac.patch
 	"
 
 # secfixes:
+#   9.1_p1-r16:
+#     - CVE-2026-106552
+#     - CVE-2026-106553
+#     - CVE-2026-106555
+#     - CVE-2026-106582
+#     - CVE-2026-106583
+#     - CVE-2026-106584
+#     - CVE-2026-106585
+#     - CVE-2026-106586
+#     - CVE-2026-106587
 #   9.1_p1-r15:
 #     - CVE-2026-35414
 #     - CVE-2026-35385
@@ -376,4 +397,15 @@ d9b0e9fd19c321a9715e55793f0246897fc01244cec8c85a39cfbc99a24f493f887d86a4e9189bad
 5a95f41929bf3e4f20592fb158a9b121f3c7d97a63f958e2f60b9ababbc1b865d79af1c7e3d7c7e921d54c8c85dbdde1893cbf76399a6e5719b6c2aa3e8f4f76  0113-CVE-2026-35414.patch
 c8a5ac0603a5cd5eddb138c4bebe802e559ad163a8b6e28d434672683ef74f9887868e45e930d1745e58f71a545c8d827220a75e35d5bc58e47eb94ff38226b1  0114-CVE-2026-35385.patch
 6726c6bc9f2c62be989bb8da82b728b220637d4ddd927b25f29efd2770194a25a8098aece0fb2a93a043ec2a96b14f5909c02eb0bcf13a9a2494655f7003699e  0115-CVE-2026-35386.patch
+05f2167a2e21101bbcaff3ff99e7cf39674dd2b28a9b939ff0e7369351e66794ed347213b45d639e8be5e4bb80a1fcee751e01a5a9078e5763c6b2d18b371d92  0116-CVE-2026-106584-upstream-Correct-handling-of-DST-whe.patch
+494e5d43383b999c9c0013648c2672b1bad3ccafb212de095d78c1a366c75f34f07761a0f0a350224c3c5de38b30cb0e2f9aa5868854a363a6f7325b029eb1ab  0117-CVE-2026-106586-upstream-Propagate-authorized_keys-r.patch
+20e4ff8b58df6f29a7bed1e70c3d563e16a6aed7fb1e6ed712698a2471368bc1595babb145fbe0217effeeaf7d4944293667bfa6084a0903b0f6765954536ec2  0118-CVE-2026-106587-upstream-Correctly-handle-some-optio.patch
+f0c68c2a3fd48bc4e76edc6e7b76157bd63d39e9d550ce3c09c33af791c600063504d8871c7beccfc19f07474f14edd26293d3061e91e4e971e4d7bbf704791a  0119-CVE-2026-106555-upstream-Reset-GSSAPI-client-state-b.patch
+75e073269eb1d52ea715878ba5792a4bc88f342c10661e20941426429ac10aa4b0946c88fd2bd342db6b402de495b35e97e8a71303e639d1c27d29b9de221fff  0120-CVE-2026-106553-upstream-Only-store-GSSAPI-creds-whe.patch
+87ce48e62c60a20b6448acd5e9072e80e071c3b06474524107ed327ae2ba081549866adee0ebac96c6156bcbe93bd5d32fc4f679177f4a7c9eb11a85787bb2ab  0121-CVE-2026-106586-upstream-correctly-check-sshauthopt-.patch
+78340b8cf3d72c1178878cdbc3fa5f30219dc36fb20db98b2fa45b13afa73748748aecf05f3e0c8e49fc74a4c844e6eb9efa352d91e9c2d5b513b3a943ca9dc7  0122-CVE-2026-106586-upstream-simpler.patch
+670a20f83986e355ab1eb6f585206e924b264e86e6ecf608ee6f9b29118a9aa62c8ed78d21855ecd3431b704f678e81ef67c84d1b61750618e3305e184c7444b  0123-CVE-2026-106582-upstream-Disable-LZ77-dictionary-cod.patch
+dac001cbc4e152365f48681d4b793656a72aa968f22df7238672a90e1da68a7a0b046e1af6febdee61c8b18f26615655b1878b577794ef2ac27737e98b641961  0124-CVE-2026-106585-upstream-Check-that-compressed-paylo.patch
+8897c411cb80869a0a85301e4ea9ca95407bb1e8479e29a1ae15715208500733a838a0ea3826419d0871760cf71c29d780cdff1a2b2a23db46bca6d27b8b6d3c  0125-CVE-2026-106552-upstream-sftp-be-stricter-in-accepti.patch
+97de43f69ac9e7da0da99e13922d418c4c3d44230f5c241d0d136d7b44787e8756c27d42fde2bdd6696d2de9cfa78be03612be9d47ad317c6851f5b185b63ed2  0126-CVE-2026-106583-upstream-Further-restrict-the-charac.patch
 "
