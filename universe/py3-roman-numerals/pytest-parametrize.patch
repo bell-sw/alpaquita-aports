@@ -1,0 +1,47 @@
+Use lists for parametrized test cases to support pytest 9.1 and later.
+
+--- a/tests/test_from_string.py
++++ b/tests/test_from_string.py
+@@ -8,14 +8,14 @@
+ from tests.utils import TEST_NUMERALS_LOWER, TEST_NUMERALS_UPPER
+ 
+ 
+-@pytest.mark.parametrize(('n', 'roman_str'), enumerate(TEST_NUMERALS_UPPER, start=1))
++@pytest.mark.parametrize(('n', 'roman_str'), list(enumerate(TEST_NUMERALS_UPPER, start=1)))
+ def test_uppercase(n: int, roman_str: str) -> None:
+     expected = RomanNumeral(n)
+     parsed = RomanNumeral.from_string(roman_str)
+     assert expected == parsed
+ 
+ 
+-@pytest.mark.parametrize(('n', 'roman_str'), enumerate(TEST_NUMERALS_LOWER, start=1))
++@pytest.mark.parametrize(('n', 'roman_str'), list(enumerate(TEST_NUMERALS_LOWER, start=1)))
+ def test_lowercase(n: int, roman_str: str) -> None:
+     expected = RomanNumeral(n)
+     parsed = RomanNumeral.from_string(roman_str)
+--- a/tests/test_to_string.py
++++ b/tests/test_to_string.py
+@@ -7,20 +7,20 @@
+ from tests.utils import TEST_NUMERALS_LOWER, TEST_NUMERALS_UPPER
+ 
+ 
+-@pytest.mark.parametrize(('n', 'roman_str'), enumerate(TEST_NUMERALS_UPPER, start=1))
++@pytest.mark.parametrize(('n', 'roman_str'), list(enumerate(TEST_NUMERALS_UPPER, start=1)))
+ def test_str(n: int, roman_str: str) -> None:
+     num = RomanNumeral(n)
+     assert str(num) == roman_str
+     assert f'{num}' == roman_str
+ 
+ 
+-@pytest.mark.parametrize(('n', 'roman_str'), enumerate(TEST_NUMERALS_UPPER, start=1))
++@pytest.mark.parametrize(('n', 'roman_str'), list(enumerate(TEST_NUMERALS_UPPER, start=1)))
+ def test_uppercase(n: int, roman_str: str) -> None:
+     num = RomanNumeral(n)
+     assert num.to_uppercase() == roman_str
+ 
+ 
+-@pytest.mark.parametrize(('n', 'roman_str'), enumerate(TEST_NUMERALS_LOWER, start=1))
++@pytest.mark.parametrize(('n', 'roman_str'), list(enumerate(TEST_NUMERALS_LOWER, start=1)))
+ def test_lowercase(n: int, roman_str: str) -> None:
+     num = RomanNumeral(n)
+     assert num.to_lowercase() == roman_str
