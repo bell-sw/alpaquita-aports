@@ -1,0 +1,66 @@
+Patch-Source: https://github.com/sqlalchemy/mako/commit/411b4ac6cf054e61a8fb44c236990fda1e41ade4
+Upstream-Issue: https://github.com/sqlalchemy/mako/issues/440
+---
+From 411b4ac6cf054e61a8fb44c236990fda1e41ade4 Mon Sep 17 00:00:00 2001
+From: Mike Bayer <mike_mp@zzzcomputing.com>
+Date: Tue, 18 Aug 2026 13:04:26 -0400
+Subject: [PATCH] Accommodate literal quote rendering in Pygments 2.21.0
+
+Adjusted the test suite to accommodate for a change in Pygments 2.21.0
+where the HtmlFormatter now renders " and ' characters literally rather
+than as HTML entities, which caused failures in tests that assert
+against the rendered output of html_error_template().
+
+Fixes: #440
+Change-Id: I55e32d35bbcbe229b230e45831ee93beaca56cfa
+---
+ doc/build/unreleased/440.rst |  9 +++++++++
+ test/test_exceptions.py      | 20 ++++++++++++++------
+ 2 files changed, 23 insertions(+), 6 deletions(-)
+ create mode 100644 doc/build/unreleased/440.rst
+
+diff --git a/test/test_exceptions.py b/test/test_exceptions.py
+index f84ab306..37c5db75 100644
+--- a/test/test_exceptions.py
++++ b/test/test_exceptions.py
+@@ -154,9 +154,12 @@ def test_py_utf8_html_error_template(self):
+         except:
+             html_error = exceptions.html_error_template().render()
+             assert "RuntimeError: test" in html_error.decode("utf-8")
+-            assert "foo = &quot;日本&quot;" in html_error.decode(
+-                "utf-8"
+-            ) or "foo = &#34;日本&#34;" in html_error.decode("utf-8")
++            assert (
++                "foo = &quot;日本&quot;" in html_error.decode("utf-8")
++                or "foo = &#34;日本&#34;" in html_error.decode("utf-8")
++                # pygments 2.21.0 renders " and ' literally
++                or 'foo = "日本"' in html_error.decode("utf-8")
++            )
+ 
+     def test_py_unicode_error_html_error_template(self):
+         try:
+@@ -222,9 +225,12 @@ def test_utf8_format_exceptions_pygments(self):
+             "foo.html", """# -*- coding: utf-8 -*-\n${'привет' + foobar}"""
+         )
+ 
+-        assert "&#39;привет&#39;</span>" in l.get_template(
+-            "foo.html"
+-        ).render().decode("utf-8")
++        rendered = l.get_template("foo.html").render().decode("utf-8")
++        assert (
++            "&#39;привет&#39;</span>" in rendered
++            # pygments 2.21.0 renders " and ' literally
++            or "'привет'</span>" in rendered
++        )
+ 
+     @requires_no_pygments_exceptions
+     def test_utf8_format_exceptions_no_pygments(self):
+@@ -272,6 +278,8 @@ def test_custom_tback(self):
+         assert (
+             "".join(reversed(");touq&rab;touq&(oof")) in html_error
+             or "".join(reversed(");43#&rab;43#&(oof")) in html_error
++            # pygments 2.21.0 renders " and ' literally
++            or "".join(reversed(')"rab"(oof')) in html_error
+         )
+ 
+     def test_tback_no_trace_from_py_file(self):
