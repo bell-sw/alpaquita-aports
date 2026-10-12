@@ -1,4 +1,4 @@
-From 8912ea8b902317da02dfe6599ee29c8c09659c36 Mon Sep 17 00:00:00 2001
+From 8c0e945868e3fcc8763faad412565ec181e15094 Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
 Date: Thu, 20 Jan 2022 09:25:14 +0000
 Subject: [PATCH] Added support for glibc toolchains
@@ -11,7 +11,7 @@ Subject: [PATCH] Added support for glibc toolchains
  4 files changed, 36 insertions(+), 53 deletions(-)
 
 diff --git a/Makefile b/Makefile
-index acda108..56dc767 100644
+index 57329a1..689216c 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -8,6 +8,8 @@ sharedir		?= $(prefix)/share/$(PACKAGE)
@@ -32,7 +32,7 @@ index acda108..56dc767 100644
  SSL_CFLAGS	?= $(shell pkg-config --cflags openssl)
  SSL_LDFLAGS	?= $(shell pkg-config --cflags openssl)
 diff --git a/abuild.in b/abuild.in
-index c9d2c0d..6645bda 100644
+index 23854f8..e24edbc 100644
 --- a/abuild.in
 +++ b/abuild.in
 @@ -64,6 +64,25 @@ error() {
@@ -97,7 +97,7 @@ index c9d2c0d..6645bda 100644
  		if is_remote "$s"; then
  			s=$(filename_from_uri $s)
  			msg "Cleaning downloaded $s ..."
-@@ -2382,7 +2401,7 @@ builddeps() {
+@@ -2385,7 +2404,7 @@ builddeps() {
  # replace the sha512sums in the APKBUILD
  checksum() {
  	local s files name
@@ -106,7 +106,7 @@ index c9d2c0d..6645bda 100644
  		&& msg "Removing checksums from $APKBUILD"
  	sed -E -i \
  		-e '/^sha[0-9]+sums=".*"$/d' \
-@@ -2394,10 +2413,10 @@ checksum() {
+@@ -2397,10 +2416,10 @@ checksum() {
  
  	sha256sums=
  	sha512sums=
@@ -119,7 +119,7 @@ index c9d2c0d..6645bda 100644
  		name="$(filename_from_uri $s)"
  		case " $files " in
  		*" $name "*) die "duplicate found in \$source: $name";;
-@@ -2699,7 +2718,7 @@ listpkg() {
+@@ -2705,7 +2724,7 @@ listpkg() {
  
  source_has() {
  	local i
@@ -128,7 +128,7 @@ index c9d2c0d..6645bda 100644
  		[ "$1" = "${i##*/}" ] && return 0
  		[ "$1" = "${i%%::*}" ] && return 0
  	done
-@@ -2978,6 +2997,8 @@ cd "$startdir" || die
+@@ -2984,6 +3003,8 @@ cd "$startdir" || die
  
  builddir=${builddir:-"$srcdir/$pkgname-$pkgver"}
  
@@ -138,7 +138,7 @@ index c9d2c0d..6645bda 100644
  if [ -z "$REPODEST" ]; then
  	warning "REPODEST is not set and is now required. Defaulting to $HOME/packages"
 diff --git a/functions.sh.in b/functions.sh.in
-index a8f7713..ca33846 100644
+index 4de2aa3..c8ea855 100644
 --- a/functions.sh.in
 +++ b/functions.sh.in
 @@ -6,29 +6,8 @@ program=${0##*/}
@@ -176,37 +176,37 @@ index a8f7713..ca33846 100644
 @@ -41,27 +20,7 @@ arch_to_hostspec() {
  triplet_to_arch() {
  	case "$1" in
- 	aarch64-*-*-*)		echo "aarch64" ;;
--	aarch64_be-*-*-*)	echo "aarch64_be" ;;
--	arm*-*-*-*eabi)		echo "armel" ;;
--	armv6*-*-*-*eabihf)	echo "armhf" ;;
--	armv7*-*-*-*eabihf)	echo "armv7" ;;
--	i[0-9]86-*-*-*)		echo "x86" ;;
--	loongarch32-*-*-*)	echo "loongarch32" ;;
--	loongarchx32-*-*-*)	echo "loongarchx32" ;;
--	loongarch64-*-*-*)	echo "loongarch64" ;;
--	mips-*-*-*)             echo "mips" ;;
--	mips64-*-*-*)           echo "mips64" ;;
--	mipsel-*-*-*)           echo "mipsel" ;;
--	mips64el-*-*-*)         echo "mips64el" ;;
--	powerpc-*-*-*)		echo "ppc" ;;
--	powerpc64-*-*-*)	echo "ppc64" ;;
--	powerpc64le-*-*-*)	echo "ppc64le" ;;
--	riscv32-*-*-*)		echo "riscv32" ;;
--	riscv64-*-*-*)		echo "riscv64" ;;
--	s390x-*-*-*)		echo "s390x" ;;
--	sh2eb-*-*-*)		echo "sh2eb" ;;
--	sh3-*-*-*)		echo "sh3" ;;
--	sh4-*-*-*)		echo "sh4" ;;
-+	#aarch64_be-*-*-*)	echo "aarch64_be" ;;
- 	x86_64-*-*-*)		echo "x86_64" ;;
+ 	aarch64-*)	echo "aarch64" ;;
+-	aarch64_be-*)	echo "aarch64_be" ;;
+-	arm*-*eabi)	echo "armel" ;;
+-	armv6*-*eabihf)	echo "armhf" ;;
+-	armv7*-*eabihf)	echo "armv7" ;;
+-	i[0-9]86-*)	echo "x86" ;;
+-	loongarch32-*)	echo "loongarch32" ;;
+-	loongarchx32-*)	echo "loongarchx32" ;;
+-	loongarch64-*)	echo "loongarch64" ;;
+-	mips-*)         echo "mips" ;;
+-	mips64-*)       echo "mips64" ;;
+-	mipsel-*)       echo "mipsel" ;;
+-	mips64el-*)     echo "mips64el" ;;
+-	powerpc-*)	echo "ppc" ;;
+-	powerpc64-*)	echo "ppc64" ;;
+-	powerpc64le-*)	echo "ppc64le" ;;
+-	riscv32-*)	echo "riscv32" ;;
+-	riscv64-*)	echo "riscv64" ;;
+-	s390x-*)	echo "s390x" ;;
+-	sh2eb-*)	echo "sh2eb" ;;
+-	sh3-*)		echo "sh3" ;;
+-	sh4-*)		echo "sh4" ;;
++	#aarch64_be-*)	echo "aarch64_be" ;;
+ 	x86_64-*)	echo "x86_64" ;;
  	*)
  		echo "Couldn't determine arch from triplet: $1" >&2
 diff --git a/tests/functions_test b/tests/functions_test
-index fd6e594..8d738b0 100755
+index 2b42a7c..dfebf4e 100755
 --- a/tests/functions_test
 +++ b/tests/functions_test
-@@ -37,7 +37,7 @@ funcs_check_missing_git_body() {
+@@ -31,7 +31,7 @@ funcs_check_missing_git_body() {
  }
  
  funcs_check_env_set_but_empty_body() {
@@ -216,5 +216,5 @@ index fd6e594..8d738b0 100755
  			cat >script<<-EOF
  				unset $var
 -- 
-2.53.0
+2.55.0
 

@@ -1,4 +1,4 @@
-From fbbdef45a200ab564af916cebacdfe54253c972b Mon Sep 17 00:00:00 2001
+From fb34cab052823df28046927d08a0451bd2492b20 Mon Sep 17 00:00:00 2001
 From: Dmitry Klochkov <dmitry.klochkov@bell-sw.com>
 Date: Fri, 20 Oct 2023 13:14:51 +0300
 Subject: [PATCH] return back support for some architectures
@@ -9,7 +9,7 @@ This is needed to make tests/abuild_test:abuild_deps pass.
  1 file changed, 6 insertions(+)
 
 diff --git a/functions.sh.in b/functions.sh.in
-index 26e07df..077dfe5 100644
+index e265a95..28f0798 100644
 --- a/functions.sh.in
 +++ b/functions.sh.in
 @@ -7,6 +7,9 @@ program=${0##*/}
@@ -24,14 +24,14 @@ index 26e07df..077dfe5 100644
  	esac
 @@ -21,6 +24,9 @@ triplet_to_arch() {
  	case "$1" in
- 	aarch64-*-*-*)		echo "aarch64" ;;
- 	#aarch64_be-*-*-*)	echo "aarch64_be" ;;
-+	armv6*-*-*-*eabihf)	echo "armhf" ;;
-+	powerpc64le-*-*-*)	echo "ppc64le" ;;
-+	s390x-*-*-*)		echo "s390x" ;;
- 	x86_64-*-*-*)		echo "x86_64" ;;
+ 	aarch64-*)	echo "aarch64" ;;
+ 	#aarch64_be-*)	echo "aarch64_be" ;;
++	armv6*-*eabihf)	echo "armhf" ;;
++	powerpc64le-*)	echo "ppc64le" ;;
++	s390x-*)	echo "s390x" ;;
+ 	x86_64-*)	echo "x86_64" ;;
  	*)
  		echo "Couldn't determine arch from triplet: $1" >&2
 -- 
-2.53.0
+2.55.0
 
