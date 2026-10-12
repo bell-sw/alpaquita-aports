@@ -1,0 +1,620 @@
+From 5a86518999cf1a45d931b027e89bcc50bcb04016 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Mon, 19 Oct 2026 13:25:23 +0000
+Subject: [PATCH] Follow the module's Products table: any number of JDK and NIK
+ families
+
+osv-internal 0.5.5 replaces its EcosystemJDK/EcosystemNIK constants by the
+Products table (a vendor may build the module with several JDK and NIK
+families, and a family name may contain colons). osvecosystem recognises
+every product family as valid and local-only (IsVendorProduct) and splits
+an ecosystem string with the module's Family/Release; semantic picks the
+JDK or NIK version grammar by the family's kind; the vendorjdk metadata
+builds a purl from the family of the ecosystem. The tests use the first
+family of each kind.
+---
+ .../vulnmatch/osvdev/osvdev_internal_test.go  |  3 +-
+ .../osvlocal/internal/vulns/vendorjdk_test.go |  3 +-
+ enricher/vulnmatch/osvlocal/vendor_test.go    |  3 +-
+ .../java/vendorjdk/metadata/metadata.go       |  6 +-
+ .../language/java/vendorjdk/vendorjdk_test.go | 59 ++++++++--------
+ inventory/osvecosystem/parsed.go              | 28 ++++----
+ .../osvecosystem/parsed_vendorjdk_test.go     | 68 ++++++++-----------
+ semantic/parse.go                             | 21 +++---
+ semantic/parse_test.go                        |  7 +-
+ semantic/testdata/vendornik-versions.txt      |  1 -
+ semantic/version-vendorjdk.go                 |  9 ++-
+ semantic/version-vendorjdk_test.go            | 17 +++--
+ 12 files changed, 119 insertions(+), 106 deletions(-)
+
+diff --git a/enricher/vulnmatch/osvdev/osvdev_internal_test.go b/enricher/vulnmatch/osvdev/osvdev_internal_test.go
+index 5bbbe583..6977d0ad 100644
+--- a/enricher/vulnmatch/osvdev/osvdev_internal_test.go
++++ b/enricher/vulnmatch/osvdev/osvdev_internal_test.go
+@@ -18,6 +18,7 @@ import (
+ 	"testing"
+ 
+ 	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/testfix"
+ 	osvdistro "github.com/bell-sw/osv-internal/distro"
+ 
+ 	"github.com/google/osv-scalibr/extractor"
+@@ -33,7 +34,7 @@ func TestPkgToQueries_LocalOnlyEcosystem(t *testing.T) {
+ 	e := &Enricher{}
+ 	jdk := &extractor.Package{
+ 		Name: "jdk", Version: "21.0.2+14", PURLType: purl.TypeGeneric,
+-		Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"), Major: 21, Variant: "jdk"},
++		Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvinternal.Ecosystem(testfix.Product(osvinternal.KindJDK).Family, "21"), Major: 21, Variant: "jdk"},
+ 	}
+ 	if got := e.pkgToQueries(jdk); len(got) != 0 {
+ 		t.Errorf("pkgToQueries(vendor JDK package) = %d queries, want none", len(got))
+diff --git a/enricher/vulnmatch/osvlocal/internal/vulns/vendorjdk_test.go b/enricher/vulnmatch/osvlocal/internal/vulns/vendorjdk_test.go
+index 6f17c018..e10d8e0e 100644
+--- a/enricher/vulnmatch/osvlocal/internal/vulns/vendorjdk_test.go
++++ b/enricher/vulnmatch/osvlocal/internal/vulns/vendorjdk_test.go
+@@ -18,6 +18,7 @@ import (
+ 	"testing"
+ 
+ 	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/testfix"
+ 
+ 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/vulns"
+ 	"github.com/google/osv-scalibr/extractor"
+@@ -49,7 +50,7 @@ func TestOSV_IsAffected_VendorJDKReleaseTypes(t *testing.T) {
+ 		}
+ 	}
+ 
+-	jdk21, jdk8 := osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"), osvinternal.Ecosystem(osvinternal.EcosystemJDK, "8")
++	jdk21, jdk8 := osvinternal.Ecosystem(testfix.Product(osvinternal.KindJDK).Family, "21"), osvinternal.Ecosystem(testfix.Product(osvinternal.KindJDK).Family, "8")
+ 	tests := []struct {
+ 		name                                        string
+ 		ecosystem, version, introduced, fixed, last string
+diff --git a/enricher/vulnmatch/osvlocal/vendor_test.go b/enricher/vulnmatch/osvlocal/vendor_test.go
+index 102ca58d..c0b188d8 100644
+--- a/enricher/vulnmatch/osvlocal/vendor_test.go
++++ b/enricher/vulnmatch/osvlocal/vendor_test.go
+@@ -26,6 +26,7 @@ import (
+ 	"testing"
+ 
+ 	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/testfix"
+ 	"github.com/bell-sw/osv-internal/osvdata"
+ 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/fakeserver"
+ 	"github.com/google/osv-scalibr/extractor"
+@@ -105,7 +106,7 @@ const osvDevBucket = "https://osv-vulnerabilities.storage.googleapis.com"
+ // The vendor families and ecosystems of the module, and where the module
+ // fetches the product archives by default.
+ var (
+-	famLinux, famHardened, famJDK, famNIK = osvinternal.EcosystemLinux, osvinternal.EcosystemHardened, osvinternal.EcosystemJDK, osvinternal.EcosystemNIK
++	famLinux, famHardened, famJDK, famNIK = osvinternal.EcosystemLinux, osvinternal.EcosystemHardened, testfix.Product(osvinternal.KindJDK).Family, testfix.Product(osvinternal.KindNIK).Family
+ 	ecoJDK21, ecoJDK8, ecoNIK2321         = osvinternal.Ecosystem(famJDK, "21"), osvinternal.Ecosystem(famJDK, "8"), osvinternal.Ecosystem(famNIK, "23-21")
+ 	wantJDKURL                            = osvdata.DefaultProductBaseURL + "/" + url.PathEscape(famJDK) + "/all.zip"
+ 	wantNIKURL                            = osvdata.DefaultProductBaseURL + "/" + url.PathEscape(famNIK) + "/all.zip"
+diff --git a/extractor/filesystem/language/java/vendorjdk/metadata/metadata.go b/extractor/filesystem/language/java/vendorjdk/metadata/metadata.go
+index 2c893231..067d1d56 100644
+--- a/extractor/filesystem/language/java/vendorjdk/metadata/metadata.go
++++ b/extractor/filesystem/language/java/vendorjdk/metadata/metadata.go
+@@ -18,6 +18,7 @@
+ package metadata
+ 
+ import (
++	osvinternal "github.com/bell-sw/osv-internal"
+ 	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
+ 	"github.com/google/osv-scalibr/binary/proto/metadata"
+ 	"github.com/google/osv-scalibr/inventory/osvecosystem"
+@@ -72,14 +73,15 @@ func (m *Metadata) OSVEcosystem() osvecosystem.Parsed {
+ }
+ 
+ // MakePackageURL returns the package URL of the runtime; when the detector
+-// gave none it is built for a JDK variant.
++// gave none it is built from the family of the ecosystem, the variant and
++// the version.
+ func MakePackageURL(version string, m *Metadata) *purl.PackageURL {
+ 	if m == nil {
+ 		return nil
+ 	}
+ 	s := m.PURL
+ 	if s == "" {
+-		s = osvjdk.PURL(m.Variant, version)
++		s = osvjdk.PURL(osvinternal.Family(m.Ecosystem), m.Variant, version)
+ 	}
+ 	p, err := purl.FromString(s)
+ 	if err != nil {
+diff --git a/extractor/filesystem/language/java/vendorjdk/vendorjdk_test.go b/extractor/filesystem/language/java/vendorjdk/vendorjdk_test.go
+index f2c74177..918729f5 100644
+--- a/extractor/filesystem/language/java/vendorjdk/vendorjdk_test.go
++++ b/extractor/filesystem/language/java/vendorjdk/vendorjdk_test.go
+@@ -23,6 +23,7 @@ import (
+ 	"testing"
+ 
+ 	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/testfix"
+ 	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
+ 	"github.com/google/go-cmp/cmp"
+ 	cpb "github.com/google/osv-scalibr/binary/proto/config_go_proto"
+@@ -80,6 +81,13 @@ func scanInput(t *testing.T, root, p string) *filesystem.ScanInput {
+ 	return &filesystem.ScanInput{FS: fsys, Path: p, Root: root, Reader: f, Info: info}
+ }
+ 
++// The first family of each kind of the module: the synthetic runtimes of the
++// tests carry its vendor-version prefix and are reported in it.
++var (
++	jdkFamily = testfix.Product(osvinternal.KindJDK).Family
++	nikFamily = testfix.Product(osvinternal.KindNIK).Family
++)
++
+ // fakeDetector stands in for the osv-internal detector so that the glue can
+ // be tested independently of it: every home under a non-"zulu" path is a
+ // vendor JDK 21.0.2+14; the JVM library of a home is the first existing
+@@ -102,7 +110,7 @@ func fakeDetector() vendorjdk.Detector {
+ 			}
+ 		}
+ 		return &osvjdk.Runtime{
+-			Home: home, Major: 21, Variant: variant, Version: "21.0.2+14", Vendor: osvjdk.Vendor,
++			Product: jdkFamily, Home: home, Major: 21, Variant: variant, Version: "21.0.2+14", Vendor: osvjdk.Vendor,
+ 			LibJVM: libjvm, Evidence: []string{"fake"},
+ 		}
+ 	}
+@@ -121,7 +129,7 @@ func wantPackage(home, variant, libjvm string) []*extractor.Package {
+ 	return []*extractor.Package{{
+ 		Name: variant, Version: "21.0.2+14", PURLType: purl.TypeGeneric,
+ 		Metadata: &vendorjdkmeta.Metadata{
+-			Ecosystem: osvjdk.EcosystemFor(21), PURL: osvjdk.PURL(variant, "21.0.2+14"),
++			Ecosystem: osvjdk.EcosystemFor(jdkFamily, 21), PURL: osvjdk.PURL(jdkFamily, variant, "21.0.2+14"),
+ 			Home: home, Major: 21, Variant: variant, Vendor: osvjdk.Vendor, LibJVM: libjvm, Evidence: []string{"fake"},
+ 		},
+ 		Location: extractor.LocationFromPath(home), Plugins: []string{vendorjdk.Name},
+@@ -167,39 +175,39 @@ func TestExtract_Glue(t *testing.T) {
+ }
+ 
+ func TestPackageIdentity(t *testing.T) {
+-	nik2321 := osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21")
++	nik2321 := osvinternal.Ecosystem(nikFamily, "23-21")
+ 	jdk := &extractor.Package{
+ 		Name: "jdk", Version: "21.0.2+14", PURLType: purl.TypeGeneric,
+-		Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvjdk.EcosystemFor(21), PURL: osvjdk.PURL("jdk", "21.0.2+14"), Home: "opt/jdk-21.0.2", Major: 21, Variant: "jdk"},
++		Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvjdk.EcosystemFor(jdkFamily, 21), PURL: osvjdk.PURL(jdkFamily, "jdk", "21.0.2+14"), Home: "opt/jdk-21.0.2", Major: 21, Variant: "jdk"},
+ 	}
+-	if got, want := jdk.Ecosystem().String(), osvjdk.EcosystemFor(21); got != want {
++	if got, want := jdk.Ecosystem().String(), osvjdk.EcosystemFor(jdkFamily, 21); got != want {
+ 		t.Errorf("Ecosystem() = %q, want %q", got, want)
+ 	}
+-	if got, want := jdk.PURL().String(), osvjdk.PURL("jdk", "21.0.2+14"); got != want {
++	if got, want := jdk.PURL().String(), osvjdk.PURL(jdkFamily, "jdk", "21.0.2+14"); got != want {
+ 		t.Errorf("PURL() = %q, want %q", got, want)
+ 	}
+-	if got, want := jdk.Ecosystem().String(), osvjdk.EcosystemFor(21); got != want {
++	if got, want := jdk.Ecosystem().String(), osvjdk.EcosystemFor(jdkFamily, 21); got != want {
+ 		t.Errorf("ecosystem %q differs from the module's %q", got, want)
+ 	}
+ 
+ 	// the second product family passes through untouched
+ 	nik := &extractor.Package{
+ 		Name: "core", Version: "23.1.0+1", PURLType: purl.TypeGeneric,
+-		Metadata: &vendorjdkmeta.Metadata{Ecosystem: nik2321, PURL: osvjdk.PURLNIK("core", "23.1.0+1"), Major: 21, Variant: "core"},
++		Metadata: &vendorjdkmeta.Metadata{Ecosystem: nik2321, PURL: osvjdk.PURL(nikFamily, "core", "23.1.0+1"), Major: 21, Variant: "core"},
+ 	}
+ 	if got, want := nik.Ecosystem().String(), nik2321; got != want {
+ 		t.Errorf("Ecosystem() = %q, want %q", got, want)
+ 	}
+-	if got, want := nik.PURL().String(), osvjdk.PURLNIK("core", "23.1.0+1"); got != want {
++	if got, want := nik.PURL().String(), osvjdk.PURL(nikFamily, "core", "23.1.0+1"); got != want {
+ 		t.Errorf("PURL() = %q, want %q", got, want)
+ 	}
+ 
+ 	// without a purl from the detector the JDK purl is built from variant and version
+-	jdk8 := &extractor.Package{Name: "jdk", Version: "8u402+7", PURLType: purl.TypeGeneric, Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvjdk.EcosystemFor(8), Major: 8, Variant: "jdk"}}
+-	if got, want := jdk8.PURL().String(), osvjdk.PURL("jdk", "8u402+7"); got != want {
++	jdk8 := &extractor.Package{Name: "jdk", Version: "8u402+7", PURLType: purl.TypeGeneric, Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvjdk.EcosystemFor(jdkFamily, 8), Major: 8, Variant: "jdk"}}
++	if got, want := jdk8.PURL().String(), osvjdk.PURL(jdkFamily, "jdk", "8u402+7"); got != want {
+ 		t.Errorf("PURL() = %q, want %q", got, want)
+ 	}
+-	if got, want := jdk8.Ecosystem().String(), osvjdk.EcosystemFor(8); got != want {
++	if got, want := jdk8.Ecosystem().String(), osvjdk.EcosystemFor(jdkFamily, 8); got != want {
+ 		t.Errorf("Ecosystem() = %q, want %q", got, want)
+ 	}
+ }
+@@ -208,7 +216,7 @@ func TestPackageIdentity(t *testing.T) {
+ // runtimes in testdata (fake JVM libraries carrying the real strings; macOS
+ // trees without a JVM library).
+ func TestExtract_Detector(t *testing.T) {
+-	nik2321 := osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21")
++	nik2321 := osvinternal.Ecosystem(nikFamily, "23-21")
+ 	testdata := buildTestRuntimes(t)
+ 	e, _ := vendorjdk.New(&cpb.PluginConfig{})
+ 
+@@ -220,32 +228,32 @@ func TestExtract_Detector(t *testing.T) {
+ 		wantEco string
+ 	}{
+ 		{name: "JDK 21", root: ".", path: "jdk-21.0.2/lib/server/libjvm.so",
+-			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
++			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
+ 		{name: "JDK 21 release file stays silent (JVM library reports)", root: ".", path: "jdk-21.0.2/release"},
+ 		{name: "JRE 21", root: ".", path: "jre-21.0.2/lib/server/libjvm.so",
+-			want: &extractor.Package{Name: "jre", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
++			want: &extractor.Package{Name: "jre", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
+ 		{name: "JDK 8 (vendor from rt.jar, version from libjvm.so)", root: ".", path: "jdk8u402/jre/lib/amd64/server/libjvm.so",
+-			want: &extractor.Package{Name: "jdk", Version: "8u402+7"}, wantEco: osvjdk.EcosystemFor(8)},
++			want: &extractor.Package{Name: "jdk", Version: "8u402+7"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 8)},
+ 		{name: "JDK 8 rt.jar stays silent (JVM library reports)", root: ".", path: "jdk8u402/jre/lib/rt.jar"},
+ 		{name: "JDK 21 CSPU (four components)", root: ".", path: "jdk-21.0.12.1/lib/server/libjvm.so",
+-			want: &extractor.Package{Name: "jdk", Version: "21.0.12.1+1"}, wantEco: osvjdk.EcosystemFor(21)},
++			want: &extractor.Package{Name: "jdk", Version: "21.0.12.1+1"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
+ 		{name: "JDK 21 CPU (five components)", root: ".", path: "jdk-21.0.9.0.1/lib/server/libjvm.so",
+-			want: &extractor.Package{Name: "jdk", Version: "21.0.9.0.1+1"}, wantEco: osvjdk.EcosystemFor(21)},
++			want: &extractor.Package{Name: "jdk", Version: "21.0.9.0.1+1"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
+ 		{name: "JDK 8 CSPU", root: ".", path: "jdk8u504/jre/lib/amd64/server/libjvm.so",
+-			want: &extractor.Package{Name: "jdk", Version: "8u504+1"}, wantEco: osvjdk.EcosystemFor(8)},
++			want: &extractor.Package{Name: "jdk", Version: "8u504+1"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 8)},
+ 		{name: "JDK 8 CPU", root: ".", path: "jdk8u481/jre/lib/amd64/server/libjvm.so",
+-			want: &extractor.Package{Name: "jdk", Version: "8u481+1"}, wantEco: osvjdk.EcosystemFor(8)},
++			want: &extractor.Package{Name: "jdk", Version: "8u481+1"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 8)},
+ 		{name: "macOS JDK 21 without JVM library: release file", root: ".", path: "macos/jdk-21.0.2.jdk/release",
+-			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
++			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
+ 		{name: "Windows JDK 21: jvm.dll", root: ".", path: "windows/jdk-21.0.2/bin/server/jvm.dll",
+-			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
++			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
+ 		{name: "NIK 23.1.0 core is reported in its own ecosystem, never as a JDK", root: ".", path: "nik-23.1.0/lib/server/libjvm.so",
+ 			want: &extractor.Package{Name: "core", Version: "23.1.0+1"}, wantEco: nik2321},
+ 		{name: "Azul Zulu is not the vendor's", root: ".", path: "zulu21/lib/server/libjvm.so"},
+ 		{name: "Azul Zulu release file is not the vendor's", root: ".", path: "zulu21/release"},
+ 		{name: "apk-installed runtime on the vendor Linux is skipped", root: "vendor-linux", path: "usr/lib/jvm/jdk21-lite/lib/server/libjvm.so"},
+ 		{name: "a runtime under /usr/lib/jvm on Debian is reported", root: "debian", path: "usr/lib/jvm/jdk-21.0.2-x86_64/lib/server/libjvm.so",
+-			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
++			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+@@ -266,10 +274,7 @@ func TestExtract_Detector(t *testing.T) {
+ 			if p.Name != tt.want.Name || p.Version != tt.want.Version || p.Ecosystem().String() != tt.wantEco {
+ 				t.Errorf("Extract(%s) = %s %s %s, want %s %s %s", tt.path, p.Ecosystem(), p.Name, p.Version, tt.wantEco, tt.want.Name, tt.want.Version)
+ 			}
+-			wantPURL := osvjdk.PURL(tt.want.Name, tt.want.Version)
+-			if osvinternal.Family(tt.wantEco) == osvinternal.EcosystemNIK {
+-				wantPURL = osvjdk.PURLNIK(tt.want.Name, tt.want.Version)
+-			}
++			wantPURL := osvjdk.PURL(osvinternal.Family(tt.wantEco), tt.want.Name, tt.want.Version)
+ 			if p.PURL() == nil || p.PURL().String() != wantPURL {
+ 				t.Errorf("PURL() = %v, want %s", p.PURL(), wantPURL)
+ 			}
+diff --git a/inventory/osvecosystem/parsed.go b/inventory/osvecosystem/parsed.go
+index 498a13f6..73993794 100644
+--- a/inventory/osvecosystem/parsed.go
++++ b/inventory/osvecosystem/parsed.go
+@@ -19,7 +19,6 @@ import (
+ 	"encoding/json"
+ 	"fmt"
+ 	"slices"
+-	"strings"
+ 
+ 	osvinternal "github.com/bell-sw/osv-internal"
+ 	"github.com/bell-sw/osv-internal/osvdata"
+@@ -45,14 +44,17 @@ const (
+ 	// ("<family>:<VERSION_ID>"), see extractor os/ecosystem.
+ 	EcosystemVendorLinux    osvconstants.Ecosystem = osvinternal.EcosystemLinux
+ 	EcosystemVendorHardened osvconstants.Ecosystem = osvinternal.EcosystemHardened
+-	// EcosystemVendorJDK is the ecosystem of the vendor's standalone JDK
+-	// runtimes ("<family>:<java major>"), see extractor java/vendorjdk.
+-	EcosystemVendorJDK osvconstants.Ecosystem = osvinternal.EcosystemJDK
+-	// EcosystemVendorNIK is the ecosystem of the vendor's standalone Native
+-	// Image Kit runtimes ("<family>:<nik major>-<java major>").
+-	EcosystemVendorNIK osvconstants.Ecosystem = osvinternal.EcosystemNIK
+ )
+ 
++// IsVendorProduct reports whether the ecosystem is one of the vendor's
++// standalone product families (osvinternal.Products; "<family>:<java major>"
++// for a JDK, "<family>:<nik major>-<java major>" for a Native Image Kit, see
++// extractor java/vendorjdk). They are no constants: a vendor may have any
++// number of them, and a family name may contain colons.
++func IsVendorProduct(ecosystem osvconstants.Ecosystem) bool {
++	return osvinternal.ProductOf(string(ecosystem)) != nil
++}
++
+ // osvDevBucket is the osv.dev export bucket, where every ecosystem osv.dev
+ // serves is published.
+ const osvDevBucket = "https://osv-vulnerabilities.storage.googleapis.com"
+@@ -179,13 +181,14 @@ func (p Parsed) GetValidity() error {
+ 		osvconstants.EcosystemWolfi,
+ 		// GIT is a pseudo ecosystem that can be used in queries, so should be considered valid.
+ 		"GIT",
+-		// the vendor's ecosystems (see above)
++		// the vendor's distributions (see above)
+ 		EcosystemVendorLinux,
+-		EcosystemVendorHardened,
+-		EcosystemVendorJDK,
+-		EcosystemVendorNIK:
++		EcosystemVendorHardened:
+ 
+ 	default:
++		if IsVendorProduct(p.Ecosystem) {
++			return nil
++		}
+ 		return fmt.Errorf("base ecosystem does not exist in osvschema: %q", p.Ecosystem)
+ 	}
+ 
+@@ -213,7 +216,8 @@ func Parse(str string) (Parsed, error) {
+ 
+ 	// We will also add a check for whether the ecosystem is valid to have a suffix here.
+ 	// And return an error if not.
+-	ecosystem, suffix, _ := strings.Cut(str, ":")
++	// The vendor's families are recognised first: one may contain colons.
++	ecosystem, suffix := osvinternal.Family(str), osvinternal.Release(str)
+ 
+ 	result := Parsed{osvconstants.Ecosystem(ecosystem), suffix}
+ 
+diff --git a/inventory/osvecosystem/parsed_vendorjdk_test.go b/inventory/osvecosystem/parsed_vendorjdk_test.go
+index 0f4dd65a..af64732e 100644
+--- a/inventory/osvecosystem/parsed_vendorjdk_test.go
++++ b/inventory/osvecosystem/parsed_vendorjdk_test.go
+@@ -1,17 +1,3 @@
+-// Copyright 2026 Google LLC
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License");
+-// you may not use this file except in compliance with the License.
+-// You may obtain a copy of the License at
+-//
+-//      http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-
+ package osvecosystem_test
+ 
+ import (
+@@ -24,34 +10,39 @@ import (
+ 	"github.com/ossf/osv-schema/bindings/go/osvconstants"
+ )
+ 
+-func TestParse_VendorJDK(t *testing.T) {
+-	jdk21 := osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21")
+-	got, err := osvecosystem.Parse(jdk21)
+-	if err != nil {
+-		t.Fatalf("Parse(%s): %v", jdk21, err)
+-	}
+-	want := osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorJDK, Suffix: "21"}
+-	if got != want {
+-		t.Errorf("Parse(%s) = %+v, want %+v", jdk21, got, want)
+-	}
+-	if got.String() != jdk21 {
+-		t.Errorf("String() = %q", got.String())
+-	}
+-	if !got.Equal(osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorJDK, Suffix: "21"}) ||
+-		got.Equal(osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorJDK, Suffix: "17"}) {
+-		t.Errorf("Equal() does not key on the major version suffix")
++// release is a release of a product family of the kind.
++func release(p osvinternal.Product) string {
++	if p.Kind == osvinternal.KindNIK {
++		return "23-21"
+ 	}
++	return "21"
+ }
+ 
+-func TestParse_VendorNIK(t *testing.T) {
+-	nik2321 := osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21")
+-	got, err := osvecosystem.Parse(nik2321)
+-	if err != nil {
+-		t.Fatalf("Parse(%s): %v", nik2321, err)
++// Every product family of the module parses into its family and release,
++// whatever the family name looks like, and is valid and local-only.
++func TestParse_VendorProducts(t *testing.T) {
++	for _, p := range osvinternal.Products {
++		eco := p.Ecosystem(release(p))
++		got, err := osvecosystem.Parse(eco)
++		if err != nil {
++			t.Fatalf("Parse(%s): %v", eco, err)
++		}
++		want := osvecosystem.Parsed{Ecosystem: osvconstants.Ecosystem(p.Family), Suffix: release(p)}
++		if got != want || got.String() != eco {
++			t.Errorf("Parse(%s) = %+v (%q), want %+v", eco, got, got.String(), want)
++		}
++		if !got.Equal(want) || got.Equal(osvecosystem.Parsed{Ecosystem: want.Ecosystem, Suffix: "17"}) {
++			t.Errorf("%s: Equal() does not key on the suffix", eco)
++		}
++		if !osvecosystem.IsVendorProduct(want.Ecosystem) || !osvecosystem.IsLocalOnly(want.Ecosystem) {
++			t.Errorf("%s: not a local-only vendor product", eco)
++		}
++	}
++	if osvecosystem.IsVendorProduct(osvconstants.EcosystemAlpine) || osvecosystem.IsVendorProduct(osvecosystem.EcosystemVendorLinux) {
++		t.Error("IsVendorProduct of a distribution")
+ 	}
+-	want := osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorNIK, Suffix: "23-21"}
+-	if got != want || got.String() != nik2321 {
+-		t.Errorf("Parse(%s) = %+v (%q), want %+v", nik2321, got, got.String(), want)
++	if _, err := osvecosystem.Parse("Nope:1"); err == nil {
++		t.Error("an unknown ecosystem is accepted")
+ 	}
+ }
+ 
+@@ -59,7 +50,6 @@ func TestIsLocalOnly(t *testing.T) {
+ 	// the distributions are local-only when the module does not fetch them from the osv.dev bucket
+ 	distros := osvdata.DefaultBaseURLFor(osvinternal.EcosystemLinux) != "https://osv-vulnerabilities.storage.googleapis.com"
+ 	for eco, want := range map[osvconstants.Ecosystem]bool{
+-		osvecosystem.EcosystemVendorJDK: true, osvecosystem.EcosystemVendorNIK: true,
+ 		osvecosystem.EcosystemVendorLinux: distros, osvecosystem.EcosystemVendorHardened: distros, osvconstants.EcosystemAlpine: false,
+ 	} {
+ 		if got := osvecosystem.IsLocalOnly(eco); got != want {
+diff --git a/semantic/parse.go b/semantic/parse.go
+index c454a420..e8b619be 100644
+--- a/semantic/parse.go
++++ b/semantic/parse.go
+@@ -19,7 +19,6 @@ package semantic
+ import (
+ 	"errors"
+ 	"fmt"
+-	"strings"
+ 
+ 	osvinternal "github.com/bell-sw/osv-internal"
+ )
+@@ -44,10 +43,18 @@ func MustParse(str string, ecosystem string) Version {
+ // Parse attempts to parse the given string as a version for the specified ecosystem,
+ // returning an ErrUnsupportedEcosystem error if the ecosystem is not supported.
+ func Parse(str string, ecosystem string) (Version, error) {
+-	// Remove the version suffix from the ecosystem name.
+-	parts := strings.Split(ecosystem, ":")
+-	if len(parts) > 1 {
+-		ecosystem = parts[0]
++	// Remove the version suffix from the ecosystem name (a family of the
++	// vendor's module is recognised first: one may contain colons).
++	ecosystem = osvinternal.Family(ecosystem)
++
++	// The vendor's standalone products: any number of JDK and NIK families.
++	if p := osvinternal.ProductOf(ecosystem); p != nil {
++		switch p.Kind {
++		case osvinternal.KindJDK:
++			return ParseVendorJDKVersion(str)
++		case osvinternal.KindNIK:
++			return ParseVendorNIKVersion(str)
++		}
+ 	}
+ 
+ 	// TODO(#457): support more ecosystems
+@@ -86,10 +93,6 @@ func Parse(str string, ecosystem string) (Version, error) {
+ 		return ParseSemverVersion(str), nil
+ 	case "Julia":
+ 		return ParseSemverVersion(str), nil
+-	case osvinternal.EcosystemJDK:
+-		return ParseVendorJDKVersion(str)
+-	case osvinternal.EcosystemNIK:
+-		return ParseVendorNIKVersion(str)
+ 	case "Mageia":
+ 		return ParseRedHatVersion(str), nil
+ 	case "Maven":
+diff --git a/semantic/parse_test.go b/semantic/parse_test.go
+index 516653f0..d86c2fa0 100644
+--- a/semantic/parse_test.go
++++ b/semantic/parse_test.go
+@@ -40,8 +40,6 @@ var ecosystems = []string{
+ 	"Go",
+ 	"Hex",
+ 	"Julia",
+-	osvinternal.EcosystemJDK,
+-	osvinternal.EcosystemNIK,
+ 	"Mageia",
+ 	"Maven",
+ 	"MinimOS",
+@@ -61,6 +59,11 @@ var ecosystems = []string{
+ }
+ 
+ func TestParse(t *testing.T) {
++	// the vendor's product families, however many the module is built with
++	ecosystems := ecosystems
++	for _, p := range osvinternal.Products {
++		ecosystems = append(ecosystems, p.Family)
++	}
+ 	for _, ecosystem := range ecosystems {
+ 		_, err := semantic.Parse("", ecosystem)
+ 
+diff --git a/semantic/testdata/vendornik-versions.txt b/semantic/testdata/vendornik-versions.txt
+index 72ec7c11..4ba3fa3f 100644
+--- a/semantic/testdata/vendornik-versions.txt
++++ b/semantic/testdata/vendornik-versions.txt
+@@ -4,7 +4,6 @@
+ 23.1.3 = 23.1.3+1
+ 23.1.3+1 < 23.1.3+2
+ 23.1.8 = 23.1.8+1
+-Liberica-NIK-23.1.0-1 = 23.1.0+1
+ 23.1.3 < 23.1.8
+ 23.1.8 < 23.1.12+1
+ 23.1.12+1 < 23.1.12.1+1
+diff --git a/semantic/version-vendorjdk.go b/semantic/version-vendorjdk.go
+index ea8996fe..6af20fab 100644
+--- a/semantic/version-vendorjdk.go
++++ b/semantic/version-vendorjdk.go
+@@ -17,7 +17,6 @@ package semantic
+ import (
+ 	"fmt"
+ 
+-	osvinternal "github.com/bell-sw/osv-internal"
+ 	"github.com/bell-sw/osv-internal/jdkver"
+ 	"github.com/bell-sw/osv-internal/nikver"
+ )
+@@ -58,7 +57,7 @@ func ParseVendorJDKVersion(str string) (VendorJDKVersion, error) {
+ 	}
+ 	v, err := jdkver.Parse(str)
+ 	if err != nil {
+-		return VendorJDKVersion{}, fmt.Errorf("%w: %q is not a %s version", ErrInvalidVersion, str, osvinternal.EcosystemJDK)
++		return VendorJDKVersion{}, fmt.Errorf("%w: %q is not a JDK product version", ErrInvalidVersion, str)
+ 	}
+ 
+ 	return VendorJDKVersion{v: v}, nil
+@@ -101,14 +100,14 @@ func (v VendorJDKVersion) CompareStr(str string) (int, error) {
+ func (v VendorJDKVersion) CompareUpperBoundStr(str string) (int, error) {
+ 	below, err := jdkver.InRangeVersion(v.v, "", str, "")
+ 	if err != nil {
+-		return 0, fmt.Errorf("%w: %q is not a %s version", ErrInvalidVersion, str, osvinternal.EcosystemJDK)
++		return 0, fmt.Errorf("%w: %q is not a JDK product version", ErrInvalidVersion, str)
+ 	}
+ 	if below {
+ 		return -1, nil
+ 	}
+ 	notAbove, err := jdkver.InRangeVersion(v.v, "", "", str)
+ 	if err != nil {
+-		return 0, fmt.Errorf("%w: %q is not a %s version", ErrInvalidVersion, str, osvinternal.EcosystemJDK)
++		return 0, fmt.Errorf("%w: %q is not a JDK product version", ErrInvalidVersion, str)
+ 	}
+ 	if notAbove {
+ 		return 0, nil
+@@ -133,7 +132,7 @@ func ParseVendorNIKVersion(str string) (VendorNIKVersion, error) {
+ 	}
+ 	v, err := nikver.Parse(str)
+ 	if err != nil {
+-		return VendorNIKVersion{}, fmt.Errorf("%w: %q is not a %s version", ErrInvalidVersion, str, osvinternal.EcosystemNIK)
++		return VendorNIKVersion{}, fmt.Errorf("%w: %q is not a NIK product version", ErrInvalidVersion, str)
+ 	}
+ 
+ 	return VendorNIKVersion{v: v}, nil
+diff --git a/semantic/version-vendorjdk_test.go b/semantic/version-vendorjdk_test.go
+index 8f74b004..ad541175 100644
+--- a/semantic/version-vendorjdk_test.go
++++ b/semantic/version-vendorjdk_test.go
+@@ -19,21 +19,22 @@ import (
+ 	"testing"
+ 
+ 	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/testfix"
+ 
+ 	"github.com/google/osv-scalibr/semantic"
+ )
+ 
+ func TestVendorJDKVersion_Compare(t *testing.T) {
+-	runAgainstEcosystemFixture(t, osvinternal.EcosystemJDK, "vendorjdk-versions.txt")
++	runAgainstEcosystemFixture(t, testfix.Product(osvinternal.KindJDK).Family, "vendorjdk-versions.txt")
+ }
+ 
+ func TestVendorNIKVersion_Compare(t *testing.T) {
+-	runAgainstEcosystemFixture(t, osvinternal.EcosystemNIK, "vendornik-versions.txt")
++	runAgainstEcosystemFixture(t, testfix.Product(osvinternal.KindNIK).Family, "vendornik-versions.txt")
+ }
+ 
+ func TestVendorJDKVersion_Suffix(t *testing.T) {
+ 	// the ecosystem suffix (Java major line) must not change the comparison
+-	v, err := semantic.Parse("21.0.2+14", osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"))
++	v, err := semantic.Parse("21.0.2+14", osvinternal.Ecosystem(testfix.Product(osvinternal.KindJDK).Family, "21"))
+ 	if err != nil {
+ 		t.Fatalf("Parse: %v", err)
+ 	}
+@@ -173,10 +174,14 @@ func TestVendorJDKVersion_CompareUpperBoundStr(t *testing.T) {
+ }
+ 
+ func TestParseVendorNIKVersion(t *testing.T) {
++	// a fictional NIK family: its java.vendor.version form carries the family's prefix
++	saved := osvinternal.Products
++	t.Cleanup(func() { osvinternal.Products = saved })
++	osvinternal.Products = []osvinternal.Product{{Family: "Test NIK", PURLName: "test-nik", Kind: osvinternal.KindNIK, VendorVersionPrefix: "Test-NIK-"}}
+ 	for in, want := range map[string]string{
+-		"23.1.0+1": "23.1.0+1",
+-		"23.1.8":   "23.1.8",
+-		osvinternal.NIKVendorVersionPrefix + "23.1.0-1": "23.1.0+1",
++		"23.1.0+1":          "23.1.0+1",
++		"23.1.8":            "23.1.8",
++		"Test-NIK-23.1.0-1": "23.1.0+1",
+ 	} {
+ 		got, err := semantic.ParseVendorNIKVersion(in)
+ 		if err != nil {
+-- 
+2.55.0
+

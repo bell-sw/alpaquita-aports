@@ -1,0 +1,711 @@
+From d723b533b9cd7849f2c92abad02f6d6bf7c10bd6 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 22:24:46 +0000
+Subject: [PATCH] osvlocal: sources of the vendor databases, warn when one is
+ unavailable
+
+Settings for the ecosystem families of the vendor's products (the
+module's Ecosystems: its two distributions and the standalone JDK and
+NIK); no other ecosystem changes. They have no field in the plugin's proto
+config and are set with the new Configure(Options).
+
+* Archive location (archiveURL): Options.VendorFeeds[family] (a base or
+  the .zip itself; ParseVendorFeeds reads "<family>=<location>" pairs),
+  else Options.VendorURL (<url>/<family>/all.zip; http(s), file:// or a
+  directory), else the built-in default: the archive host (osv.dev bucket
+  or its mirror) for the distributions, the module's product base URL for
+  the standalone runtimes, which the osv.dev bucket does not carry.
+* Options.LocalOnlyEcosystems: match only the ecosystems api.osv.dev does
+  not serve and download their archives. A scan that queries api.osv.dev
+  runs the enricher this way next to vulnmatch/osvdev.
+* An archive of a vendor family that cannot be obtained is one warning per
+  family (osvdata.UnavailableError.Warning):
+
+    <vendor> OSV data for "<family>" is unavailable (<reason>); packages of
+    this product were NOT checked against <vendor> advisories. Source: <url>
+
+  The packages stay in the inventory without findings and the other
+  packages are matched. Options.VendorStrict keeps it an error.
+---
+ enricher/vulnmatch/osvlocal/alias_test.go  |   6 +-
+ enricher/vulnmatch/osvlocal/matcher.go     |  25 +-
+ enricher/vulnmatch/osvlocal/osvlocal.go    |  15 +
+ enricher/vulnmatch/osvlocal/vendor.go      | 170 ++++++++++
+ enricher/vulnmatch/osvlocal/vendor_test.go | 343 +++++++++++++++++++++
+ enricher/vulnmatch/osvlocal/zip.go         |   2 +-
+ 6 files changed, 558 insertions(+), 3 deletions(-)
+ create mode 100644 enricher/vulnmatch/osvlocal/vendor.go
+ create mode 100644 enricher/vulnmatch/osvlocal/vendor_test.go
+
+diff --git a/enricher/vulnmatch/osvlocal/alias_test.go b/enricher/vulnmatch/osvlocal/alias_test.go
+index aa5869d..9f2831b 100644
+--- a/enricher/vulnmatch/osvlocal/alias_test.go
++++ b/enricher/vulnmatch/osvlocal/alias_test.go
+@@ -193,6 +193,8 @@ func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
+ 		if err != nil {
+ 			t.Fatalf("newlocalMatcher: %v", err)
+ 		}
++		// strict: for a family of the vendor's products this is only a warning by default (vendor_test.go)
++		m.vendorStrict = true
+ 		if _, err := m.MatchVulnerabilities(t.Context(), aliasJDK, []*extractor.Package{aliasJDK}); err == nil {
+ 			t.Errorf("expected an error for a missing offline database, got none")
+ 		}
+@@ -200,7 +202,8 @@ func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
+ }
+ 
+ // TestLocalMatcher_DownloadFailureUsesCache: a failed download falls back to
+-// the cached copy; without a cache it is an error.
++// the cached copy; without a cache it is an error (for vendor families only
++// in strict mode, see vendor_test.go).
+ func TestLocalMatcher_DownloadFailureUsesCache(t *testing.T) {
+ 	archive := fakeserver.ZipOSVs(t, vendorOSVs())
+ 
+@@ -227,6 +230,7 @@ func TestLocalMatcher_DownloadFailureUsesCache(t *testing.T) {
+ 		if err != nil {
+ 			t.Fatalf("newlocalMatcher: %v", err)
+ 		}
++		m.vendorStrict = true
+ 		if _, err := m.MatchVulnerabilities(t.Context(), aliasJDK, []*extractor.Package{aliasJDK}); err == nil {
+ 			t.Errorf("expected an error, got none")
+ 		}
+diff --git a/enricher/vulnmatch/osvlocal/matcher.go b/enricher/vulnmatch/osvlocal/matcher.go
+index a105800..6a6ff8c 100644
+--- a/enricher/vulnmatch/osvlocal/matcher.go
++++ b/enricher/vulnmatch/osvlocal/matcher.go
+@@ -43,6 +43,13 @@ type localMatcher struct {
+ 	// userAgent sets the user agent requests for db zips are made with
+ 	userAgent  string
+ 	httpClient *http.Client
++	// vendorStrict makes an unavailable archive of a vendor family an
++	// error instead of a warning
++	vendorStrict bool
++	// vendorURL and vendorFeeds say where the archives of the vendor
++	// families come from, see archiveURL
++	vendorURL   string
++	vendorFeeds map[string]string
+ }
+ 
+ func newlocalMatcher(localDBPath string, userAgent string, downloadDB bool, zippedDBRemoteHost string, httpClient *http.Client) (*localMatcher, error) {
+@@ -111,17 +118,33 @@ func (matcher *localMatcher) loadDBFromCache(ctx context.Context, eco osvconstan
+ 		return nil, matcher.failedDBs[eco]
+ 	}
+ 
++	url := matcher.archiveURL(eco)
+ 	db, err := newZippedDB(
+ 		ctx,
+ 		matcher.dbBasePath,
+ 		string(eco),
+-		fmt.Sprintf("%s/%s/all.zip", matcher.zippedDBRemoteHost, eco),
++		url,
+ 		matcher.userAgent,
+ 		!matcher.downloadDB,
+ 		invs,
+ 		matcher.httpClient,
+ 	)
+ 
++	if err != nil && isVendorFamily(eco) {
++		// An unavailable vendor archive is a warning, not a failure: go on with
++		// an empty database, the packages stay without findings. Strict mode
++		// keeps the error.
++		warning := unavailable(eco, url, err).Warning()
++		if !matcher.vendorStrict {
++			log.Warnf("%s", warning)
++			db = &zipDB{Name: string(eco), ArchiveURL: url}
++			matcher.dbs[eco] = db
++
++			return db, nil
++		}
++		err = fmt.Errorf("%s: %w", warning, err)
++	}
++
+ 	if err != nil {
+ 		matcher.failedDBs[eco] = err
+ 		log.Errorf("could not load db for %s ecosystem: %v", eco, err)
+diff --git a/enricher/vulnmatch/osvlocal/osvlocal.go b/enricher/vulnmatch/osvlocal/osvlocal.go
+index e4837bb..3de789e 100644
+--- a/enricher/vulnmatch/osvlocal/osvlocal.go
++++ b/enricher/vulnmatch/osvlocal/osvlocal.go
+@@ -25,8 +25,10 @@ import (
+ 
+ 	cpb "github.com/google/osv-scalibr/binary/proto/config_go_proto"
+ 	"github.com/google/osv-scalibr/enricher"
++	osvutil "github.com/google/osv-scalibr/enricher/vulnmatch/internal/osvutil"
+ 	"github.com/google/osv-scalibr/extractor"
+ 	"github.com/google/osv-scalibr/inventory"
++	"github.com/google/osv-scalibr/inventory/osvecosystem"
+ 	"github.com/google/osv-scalibr/inventory/vex"
+ 	"github.com/google/osv-scalibr/plugin"
+ 	"github.com/google/osv-scalibr/plugin/config"
+@@ -49,6 +51,12 @@ type Enricher struct {
+ 	localPath  string
+ 	download   bool
+ 	httpClient *http.Client
++
++	// see Options
++	localOnly    bool
++	vendorStrict bool
++	vendorURL    string
++	vendorFeeds  map[string]string
+ }
+ 
+ // New makes a new osvlocal.Enricher with the given config.
+@@ -146,11 +154,18 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
+ 	if err != nil {
+ 		return err
+ 	}
++	dbs.vendorStrict = e.vendorStrict
++	dbs.vendorURL = e.vendorURL
++	dbs.vendorFeeds = e.vendorFeeds
+ 
+ 	// A database that cannot be loaded must not stop the other packages from
+ 	// being matched: collect the error and report it at the end.
+ 	var errs []error
+ 	for _, pkg := range inv.Packages {
++		if e.localOnly && !osvecosystem.IsLocalOnly(osvutil.ParsePackage(pkg).Ecosystem.Ecosystem) {
++			continue
++		}
++
+ 		vulns, err := dbs.MatchVulnerabilities(ctx, pkg, inv.Packages)
+ 
+ 		if err != nil {
+diff --git a/enricher/vulnmatch/osvlocal/vendor.go b/enricher/vulnmatch/osvlocal/vendor.go
+new file mode 100644
+index 0000000..a840f04
+--- /dev/null
++++ b/enricher/vulnmatch/osvlocal/vendor.go
+@@ -0,0 +1,170 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package osvlocal
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"io/fs"
++	"net"
++	"slices"
++	"strings"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/osvdata"
++	"github.com/google/osv-scalibr/plugin"
++	"github.com/ossf/osv-schema/bindings/go/osvconstants"
++)
++
++// Options are the settings of the Enricher that have no field in the plugin's
++// proto config; they concern the vendor families (osvinternal.Ecosystems).
++type Options struct {
++	// LocalOnlyEcosystems restricts the enricher to the ecosystems api.osv.dev
++	// does not serve (osvecosystem.IsLocalOnly), whose archives it downloads
++	// as needed; the other packages are left to vulnmatch/osvdev.
++	LocalOnlyEcosystems bool
++	// VendorURL is the base location of the archives of all vendor
++	// families (<url>/<family>/all.zip): an http(s) URL, a file:// URL or a
++	// directory. Empty means the built-in default of each family.
++	VendorURL string
++	// VendorFeeds is the location of the archive of single families, keyed
++	// by family name (see ParseVendorFeeds): a base as in VendorURL or the
++	// .zip itself. It wins over VendorURL.
++	VendorFeeds map[string]string
++	// VendorStrict turns an unavailable archive of a vendor family into a
++	// failure of the enricher instead of a warning.
++	VendorStrict bool
++}
++
++// Configure applies opts to p when p is this package's Enricher.
++func Configure(p plugin.Plugin, opts Options) {
++	e, ok := p.(*Enricher)
++	if !ok {
++		return
++	}
++	e.localOnly = opts.LocalOnlyEcosystems
++	e.vendorStrict = opts.VendorStrict
++	e.vendorURL = opts.VendorURL
++	e.vendorFeeds = opts.VendorFeeds
++	if e.localOnly {
++		e.download = true
++	}
++}
++
++// isVendorFamily reports whether the ecosystem is one of osvinternal.Ecosystems.
++func isVendorFamily(eco osvconstants.Ecosystem) bool {
++	return slices.Contains(osvinternal.Ecosystems, string(eco))
++}
++
++// ParseVendorFeeds parses "<family>=<location>" pairs into Options.VendorFeeds;
++// family names are matched case-insensitively against osvinternal.Ecosystems.
++func ParseVendorFeeds(pairs []string) (map[string]string, error) {
++	feeds := map[string]string{}
++	for _, pair := range pairs {
++		if strings.TrimSpace(pair) == "" {
++			continue
++		}
++		name, location, ok := strings.Cut(pair, "=")
++		name, location = strings.TrimSpace(name), strings.TrimSpace(location)
++		if !ok || name == "" || location == "" {
++			return nil, fmt.Errorf("invalid --vendor-feed %q: want \"<product>=<url>\"", pair)
++		}
++		family := ""
++		for _, f := range osvinternal.Ecosystems {
++			if strings.EqualFold(f, name) {
++				family = f
++			}
++		}
++		if family == "" {
++			return nil, fmt.Errorf("invalid --vendor-feed %q: unknown product %q (products: %s)", pair, name, strings.Join(osvinternal.Ecosystems, ", "))
++		}
++		feeds[family] = location
++	}
++
++	return feeds, nil
++}
++
++// archiveURL returns the location of the archive of an ecosystem:
++// <host>/<ecosystem>/all.zip on the archive host (the osv.dev bucket or a
++// mirror), except for the vendor families, which follow the precedence of
++// osvdata.Source.ArchiveURL: the feed of the family, else the vendor base
++// URL, else the built-in default - the archive host for the distributions,
++// osvdata.DefaultProductBaseURL for the standalone runtimes, which the osv.dev
++// bucket does not carry.
++func (matcher *localMatcher) archiveURL(eco osvconstants.Ecosystem) string {
++	family := string(eco)
++	if isVendorFamily(eco) {
++		inBucket := osvdata.DefaultBaseURLFor(family) == osvdata.DefaultBaseURL
++		if matcher.vendorFeeds[family] != "" || matcher.vendorURL != "" || !inBucket {
++			src := &osvdata.Source{BaseURL: matcher.vendorURL, URLs: matcher.vendorFeeds}
++			location := src.ArchiveURL(family)
++			lower := strings.ToLower(location)
++			if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") && !strings.HasPrefix(lower, "file://") {
++				// a local path: zipDB reads those through file://
++				location = "file://" + location
++			}
++
++			return location
++		}
++	}
++
++	return fmt.Sprintf("%s/%s/all.zip", matcher.zippedDBRemoteHost, eco)
++}
++
++// httpStatusError is a response of the archive host other than 200.
++type httpStatusError struct {
++	code   int
++	status string
++}
++
++func (e *httpStatusError) Error() string { return "db host returned " + e.status }
++
++// unavailable builds the module's canonical UnavailableError for a vendor family.
++func unavailable(eco osvconstants.Ecosystem, url string, err error) *osvdata.UnavailableError {
++	return &osvdata.UnavailableError{Family: string(eco), URL: url, Reason: unavailableReason(err), Err: err}
++}
++
++// unavailableReason is the short human reason of a failure to get an archive.
++func unavailableReason(err error) string {
++	var status *httpStatusError
++	var dns *net.DNSError
++	var nerr net.Error
++	msg := strings.ToLower(err.Error())
++	switch {
++	case errors.Is(err, errOfflineDatabaseNotFound):
++		return "offline and not cached"
++	case errors.As(err, &status):
++		return fmt.Sprintf("HTTP %d", status.code)
++	case errors.Is(err, fs.ErrNotExist):
++		return "file not found"
++	case errors.Is(err, fs.ErrPermission):
++		return "permission denied"
++	case errors.Is(err, context.Canceled):
++		return "cancelled"
++	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &nerr) && nerr.Timeout():
++		return "timeout"
++	case errors.As(err, &dns):
++		return "host not found"
++	case strings.Contains(msg, "connection refused"):
++		return "connection refused"
++	case strings.Contains(msg, "x509:"), strings.Contains(msg, "tls:"):
++		return "TLS error"
++	case strings.Contains(msg, "could not read osv database archive"):
++		return "not a valid OSV archive"
++	}
++
++	return "download failed"
++}
+diff --git a/enricher/vulnmatch/osvlocal/vendor_test.go b/enricher/vulnmatch/osvlocal/vendor_test.go
+new file mode 100644
+index 0000000..15e2d8d
+--- /dev/null
++++ b/enricher/vulnmatch/osvlocal/vendor_test.go
+@@ -0,0 +1,343 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package osvlocal
++
++import (
++	"fmt"
++	"maps"
++	"net/http"
++	"path"
++	"slices"
++	"strings"
++	"sync"
++	"testing"
++
++	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/fakeserver"
++	"github.com/google/osv-scalibr/extractor"
++	vendorjdkmeta "github.com/google/osv-scalibr/extractor/filesystem/language/java/vendorjdk/metadata"
++	"github.com/google/osv-scalibr/inventory"
++	"github.com/google/osv-scalibr/log"
++	"github.com/google/osv-scalibr/purl"
++	"github.com/ossf/osv-schema/bindings/go/osvconstants"
++	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
++)
++
++// warnings captures what the enricher logs at warning level.
++type warnings struct {
++	log.DefaultLogger
++
++	mu    sync.Mutex
++	lines []string
++}
++
++func (w *warnings) Warnf(format string, args ...any) {
++	w.mu.Lock()
++	defer w.mu.Unlock()
++	w.lines = append(w.lines, fmt.Sprintf(format, args...))
++}
++
++func captureWarnings(t *testing.T) *warnings {
++	t.Helper()
++	w := &warnings{}
++	log.SetLogger(w)
++	t.Cleanup(func() { log.SetLogger(&log.DefaultLogger{}) })
++
++	return w
++}
++
++// recorder is an http.RoundTripper that records the requested URLs and
++// answers every request with the given status.
++type recorder struct {
++	mu     sync.Mutex
++	status int
++	urls   []string
++}
++
++func (r *recorder) RoundTrip(req *http.Request) (*http.Response, error) {
++	r.mu.Lock()
++	defer r.mu.Unlock()
++	r.urls = append(r.urls, req.Method+" "+req.URL.String())
++
++	return &http.Response{
++		StatusCode: r.status, Status: fmt.Sprintf("%d %s", r.status, http.StatusText(r.status)),
++		Body: http.NoBody, Header: http.Header{}, Request: req,
++	}, nil
++}
++
++func vendorJDKPkg(ecosystem, name, version string) *extractor.Package {
++	return &extractor.Package{
++		Name: name, Version: version, PURLType: purl.TypeGeneric,
++		Metadata: &vendorjdkmeta.Metadata{Ecosystem: ecosystem, Variant: name},
++	}
++}
++
++func vendorJDKOSVs() map[string]*osvpb.Vulnerability {
++	return map[string]*osvpb.Vulnerability{
++		"BELL-CVE-2025-24855.json": {
++			Id:       "BELL-CVE-2025-24855",
++			Upstream: []string{"CVE-2025-24855"},
++			Affected: []*osvpb.Affected{{
++				Package: &osvpb.Package{Ecosystem: "Liberica JDK:21", Name: "jdk"},
++				Ranges:  []*osvpb.Range{{Type: osvpb.Range_ECOSYSTEM, Events: []*osvpb.Event{{Introduced: "21"}, {Fixed: "21.0.8+12"}}}},
++			}},
++		},
++	}
++}
++
++const (
++	osvDevBucket = "https://osv-vulnerabilities.storage.googleapis.com"
++	wantJDKURL   = "https://packages.bell-sw.com/osv/Liberica%20JDK/all.zip"
++	wantNIKURL   = "https://packages.bell-sw.com/osv/Liberica%20NIK/all.zip"
++)
++
++// The runtime archives are requested from the module's default location;
++// an HTTP 404 there is one warning per family, not an error.
++func TestEnrich_VendorRuntimeDefaultURLAndUnavailableWarning(t *testing.T) {
++	w := captureWarnings(t)
++	rt := &recorder{status: http.StatusNotFound}
++	e := &Enricher{zippedDBRemoteHost: osvDevBucket, localPath: createTestDir(t), download: true, httpClient: &http.Client{Transport: rt}}
++
++	inv := &inventory.Inventory{Packages: []*extractor.Package{
++		vendorJDKPkg("Liberica JDK:21", "jdk", "21.0.2+14"),
++		vendorJDKPkg("Liberica JDK:8", "jdk", "8u402+7"),
++		vendorJDKPkg("Liberica NIK:23-21", "core", "23.1.0+1"),
++	}}
++	if err := e.Enrich(t.Context(), nil, inv); err != nil {
++		t.Fatalf("Enrich() = %v, want no error (an unavailable vendor archive is a warning)", err)
++	}
++	if len(inv.PackageVulns) != 0 || len(inv.Packages) != 3 {
++		t.Errorf("got %d packages and %d findings, want the 3 packages kept without findings", len(inv.Packages), len(inv.PackageVulns))
++	}
++
++	for _, want := range []string{"GET " + wantJDKURL, "GET " + wantNIKURL} {
++		n := 0
++		for _, u := range rt.urls {
++			if u == want {
++				n++
++			}
++		}
++		if n != 1 {
++			t.Errorf("%q requested %d times, want once; requests: %v", want, n, rt.urls)
++		}
++	}
++	for _, u := range rt.urls {
++		if strings.Contains(u, "storage.googleapis.com") {
++			t.Errorf("the osv.dev bucket was asked for a runtime family: %s", u)
++		}
++	}
++
++	wantWarnings := []string{
++		`BellSoft OSV data for "Liberica JDK" is unavailable (HTTP 404); packages of this product were NOT checked against BellSoft advisories. Source: ` + wantJDKURL,
++		`BellSoft OSV data for "Liberica NIK" is unavailable (HTTP 404); packages of this product were NOT checked against BellSoft advisories. Source: ` + wantNIKURL,
++	}
++	if len(w.lines) != len(wantWarnings) {
++		t.Fatalf("warnings = %q, want exactly one per family", w.lines)
++	}
++	for i, want := range wantWarnings {
++		if w.lines[i] != want {
++			t.Errorf("warning %d = %q, want %q", i, w.lines[i], want)
++		}
++	}
++}
++
++// Strict mode turns the warning into a failure that carries the same text.
++func TestEnrich_UnavailableStrict(t *testing.T) {
++	w := captureWarnings(t)
++	rt := &recorder{status: http.StatusNotFound}
++	e := &Enricher{zippedDBRemoteHost: osvDevBucket, localPath: createTestDir(t), download: true, httpClient: &http.Client{Transport: rt}}
++	Configure(e, Options{VendorStrict: true})
++
++	inv := &inventory.Inventory{Packages: []*extractor.Package{vendorJDKPkg("Liberica JDK:21", "jdk", "21.0.2+14")}}
++	err := e.Enrich(t.Context(), nil, inv)
++	if err == nil || !strings.Contains(err.Error(), `BellSoft OSV data for "Liberica JDK" is unavailable (HTTP 404)`) {
++		t.Errorf("Enrich() = %v, want an error with the unavailable text", err)
++	}
++	if len(w.lines) != 0 {
++		t.Errorf("warnings = %q, want none in strict mode (the failure is reported)", w.lines)
++	}
++}
++
++// The precedence of archiveURL: feed, vendor base URL, built-in default.
++func TestArchiveURL(t *testing.T) {
++	const mirror = "https://mirror.example/osv"
++	tests := []struct {
++		name  string
++		host  string
++		url   string
++		feeds map[string]string
++		eco   string
++		want  string
++	}{
++		{"defaults: Alpaquita from the bucket", osvDevBucket, "", nil, "Alpaquita", osvDevBucket + "/Alpaquita/all.zip"},
++		{"defaults: BHC from the bucket", osvDevBucket, "", nil, "BellSoft Hardened Containers", osvDevBucket + "/BellSoft Hardened Containers/all.zip"},
++		{"defaults: Liberica JDK from the BellSoft default", osvDevBucket, "", nil, "Liberica JDK", wantJDKURL},
++		{"defaults: Liberica NIK from the BellSoft default", osvDevBucket, "", nil, "Liberica NIK", wantNIKURL},
++		{"bucket mirror serves Alpaquita", mirror, "", nil, "Alpaquita", mirror + "/Alpaquita/all.zip"},
++		{"bucket mirror never serves Liberica JDK", mirror, "", nil, "Liberica JDK", wantJDKURL},
++		{"bucket mirror serves other ecosystems", mirror, "https://bell.example/osv", nil, "PyPI", mirror + "/PyPI/all.zip"},
++		{"vendor URL: Alpaquita", mirror, "https://bell.example/osv/", nil, "Alpaquita", "https://bell.example/osv/Alpaquita/all.zip"},
++		{"vendor URL: BHC", osvDevBucket, "https://bell.example/osv", nil, "BellSoft Hardened Containers", "https://bell.example/osv/BellSoft%20Hardened%20Containers/all.zip"},
++		{"vendor URL: Liberica JDK", osvDevBucket, "https://bell.example/osv", nil, "Liberica JDK", "https://bell.example/osv/Liberica%20JDK/all.zip"},
++		{"vendor URL: a directory", osvDevBucket, "/srv/osv", nil, "Liberica NIK", "file:///srv/osv/Liberica NIK/all.zip"},
++		{"vendor URL: file://", osvDevBucket, "file:///srv/osv", nil, "Liberica NIK", "file:///srv/osv/Liberica NIK/all.zip"},
++		{"feed wins over the vendor URL", osvDevBucket, "https://bell.example/osv", map[string]string{"Liberica JDK": "https://feed.example/x"}, "Liberica JDK", "https://feed.example/x/Liberica%20JDK/all.zip"},
++		{"feed of another family does not apply", osvDevBucket, "https://bell.example/osv", map[string]string{"Liberica JDK": "https://feed.example/x"}, "Liberica NIK", "https://bell.example/osv/Liberica%20NIK/all.zip"},
++		{"feed: the archive itself", osvDevBucket, "", map[string]string{"Liberica JDK": "https://feed.example/jdk.zip"}, "Liberica JDK", "https://feed.example/jdk.zip"},
++		{"feed: a local archive", osvDevBucket, "", map[string]string{"Alpaquita": "/data/linux.zip"}, "Alpaquita", "file:///data/linux.zip"},
++		{"feed: a file:// archive", osvDevBucket, "", map[string]string{"Alpaquita": "file:///data/linux.zip"}, "Alpaquita", "file:///data/linux.zip"},
++	}
++	for _, tt := range tests {
++		m := &localMatcher{zippedDBRemoteHost: tt.host, vendorURL: tt.url, vendorFeeds: tt.feeds}
++		if got := m.archiveURL(osvconstants.Ecosystem(tt.eco)); got != tt.want {
++			t.Errorf("%s: archiveURL(%s) = %q, want %q", tt.name, tt.eco, got, tt.want)
++		}
++	}
++}
++
++func TestParseVendorFeeds(t *testing.T) {
++	got, err := ParseVendorFeeds([]string{"liberica jdk=https://a.example/osv", " BellSoft Hardened Containers = /srv/bhc.zip ", "", "ALPAQUITA=file:///x?a=b"})
++	want := map[string]string{"Liberica JDK": "https://a.example/osv", "BellSoft Hardened Containers": "/srv/bhc.zip", "Alpaquita": "file:///x?a=b"}
++	if err != nil || !maps.Equal(got, want) {
++		t.Errorf("ParseVendorFeeds() = %v, %v, want %v", got, err, want)
++	}
++	for _, bad := range []string{"Liberica JDK", "=https://a.example", "Liberica JDK=", "Zulu=https://a.example"} {
++		if _, err := ParseVendorFeeds([]string{bad}); err == nil {
++			t.Errorf("ParseVendorFeeds(%q) = nil error, want an error", bad)
++		}
++	}
++}
++
++// The vendor base URL (and a feed, which wins) is where the runtime
++// archives are requested, and their records are matched.
++func TestEnrich_VendorURLAndFeed(t *testing.T) {
++	w := captureWarnings(t)
++	var mu sync.Mutex
++	var paths []string
++	ts := fakeserver.CreateZipServer(t, func(rw http.ResponseWriter, r *http.Request) {
++		mu.Lock()
++		paths = append(paths, r.URL.Path)
++		mu.Unlock()
++		if strings.HasPrefix(r.URL.Path, "/base/") {
++			http.NotFound(rw, r)
++
++			return
++		}
++		_, _ = fakeserver.WriteOSVsZip(t, rw, vendorJDKOSVs())
++	})
++	e := &Enricher{zippedDBRemoteHost: osvDevBucket, localPath: createTestDir(t), download: true, httpClient: http.DefaultClient}
++	Configure(e, Options{VendorURL: ts.URL + "/base", VendorFeeds: map[string]string{"Liberica JDK": ts.URL + "/feed"}})
++
++	inv := &inventory.Inventory{Packages: []*extractor.Package{
++		vendorJDKPkg("Liberica JDK:21", "jdk", "21.0.2+14"),
++		vendorJDKPkg("Liberica NIK:23-21", "core", "23.1.0+1"),
++	}}
++	if err := e.Enrich(t.Context(), nil, inv); err != nil {
++		t.Fatalf("Enrich() = %v", err)
++	}
++	if len(inv.PackageVulns) != 1 || inv.PackageVulns[0].Vulnerability.GetId() != "BELL-CVE-2025-24855" {
++		t.Errorf("findings = %v, want BELL-CVE-2025-24855 for the JDK (from the feed)", inv.PackageVulns)
++	}
++	if !slices.Contains(paths, "/feed/Liberica JDK/all.zip") || !slices.Contains(paths, "/base/Liberica NIK/all.zip") || slices.Contains(paths, "/base/Liberica JDK/all.zip") {
++		t.Errorf("requested paths = %q, want the JDK from /feed and the NIK from /base", paths)
++	}
++	wantWarning := `BellSoft OSV data for "Liberica NIK" is unavailable (HTTP 404); packages of this product were NOT checked against BellSoft advisories. Source: ` + ts.URL + `/base/Liberica%20NIK/all.zip`
++	if len(w.lines) != 1 || w.lines[0] != wantWarning {
++		t.Errorf("warnings = %q, want %q", w.lines, wantWarning)
++	}
++}
++
++// A local feed (the archive itself) is read from disk.
++func TestEnrich_VendorFeedFile(t *testing.T) {
++	captureWarnings(t)
++	dir := createTestDir(t)
++	archive := path.Join(dir, "feeds", "jdk.zip")
++	cacheWrite(t, archive, fakeserver.ZipOSVs(t, vendorJDKOSVs()))
++	e := &Enricher{zippedDBRemoteHost: osvDevBucket, localPath: dir, download: true, httpClient: &http.Client{Transport: &recorder{status: http.StatusNotFound}}}
++	Configure(e, Options{VendorFeeds: map[string]string{"Liberica JDK": archive}})
++
++	inv := &inventory.Inventory{Packages: []*extractor.Package{vendorJDKPkg("Liberica JDK:21", "jdk", "21.0.2+14")}}
++	if err := e.Enrich(t.Context(), nil, inv); err != nil || len(inv.PackageVulns) != 1 {
++		t.Errorf("Enrich() = %v with %d findings, want 1 finding from the local archive", err, len(inv.PackageVulns))
++	}
++}
++
++// LocalOnlyEcosystems: the enricher handles the ecosystems api.osv.dev does
++// not serve, downloads their archives even without downloads enabled, and
++// leaves every other package alone.
++func TestEnrich_LocalOnlyEcosystems(t *testing.T) {
++	captureWarnings(t)
++	var mu sync.Mutex
++	var paths []string
++	ts := fakeserver.CreateZipServer(t, func(rw http.ResponseWriter, r *http.Request) {
++		mu.Lock()
++		paths = append(paths, r.URL.Path)
++		mu.Unlock()
++		_, _ = fakeserver.WriteOSVsZip(t, rw, vendorJDKOSVs())
++	})
++	e := &Enricher{zippedDBRemoteHost: osvDevBucket, localPath: createTestDir(t), download: false, httpClient: http.DefaultClient}
++	Configure(e, Options{LocalOnlyEcosystems: true, VendorURL: ts.URL})
++
++	jdk := vendorJDKPkg("Liberica JDK:21", "jdk", "21.0.2+14")
++	inv := &inventory.Inventory{Packages: []*extractor.Package{aliasJDK, aliasGlibc, jdk}}
++	if err := e.Enrich(t.Context(), nil, inv); err != nil {
++		t.Fatalf("Enrich() = %v", err)
++	}
++	if len(inv.PackageVulns) != 1 || inv.PackageVulns[0].Package != jdk {
++		t.Errorf("findings = %v, want one finding for the JDK package only", inv.PackageVulns)
++	}
++	for _, p := range paths {
++		if p != "/Liberica JDK/all.zip" {
++			t.Errorf("archive %q requested, want only the Liberica JDK archive", p)
++		}
++	}
++}
++
++// Offline with no cached archive: a warning for the vendor families (all
++// four), still an error for every other ecosystem.
++func TestEnrich_OfflineNoCache(t *testing.T) {
++	w := captureWarnings(t)
++	rt := &recorder{status: http.StatusOK}
++	dir := createTestDir(t)
++	e := &Enricher{zippedDBRemoteHost: osvDevBucket, localPath: dir, download: false, httpClient: &http.Client{Transport: rt}}
++
++	inv := &inventory.Inventory{Packages: []*extractor.Package{aliasJDK, aliasBHC, vendorJDKPkg("Liberica JDK:21", "jdk", "21.0.2+14")}}
++	if err := e.Enrich(t.Context(), nil, inv); err != nil {
++		t.Fatalf("Enrich() = %v, want no error for vendor families", err)
++	}
++	want := []string{
++		`BellSoft OSV data for "Alpaquita" is unavailable (offline and not cached); packages of this product were NOT checked against BellSoft advisories. Source: ` + osvDevBucket + `/Alpaquita/all.zip`,
++		`BellSoft OSV data for "BellSoft Hardened Containers" is unavailable (offline and not cached); packages of this product were NOT checked against BellSoft advisories. Source: ` + osvDevBucket + `/BellSoft Hardened Containers/all.zip`,
++		`BellSoft OSV data for "Liberica JDK" is unavailable (offline and not cached); packages of this product were NOT checked against BellSoft advisories. Source: ` + wantJDKURL,
++	}
++	if strings.Join(w.lines, "\n") != strings.Join(want, "\n") {
++		t.Errorf("warnings:\n%s\nwant:\n%s", strings.Join(w.lines, "\n"), strings.Join(want, "\n"))
++	}
++	if len(rt.urls) != 0 {
++		t.Errorf("requests made while offline: %v", rt.urls)
++	}
++
++	// a cached archive is used as before
++	cacheWrite(t, path.Join(dir, "osv-scalibr", "Liberica JDK", "all.zip"), fakeserver.ZipOSVs(t, vendorJDKOSVs()))
++	inv = &inventory.Inventory{Packages: []*extractor.Package{vendorJDKPkg("Liberica JDK:21", "jdk", "21.0.2+14")}}
++	if err := e.Enrich(t.Context(), nil, inv); err != nil || len(inv.PackageVulns) != 1 {
++		t.Errorf("with a cached archive: err = %v, %d findings, want 1", err, len(inv.PackageVulns))
++	}
++
++	// another ecosystem: unchanged, the missing database is an error
++	pypi := &extractor.Package{Name: "requests", Version: "2.31.0", PURLType: purl.TypePyPi}
++	if err := e.Enrich(t.Context(), nil, &inventory.Inventory{Packages: []*extractor.Package{pypi}}); err == nil {
++		t.Errorf("Enrich() of a PyPI package without a cached database = nil, want an error")
++	}
++}
+diff --git a/enricher/vulnmatch/osvlocal/zip.go b/enricher/vulnmatch/osvlocal/zip.go
+index 80aab20..0447264 100644
+--- a/enricher/vulnmatch/osvlocal/zip.go
++++ b/enricher/vulnmatch/osvlocal/zip.go
+@@ -176,7 +176,7 @@ func (db *zipDB) download(ctx context.Context) ([]byte, error) {
+ 	defer resp.Body.Close()
+ 
+ 	if resp.StatusCode != http.StatusOK {
+-		return nil, fmt.Errorf("db host returned %s", resp.Status)
++		return nil, &httpStatusError{code: resp.StatusCode, status: resp.Status}
+ 	}
+ 
+ 	body, err := io.ReadAll(resp.Body)
+-- 
+2.43.0
+

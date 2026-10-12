@@ -1,0 +1,75 @@
+From ae583258c806a10c731b2f0ba27eda3dfbf14eb0 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 19:10:47 +0000
+Subject: [PATCH] fix(filter): treat "unknown:unknown" Maven packages as
+ unscannable
+
+java/archive reports jars without Maven coordinates (lib/jrt-fs.jar of
+every JDK) with group and artifact "unknown"; imodels.Name joins them to
+"unknown:unknown", which escaped the existing "unknown" check and was
+queried against the Maven database (and in offline mode required the Maven
+archive to be cached).
+---
+ internal/scalibrannotator/filter/filter.go      |  4 +++-
+ internal/scalibrannotator/filter/filter_test.go | 16 ++++++++++++++++
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/internal/scalibrannotator/filter/filter.go b/internal/scalibrannotator/filter/filter.go
+index c5f9f99..c018fde 100644
+--- a/internal/scalibrannotator/filter/filter.go
++++ b/internal/scalibrannotator/filter/filter.go
+@@ -94,7 +94,9 @@ func (a *Annotator) Annotate(_ context.Context, _ *annotator.ScanInput, results
+ 		}
+ 
+ 		// Maven with name unknown or invalid ecosystem
+-		if (imodels.Ecosystem(psr).Ecosystem == osvconstants.EcosystemMaven && imodels.Name(psr) == "unknown") ||
++		// java/archive reports jars without Maven coordinates as "unknown" (name)
++		// or "unknown:unknown" (imodels.Name joins group and artifact)
++		if (imodels.Ecosystem(psr).Ecosystem == osvconstants.EcosystemMaven && (imodels.Name(psr) == "unknown" || imodels.Name(psr) == "unknown:unknown")) ||
+ 			(imodels.Ecosystem(psr).GetValidity() != nil && !imodels.Ecosystem(psr).IsEmpty()) {
+ 			unscannableCount++
+ 			if a.showAllPackages {
+diff --git a/internal/scalibrannotator/filter/filter_test.go b/internal/scalibrannotator/filter/filter_test.go
+index 7a21425..cacb3b5 100644
+--- a/internal/scalibrannotator/filter/filter_test.go
++++ b/internal/scalibrannotator/filter/filter_test.go
+@@ -7,6 +7,7 @@ import (
+ 	"github.com/google/go-cmp/cmp"
+ 	"github.com/google/go-cmp/cmp/cmpopts"
+ 	"github.com/google/osv-scalibr/extractor"
++	archivemeta "github.com/google/osv-scalibr/extractor/filesystem/language/java/archive/metadata"
+ 	apkmeta "github.com/google/osv-scalibr/extractor/filesystem/os/apk/metadata"
+ 	dpkgmeta "github.com/google/osv-scalibr/extractor/filesystem/os/dpkg/metadata"
+ 	"github.com/google/osv-scalibr/inventory"
+@@ -55,6 +56,13 @@ func TestAnnotator_Annotate(t *testing.T) {
+ 			Commit: "-dirty",
+ 		},
+ 	}
++	// a jar without Maven coordinates (java/archive): group and artifact "unknown"
++	pkgMavenUnknown := &extractor.Package{
++		Name:     "unknown",
++		Version:  "unknown",
++		PURLType: purl.TypeMaven,
++		Metadata: &archivemeta.Metadata{GroupID: "unknown", ArtifactID: "unknown"},
++	}
+ 	pkgLinuxKernel := &extractor.Package{
+ 		Name:     "linux",
+ 		Version:  "6.1.0",
+@@ -111,6 +119,14 @@ func TestAnnotator_Annotate(t *testing.T) {
+ 			// the git-only package is still unscannable
+ 			wantFilteredPackages: []*extractor.Package{pkgUnscannableShortHash},
+ 		},
++		{
++			name:                 "maven_unknown_coordinates_are_unscannable",
++			isContainerScan:      true,
++			showAllPackages:      true,
++			inputPackages:        []*extractor.Package{pkgScannable, pkgMavenUnknown},
++			wantPackages:         []*extractor.Package{pkgScannable},
++			wantFilteredPackages: []*extractor.Package{pkgMavenUnknown},
++		},
+ 		{
+ 			name:            "container_scan_filters_linux_kernel",
+ 			isContainerScan: true,
+-- 
+2.43.0
+

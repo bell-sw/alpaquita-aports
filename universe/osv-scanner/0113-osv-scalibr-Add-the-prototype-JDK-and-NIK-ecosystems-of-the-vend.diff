@@ -1,0 +1,817 @@
+From 7809edf5a886b844bfc7da7d4d7290ae7a1ff8a0 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 19:45:38 +0000
+Subject: [PATCH] Add the prototype JDK and NIK ecosystems of the vendor to
+ osvecosystem and semantic
+
+Standalone vendor runtimes are covered by two prototype OSV ecosystems
+(liberica-osv/ECOSYSTEM.md): "<JDK family>:<java major>" (package name =
+variant "jdk", "jre", "jdk-lite", ...; versions in product notation
+"21.0.2+14", "21+37", "8u402+7") and "<NIK family>:<nik major>-<java major>"
+(package name = bundle "core", "standard", "full"; versions "23.1.0+1").
+Neither is in the osv-schema constants yet.
+
+* osvecosystem: EcosystemVendorJDK and EcosystemVendorNIK are valid
+  ecosystems; the values are the osv-internal module's.
+* semantic: versions of both families are parsed and compared by the
+  jdkver and nikver packages of github.com/bell-sw/osv-internal (new
+  dependency): numeric order on every component, then on the build; the
+  raw runtime forms "21.0.2+14-LTS" and "1.8.0_402-b07" are accepted too.
+  The three kinds of update release are valid versions: PSU (21.0.12+10,
+  8u502+9), CSPU (21.0.12.1+1, 8u504+1) and CPU (21.0.9.0.1+1, 8u481).
+* osvlocal: a CPU carries the security fixes of the PSU it is released
+  with while advisories name the PSU as the fixed version, so the upper
+  bound of a range is compared through the optional CompareUpperBoundStr
+  of a version: 21.0.9.0.1+1 is not affected by an advisory fixed in
+  21.0.10+10, and is by one fixed in 21.0.11+11. Other ecosystems are
+  compared as before.
+---
+ enricher/vulnmatch/osvdev/osvdev.go           |   7 +
+ .../vulnmatch/osvdev/osvdev_internal_test.go  |  40 ++++
+ .../osvlocal/internal/vulns/vulnerability.go  |  27 ++-
+ go.mod                                        |   1 +
+ inventory/osvecosystem/parsed.go              |  29 ++-
+ .../osvecosystem/parsed_vendorjdk_test.go     |  66 ++++++
+ semantic/parse.go                             |   6 +
+ semantic/parse_test.go                        |   4 +
+ semantic/testdata/vendorjdk-versions.txt      |  60 ++++++
+ semantic/testdata/vendornik-versions.txt      |  13 ++
+ semantic/version-vendorjdk.go                 | 164 ++++++++++++++
+ semantic/version-vendorjdk_test.go            | 201 ++++++++++++++++++
+ 12 files changed, 613 insertions(+), 5 deletions(-)
+ create mode 100644 enricher/vulnmatch/osvdev/osvdev_internal_test.go
+ create mode 100644 inventory/osvecosystem/parsed_vendorjdk_test.go
+ create mode 100644 semantic/testdata/vendorjdk-versions.txt
+ create mode 100644 semantic/testdata/vendornik-versions.txt
+ create mode 100644 semantic/version-vendorjdk.go
+ create mode 100644 semantic/version-vendorjdk_test.go
+
+diff --git a/enricher/vulnmatch/osvdev/osvdev.go b/enricher/vulnmatch/osvdev/osvdev.go
+index b68f706..f281f2e 100644
+--- a/enricher/vulnmatch/osvdev/osvdev.go
++++ b/enricher/vulnmatch/osvdev/osvdev.go
+@@ -27,6 +27,7 @@ import (
+ 	osvutil "github.com/google/osv-scalibr/enricher/vulnmatch/internal/osvutil"
+ 	"github.com/google/osv-scalibr/extractor"
+ 	"github.com/google/osv-scalibr/inventory"
++	"github.com/google/osv-scalibr/inventory/osvecosystem"
+ 	"github.com/google/osv-scalibr/inventory/vex"
+ 	"github.com/google/osv-scalibr/plugin"
+ 	scalibrversion "github.com/google/osv-scalibr/version"
+@@ -270,6 +271,12 @@ func pkgToQueries(pkg *extractor.Package) []*osvapipb.Query {
+ 		}}
+ 	}
+ 
++	// Ecosystems osv.dev does not serve are matched locally; naming one in a
++	// batch query makes the API reject the whole batch ("invalid ecosystem").
++	if osvecosystem.IsLocalOnly(np.Ecosystem.Ecosystem) {
++		return nil
++	}
++
+ 	if np.Name != "" && !np.Ecosystem.IsEmpty() && np.Version != "" {
+ 		names := osvutil.QueryNames(pkg)
+ 		queries := make([]*osvapipb.Query, 0, len(names))
+diff --git a/enricher/vulnmatch/osvdev/osvdev_internal_test.go b/enricher/vulnmatch/osvdev/osvdev_internal_test.go
+new file mode 100644
+index 0000000..95b95cb
+--- /dev/null
++++ b/enricher/vulnmatch/osvdev/osvdev_internal_test.go
+@@ -0,0 +1,40 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package osvdev
++
++import (
++	"testing"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++
++	"github.com/google/osv-scalibr/extractor"
++	vendorjdkmeta "github.com/google/osv-scalibr/extractor/filesystem/language/java/vendorjdk/metadata"
++	"github.com/google/osv-scalibr/purl"
++)
++
++// A package of an ecosystem osv.dev does not serve is not queried.
++func TestPkgToQueries_LocalOnlyEcosystem(t *testing.T) {
++	jdk := &extractor.Package{
++		Name: "jdk", Version: "21.0.2+14", PURLType: purl.TypeGeneric,
++		Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"), Major: 21, Variant: "jdk"},
++	}
++	if got := pkgToQueries(jdk); len(got) != 0 {
++		t.Errorf("pkgToQueries(vendor JDK package) = %d queries, want none", len(got))
++	}
++	npm := &extractor.Package{Name: "express", Version: "4.17.1", PURLType: purl.TypeNPM}
++	if got := pkgToQueries(npm); len(got) != 1 {
++		t.Errorf("pkgToQueries(npm package) = %d queries, want 1", len(got))
++	}
++}
+diff --git a/enricher/vulnmatch/osvlocal/internal/vulns/vulnerability.go b/enricher/vulnmatch/osvlocal/internal/vulns/vulnerability.go
+index c8e40f2..0a6020c 100644
+--- a/enricher/vulnmatch/osvlocal/internal/vulns/vulnerability.go
++++ b/enricher/vulnmatch/osvlocal/internal/vulns/vulnerability.go
+@@ -46,6 +46,27 @@ func eventVersion(e *osvpb.Event) string {
+ 	return ""
+ }
+ 
++// upperBoundComparer is implemented by versions whose upper bound of a range
++// ("fixed", "last_affected") is not judged by the plain order, see
++// semantic.VendorJDKVersion.CompareUpperBoundStr.
++type upperBoundComparer interface {
++	CompareUpperBoundStr(str string) (int, error)
++}
++
++// compareUpperBound compares the installed version with a "fixed" or
++// "last_affected" event.
++func compareUpperBound(v semantic.Version, bound string) int {
++	if u, ok := v.(upperBoundComparer); ok {
++		order, _ := u.CompareUpperBoundStr(bound)
++
++		return order
++	}
++	// Ignore errors as we assume the version is correct
++	order, _ := v.CompareStr(bound)
++
++	return order
++}
++
+ func rangeContainsVersion(ar *osvpb.Range, pkg *extractor.Package) bool {
+ 	if ar.GetType() != osvpb.Range_ECOSYSTEM && ar.GetType() != osvpb.Range_SEMVER {
+ 		return false
+@@ -80,11 +101,9 @@ func rangeContainsVersion(ar *osvpb.Range, pkg *extractor.Package) bool {
+ 	for _, e := range ar.GetEvents() {
+ 		if affected {
+ 			if e.GetFixed() != "" {
+-				order, _ := vp.CompareStr(e.GetFixed())
+-				affected = order < 0
++				affected = compareUpperBound(vp, e.GetFixed()) < 0
+ 			} else if e.GetLastAffected() != "" {
+-				order, _ := vp.CompareStr(e.GetLastAffected())
+-				affected = e.GetLastAffected() == pkg.Version || order <= 0
++				affected = e.GetLastAffected() == pkg.Version || compareUpperBound(vp, e.GetLastAffected()) <= 0
+ 			}
+ 		} else if e.GetIntroduced() != "" {
+ 			order, _ := vp.CompareStr(e.GetIntroduced())
+diff --git a/go.mod b/go.mod
+index 2ec0b84..6179e02 100644
+--- a/go.mod
++++ b/go.mod
+@@ -95,6 +95,7 @@ require (
+ 	github.com/atotto/clipboard v0.1.4 // indirect
+ 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
+ 	github.com/ayoubfaouzi/pkcs7 v0.2.3 // indirect
++	github.com/bell-sw/osv-internal v0.0.0
+ 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+ 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
+ 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
+diff --git a/inventory/osvecosystem/parsed.go b/inventory/osvecosystem/parsed.go
+index 7c6fe09..f282448 100644
+--- a/inventory/osvecosystem/parsed.go
++++ b/inventory/osvecosystem/parsed.go
+@@ -20,6 +20,7 @@ import (
+ 	"fmt"
+ 	"strings"
+ 
++	osvinternal "github.com/bell-sw/osv-internal"
+ 	"github.com/ossf/osv-schema/bindings/go/osvconstants"
+ )
+ 
+@@ -30,9 +31,32 @@ import (
+ //
+ // For example, "Debian:7" would be parsed into Parsed{Ecosystem: constants.EcosystemDebian, Suffix: "7"}
+ //
++// Ecosystems that are not (yet) part of the osv-schema constants but are
++// produced by SCALIBR extractors and understood by the vulnerability matchers.
++//
+ // [spec]: https://ossf.github.io/osv-schema/
+ //
+ //nolint:recvcheck
++const (
++	// EcosystemVendorJDK is the ecosystem of the vendor's standalone JDK
++	// runtimes ("<family>:<java major>"), see extractor java/vendorjdk.
++	EcosystemVendorJDK osvconstants.Ecosystem = osvinternal.EcosystemJDK
++	// EcosystemVendorNIK is the ecosystem of the vendor's standalone Native
++	// Image Kit runtimes ("<family>:<nik major>-<java major>").
++	EcosystemVendorNIK osvconstants.Ecosystem = osvinternal.EcosystemNIK
++)
++
++// IsLocalOnly reports whether the ecosystem is one osv.dev does not serve:
++// its advisories come from local archives only, and api.osv.dev rejects a
++// whole batch query naming it ("invalid ecosystem", HTTP 400).
++func IsLocalOnly(ecosystem osvconstants.Ecosystem) bool {
++	switch ecosystem {
++	case EcosystemVendorJDK, EcosystemVendorNIK:
++		return true
++	}
++	return false
++}
++
+ type Parsed struct {
+ 	Ecosystem osvconstants.Ecosystem
+ 	Suffix    string
+@@ -145,7 +169,10 @@ func (p Parsed) GetValidity() error {
+ 		osvconstants.EcosystemVSCode,
+ 		osvconstants.EcosystemWolfi,
+ 		// GIT is a pseudo ecosystem that can be used in queries, so should be considered valid.
+-		"GIT":
++		"GIT",
++		// prototype ecosystems produced by SCALIBR extractors (see above)
++		EcosystemVendorJDK,
++		EcosystemVendorNIK:
+ 
+ 	default:
+ 		return fmt.Errorf("base ecosystem does not exist in osvschema: %q", p.Ecosystem)
+diff --git a/inventory/osvecosystem/parsed_vendorjdk_test.go b/inventory/osvecosystem/parsed_vendorjdk_test.go
+new file mode 100644
+index 0000000..d5937c6
+--- /dev/null
++++ b/inventory/osvecosystem/parsed_vendorjdk_test.go
+@@ -0,0 +1,66 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package osvecosystem_test
++
++import (
++	"testing"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++
++	"github.com/google/osv-scalibr/inventory/osvecosystem"
++	"github.com/ossf/osv-schema/bindings/go/osvconstants"
++)
++
++func TestParse_VendorJDK(t *testing.T) {
++	jdk21 := osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21")
++	got, err := osvecosystem.Parse(jdk21)
++	if err != nil {
++		t.Fatalf("Parse(%s): %v", jdk21, err)
++	}
++	want := osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorJDK, Suffix: "21"}
++	if got != want {
++		t.Errorf("Parse(%s) = %+v, want %+v", jdk21, got, want)
++	}
++	if got.String() != jdk21 {
++		t.Errorf("String() = %q", got.String())
++	}
++	if !got.Equal(osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorJDK, Suffix: "21"}) ||
++		got.Equal(osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorJDK, Suffix: "17"}) {
++		t.Errorf("Equal() does not key on the major version suffix")
++	}
++}
++
++func TestParse_VendorNIK(t *testing.T) {
++	nik2321 := osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21")
++	got, err := osvecosystem.Parse(nik2321)
++	if err != nil {
++		t.Fatalf("Parse(%s): %v", nik2321, err)
++	}
++	want := osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorNIK, Suffix: "23-21"}
++	if got != want || got.String() != nik2321 {
++		t.Errorf("Parse(%s) = %+v (%q), want %+v", nik2321, got, got.String(), want)
++	}
++}
++
++func TestIsLocalOnly(t *testing.T) {
++	for eco, want := range map[osvconstants.Ecosystem]bool{
++		osvecosystem.EcosystemVendorJDK: true, osvecosystem.EcosystemVendorNIK: true,
++		osvconstants.EcosystemAlpaquita: false, osvconstants.EcosystemBellSoftHardenedContainers: false, osvconstants.EcosystemAlpine: false,
++	} {
++		if got := osvecosystem.IsLocalOnly(eco); got != want {
++			t.Errorf("IsLocalOnly(%q) = %v, want %v", eco, got, want)
++		}
++	}
++}
+diff --git a/semantic/parse.go b/semantic/parse.go
+index d8de064..47c98bf 100644
+--- a/semantic/parse.go
++++ b/semantic/parse.go
+@@ -20,6 +20,8 @@ import (
+ 	"errors"
+ 	"fmt"
+ 	"strings"
++
++	osvinternal "github.com/bell-sw/osv-internal"
+ )
+ 
+ // ErrUnsupportedEcosystem is returned for unsupported ecosystems.
+@@ -84,6 +86,10 @@ func Parse(str string, ecosystem string) (Version, error) {
+ 		return ParseSemverVersion(str), nil
+ 	case "Julia":
+ 		return ParseSemverVersion(str), nil
++	case osvinternal.EcosystemJDK:
++		return ParseVendorJDKVersion(str)
++	case osvinternal.EcosystemNIK:
++		return ParseVendorNIKVersion(str)
+ 	case "Mageia":
+ 		return ParseRedHatVersion(str), nil
+ 	case "Maven":
+diff --git a/semantic/parse_test.go b/semantic/parse_test.go
+index 961aa32..37d6c9a 100644
+--- a/semantic/parse_test.go
++++ b/semantic/parse_test.go
+@@ -18,6 +18,8 @@ import (
+ 	"errors"
+ 	"testing"
+ 
++	osvinternal "github.com/bell-sw/osv-internal"
++
+ 	"github.com/google/osv-scalibr/semantic"
+ )
+ 
+@@ -38,6 +40,8 @@ var ecosystems = []string{
+ 	"Go",
+ 	"Hex",
+ 	"Julia",
++	osvinternal.EcosystemJDK,
++	osvinternal.EcosystemNIK,
+ 	"Mageia",
+ 	"Maven",
+ 	"MinimOS",
+diff --git a/semantic/testdata/vendorjdk-versions.txt b/semantic/testdata/vendorjdk-versions.txt
+new file mode 100644
+index 0000000..bc18985
+--- /dev/null
++++ b/semantic/testdata/vendorjdk-versions.txt
+@@ -0,0 +1,60 @@
++# Liberica JDK product versions: every numeric component (major, minor, security, patch, ...), then the build
++21.0.2+14 = 21.0.2+14
++21.0.2+14 = 21.0.2+14-LTS
++21.0.2+14 < 21.0.8+12
++21.0.2+14 > 21.0.1+12
++21.0.8+12 < 21.0.9+11
++21.0.12+10 < 21.0.12.1+1
++21.0.12.1+1 < 21.0.13+1
++21+37 < 21.0.1+12
++21+35 < 21+37
++21 < 21+37
++21.0.2 < 21.0.2+14
++0 < 21+37
++17.0.10+13 < 21+37
++11.0.22+12 < 17.0.10+13
++26-ea+5 < 26+36
++8u402+7 = 8u402+7
++8u402+7 = 1.8.0_402-b07
++8u402 < 8u402+7
++8u402+7 < 8u412+9
++8u402+7 < 8u462+11
++8u402+7 < 11.0.22+12
++8u402+7 > 8u392+9
++0 < 8u402+7
++# CSPU (out-of-band security build): a fourth component on 9+, a new update on 8
++21.0.12.1+1-LTS = 21.0.12.1+1
++21.0.12+10 < 21.0.12.1+1
++21.0.12.1+1 < 21.0.13+1
++21.0.12.1+1 < 21.0.13+2
++21.0.12.1+1-LTS > 21.0.12+10
++21.0.12.1+1-LTS < 21.0.13+1
++21.0.12.1+1 > 21.0.12+10
++21.0.12.1+1 < 21.0.12.2+1
++8u502+9 < 8u504+1
++8u504+1 < 8u512+10
++8u504+1 = 8u504+1
++# CPU (security-only build released with a PSU): the previous update with ".0.1" on 9+, the odd update on 8;
++# ordered numerically, i.e. below that PSU
++21.0.9.0.1+1-LTS = 21.0.9.0.1+1
++21.0.9+11 < 21.0.9.0.1
++21.0.9+11 < 21.0.9.0.1+1
++21.0.9.0.1 < 21.0.10+10
++21.0.9.0.1+1 < 21.0.10+10
++21.0.9.0.1 < 21.0.9.0.1+1
++21.0.9.0.1+1 < 21.0.9.1+1
++21.0.11.0.1+1 > 21.0.11+11
++21.0.11.0.1+1 < 21.0.12+10
++21.0.11.0.1+1 < 21.0.12.1+1
++21.0.12+10 > 21.0.11.0.1+1
++11.0.29.0.1+1 < 11.0.30+9
++17.0.17.0.1+1 < 17.0.18+10
++25.0.1.0.1+1 < 25.0.2+12
++8u472 < 8u481
++8u481 < 8u482
++8u472+11 < 8u481+1
++8u481+1 < 8u482+10
++8u501+1 > 8u492+9
++8u501+1 < 8u502+9
++8u501+1 < 8u504+1
++0 < 21.0.9.0.1+1
+diff --git a/semantic/testdata/vendornik-versions.txt b/semantic/testdata/vendornik-versions.txt
+new file mode 100644
+index 0000000..72ec7c1
+--- /dev/null
++++ b/semantic/testdata/vendornik-versions.txt
+@@ -0,0 +1,13 @@
++# Liberica NIK versions: numeric components, then the build; a version without a build equals any build of it
++23.1.0+1 = 23.1.0+1
++23.1.0+1 < 23.1.3
++23.1.3 = 23.1.3+1
++23.1.3+1 < 23.1.3+2
++23.1.8 = 23.1.8+1
++Liberica-NIK-23.1.0-1 = 23.1.0+1
++23.1.3 < 23.1.8
++23.1.8 < 23.1.12+1
++23.1.12+1 < 23.1.12.1+1
++23.0.0+1 < 23.1.0+1
++22.3.5+1 < 23.0.0+1
++0 < 23.1.0+1
+diff --git a/semantic/version-vendorjdk.go b/semantic/version-vendorjdk.go
+new file mode 100644
+index 0000000..ea8996f
+--- /dev/null
++++ b/semantic/version-vendorjdk.go
+@@ -0,0 +1,164 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package semantic
++
++import (
++	"fmt"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/jdkver"
++	"github.com/bell-sw/osv-internal/nikver"
++)
++
++// The vendor's JDK and NIK ecosystems are defined by its shared module
++// github.com/bell-sw/osv-internal; parsing, ordering and the
++// range rules are those of its jdkver and nikver packages.
++//
++// JDK versions use the product notation of the runtime:
++//
++//	9 and later: "21.0.2+14", "21+37" (GA) - JAVA_RUNTIME_VERSION without
++//	             the "-LTS" / "-ea" qualifier
++//	8:           "8u402+7" - from "1.8.0_402-b07"
++//
++// The raw forms ("21.0.2+14-LTS", "1.8.0_402-b07") are accepted as well.
++// The vendor ships three kinds of update release:
++//
++//	           PSU (quarterly)   CPU (security only, with the PSU)   CSPU (out of cycle)
++//	Java 9+    21.0.12+10        21.0.11.0.1+1                       21.0.12.1+1
++//	Java 8     8u502+9           8u501+1                             8u504+1
++//
++// The order is numeric on every component, then on the build. A CPU sorts
++// below the PSU it is released with although it carries the same security
++// fixes, and advisories name the PSU as the fixed version; a matcher
++// therefore compares the upper bound of a range with CompareUpperBoundStr.
++
++// VendorJDKVersion is a parsed version of the JDK ecosystem.
++type VendorJDKVersion struct {
++	v jdkver.Version
++}
++
++var _ Version = VendorJDKVersion{}
++
++// ParseVendorJDKVersion parses a JDK product version (see above).
++func ParseVendorJDKVersion(str string) (VendorJDKVersion, error) {
++	if str == "" {
++		str = "0"
++	}
++	v, err := jdkver.Parse(str)
++	if err != nil {
++		return VendorJDKVersion{}, fmt.Errorf("%w: %q is not a %s version", ErrInvalidVersion, str, osvinternal.EcosystemJDK)
++	}
++
++	return VendorJDKVersion{v: v}, nil
++}
++
++// String returns the product notation of the version.
++func (v VendorJDKVersion) String() string {
++	return v.v.String()
++}
++
++// ReleaseType returns the kind of update release: "psu", "cpu", "cspu" or
++// "unknown".
++func (v VendorJDKVersion) ReleaseType() string {
++	return v.v.ReleaseType().String()
++}
++
++// Compare compares two JDK versions numerically.
++func (v VendorJDKVersion) Compare(w Version) (int, error) {
++	if w, ok := w.(VendorJDKVersion); ok {
++		return v.v.Compare(w.v), nil
++	}
++
++	return 0, ErrNotSameEcosystem
++}
++
++// CompareStr compares the version with a version string of the same ecosystem.
++func (v VendorJDKVersion) CompareStr(str string) (int, error) {
++	w, err := ParseVendorJDKVersion(str)
++	if err != nil {
++		return 0, err
++	}
++
++	return v.v.Compare(w.v), nil
++}
++
++// CompareUpperBoundStr compares v with the upper bound of an advisory range
++// ("fixed", "last_affected"). It is CompareStr except for a CPU, which counts
++// as the PSU it is released with: 21.0.9.0.1+1 is not below a fix in
++// 21.0.10+10 (0) but is below one in 21.0.11+11 (-1).
++func (v VendorJDKVersion) CompareUpperBoundStr(str string) (int, error) {
++	below, err := jdkver.InRangeVersion(v.v, "", str, "")
++	if err != nil {
++		return 0, fmt.Errorf("%w: %q is not a %s version", ErrInvalidVersion, str, osvinternal.EcosystemJDK)
++	}
++	if below {
++		return -1, nil
++	}
++	notAbove, err := jdkver.InRangeVersion(v.v, "", "", str)
++	if err != nil {
++		return 0, fmt.Errorf("%w: %q is not a %s version", ErrInvalidVersion, str, osvinternal.EcosystemJDK)
++	}
++	if notAbove {
++		return 0, nil
++	}
++
++	return +1, nil
++}
++
++// VendorNIKVersion is a parsed NIK version ("23.1.0+1"); a
++// version without a build ("23.1.8", as advisories write fixed versions)
++// compares equal to any build of it.
++type VendorNIKVersion struct {
++	v nikver.Version
++}
++
++var _ Version = VendorNIKVersion{}
++
++// ParseVendorNIKVersion parses a NIK version.
++func ParseVendorNIKVersion(str string) (VendorNIKVersion, error) {
++	if str == "" {
++		str = "0"
++	}
++	v, err := nikver.Parse(str)
++	if err != nil {
++		return VendorNIKVersion{}, fmt.Errorf("%w: %q is not a %s version", ErrInvalidVersion, str, osvinternal.EcosystemNIK)
++	}
++
++	return VendorNIKVersion{v: v}, nil
++}
++
++// String returns the NIK notation of the version.
++func (v VendorNIKVersion) String() string {
++	return v.v.String()
++}
++
++// Compare compares two NIK versions.
++func (v VendorNIKVersion) Compare(w Version) (int, error) {
++	if w, ok := w.(VendorNIKVersion); ok {
++		return v.v.Compare(w.v), nil
++	}
++
++	return 0, ErrNotSameEcosystem
++}
++
++// CompareStr compares the version with a version string of the same ecosystem.
++func (v VendorNIKVersion) CompareStr(str string) (int, error) {
++	w, err := ParseVendorNIKVersion(str)
++	if err != nil {
++		return 0, err
++	}
++
++	return v.v.Compare(w.v), nil
++}
+diff --git a/semantic/version-vendorjdk_test.go b/semantic/version-vendorjdk_test.go
+new file mode 100644
+index 0000000..8f74b00
+--- /dev/null
++++ b/semantic/version-vendorjdk_test.go
+@@ -0,0 +1,201 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package semantic_test
++
++import (
++	"errors"
++	"testing"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++
++	"github.com/google/osv-scalibr/semantic"
++)
++
++func TestVendorJDKVersion_Compare(t *testing.T) {
++	runAgainstEcosystemFixture(t, osvinternal.EcosystemJDK, "vendorjdk-versions.txt")
++}
++
++func TestVendorNIKVersion_Compare(t *testing.T) {
++	runAgainstEcosystemFixture(t, osvinternal.EcosystemNIK, "vendornik-versions.txt")
++}
++
++func TestVendorJDKVersion_Suffix(t *testing.T) {
++	// the ecosystem suffix (Java major line) must not change the comparison
++	v, err := semantic.Parse("21.0.2+14", osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"))
++	if err != nil {
++		t.Fatalf("Parse: %v", err)
++	}
++	if got, _ := v.CompareStr("21.0.8+12"); got != -1 {
++		t.Errorf("21.0.2+14 vs 21.0.8+12 = %d, want -1", got)
++	}
++}
++
++func TestParseVendorJDKVersion(t *testing.T) {
++	tests := []struct {
++		in   string
++		want string
++	}{
++		{"21.0.2+14-LTS", "21.0.2+14"},
++		{"21.0.2+14", "21.0.2+14"},
++		{"21+37", "21+37"},
++		{"1.8.0_402-b07", "8u402+7"},
++		{"1.8.0_402", "8u402"},
++		{"8u402+7", "8u402+7"},
++		{"21.0.12.1+1", "21.0.12.1+1"},
++		{"26-ea+5", "26+5"},
++		// CSPU builds
++		{"21.0.12.1+1-LTS", "21.0.12.1+1"},
++		{"8u504+1", "8u504+1"},
++		{"1.8.0_504-b01", "8u504+1"},
++		// CPU builds
++		{"21.0.11.0.1+1-LTS", "21.0.11.0.1+1"},
++		{"21.0.9.0.1+1-LTS", "21.0.9.0.1+1"},
++		{"21.0.9.0.1", "21.0.9.0.1"},
++		{"8u481", "8u481"},
++		{"8u501+1", "8u501+1"},
++	}
++	for _, tt := range tests {
++		got, err := semantic.ParseVendorJDKVersion(tt.in)
++		if err != nil {
++			t.Errorf("ParseVendorJDKVersion(%q): %v", tt.in, err)
++			continue
++		}
++		if got.String() != tt.want {
++			t.Errorf("ParseVendorJDKVersion(%q) = %q, want %q", tt.in, got.String(), tt.want)
++		}
++	}
++
++	for _, bad := range []string{"abc", "21.x", "8u", "1.8.0_402-b"} {
++		if _, err := semantic.ParseVendorJDKVersion(bad); !errors.Is(err, semantic.ErrInvalidVersion) {
++			t.Errorf("ParseVendorJDKVersion(%q) error = %v, want ErrInvalidVersion", bad, err)
++		}
++	}
++}
++
++func TestVendorJDKVersion_ReleaseType(t *testing.T) {
++	tests := map[string]string{
++		"21.0.11.0.1+1": "cpu",
++		"21.0.9.0.1":    "cpu",
++		"11.0.29.0.1+1": "cpu",
++		"17.0.17.0.1+1": "cpu",
++		"25.0.1.0.1+1":  "cpu",
++		"8u501+1":       "cpu",
++		"8u481":         "cpu",
++		"1.8.0_501-b01": "cpu",
++		"21.0.12+10":    "psu",
++		"21.0.10+10":    "psu",
++		"21+37":         "psu",
++		"21.0.1+12":     "psu",
++		"8u502+9":       "psu",
++		"8u482+10":      "psu",
++		"21.0.12.1+1":   "cspu",
++		"8u504+1":       "cspu",
++	}
++	for in, want := range tests {
++		v, err := semantic.ParseVendorJDKVersion(in)
++		if err != nil {
++			t.Errorf("ParseVendorJDKVersion(%q): %v", in, err)
++			continue
++		}
++		if got := v.ReleaseType(); got != want {
++			t.Errorf("ParseVendorJDKVersion(%q).ReleaseType() = %q, want %q", in, got, want)
++		}
++	}
++}
++
++func TestVendorJDKVersion_CompareUpperBoundStr(t *testing.T) {
++	// Compare and CompareStr are the plain numeric order
++	cpu, _ := semantic.ParseVendorJDKVersion("21.0.9.0.1+1")
++	psu, _ := semantic.ParseVendorJDKVersion("21.0.10+10")
++	if got, err := cpu.Compare(psu); err != nil || got != -1 {
++		t.Errorf("Compare(21.0.9.0.1+1, 21.0.10+10) = %d, %v, want -1", got, err)
++	}
++	if got, err := cpu.CompareStr("21.0.10+10"); err != nil || got != -1 {
++		t.Errorf("21.0.9.0.1+1 CompareStr 21.0.10+10 = %d, %v, want -1", got, err)
++	}
++
++	// against the upper bound of a range a CPU counts as the quarterly update
++	// it is released with
++	tests := []struct {
++		installed, bound string
++		want             int
++	}{
++		{"21.0.9.0.1", "21.0.10+10", 0}, // fixed in the PSU of the cycle: the CPU has the fix
++		{"21.0.9.0.1+1", "21.0.10+10", 0},
++		{"21.0.9.0.1+1-LTS", "21.0.10+10", 0},
++		{"21.0.9.0.1+1", "21.0.10", 0},
++		{"21.0.9.0.1+1", "21.0.11+11", -1}, // fixed in a later cycle: affected
++		{"21.0.9.0.1+1", "21.0.9+11", 1},
++		{"21.0.11.0.1+1", "21.0.12+10", 0},
++		{"21.0.11.0.1+1", "21.0.12.1+1", -1}, // fixed in the CSPU after it: affected
++		{"21.0.11.0.1+1", "21.0.13+1", -1},
++		{"21.0.10.0.1+1", "21.0.12+10", -1},
++		{"8u481", "8u482+10", 0},
++		{"8u481+1", "8u482+10", 0},
++		{"1.8.0_481-b01", "8u482+10", 0},
++		{"8u481+1", "8u492+9", -1},
++		{"8u501+1", "8u502+9", 0},
++		{"8u501+1", "8u504+1", -1},
++		{"8u491+1", "8u502+9", -1},
++		// the other release types are compared numerically
++		{"21.0.9+11", "21.0.10+10", -1},
++		{"21.0.10+10", "21.0.10+10", 0},
++		{"21.0.12+10", "21.0.12.1+1", -1},
++		{"21.0.12.1+1", "21.0.12.1+1", 0},
++		{"21.0.12.1+2", "21.0.12.1+1", 1},
++		{"21.0.12.1+1", "21.0.13+1", -1},
++		{"8u472+11", "8u482+10", -1},
++		{"8u502+9", "8u504+1", -1},
++		{"8u504+1", "8u504+1", 0},
++	}
++	for _, tt := range tests {
++		v, err := semantic.ParseVendorJDKVersion(tt.installed)
++		if err != nil {
++			t.Errorf("ParseVendorJDKVersion(%q): %v", tt.installed, err)
++			continue
++		}
++		if got, err := v.CompareUpperBoundStr(tt.bound); err != nil || got != tt.want {
++			t.Errorf("%s CompareUpperBoundStr %s = %d, %v, want %d", tt.installed, tt.bound, got, err, tt.want)
++		}
++	}
++}
++
++func TestParseVendorNIKVersion(t *testing.T) {
++	for in, want := range map[string]string{
++		"23.1.0+1": "23.1.0+1",
++		"23.1.8":   "23.1.8",
++		osvinternal.NIKVendorVersionPrefix + "23.1.0-1": "23.1.0+1",
++	} {
++		got, err := semantic.ParseVendorNIKVersion(in)
++		if err != nil {
++			t.Errorf("ParseVendorNIKVersion(%q): %v", in, err)
++			continue
++		}
++		if got.String() != want {
++			t.Errorf("ParseVendorNIKVersion(%q) = %q, want %q", in, got.String(), want)
++		}
++	}
++	if _, err := semantic.ParseVendorNIKVersion("abc"); !errors.Is(err, semantic.ErrInvalidVersion) {
++		t.Errorf("ParseVendorNIKVersion(abc) error = %v, want ErrInvalidVersion", err)
++	}
++	// a fixed version without a build is reached by every build of it
++	v, _ := semantic.ParseVendorNIKVersion("23.1.8+1")
++	if got, err := v.CompareStr("23.1.8"); err != nil || got != 0 {
++		t.Errorf("23.1.8+1 CompareStr 23.1.8 = %d, %v, want 0", got, err)
++	}
++	if _, err := v.Compare(semantic.VendorJDKVersion{}); !errors.Is(err, semantic.ErrNotSameEcosystem) {
++		t.Errorf("Compare(NIK, JDK) error = %v, want ErrNotSameEcosystem", err)
++	}
++}
+-- 
+2.43.0
+

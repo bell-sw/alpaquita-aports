@@ -1,0 +1,60 @@
+From 20eeb15868bd125d65e6cfce32615dcf36144076 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 19:09:42 +0000
+Subject: [PATCH] osvlocal: keep matching the other packages when one database
+ cannot be loaded
+
+Enrich returned on the first package whose ecosystem database failed to
+load, so one unavailable archive (host unreachable, ecosystem not published
+on the host) silently left every later package of the inventory unmatched.
+The error is now remembered, the remaining packages are matched, and the
+joined errors are reported through the plugin status at the end.
+---
+ enricher/vulnmatch/osvlocal/osvlocal.go | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/enricher/vulnmatch/osvlocal/osvlocal.go b/enricher/vulnmatch/osvlocal/osvlocal.go
+index 685d6ac..5bcbc12 100644
+--- a/enricher/vulnmatch/osvlocal/osvlocal.go
++++ b/enricher/vulnmatch/osvlocal/osvlocal.go
+@@ -17,6 +17,7 @@ package osvlocal
+ 
+ import (
+ 	"context"
++	"errors"
+ 	"fmt"
+ 	"maps"
+ 	"net/http"
+@@ -143,11 +144,19 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
+ 		return err
+ 	}
+ 
++	// A database that cannot be loaded must not stop the other packages from
++	// being matched: collect the error and report it at the end.
++	var errs []error
+ 	for _, pkg := range inv.Packages {
+ 		vulns, err := dbs.MatchVulnerabilities(ctx, pkg, inv.Packages)
+ 
+ 		if err != nil {
+-			return err
++			if ctx.Err() != nil {
++				return err
++			}
++			errs = append(errs, err)
++
++			continue
+ 		}
+ 
+ 		for _, vuln := range vulns {
+@@ -164,7 +173,7 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
+ 	// for the same package, so we deduplicate and merge the results.
+ 	inv.PackageVulns = dedupPackageVulns(inv.PackageVulns)
+ 
+-	return nil
++	return errors.Join(slices.Compact(errs)...)
+ }
+ 
+ // dedupPackageVulns deduplicate package vulnerabilities that have the same pkg and vulnID
+-- 
+2.43.0
+

@@ -1,0 +1,209 @@
+From 538b08b5c2ab9799e233d3cdb16fe0b3adff1e81 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 19:09:42 +0000
+Subject: [PATCH] osvlocal: accept file:// archive hosts, hosts without a
+ checksum header and the osv-scanner cache layout
+
+Three small gaps in how the offline database archives are fetched and found:
+
+* the archive host may be a "file://" directory laid out like the osv.dev
+  bucket (<dir>/<ecosystem>/all.zip); the archive is copied into the cache
+  so that later offline runs find it;
+* a host without an X-Goog-Hash header (a plain HTTP mirror) made every run
+  with a cached archive fail with "could not find crc32c= checksum"; the
+  archive is downloaded again instead;
+* archives placed in the <cache dir>/osv-scanner/<ecosystem>/all.zip layout
+  of earlier osv-scanner releases are found in offline mode (the current
+  layout is <cache dir>/osv-scalibr/<ecosystem>/all.zip).
+---
+ enricher/vulnmatch/osvlocal/alias_test.go | 49 +++++++++++++++++++++++
+ enricher/vulnmatch/osvlocal/zip.go        | 47 ++++++++++++++++++----
+ enricher/vulnmatch/osvlocal/zip_test.go   | 15 +++++--
+ 3 files changed, 101 insertions(+), 10 deletions(-)
+
+diff --git a/enricher/vulnmatch/osvlocal/alias_test.go b/enricher/vulnmatch/osvlocal/alias_test.go
+index 21d4f18..88626bb 100644
+--- a/enricher/vulnmatch/osvlocal/alias_test.go
++++ b/enricher/vulnmatch/osvlocal/alias_test.go
+@@ -17,6 +17,7 @@ package osvlocal
+ import (
+ 	"net/http"
+ 	"os"
++	"path"
+ 	"path/filepath"
+ 	"slices"
+ 	"strings"
+@@ -149,3 +150,51 @@ func TestLocalMatcher_ProvidesAlias(t *testing.T) {
+ 		}
+ 	}
+ }
++
++// TestLocalMatcher_FileURLAndLegacyCache: the archive host can be a file://
++// directory, and the <dir>/osv-scanner/<ecosystem>/ layout of earlier
++// osv-scanner releases is found in offline mode.
++func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
++	archive := fakeserver.ZipOSVs(t, vendorOSVs())
++
++	t.Run("file url", func(t *testing.T) {
++		testDir := createTestDir(t)
++		hostDir := filepath.Join(testDir, "host")
++		cacheWrite(t, path.Join(hostDir, "Alpaquita", "all.zip"), archive)
++
++		m, err := newlocalMatcher(filepath.Join(testDir, "cache"), userAgent, true, "file://"+hostDir, http.DefaultClient)
++		if err != nil {
++			t.Fatalf("newlocalMatcher: %v", err)
++		}
++		if diff := cmp.Diff([]string{"BELL-CVE-2025-24855"}, matchIDs(t, m, aliasJDK, []*extractor.Package{aliasJDK})); diff != "" {
++			t.Errorf("(-want +got):\n%s", diff)
++		}
++		if _, err := os.Stat(filepath.Join(testDir, "cache", "osv-scalibr", "Alpaquita", "all.zip")); err != nil {
++			t.Errorf("archive read from file:// was not cached: %v", err)
++		}
++	})
++
++	t.Run("legacy layout offline", func(t *testing.T) {
++		testDir := createTestDir(t)
++		cacheWrite(t, path.Join(testDir, "osv-scanner", "Alpaquita", "all.zip"), archive)
++
++		m, err := newlocalMatcher(testDir, userAgent, false, "http://127.0.0.1:1", http.DefaultClient)
++		if err != nil {
++			t.Fatalf("newlocalMatcher: %v", err)
++		}
++		if diff := cmp.Diff([]string{"BELL-CVE-2025-24855"}, matchIDs(t, m, aliasJDK, []*extractor.Package{aliasJDK})); diff != "" {
++			t.Errorf("(-want +got):\n%s", diff)
++		}
++	})
++
++	t.Run("missing offline", func(t *testing.T) {
++		testDir := createTestDir(t)
++		m, err := newlocalMatcher(testDir, userAgent, false, "http://127.0.0.1:1", http.DefaultClient)
++		if err != nil {
++			t.Fatalf("newlocalMatcher: %v", err)
++		}
++		if _, err := m.MatchVulnerabilities(t.Context(), aliasJDK, []*extractor.Package{aliasJDK}); err == nil {
++			t.Errorf("expected an error for a missing offline database, got none")
++		}
++	})
++}
+diff --git a/enricher/vulnmatch/osvlocal/zip.go b/enricher/vulnmatch/osvlocal/zip.go
+index 76cc32e..a5836e1 100644
+--- a/enricher/vulnmatch/osvlocal/zip.go
++++ b/enricher/vulnmatch/osvlocal/zip.go
+@@ -33,6 +33,7 @@ import (
+ 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/vulns"
+ 	"github.com/google/osv-scalibr/extractor"
+ 	"github.com/google/osv-scalibr/inventory/osvecosystem"
++	"github.com/google/osv-scalibr/log"
+ 	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
+ 	"google.golang.org/protobuf/encoding/protojson"
+ )
+@@ -93,9 +94,20 @@ func fetchLocalArchiveCRC32CHash(data []byte) uint32 {
+ 	return crc32.Checksum(data, crc32.MakeTable(crc32.Castagnoli))
+ }
+ 
++// fetchZip fetches the zip archive of the database, from the local cache when
++// it is up to date (or when offline), otherwise from ArchiveURL. ArchiveURL may
++// be a "file://" path, in which case the archive is copied into the cache so
++// that later offline runs can use it.
+ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
+ 	cache, err := os.ReadFile(db.StoredAt)
+ 
++	if err != nil {
++		// fall back to the cache layout of earlier osv-scanner releases
++		if legacy, legacyErr := os.ReadFile(db.legacyStoredAt()); legacyErr == nil {
++			cache, err = legacy, nil
++		}
++	}
++
+ 	if db.Offline {
+ 		if err != nil {
+ 			return nil, errOfflineDatabaseNotFound
+@@ -104,14 +116,24 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
+ 		return cache, nil
+ 	}
+ 
++	if localPath, ok := strings.CutPrefix(db.ArchiveURL, "file://"); ok {
++		body, err := os.ReadFile(localPath)
++		if err != nil {
++			return nil, fmt.Errorf("could not read OSV database archive: %w", err)
++		}
++
++		db.store(body)
++
++		return body, nil
++	}
++
+ 	if err == nil {
+ 		remoteHash, err := fetchRemoteArchiveCRC32CHash(ctx, db.ArchiveURL, db.httpClient)
+ 
+ 		if err != nil {
+-			return nil, err
+-		}
+-
+-		if fetchLocalArchiveCRC32CHash(cache) == remoteHash {
++			// no checksum header (a plain HTTP mirror): download again rather than fail
++			log.Debugf("could not determine remote hash of %s, downloading again: %v", db.ArchiveURL, err)
++		} else if fetchLocalArchiveCRC32CHash(cache) == remoteHash {
+ 			return cache, nil
+ 		}
+ 	}
+@@ -145,14 +167,25 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
+ 		return nil, fmt.Errorf("could not read OSV database archive from response: %w", err)
+ 	}
+ 
+-	err = os.MkdirAll(path.Dir(db.StoredAt), 0750)
++	db.store(body)
++
++	return body, nil
++}
++
++// store writes the archive into the cache, ignoring errors (the cache is an
++// optimisation only).
++func (db *zipDB) store(body []byte) {
++	err := os.MkdirAll(path.Dir(db.StoredAt), 0750)
+ 
+ 	if err == nil {
+-		//nolint:gosec // being world readable is fine
+ 		_ = os.WriteFile(db.StoredAt, body, 0644)
+ 	}
++}
+ 
+-	return body, nil
++// legacyStoredAt is the cache path of earlier osv-scanner releases,
++// <cache dir>/osv-scanner/<ecosystem>/all.zip (now osv-scalibr/...).
++func (db *zipDB) legacyStoredAt() string {
++	return path.Join(path.Dir(path.Dir(path.Dir(db.StoredAt))), "osv-scanner", db.Name, "all.zip")
+ }
+ 
+ func mightAffectPackages(v *osvpb.Vulnerability, names []string) bool {
+diff --git a/enricher/vulnmatch/osvlocal/zip_test.go b/enricher/vulnmatch/osvlocal/zip_test.go
+index 2d0918e..7a0458e 100644
+--- a/enricher/vulnmatch/osvlocal/zip_test.go
++++ b/enricher/vulnmatch/osvlocal/zip_test.go
+@@ -329,11 +329,20 @@ func TestNewZippedDB_Online_WithCacheButNoHashHeader(t *testing.T) {
+ 		"GHSA-3.json": {Id: "GHSA-3"},
+ 	}))
+ 
+-	_, err := newZippedDB(t.Context(), testDir, "my-db", ts.URL, userAgent, false, nil, http.DefaultClient)
++	// no checksum header: the archive is downloaded again
++	db, err := newZippedDB(t.Context(), testDir, "my-db", ts.URL, userAgent, false, nil, http.DefaultClient)
+ 
+-	if err == nil {
+-		t.Errorf("expected an error but did not get one")
++	if err != nil {
++		t.Fatalf("unexpected error \"%v\"", err)
+ 	}
++
++	expectDBToHaveOSVs(t, db, []*osvpb.Vulnerability{
++		{Id: "GHSA-1"},
++		{Id: "GHSA-2"},
++		{Id: "GHSA-3"},
++		{Id: "GHSA-4"},
++		{Id: "GHSA-5"},
++	})
+ }
+ 
+ func TestNewZippedDB_Online_WithBadCache(t *testing.T) {
+-- 
+2.43.0
+

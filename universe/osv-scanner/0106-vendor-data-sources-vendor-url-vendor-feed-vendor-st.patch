@@ -1,0 +1,267 @@
+From 368c29ac19f138c657504e8d98318f3af57c2153 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 22:24:46 +0000
+Subject: [PATCH] vendor data sources: --vendor-url, --vendor-feed,
+ --vendor-strict
+
+* Scans that query api.osv.dev also run vulnmatch/osvlocal, restricted to
+  the ecosystems the API does not serve (the vendor's JDK and NIK families),
+  so standalone vendor runtimes are checked without any configuration.
+  Offline scans match everything locally as before.
+* --vendor-url <url> (OSV_SCANNER_VENDOR_URL): base location of the
+  archives of all vendor products (<url>/<product>/all.zip).
+  --vendor-feed "<product>=<url>" (repeatable; OSV_SCANNER_VENDOR_FEED,
+  comma-separated): location of one product, wins over --vendor-url.
+  Without either, the vendor distributions come from the offline database
+  host (--local-db-url) and the standalone runtimes from the module's
+  product base URL.
+* An unavailable database of a vendor product is a warning - the packages
+  of that product were not checked - and the scan continues with an
+  unchanged exit code. --vendor-strict (OSV_SCANNER_VENDOR_STRICT) makes it
+  fail the scan. Other ecosystems are unchanged: a missing cached offline
+  database fails the scan.
+---
+ cmd/osv-scanner/internal/helper/flags.go   | 16 ++++++
+ cmd/osv-scanner/internal/helper/getters.go |  3 ++
+ pkg/osvscanner/osvscanner.go               | 19 +++++++
+ pkg/osvscanner/scan.go                     | 29 +++++++++-
+ pkg/osvscanner/vendor_internal_test.go     | 62 ++++++++++++++++++++++
+ 5 files changed, 128 insertions(+), 1 deletion(-)
+ create mode 100644 pkg/osvscanner/vendor_internal_test.go
+
+diff --git a/cmd/osv-scanner/internal/helper/flags.go b/cmd/osv-scanner/internal/helper/flags.go
+index 20433110..1cb76770 100644
+--- a/cmd/osv-scanner/internal/helper/flags.go
++++ b/cmd/osv-scanner/internal/helper/flags.go
+@@ -6,6 +6,7 @@ import (
+ 	"slices"
+ 	"strings"
+ 
++	osvinternal "github.com/bell-sw/osv-internal"
+ 	"github.com/google/osv-scanner/v2/internal/cmdlogger"
+ 	"github.com/google/osv-scanner/v2/internal/reporter"
+ 	"github.com/urfave/cli/v3"
+@@ -168,6 +169,21 @@ func BuildCommonScanFlags(defaultExtractors []string) []cli.Flag {
+ 			Hidden:  true,
+ 			Sources: cli.EnvVars("OSV_SCANNER_LOCAL_DB_URL"),
+ 		},
++		&cli.StringFlag{
++			Name:    "vendor-url",
++			Usage:   "base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory",
++			Sources: cli.EnvVars("OSV_SCANNER_VENDOR_URL"),
++		},
++		&cli.StringSliceFlag{
++			Name:    "vendor-feed",
++			Usage:   "location of the vendor OSV archive of one product, as \"<product>=<url>\"; repeatable; products: " + strings.Join(osvinternal.Ecosystems, ", "),
++			Sources: cli.EnvVars("OSV_SCANNER_VENDOR_FEED"),
++		},
++		&cli.BoolFlag{
++			Name:    "vendor-strict",
++			Usage:   "fail when vendor OSV data is unavailable instead of warning and continuing",
++			Sources: cli.EnvVars("OSV_SCANNER_VENDOR_STRICT"),
++		},
+ 		&cli.StringSliceFlag{
+ 			Name:  "call-analysis",
+ 			Usage: "Enable call analysis for specific languages (e.g. --call-analysis=go). Supported: go, rust (*). (*) Will run build scripts.",
+diff --git a/cmd/osv-scanner/internal/helper/getters.go b/cmd/osv-scanner/internal/helper/getters.go
+index 4f147fbe..a299a38c 100644
+--- a/cmd/osv-scanner/internal/helper/getters.go
++++ b/cmd/osv-scanner/internal/helper/getters.go
+@@ -43,6 +43,9 @@ func GetCommonScannerActions(cmd *cli.Command, scanLicensesAllowlist []string) o
+ 		DownloadDatabases:     cmd.Bool("download-offline-databases"),
+ 		LocalDBPath:           cmd.String("local-db-path"),
+ 		LocalDBURL:            cmd.String("local-db-url"),
++		VendorURL:             cmd.String("vendor-url"),
++		VendorFeeds:           cmd.StringSlice("vendor-feed"),
++		VendorStrict:          cmd.Bool("vendor-strict"),
+ 		PluginNetworkDisabled: cmd.Bool("offline"),
+ 		ScanLicensesSummary:   cmd.IsSet("licenses"),
+ 		ScanLicensesAllowlist: scanLicensesAllowlist,
+diff --git a/pkg/osvscanner/osvscanner.go b/pkg/osvscanner/osvscanner.go
+index 0a9d1089..1a162742 100644
+--- a/pkg/osvscanner/osvscanner.go
++++ b/pkg/osvscanner/osvscanner.go
+@@ -60,6 +60,18 @@ type ScannerActions struct {
+ 	// downloaded from (<LocalDBURL>/<ecosystem>/all.zip); empty means the
+ 	// osv.dev export bucket.
+ 	LocalDBURL string
++	// VendorURL is the base location of the OSV archives of the vendor
++	// products (<url>/<product>/all.zip): http(s), file:// or a directory.
++	// VendorFeeds locates single products as "<product>=<url>" pairs and wins
++	// over VendorURL. Without either, the vendor distributions
++	// come from the offline database host (LocalDBURL) and
++	// the standalone runtimes from the module's product base URL.
++	VendorURL   string
++	VendorFeeds []string
++	// VendorStrict makes an unavailable database of a vendor product fail the
++	// scan; by default it is a warning (the packages of that product were not
++	// checked) and the exit code is unchanged.
++	VendorStrict bool
+ 
+ 	// network-backed plugins
+ 	PluginNetworkDisabled bool
+@@ -121,6 +133,9 @@ var ErrAPIFailed = errors.New("API query failed")
+ // DoScan performs the osv scanner action, with optional reporter to output information
+ func DoScan(actions ScannerActions) (models.VulnerabilityResults, error) {
+ 	// --- Sanity check flags ----
++	if err := checkVendorOptions(actions); err != nil {
++		return models.VulnerabilityResults{}, err
++	}
+ 	// TODO(v2): Move the logic of the offline flag changing other flags into here from the main.go/scan.go
+ 	if actions.CompareOffline {
+ 		if actions.ScanLicensesSummary {
+@@ -171,6 +186,10 @@ func DoScan(actions ScannerActions) (models.VulnerabilityResults, error) {
+ }
+ 
+ func DoContainerScan(actions ScannerActions) (models.VulnerabilityResults, error) {
++	if err := checkVendorOptions(actions); err != nil {
++		return models.VulnerabilityResults{}, err
++	}
++
+ 	scanResults := results.ScanResults{
+ 		ConfigManager: config.Manager{
+ 			DefaultConfig: config.Config{},
+diff --git a/pkg/osvscanner/scan.go b/pkg/osvscanner/scan.go
+index 2d0c665c..ce506b24 100644
+--- a/pkg/osvscanner/scan.go
++++ b/pkg/osvscanner/scan.go
+@@ -11,12 +11,14 @@ import (
+ 	"slices"
+ 	"strings"
+ 
++	osvinternal "github.com/bell-sw/osv-internal"
+ 	scalibr "github.com/google/osv-scalibr"
+ 	"github.com/google/osv-scalibr/annotator"
+ 	cpb "github.com/google/osv-scalibr/binary/proto/config_go_proto"
+ 	"github.com/google/osv-scalibr/enricher"
+ 	"github.com/google/osv-scalibr/enricher/packagedeprecation"
+ 	"github.com/google/osv-scalibr/enricher/reachability/java"
++	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal"
+ 	"github.com/google/osv-scalibr/extractor"
+ 	"github.com/google/osv-scalibr/extractor/filesystem"
+ 	"github.com/google/osv-scalibr/extractor/filesystem/simplefileapi"
+@@ -48,6 +50,16 @@ func configurePlugins(plugins []plugin.Plugin, accessors ExternalAccessors, acti
+ 			ScanGitDir: !actions.IncludeGitRoot,
+ 			OSVClient:  accessors.OSVDevClient,
+ 		})
++		// Next to api.osv.dev the local matcher handles the ecosystems the API
++		// does not serve (the vendor's JDK / NIK); offline it matches everything.
++		// The feeds were validated by checkVendorOptions.
++		feeds, _ := osvlocal.ParseVendorFeeds(actions.VendorFeeds)
++		osvlocal.Configure(plug, osvlocal.Options{
++			LocalOnlyEcosystems: !actions.CompareOffline,
++			VendorURL:           actions.VendorURL,
++			VendorFeeds:         feeds,
++			VendorStrict:        actions.VendorStrict,
++		})
+ 	}
+ }
+ 
+@@ -150,7 +162,8 @@ func getPlugins(
+ 	if actions.CompareOffline {
+ 		actions.PluginsEnabled = append(actions.PluginsEnabled, "vulnmatch/osvlocal")
+ 	} else {
+-		actions.PluginsEnabled = append(actions.PluginsEnabled, "vulnmatch/osvdev")
++		// osvlocal is restricted to the ecosystems api.osv.dev does not serve, see configurePlugins
++		actions.PluginsEnabled = append(actions.PluginsEnabled, "vulnmatch/osvdev", "vulnmatch/osvlocal")
+ 	}
+ 
+ 	plugins := scalibrplugin.Resolve(actions.PluginsEnabled, actions.PluginsDisabled, finalScalibrConfig)
+@@ -575,6 +588,13 @@ func dedupPackageVulns(vulns []*inventory.PackageVuln) []*inventory.PackageVuln
+ 	return result
+ }
+ 
++// checkVendorOptions validates the --vendor-feed pairs.
++func checkVendorOptions(actions ScannerActions) error {
++	_, err := osvlocal.ParseVendorFeeds(actions.VendorFeeds)
++
++	return err
++}
++
+ // vulnMatchFailure returns an error when a failed vulnerability matcher must
+ // fail the scan: a missing or unreadable cached offline database
+ // (--offline-vulnerabilities without --download-offline-databases). With
+@@ -589,5 +609,12 @@ func vulnMatchFailure(status *plugin.Status, actions ScannerActions) error {
+ 		return fmt.Errorf("vulnerability matching failed (%s): %s", status.Name, status.Status.FailureReason)
+ 	}
+ 
++	// An unavailable vendor database fails the plugin only with --vendor-strict,
++	// and then fails the scan in every mode. The failure reason is the module's
++	// canonical warning, which opens with the vendor name.
++	if actions.VendorStrict && strings.Contains(status.Status.FailureReason, osvinternal.Vendor+" OSV data for") {
++		return fmt.Errorf("vulnerability matching failed (%s): %s", status.Name, status.Status.FailureReason)
++	}
++
+ 	return nil
+ }
+diff --git a/pkg/osvscanner/vendor_internal_test.go b/pkg/osvscanner/vendor_internal_test.go
+new file mode 100644
+index 00000000..156f6a5e
+--- /dev/null
++++ b/pkg/osvscanner/vendor_internal_test.go
+@@ -0,0 +1,62 @@
++package osvscanner
++
++import (
++	"net/url"
++	"strings"
++	"testing"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/osvdata"
++	"github.com/google/osv-scalibr/plugin"
++)
++
++func TestVulnMatchFailure(t *testing.T) {
++	t.Parallel()
++
++	// the plugin's failure reason: the module's canonical warning, then the download error
++	unavailable := (&osvdata.UnavailableError{
++		Family: osvinternal.EcosystemJDK, Reason: "HTTP 404",
++		URL: osvdata.DefaultProductBaseURL + "/" + url.PathEscape(osvinternal.EcosystemJDK) + "/all.zip",
++	}).Warning() + ": unable to fetch OSV database: db host returned 404 Not Found"
++	failed := func(name, reason string) *plugin.Status {
++		return &plugin.Status{Name: name, Status: &plugin.ScanStatus{Status: plugin.ScanStatusFailed, FailureReason: reason}}
++	}
++
++	tests := []struct {
++		name    string
++		status  *plugin.Status
++		actions ScannerActions
++		wantErr bool
++	}{
++		{"succeeded plugin", &plugin.Status{Name: "vulnmatch/osvlocal", Status: &plugin.ScanStatus{Status: plugin.ScanStatusSucceeded}}, ScannerActions{CompareOffline: true}, false},
++		{"another plugin", failed("os/apk", "boom"), ScannerActions{CompareOffline: true}, false},
++		{"cached offline, database missing", failed("vulnmatch/osvlocal", "no offline version of the OSV database is available"), ScannerActions{CompareOffline: true}, true},
++		{"offline with downloads, download failed", failed("vulnmatch/osvlocal", "db host returned 404 Not Found"), ScannerActions{CompareOffline: true, DownloadDatabases: true}, false},
++		{"online, generic failure", failed("vulnmatch/osvlocal", "db host returned 404 Not Found"), ScannerActions{}, false},
++		{"online, vendor database unavailable, strict", failed("vulnmatch/osvlocal", unavailable), ScannerActions{VendorStrict: true}, true},
++		{"offline with downloads, vendor database unavailable, strict", failed("vulnmatch/osvlocal", unavailable), ScannerActions{CompareOffline: true, DownloadDatabases: true, VendorStrict: true}, true},
++		{"strict, failure of another kind", failed("vulnmatch/osvlocal", "db host returned 404 Not Found"), ScannerActions{VendorStrict: true}, false},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			t.Parallel()
++
++			if err := vulnMatchFailure(tt.status, tt.actions); (err != nil) != tt.wantErr {
++				t.Errorf("vulnMatchFailure() = %v, wantErr %v", err, tt.wantErr)
++			}
++		})
++	}
++}
++
++func TestCheckVendorOptions(t *testing.T) {
++	t.Parallel()
++
++	if err := checkVendorOptions(ScannerActions{VendorFeeds: []string{osvinternal.EcosystemJDK + "=https://example.com/osv", strings.ToLower(osvinternal.EcosystemLinux) + "=/srv/osv"}}); err != nil {
++		t.Errorf("checkVendorOptions() = %v, want nil", err)
++	}
++	for _, bad := range []string{osvinternal.EcosystemJDK, "Zulu=https://example.com/osv"} {
++		if err := checkVendorOptions(ScannerActions{VendorFeeds: []string{bad}}); err == nil {
++			t.Errorf("checkVendorOptions(%q) = nil, want an error", bad)
++		}
++	}
++}
+-- 
+2.43.0
+
