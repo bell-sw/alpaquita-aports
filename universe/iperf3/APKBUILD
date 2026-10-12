@@ -15,10 +15,6 @@ source="$pkgname-$pkgver.tar.gz::https://github.com/esnet/$_pkgname/archive/$pkg
 	"
 builddir="$srcdir/$_pkgname-$pkgver"
 
-# secfixes:
-#   3.17-r0:
-#     - CVE-2024-26306
-
 build() {
 	CFLAGS="$CFLAGS -flto=auto" \
 	./configure \
@@ -41,6 +37,10 @@ check() {
 #     - CVE-2025-54349
 #     - CVE-2025-54350
 #     - CVE-2025-54351
+#   3.18-r0:
+#     - CVE-2026-71218
+#   3.17-r0:
+#     - CVE-2024-26306
 
 package() {
 	make DESTDIR="$pkgdir" install
