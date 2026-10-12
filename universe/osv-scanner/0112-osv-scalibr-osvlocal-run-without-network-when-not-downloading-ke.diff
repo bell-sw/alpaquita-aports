@@ -1,0 +1,193 @@
+From d65382e8082134c1ac6107118a2952c1ffbbcb60 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 19:09:43 +0000
+Subject: [PATCH] osvlocal: run without network when not downloading, keep the
+ cache when a download fails
+
+* Requirements(): without downloads the enricher only reads its cache, so
+  it must declare NetworkAny. NetworkOffline means "offline only" to
+  plugin.ValidateRequirements, which silently disabled the plugin on every
+  osv-scanner run that used --offline-vulnerabilities without --offline:
+  the cached databases were never consulted and the scan reported no
+  issues.
+* fetchZip: when the archive cannot be downloaded and a cached copy exists,
+  use it with a warning instead of failing the ecosystem.
+---
+ enricher/vulnmatch/osvlocal/alias_test.go    | 34 +++++++++++
+ enricher/vulnmatch/osvlocal/osvlocal.go      |  5 +-
+ enricher/vulnmatch/osvlocal/osvlocal_test.go |  4 +-
+ enricher/vulnmatch/osvlocal/zip.go           | 62 ++++++++++++--------
+ 4 files changed, 79 insertions(+), 26 deletions(-)
+
+diff --git a/enricher/vulnmatch/osvlocal/alias_test.go b/enricher/vulnmatch/osvlocal/alias_test.go
+index 88626bb..aa5869d 100644
+--- a/enricher/vulnmatch/osvlocal/alias_test.go
++++ b/enricher/vulnmatch/osvlocal/alias_test.go
+@@ -198,3 +198,37 @@ func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
+ 		}
+ 	})
+ }
++
++// TestLocalMatcher_DownloadFailureUsesCache: a failed download falls back to
++// the cached copy; without a cache it is an error.
++func TestLocalMatcher_DownloadFailureUsesCache(t *testing.T) {
++	archive := fakeserver.ZipOSVs(t, vendorOSVs())
++
++	ts := fakeserver.CreateZipServer(t, func(w http.ResponseWriter, r *http.Request) {
++		http.NotFound(w, r)
++	})
++
++	t.Run("cached copy kept on 404", func(t *testing.T) {
++		testDir := createTestDir(t)
++		cacheWrite(t, path.Join(testDir, "osv-scalibr", "Alpaquita", "all.zip"), archive)
++
++		m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
++		if err != nil {
++			t.Fatalf("newlocalMatcher: %v", err)
++		}
++		if diff := cmp.Diff([]string{"BELL-CVE-2025-24855"}, matchIDs(t, m, aliasJDK, []*extractor.Package{aliasJDK})); diff != "" {
++			t.Errorf("(-want +got):\n%s", diff)
++		}
++	})
++
++	t.Run("no cache and 404 is an error", func(t *testing.T) {
++		testDir := createTestDir(t)
++		m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
++		if err != nil {
++			t.Fatalf("newlocalMatcher: %v", err)
++		}
++		if _, err := m.MatchVulnerabilities(t.Context(), aliasJDK, []*extractor.Package{aliasJDK}); err == nil {
++			t.Errorf("expected an error, got none")
++		}
++	})
++}
+diff --git a/enricher/vulnmatch/osvlocal/osvlocal.go b/enricher/vulnmatch/osvlocal/osvlocal.go
+index 5bcbc12..e4837bb 100644
+--- a/enricher/vulnmatch/osvlocal/osvlocal.go
++++ b/enricher/vulnmatch/osvlocal/osvlocal.go
+@@ -109,7 +109,10 @@ func (Enricher) Version() int {
+ // Requirements of the Enricher.
+ // Needs network access if database downloading is enabled.
+ func (e Enricher) Requirements() *plugin.Capabilities {
+-	network := plugin.NetworkOffline
++	// Without downloads the enricher only reads its cache and may run with or
++	// without network; NetworkOffline would mean "offline only" and get the
++	// plugin disabled on online scans.
++	network := plugin.NetworkAny
+ 
+ 	if e.download {
+ 		network = plugin.NetworkOnline
+diff --git a/enricher/vulnmatch/osvlocal/osvlocal_test.go b/enricher/vulnmatch/osvlocal/osvlocal_test.go
+index 0e9c288..c2b60af 100644
+--- a/enricher/vulnmatch/osvlocal/osvlocal_test.go
++++ b/enricher/vulnmatch/osvlocal/osvlocal_test.go
+@@ -69,8 +69,8 @@ func TestRequirements(t *testing.T) {
+ 		t.Errorf("New() = %v, want nil", err)
+ 	}
+ 
+-	if e.Requirements().Network != plugin.NetworkOffline {
+-		t.Errorf("requirements.Network = %v, want %v", e.Requirements().Network, plugin.NetworkOffline)
++	if e.Requirements().Network != plugin.NetworkAny {
++		t.Errorf("requirements.Network = %v, want %v", e.Requirements().Network, plugin.NetworkAny)
+ 	}
+ }
+ 
+diff --git a/enricher/vulnmatch/osvlocal/zip.go b/enricher/vulnmatch/osvlocal/zip.go
+index a5836e1..80aab20 100644
+--- a/enricher/vulnmatch/osvlocal/zip.go
++++ b/enricher/vulnmatch/osvlocal/zip.go
+@@ -138,6 +138,26 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
+ 		}
+ 	}
+ 
++	body, err := db.download(ctx)
++
++	if err != nil {
++		if cache != nil {
++			// a stale cache is better than no database at all
++			log.Warnf("could not update the %s OSV database, using the cached copy: %v", db.Name, err)
++
++			return cache, nil
++		}
++
++		return nil, err
++	}
++
++	db.store(body)
++
++	return body, nil
++}
++
++// download fetches the archive from ArchiveURL.
++func (db *zipDB) download(ctx context.Context) ([]byte, error) {
+ 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, db.ArchiveURL, nil)
+ 
+ 	if err != nil {
+@@ -159,16 +179,12 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
+ 		return nil, fmt.Errorf("db host returned %s", resp.Status)
+ 	}
+ 
+-	var body []byte
+-
+-	body, err = io.ReadAll(resp.Body)
++	body, err := io.ReadAll(resp.Body)
+ 
+ 	if err != nil {
+ 		return nil, fmt.Errorf("could not read OSV database archive from response: %w", err)
+ 	}
+ 
+-	db.store(body)
+-
+ 	return body, nil
+ }
+ 
+@@ -188,6 +204,24 @@ func (db *zipDB) legacyStoredAt() string {
+ 	return path.Join(path.Dir(path.Dir(path.Dir(db.StoredAt))), "osv-scanner", db.Name, "all.zip")
+ }
+ 
++// hasPackage reports whether the database has a record for the package name
++// in the ecosystem.
++func (db *zipDB) hasPackage(eco osvecosystem.Parsed, name string) bool {
++	for _, v := range db.Vulnerabilities {
++		for _, affected := range v.GetAffected() {
++			if affected.GetPackage().GetName() != name {
++				continue
++			}
++			affectedEco, err := osvecosystem.Parse(affected.GetPackage().GetEcosystem())
++			if err == nil && affectedEco.Equal(eco) {
++				return true
++			}
++		}
++	}
++
++	return false
++}
++
+ func mightAffectPackages(v *osvpb.Vulnerability, names []string) bool {
+ 	for _, affected := range v.GetAffected() {
+ 		for _, name := range names {
+@@ -312,21 +346,3 @@ func VulnerabilitiesAffectingPackageAs(allVulns []*osvpb.Vulnerability, pkg *ext
+ 
+ 	return vulnerabilities
+ }
+-
+-// hasPackage reports whether the database has a record for the package name
+-// in the ecosystem.
+-func (db *zipDB) hasPackage(eco osvecosystem.Parsed, name string) bool {
+-	for _, v := range db.Vulnerabilities {
+-		for _, affected := range v.GetAffected() {
+-			if affected.GetPackage().GetName() != name {
+-				continue
+-			}
+-			affectedEco, err := osvecosystem.Parse(affected.GetPackage().GetEcosystem())
+-			if err == nil && affectedEco.Equal(eco) {
+-				return true
+-			}
+-		}
+-	}
+-
+-	return false
+-}
+-- 
+2.43.0
+

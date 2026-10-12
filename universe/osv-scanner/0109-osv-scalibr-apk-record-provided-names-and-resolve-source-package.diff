@@ -1,0 +1,1087 @@
+From d7e08aecfa4b4462a14cb6ea52d40febad625944 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 19:09:42 +0000
+Subject: [PATCH] apk: record provided names and resolve source-package aliases
+ when matching
+
+Some apk-based distributions publish advisories under a name that is not
+the apk origin of the installed package: BellSoft keys the Liberica JDK
+advisories on "openjdk<major>[-lite]" while the origin is
+"liberica<major>[-lite]"; the binary package carries the alias in its
+provides list:
+
+    P:liberica21-lite-jdk-no-deps  o:liberica21-lite
+    p:java-jdk-no-deps java21-jdk-no-deps openjdk21-lite-jdk-no-deps=21.0.2_p14-r1
+
+osv.dev does not resolve the alias (34 records for openjdk21-lite /
+Alpaquita:23, none for liberica21-lite), so the matchers have to.
+
+* apk extractor: the plain package names of the "p:" field are kept in
+  Metadata.Provides (so:/cmd:/pc:/path entries dropped).
+* osvutil.QueryNames: candidate names in preference order - origin, every
+  provided name, every provided name with the sub-package suffix stripped
+  ("-jdk-no-deps") - for the Alpaquita and BellSoft Hardened Containers
+  ecosystems only; every other ecosystem keeps a single name.
+* vulnmatch/osvdev and vulnmatch/osvlocal try the candidates in order; the
+  first name the source knows wins.
+---
+ .../vulnmatch/internal/osvutil/osvutil.go     |  56 +++++++
+ .../internal/osvutil/querynames_test.go       | 105 ++++++++++++
+ enricher/vulnmatch/osvdev/osvdev.go           |  52 ++++--
+ .../vulnmatch/osvdev/osvdev_alias_test.go     |  93 +++++++++++
+ enricher/vulnmatch/osvlocal/alias_test.go     | 151 ++++++++++++++++++
+ .../osvlocal/internal/vulns/alias_test.go     |  59 +++++++
+ .../osvlocal/internal/vulns/vulnerability.go  |  17 +-
+ enricher/vulnmatch/osvlocal/matcher.go        |  18 ++-
+ enricher/vulnmatch/osvlocal/zip.go            |  31 +++-
+ extractor/filesystem/os/apk/apk.go            |  17 ++
+ .../filesystem/os/apk/apk_internal_test.go    |  43 +++++
+ extractor/filesystem/os/apk/apk_test.go       |   8 +-
+ .../filesystem/os/apk/apk_vendor_test.go      |  90 +++++++++++
+ .../filesystem/os/apk/metadata/metadata.go    |   4 +
+ .../os/apk/testdata/provides-installed        |  41 +++++
+ 15 files changed, 756 insertions(+), 29 deletions(-)
+ create mode 100644 enricher/vulnmatch/internal/osvutil/querynames_test.go
+ create mode 100644 enricher/vulnmatch/osvdev/osvdev_alias_test.go
+ create mode 100644 enricher/vulnmatch/osvlocal/alias_test.go
+ create mode 100644 enricher/vulnmatch/osvlocal/internal/vulns/alias_test.go
+ create mode 100644 extractor/filesystem/os/apk/apk_internal_test.go
+ create mode 100644 extractor/filesystem/os/apk/apk_vendor_test.go
+ create mode 100644 extractor/filesystem/os/apk/testdata/provides-installed
+
+diff --git a/enricher/vulnmatch/internal/osvutil/osvutil.go b/enricher/vulnmatch/internal/osvutil/osvutil.go
+index 4a8f4dc..313383f 100644
+--- a/enricher/vulnmatch/internal/osvutil/osvutil.go
++++ b/enricher/vulnmatch/internal/osvutil/osvutil.go
+@@ -147,6 +147,62 @@ func version(pkg *extractor.Package, ecosystem string) string {
+ 	return version
+ }
+ 
++// providesAliasEcosystems lists the apk-based ecosystems whose advisories may
++// be keyed on a name the package provides rather than on its origin: BellSoft
++// publishes the Liberica JDK advisories as "openjdk<major>[-lite]" while the
++// apk origin is "liberica<major>[-lite]" and the binary package provides
++// "openjdk21-lite-jdk-no-deps". Alpine keys strictly on the origin.
++var providesAliasEcosystems = map[osvconstants.Ecosystem]bool{
++	osvconstants.EcosystemAlpaquita:                  true,
++	osvconstants.EcosystemBellSoftHardenedContainers: true,
++}
++
++// QueryNames returns the names a vulnerability source should be queried
++// with, in order of preference: the normalized name from ParsePackage and,
++// for apk packages of a providesAliasEcosystems ecosystem, every provided
++// name and then every provided name with the sub-package suffix stripped
++// ("liberica21-lite-jdk-no-deps" -> "openjdk21-lite-jdk-no-deps" ->
++// "openjdk21-lite"). Callers use the first name the source knows.
++func QueryNames(pkg *extractor.Package) []string {
++	np := ParsePackage(pkg)
++	names := []string{np.Name}
++
++	m, ok := pkg.Metadata.(*apkmeta.Metadata)
++	if !ok || !providesAliasEcosystems[np.Ecosystem.Ecosystem] || len(m.Provides) == 0 {
++		return names
++	}
++
++	seen := map[string]bool{np.Name: true}
++	add := func(name string) {
++		if name != "" && !seen[name] {
++			seen[name] = true
++			names = append(names, name)
++		}
++	}
++
++	origin := m.OriginName
++	if origin == "" {
++		origin = pkg.Name
++	}
++	suffix := ""
++	if m.PackageName != "" && strings.HasPrefix(m.PackageName, origin) {
++		suffix = strings.TrimPrefix(m.PackageName, origin)
++	}
++
++	for _, provided := range m.Provides {
++		add(provided)
++	}
++	if suffix != "" {
++		for _, provided := range m.Provides {
++			if strings.HasSuffix(provided, suffix) && len(provided) > len(suffix) {
++				add(strings.TrimSuffix(provided, suffix))
++			}
++		}
++	}
++
++	return names
++}
++
+ func commit(pkg *extractor.Package) string {
+ 	if pkg.SourceCode != nil {
+ 		return pkg.SourceCode.Commit
+diff --git a/enricher/vulnmatch/internal/osvutil/querynames_test.go b/enricher/vulnmatch/internal/osvutil/querynames_test.go
+new file mode 100644
+index 0000000..0b4c117
+--- /dev/null
++++ b/enricher/vulnmatch/internal/osvutil/querynames_test.go
+@@ -0,0 +1,105 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package osvutil_test
++
++import (
++	"testing"
++
++	"github.com/google/go-cmp/cmp"
++	"github.com/google/osv-scalibr/enricher/vulnmatch/internal/osvutil"
++	"github.com/google/osv-scalibr/extractor"
++	apkmetadata "github.com/google/osv-scalibr/extractor/filesystem/os/apk/metadata"
++	"github.com/google/osv-scalibr/purl"
++)
++
++func TestQueryNames(t *testing.T) {
++	tests := []struct {
++		name string
++		pkg  *extractor.Package
++		want []string
++	}{
++		{
++			name: "non-apk package has a single name",
++			pkg:  &extractor.Package{PURLType: purl.TypeNPM, Name: "express", Version: "4.17.1"},
++			want: []string{"express"},
++		},
++		{
++			name: "alpaquita JDK sub-package resolves through provides and suffix stripping",
++			pkg: &extractor.Package{
++				PURLType: purl.TypeApk, Name: "liberica21-lite-jdk-no-deps", Version: "21.0.2_p14-r1",
++				Metadata: &apkmetadata.Metadata{
++					OSID: "alpaquita", OSVersionID: "23",
++					PackageName: "liberica21-lite-jdk-no-deps", OriginName: "liberica21-lite",
++					Provides: []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"},
++				},
++			},
++			// every provided name, then every provided name without the "-jdk-no-deps" suffix
++			want: []string{"liberica21-lite", "java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps", "java", "java21", "openjdk21-lite"},
++		},
++		{
++			name: "bellsoft hardened containers main package (no suffix)",
++			pkg: &extractor.Package{
++				PURLType: purl.TypeApk, Name: "liberica21", Version: "21.0.2_p14-r1",
++				Metadata: &apkmetadata.Metadata{
++					OSID: "bellsoft-hardened-containers", OSVersionID: "stream",
++					PackageName: "liberica21", OriginName: "liberica21",
++					Provides: []string{"openjdk21", "java-jdk"},
++				},
++			},
++			want: []string{"liberica21", "openjdk21", "java-jdk"},
++		},
++		{
++			name: "duplicates are removed and the origin stays first",
++			pkg: &extractor.Package{
++				PURLType: purl.TypeApk, Name: "glibc-utils", Version: "2.43.0-r10",
++				Metadata: &apkmetadata.Metadata{
++					OSID: "alpaquita", OSVersionID: "stream",
++					PackageName: "glibc-utils", OriginName: "glibc",
++					Provides: []string{"glibc-utils", "glibc"},
++				},
++			},
++			want: []string{"glibc", "glibc-utils"},
++		},
++		{
++			name: "alpine keeps origin-only matching",
++			pkg: &extractor.Package{
++				PURLType: purl.TypeApk, Name: "ca-certificates-bundle", Version: "20230506-r0",
++				Metadata: &apkmetadata.Metadata{
++					OSID: "alpine", OSVersionID: "3.18.0",
++					PackageName: "ca-certificates-bundle", OriginName: "ca-certificates",
++					Provides: []string{"ca-certificates-cacert"},
++				},
++			},
++			want: []string{"ca-certificates"},
++		},
++		{
++			name: "alpaquita package without provides",
++			pkg: &extractor.Package{
++				PURLType: purl.TypeApk, Name: "zlib", Version: "1.3.2-r1",
++				Metadata: &apkmetadata.Metadata{OSID: "alpaquita", OSVersionID: "25", PackageName: "zlib", OriginName: "zlib"},
++			},
++			want: []string{"zlib"},
++		},
++	}
++
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			got := osvutil.QueryNames(tc.pkg)
++			if diff := cmp.Diff(tc.want, got); diff != "" {
++				t.Errorf("QueryNames() (-want +got):\n%s", diff)
++			}
++		})
++	}
++}
+diff --git a/enricher/vulnmatch/osvdev/osvdev.go b/enricher/vulnmatch/osvdev/osvdev.go
+index 7bab972..b68f706 100644
+--- a/enricher/vulnmatch/osvdev/osvdev.go
++++ b/enricher/vulnmatch/osvdev/osvdev.go
+@@ -126,10 +126,12 @@ func (Enricher) RequiredPlugins() []string {
+ 
+ // Enrich queries the OSV.dev API to find vulnerabilities in the inventory packages
+ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inventory.Inventory) error {
++	// a package may map to several queries (osvutil.QueryNames), consecutive
++	// and in preference order
+ 	pkgs := make([]*extractor.Package, 0, len(inv.Packages))
+ 	queries := make([]*osvapipb.Query, 0, len(inv.Packages))
+ 	for _, pkg := range inv.Packages {
+-		if query := pkgToQuery(pkg); query != nil {
++		for _, query := range pkgToQueries(pkg) {
+ 			pkgs = append(pkgs, pkg)
+ 			queries = append(queries, query)
+ 		}
+@@ -155,10 +157,21 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
+ 		return initialQueryErr
+ 	}
+ 
++	// Only the first name the database knows is used: an alias must not add
++	// findings to a package the database keys on its own name.
+ 	vulnToPkgs := map[string][]*extractor.Package{}
++	resolved := map[*extractor.Package]bool{}
+ 	for i, batch := range batchResp.Results {
++		if i >= len(pkgs) {
++			break
++		}
++		pkg := pkgs[i]
++		if resolved[pkg] || len(batch.Vulns) == 0 {
++			continue
++		}
++		resolved[pkg] = true
+ 		for _, vv := range batch.Vulns {
+-			vulnToPkgs[vv.Id] = append(vulnToPkgs[vv.Id], pkgs[i])
++			vulnToPkgs[vv.Id] = append(vulnToPkgs[vv.Id], pkg)
+ 		}
+ 	}
+ 
+@@ -242,36 +255,45 @@ func (e *Enricher) makeVulnerabilitiesRequest(ctx context.Context, vulnIDs []str
+ 	return vulnerabilities, nil
+ }
+ 
+-func pkgToQuery(pkg *extractor.Package) *osvapipb.Query {
++// pkgToQueries converts a package into the OSV queries to run for it, in
++// preference order: a single commit query, or one version query per candidate
++// package name (see osvutil.QueryNames). Returns nil for unqueryable packages.
++func pkgToQueries(pkg *extractor.Package) []*osvapipb.Query {
+ 	np := osvutil.ParsePackage(pkg)
+ 
+ 	// If the ecosystem is GIT, we prioritize commit queries.
+ 	if np.Ecosystem.String() == "GIT" && np.Commit != "" {
+-		return &osvapipb.Query{
++		return []*osvapipb.Query{{
+ 			Param: &osvapipb.Query_Commit{
+ 				Commit: np.Commit,
+ 			},
+-		}
++		}}
+ 	}
+ 
+ 	if np.Name != "" && !np.Ecosystem.IsEmpty() && np.Version != "" {
+-		return &osvapipb.Query{
+-			Package: &osvpb.Package{
+-				Name:      np.Name,
+-				Ecosystem: np.Ecosystem.String(),
+-			},
+-			Param: &osvapipb.Query_Version{
+-				Version: np.Version,
+-			},
++		names := osvutil.QueryNames(pkg)
++		queries := make([]*osvapipb.Query, 0, len(names))
++		for _, name := range names {
++			queries = append(queries, &osvapipb.Query{
++				Package: &osvpb.Package{
++					Name:      name,
++					Ecosystem: np.Ecosystem.String(),
++				},
++				Param: &osvapipb.Query_Version{
++					Version: np.Version,
++				},
++			})
+ 		}
++
++		return queries
+ 	}
+ 
+ 	if np.Commit != "" {
+-		return &osvapipb.Query{
++		return []*osvapipb.Query{{
+ 			Param: &osvapipb.Query_Commit{
+ 				Commit: np.Commit,
+ 			},
+-		}
++		}}
+ 	}
+ 
+ 	return nil
+diff --git a/enricher/vulnmatch/osvdev/osvdev_alias_test.go b/enricher/vulnmatch/osvdev/osvdev_alias_test.go
+new file mode 100644
+index 0000000..439a558
+--- /dev/null
++++ b/enricher/vulnmatch/osvdev/osvdev_alias_test.go
+@@ -0,0 +1,93 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package osvdev_test
++
++import (
++	"slices"
++	"testing"
++
++	"github.com/google/go-cmp/cmp"
++	"github.com/google/osv-scalibr/enricher/vulnmatch/osvdev"
++	"github.com/google/osv-scalibr/enricher/vulnmatch/osvdev/fakeclient"
++	"github.com/google/osv-scalibr/extractor"
++	apkmeta "github.com/google/osv-scalibr/extractor/filesystem/os/apk/metadata"
++	"github.com/google/osv-scalibr/inventory"
++	"github.com/google/osv-scalibr/purl"
++	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
++)
++
++// TestEnrich_ProvidesAlias: the names of osvutil.QueryNames are queried in
++// order and the first one osv.dev knows wins.
++func TestEnrich_ProvidesAlias(t *testing.T) {
++	alpaquitaJDK := &extractor.Package{
++		Name: "liberica21-lite-jdk-no-deps", Version: "21.0.2_p14-r1", PURLType: purl.TypeApk,
++		Metadata: &apkmeta.Metadata{
++			OSID: "alpaquita", OSVersionID: "23",
++			PackageName: "liberica21-lite-jdk-no-deps", OriginName: "liberica21-lite",
++			Provides: []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"},
++		},
++	}
++	alpaquitaGlibc := &extractor.Package{
++		Name: "glibc-utils", Version: "2.37.0-r0", PURLType: purl.TypeApk,
++		Metadata: &apkmeta.Metadata{
++			OSID: "alpaquita", OSVersionID: "stream",
++			PackageName: "glibc-utils", OriginName: "glibc",
++			Provides: []string{"glibc-bin"},
++		},
++	}
++	alpineBundle := &extractor.Package{
++		Name: "ca-certificates-bundle", Version: "20230506-r0", PURLType: purl.TypeApk,
++		Metadata: &apkmeta.Metadata{
++			OSID: "alpine", OSVersionID: "3.18.0",
++			PackageName: "ca-certificates-bundle", OriginName: "ca-certificates",
++			Provides: []string{"ca-certificates-cacert"},
++		},
++	}
++
++	bell1 := &osvpb.Vulnerability{Id: "BELL-CVE-2025-24855"}
++	bell2 := &osvpb.Vulnerability{Id: "BELL-CVE-2026-19499"}
++	alias := &osvpb.Vulnerability{Id: "BELL-SHOULD-NOT-MATCH"}
++	alpine := &osvpb.Vulnerability{Id: "CVE-ALPINE-CACERT"}
++
++	client := fakeclient.New(map[string][]*osvpb.Vulnerability{
++		// keyed on "<name>:<version>:<commit>" by the fake client
++		"openjdk21-lite:21.0.2_p14-r1:":       {bell1},
++		"glibc:2.37.0-r0:":                    {bell2},
++		"glibc-bin:2.37.0-r0:":                {alias},
++		"ca-certificates-cacert:20230506-r0:": {alpine},
++	})
++
++	inv := &inventory.Inventory{Packages: []*extractor.Package{alpaquitaJDK, alpaquitaGlibc, alpineBundle}}
++	e := osvdev.NewWithClient(client, 0)
++	if err := e.Enrich(t.Context(), nil, inv); err != nil {
++		t.Fatalf("Enrich(): %v", err)
++	}
++
++	got := map[string][]string{}
++	for _, pv := range inv.PackageVulns {
++		got[pv.Package.Name] = append(got[pv.Package.Name], pv.Vulnerability.Id)
++		slices.Sort(got[pv.Package.Name])
++	}
++	want := map[string][]string{
++		// resolved through the stripped provided name openjdk21-lite
++		"liberica21-lite-jdk-no-deps": {"BELL-CVE-2025-24855"},
++		// the origin is known, so the provided name is never consulted
++		"glibc-utils": {"BELL-CVE-2026-19499"},
++		// Alpine: origin only, the provided name is not queried at all
++	}
++	if diff := cmp.Diff(want, got); diff != "" {
++		t.Errorf("package vulns (-want +got):\n%s", diff)
++	}
++}
+diff --git a/enricher/vulnmatch/osvlocal/alias_test.go b/enricher/vulnmatch/osvlocal/alias_test.go
+new file mode 100644
+index 0000000..21d4f18
+--- /dev/null
++++ b/enricher/vulnmatch/osvlocal/alias_test.go
+@@ -0,0 +1,151 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package osvlocal
++
++import (
++	"net/http"
++	"os"
++	"path/filepath"
++	"slices"
++	"strings"
++	"testing"
++
++	"github.com/google/go-cmp/cmp"
++	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/fakeserver"
++	"github.com/google/osv-scalibr/extractor"
++	apkmeta "github.com/google/osv-scalibr/extractor/filesystem/os/apk/metadata"
++	"github.com/google/osv-scalibr/purl"
++	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
++)
++
++func vendorOSVs() map[string]*osvpb.Vulnerability {
++	rng := func(introduced, fixed string) []*osvpb.Range {
++		return []*osvpb.Range{{Type: osvpb.Range_ECOSYSTEM, Events: []*osvpb.Event{{Introduced: introduced}, {Fixed: fixed}}}}
++	}
++	return map[string]*osvpb.Vulnerability{
++		"BELL-CVE-2025-24855.json": {
++			Id:       "BELL-CVE-2025-24855",
++			Upstream: []string{"CVE-2025-24855"},
++			Affected: []*osvpb.Affected{
++				{Package: &osvpb.Package{Ecosystem: "Alpaquita:23", Name: "openjdk21-lite"}, Ranges: rng("21_p37-r0", "21.0.8_p12-r0")},
++				{Package: &osvpb.Package{Ecosystem: "Alpaquita:stream", Name: "openjdk21-lite"}, Ranges: rng("21_p37-r0", "21.0.8_p12-r0")},
++				{Package: &osvpb.Package{Ecosystem: "BellSoft Hardened Containers:23", Name: "openjdk21-lite"}, Ranges: rng("21_p37-r0", "21.0.8_p12-r0")},
++			},
++		},
++		"BELL-CVE-2024-20918.json": {
++			Id:       "BELL-CVE-2024-20918",
++			Upstream: []string{"CVE-2024-20918"},
++			Affected: []*osvpb.Affected{
++				{Package: &osvpb.Package{Ecosystem: "Alpaquita:23", Name: "openjdk21-lite"}, Ranges: rng("21_p37-r0", "21.0.2_p14-r0")},
++			},
++		},
++		"BELL-CVE-2026-19499.json": {
++			Id:       "BELL-CVE-2026-19499",
++			Upstream: []string{"CVE-2026-19499"},
++			Affected: []*osvpb.Affected{
++				{Package: &osvpb.Package{Ecosystem: "Alpaquita:stream", Name: "glibc"}, Ranges: rng("0", "2.43.0-r6")},
++				{Package: &osvpb.Package{Ecosystem: "BellSoft Hardened Containers:stream", Name: "glibc"}, Ranges: rng("0", "2.43.0-r6")},
++			},
++		},
++		"BELL-ALIAS-TRAP.json": {
++			Id: "BELL-ALIAS-TRAP",
++			Affected: []*osvpb.Affected{
++				{Package: &osvpb.Package{Ecosystem: "Alpaquita:stream", Name: "glibc-bin"}, Ranges: rng("0", "9")},
++			},
++		},
++	}
++}
++
++var (
++	aliasJDK = &extractor.Package{
++		Name: "liberica21-lite-jdk-no-deps", Version: "21.0.2_p14-r1", PURLType: purl.TypeApk,
++		Metadata: &apkmeta.Metadata{
++			OSID: "alpaquita", OSVersionID: "23",
++			PackageName: "liberica21-lite-jdk-no-deps", OriginName: "liberica21-lite",
++			Provides: []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"},
++		},
++	}
++	aliasGlibc = &extractor.Package{
++		Name: "glibc-utils", Version: "2.37.0-r0", PURLType: purl.TypeApk,
++		Metadata: &apkmeta.Metadata{
++			OSID: "alpaquita", OSVersionID: "stream",
++			PackageName: "glibc-utils", OriginName: "glibc",
++			Provides: []string{"glibc-bin"},
++		},
++	}
++	aliasBHC = &extractor.Package{
++		Name: "liberica21-lite-jre-no-deps", Version: "21.0.9_p11-r0", PURLType: purl.TypeApk,
++		Metadata: &apkmeta.Metadata{
++			OSID: "bellsoft-hardened-containers", OSVersionID: "23",
++			PackageName: "liberica21-lite-jre-no-deps", OriginName: "liberica21-lite",
++			Provides: []string{"openjdk21-lite-jre-no-deps"},
++		},
++	}
++)
++
++func matchIDs(t *testing.T, m *localMatcher, pkg *extractor.Package, all []*extractor.Package) []string {
++	t.Helper()
++	vulns, err := m.MatchVulnerabilities(t.Context(), pkg, all)
++	if err != nil {
++		t.Fatalf("MatchVulnerabilities(%s): %v", pkg.Name, err)
++	}
++	ids := make([]string, 0, len(vulns))
++	for _, v := range vulns {
++		ids = append(ids, v.GetId())
++	}
++	slices.Sort(ids)
++	return ids
++}
++
++// TestLocalMatcher_ProvidesAlias: the names of osvutil.QueryNames are tried
++// against a local database; the first one the feed knows is used.
++func TestLocalMatcher_ProvidesAlias(t *testing.T) {
++	testDir := createTestDir(t)
++
++	ts := fakeserver.CreateZipServer(t, func(w http.ResponseWriter, r *http.Request) {
++		if !strings.HasSuffix(r.URL.Path, "/all.zip") {
++			http.NotFound(w, r)
++			return
++		}
++		_, _ = fakeserver.WriteOSVsZip(t, w, vendorOSVs())
++	})
++
++	m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
++	if err != nil {
++		t.Fatalf("newlocalMatcher: %v", err)
++	}
++	all := []*extractor.Package{aliasJDK, aliasGlibc, aliasBHC}
++
++	// 21.0.2_p14-r1 is past the 21.0.2_p14-r0 fix of BELL-CVE-2024-20918 and
++	// inside the range of BELL-CVE-2025-24855.
++	if diff := cmp.Diff([]string{"BELL-CVE-2025-24855"}, matchIDs(t, m, aliasJDK, all)); diff != "" {
++		t.Errorf("JDK (Alpaquita:23) (-want +got):\n%s", diff)
++	}
++	// the origin "glibc" is known: the provided name "glibc-bin" is never used
++	if diff := cmp.Diff([]string{"BELL-CVE-2026-19499"}, matchIDs(t, m, aliasGlibc, all)); diff != "" {
++		t.Errorf("glibc-utils (Alpaquita:stream) (-want +got):\n%s", diff)
++	}
++	// BHC:23 ranges are evaluated separately; 21.0.9_p11-r0 is fixed
++	if diff := cmp.Diff([]string{}, matchIDs(t, m, aliasBHC, all)); diff != "" {
++		t.Errorf("JRE (BellSoft Hardened Containers:23) (-want +got):\n%s", diff)
++	}
++
++	// the archives were cached under <dir>/osv-scalibr/<ecosystem>/all.zip
++	for _, eco := range []string{"Alpaquita", "BellSoft Hardened Containers"} {
++		if _, err := os.Stat(filepath.Join(testDir, "osv-scalibr", eco, "all.zip")); err != nil {
++			t.Errorf("archive for %q not cached: %v", eco, err)
++		}
++	}
++}
+diff --git a/enricher/vulnmatch/osvlocal/internal/vulns/alias_test.go b/enricher/vulnmatch/osvlocal/internal/vulns/alias_test.go
+new file mode 100644
+index 0000000..d13e2c8
+--- /dev/null
++++ b/enricher/vulnmatch/osvlocal/internal/vulns/alias_test.go
+@@ -0,0 +1,59 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package vulns_test
++
++import (
++	"testing"
++
++	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/vulns"
++	"github.com/google/osv-scalibr/extractor"
++	apkmeta "github.com/google/osv-scalibr/extractor/filesystem/os/apk/metadata"
++	"github.com/google/osv-scalibr/purl"
++	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
++)
++
++func TestOSV_IsAffectedAs_Alias(t *testing.T) {
++	vuln := buildOSVWithAffected(
++		&osvpb.Affected{
++			Package: &osvpb.Package{Ecosystem: "Alpaquita:23", Name: "openjdk21-lite"},
++			Ranges:  []*osvpb.Range{buildEcosystemAffectsRange(&osvpb.Event{Introduced: "21_p37-r0"}, &osvpb.Event{Fixed: "21.0.8_p12-r0"})},
++		},
++		&osvpb.Affected{
++			Package: &osvpb.Package{Ecosystem: "BellSoft Hardened Containers:23", Name: "openjdk21-lite"},
++			Ranges:  []*osvpb.Range{buildEcosystemAffectsRange(&osvpb.Event{Introduced: "21_p37-r0"}, &osvpb.Event{Fixed: "21.0.2_p14-r0"})},
++		},
++	)
++
++	pkg := func(osID, version string) *extractor.Package {
++		return &extractor.Package{
++			Name: "liberica21-lite-jdk-no-deps", Version: version, PURLType: purl.TypeApk,
++			Metadata: &apkmeta.Metadata{OSID: osID, OSVersionID: "23", PackageName: "liberica21-lite-jdk-no-deps", OriginName: "liberica21-lite"},
++		}
++	}
++
++	if vulns.IsAffected(vuln, pkg("alpaquita", "21.0.2_p14-r1")) {
++		t.Errorf("IsAffected() under the origin name must not match an advisory keyed on the alias")
++	}
++	if !vulns.IsAffectedAs(vuln, pkg("alpaquita", "21.0.2_p14-r1"), "openjdk21-lite") {
++		t.Errorf("IsAffectedAs(openjdk21-lite) = false, want true for 21.0.2_p14-r1 in [21_p37-r0, 21.0.8_p12-r0)")
++	}
++	if vulns.IsAffectedAs(vuln, pkg("alpaquita", "21.0.8_p12-r0"), "openjdk21-lite") {
++		t.Errorf("IsAffectedAs(openjdk21-lite) = true for the fixed version 21.0.8_p12-r0")
++	}
++	// the BHC family has its own range for the same package: fixed at 21.0.2_p14-r0
++	if vulns.IsAffectedAs(vuln, pkg("bellsoft-hardened-containers", "21.0.2_p14-r1"), "openjdk21-lite") {
++		t.Errorf("IsAffectedAs() evaluated the Alpaquita range for a BellSoft Hardened Containers package")
++	}
++}
+diff --git a/enricher/vulnmatch/osvlocal/internal/vulns/vulnerability.go b/enricher/vulnmatch/osvlocal/internal/vulns/vulnerability.go
+index e819cbd..c8e40f2 100644
+--- a/enricher/vulnmatch/osvlocal/internal/vulns/vulnerability.go
++++ b/enricher/vulnmatch/osvlocal/internal/vulns/vulnerability.go
+@@ -135,24 +135,29 @@ func hasGitRangeForRepo(affected *osvpb.Affected, repo string) bool {
+ }
+ 
+ // IsAffected returns true if the Vulnerability applies to the package version of the Package
++// IsAffected checks if the given package is affected by the vulnerability,
++// using the package's normalized name.
+ func IsAffected(v *osvpb.Vulnerability, pkg *extractor.Package) bool {
++	return IsAffectedAs(v, pkg, osvutil.ParsePackage(pkg).Name)
++}
++
++// IsAffectedAs is IsAffected with the package looked up under name, an alias
++// of the package name (see osvutil.QueryNames).
++func IsAffectedAs(v *osvpb.Vulnerability, pkg *extractor.Package, name string) bool {
+ 	np := osvutil.ParsePackage(pkg)
+ 
+ 	for _, affected := range v.GetAffected() {
+-		// assume we're dealing with a git-source package whose name is the git repository, and that the version is the tag
+-		// the underlying commit has been resolved to (somehow), meaning we can check if it's in the versions listed by the advisory
+ 		if (np.Ecosystem.IsEmpty() || np.Ecosystem.Ecosystem == "GIT") && np.Commit != "" && np.Version != "" {
+-			if hasGitRangeForRepo(affected, np.Name) && slices.Contains(affected.GetVersions(), np.Version) {
++			if hasGitRangeForRepo(affected, name) && slices.Contains(affected.GetVersions(), np.Version) {
+ 				return true
+ 			}
+ 		}
+ 
+-		// Assume vulnerability has already been validated
+ 		if affected.GetPackage() == nil {
+ 			continue
+ 		}
+ 		if osvecosystem.MustParse(affected.GetPackage().GetEcosystem()).Equal(np.Ecosystem) &&
+-			affected.GetPackage().GetName() == np.Name {
++			affected.GetPackage().GetName() == name {
+ 			if len(affected.GetRanges()) == 0 && len(affected.GetVersions()) == 0 {
+ 				continue
+ 			}
+@@ -165,8 +170,6 @@ func IsAffected(v *osvpb.Vulnerability, pkg *extractor.Package) bool {
+ 				return true
+ 			}
+ 
+-			// if a package does not have a version, assume it is vulnerable
+-			// as false positives are better than false negatives here
+ 			if np.Version == "" {
+ 				return true
+ 			}
+diff --git a/enricher/vulnmatch/osvlocal/matcher.go b/enricher/vulnmatch/osvlocal/matcher.go
+index d4534a1..a105800 100644
+--- a/enricher/vulnmatch/osvlocal/matcher.go
++++ b/enricher/vulnmatch/osvlocal/matcher.go
+@@ -63,6 +63,9 @@ func newlocalMatcher(localDBPath string, userAgent string, downloadDB bool, zipp
+ 	}, nil
+ }
+ 
++// MatchVulnerabilities returns the vulnerabilities of the local database that
++// affect the package, looked up under the first name of osvutil.QueryNames
++// the database knows.
+ func (matcher *localMatcher) MatchVulnerabilities(ctx context.Context, pkg *extractor.Package, pkgs []*extractor.Package) ([]*osvpb.Vulnerability, error) {
+ 	if ctx.Err() != nil {
+ 		return nil, ctx.Err()
+@@ -72,9 +75,7 @@ func (matcher *localMatcher) MatchVulnerabilities(ctx context.Context, pkg *extr
+ 	eco := np.Ecosystem.Ecosystem
+ 
+ 	if np.Ecosystem.IsEmpty() {
+-		// matching ecosystem-less versions can only be attempted if we have a version
+ 		if np.Version == "" {
+-			// Is a commit based query, skip local scanning
+ 			return nil, nil
+ 		}
+ 
+@@ -87,7 +88,18 @@ func (matcher *localMatcher) MatchVulnerabilities(ctx context.Context, pkg *extr
+ 		return nil, err
+ 	}
+ 
+-	return VulnerabilitiesAffectingPackage(db.Vulnerabilities, pkg), nil
++	names := osvutil.QueryNames(pkg)
++	if len(names) == 1 {
++		return VulnerabilitiesAffectingPackage(db.Vulnerabilities, pkg), nil
++	}
++
++	for _, name := range names {
++		if db.hasPackage(np.Ecosystem, name) {
++			return VulnerabilitiesAffectingPackageAs(db.Vulnerabilities, pkg, name), nil
++		}
++	}
++
++	return nil, nil
+ }
+ 
+ func (matcher *localMatcher) loadDBFromCache(ctx context.Context, eco osvconstants.Ecosystem, invs []*extractor.Package) (*zipDB, error) {
+diff --git a/enricher/vulnmatch/osvlocal/zip.go b/enricher/vulnmatch/osvlocal/zip.go
+index 5448eb5..76cc32e 100644
+--- a/enricher/vulnmatch/osvlocal/zip.go
++++ b/enricher/vulnmatch/osvlocal/zip.go
+@@ -32,6 +32,7 @@ import (
+ 	osvutil "github.com/google/osv-scalibr/enricher/vulnmatch/internal/osvutil"
+ 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/vulns"
+ 	"github.com/google/osv-scalibr/extractor"
++	"github.com/google/osv-scalibr/inventory/osvecosystem"
+ 	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
+ 	"google.golang.org/protobuf/encoding/protojson"
+ )
+@@ -248,7 +249,7 @@ func newZippedDB(ctx context.Context, dbBasePath, name, url, userAgent string, o
+ 	// map the packages to their names ahead of loading,
+ 	// to make things simpler and reduce double working
+ 	for _, inv := range invs {
+-		names = append(names, osvutil.ParsePackage(inv).Name)
++		names = append(names, osvutil.QueryNames(inv)...)
+ 	}
+ 
+ 	if err := db.load(ctx, names); err != nil {
+@@ -259,14 +260,40 @@ func newZippedDB(ctx context.Context, dbBasePath, name, url, userAgent string, o
+ }
+ 
+ // VulnerabilitiesAffectingPackage returns the vulnerabilities that affects the provided package
++// VulnerabilitiesAffectingPackage returns the vulnerabilities affecting the
++// package, looked up under its normalized name.
+ func VulnerabilitiesAffectingPackage(allVulns []*osvpb.Vulnerability, pkg *extractor.Package) []*osvpb.Vulnerability {
++	return VulnerabilitiesAffectingPackageAs(allVulns, pkg, osvutil.ParsePackage(pkg).Name)
++}
++
++// VulnerabilitiesAffectingPackageAs is VulnerabilitiesAffectingPackage with
++// the package looked up under name (see osvutil.QueryNames).
++func VulnerabilitiesAffectingPackageAs(allVulns []*osvpb.Vulnerability, pkg *extractor.Package, name string) []*osvpb.Vulnerability {
+ 	var vulnerabilities []*osvpb.Vulnerability
+ 
+ 	for _, vulnerability := range allVulns {
+-		if vulnerability.GetWithdrawn() == nil && vulns.IsAffected(vulnerability, pkg) && !vulns.Include(vulnerabilities, vulnerability) {
++		if vulnerability.GetWithdrawn() == nil && vulns.IsAffectedAs(vulnerability, pkg, name) && !vulns.Include(vulnerabilities, vulnerability) {
+ 			vulnerabilities = append(vulnerabilities, vulnerability)
+ 		}
+ 	}
+ 
+ 	return vulnerabilities
+ }
++
++// hasPackage reports whether the database has a record for the package name
++// in the ecosystem.
++func (db *zipDB) hasPackage(eco osvecosystem.Parsed, name string) bool {
++	for _, v := range db.Vulnerabilities {
++		for _, affected := range v.GetAffected() {
++			if affected.GetPackage().GetName() != name {
++				continue
++			}
++			affectedEco, err := osvecosystem.Parse(affected.GetPackage().GetEcosystem())
++			if err == nil && affectedEco.Equal(eco) {
++				return true
++			}
++		}
++	}
++
++	return false
++}
+diff --git a/extractor/filesystem/os/apk/apk.go b/extractor/filesystem/os/apk/apk.go
+index 9c79fa6..a7c62e0 100644
+--- a/extractor/filesystem/os/apk/apk.go
++++ b/extractor/filesystem/os/apk/apk.go
+@@ -19,6 +19,7 @@ import (
+ 	"context"
+ 	"fmt"
+ 	"path/filepath"
++	"strings"
+ 
+ 	"github.com/google/osv-scalibr/extractor"
+ 	"github.com/google/osv-scalibr/extractor/filesystem"
+@@ -162,6 +163,7 @@ func (e Extractor) extractFromInput(ctx context.Context, input *filesystem.ScanI
+ 				OriginName:   record["o"],
+ 				Architecture: record["A"],
+ 				Maintainer:   record["m"],
++				Provides:     parseProvides(record["p"]),
+ 			},
+ 			Licenses:   []string{record["L"]},
+ 			SourceCode: sourceCode,
+@@ -182,3 +184,18 @@ func (e Extractor) extractFromInput(ctx context.Context, input *filesystem.ScanI
+ 
+ 	return packages, nil
+ }
++
++// parseProvides returns the package names of an apk "p:" (provides) field
++// without their "=version"; so:/cmd:/pc: capabilities and paths are dropped.
++// Nil when nothing remains.
++func parseProvides(field string) []string {
++	var provides []string
++	for _, entry := range strings.Fields(field) {
++		name, _, _ := strings.Cut(entry, "=")
++		if name == "" || strings.Contains(name, ":") || strings.HasPrefix(name, "/") {
++			continue
++		}
++		provides = append(provides, name)
++	}
++	return provides
++}
+diff --git a/extractor/filesystem/os/apk/apk_internal_test.go b/extractor/filesystem/os/apk/apk_internal_test.go
+new file mode 100644
+index 0000000..6ce8833
+--- /dev/null
++++ b/extractor/filesystem/os/apk/apk_internal_test.go
+@@ -0,0 +1,43 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package apk
++
++import (
++	"testing"
++
++	"github.com/google/go-cmp/cmp"
++)
++
++func TestParseProvides(t *testing.T) {
++	tests := []struct {
++		name  string
++		field string
++		want  []string
++	}{
++		{name: "empty", field: "", want: nil},
++		{name: "only_shared_objects_and_commands", field: "so:libapk.so.2.14.0=2.14.0 cmd:apk=2.14.0-r0", want: nil},
++		{name: "path_entry_is_not_a_name", field: "/bin/sh cmd:sh=1.36.0-r9", want: nil},
++		{name: "versioned_and_unversioned_names", field: "java-jdk-no-deps java21-jdk-no-deps openjdk21-lite-jdk-no-deps=21.0.2_p14-r1 cmd:java=21.0.2_p14-r1", want: []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"}},
++		{name: "pkgconfig_entries_dropped", field: "pc:zlib=1.3.1 zlib-compat=1.3.1-r1", want: []string{"zlib-compat"}},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got := parseProvides(tt.field)
++			if diff := cmp.Diff(tt.want, got); diff != "" {
++				t.Errorf("parseProvides(%q) (-want +got):\n%s", tt.field, diff)
++			}
++		})
++	}
++}
+diff --git a/extractor/filesystem/os/apk/apk_test.go b/extractor/filesystem/os/apk/apk_test.go
+index ad96777..e3ce066 100644
+--- a/extractor/filesystem/os/apk/apk_test.go
++++ b/extractor/filesystem/os/apk/apk_test.go
+@@ -169,7 +169,7 @@ func TestExtract(t *testing.T) {
+ 				getPackage("testdata/installed", "apk-tools", "apk-tools", "2.14.0-r0", "alpine", "3.18.0", "Natanael Copa <ncopa@alpinelinux.org>", "x86_64", "GPL-2.0-only", "028d34f678a5386c3dc488cc3b62467c7a9d1a0b"),
+ 				getPackage("testdata/installed", "busybox", "busybox", "1.36.0-r9", "alpine", "3.18.0", "Sören Tempel <soeren+alpine@soeren-tempel.net>", "x86_64", "GPL-2.0-only", "b5c719c244319df3c72ab1f1ee994c2143cab7f0"),
+ 				getPackage("testdata/installed", "busybox-binsh", "busybox", "1.36.0-r9", "alpine", "3.18.0", "Sören Tempel <soeren+alpine@soeren-tempel.net>", "x86_64", "GPL-2.0-only", "b5c719c244319df3c72ab1f1ee994c2143cab7f0"),
+-				getPackage("testdata/installed", "ca-certificates-bundle", "ca-certificates", "20230506-r0", "alpine", "3.18.0", "Natanael Copa <ncopa@alpinelinux.org>", "x86_64", "MPL-2.0 AND MIT", "59534a02716a92a10d177a118c34066162eff4a6"),
++				getPackage("testdata/installed", "ca-certificates-bundle", "ca-certificates", "20230506-r0", "alpine", "3.18.0", "Natanael Copa <ncopa@alpinelinux.org>", "x86_64", "MPL-2.0 AND MIT", "59534a02716a92a10d177a118c34066162eff4a6", "ca-certificates-cacert"),
+ 				getPackage("testdata/installed", "libc-utils", "libc-dev", "0.7.2-r5", "alpine", "3.18.0", "Natanael Copa <ncopa@alpinelinux.org>", "x86_64", "BSD-2-Clause AND BSD-3-Clause", "988f183cc9d6699930c3e18ccf4a9e36010afb56"),
+ 				getPackage("testdata/installed", "libcrypto3", "openssl", "3.1.0-r4", "alpine", "3.18.0", "Ariadne Conill <ariadne@dereferenced.org>", "x86_64", "Apache-2.0", "730b75e01c670e3dba5d6c05420b5f605edb6201"),
+ 				getPackage("testdata/installed", "libssl3", "openssl", "3.1.0-r4", "alpine", "3.18.0", "Ariadne Conill <ariadne@dereferenced.org>", "x86_64", "Apache-2.0", "730b75e01c670e3dba5d6c05420b5f605edb6201"),
+@@ -303,7 +303,10 @@ func TestExtract(t *testing.T) {
+ 	}
+ }
+ 
+-func getPackage(path, pkgName, origin, version, osID, osVersionID, maintainer, arch, license string, commit string) *extractor.Package {
++func getPackage(path, pkgName, origin, version, osID, osVersionID, maintainer, arch, license string, commit string, provides ...string) *extractor.Package {
++	if len(provides) == 0 {
++		provides = nil
++	}
+ 	p := &extractor.Package{
+ 		Location: extractor.LocationFromPath(path),
+ 		Name:     pkgName,
+@@ -316,6 +319,7 @@ func getPackage(path, pkgName, origin, version, osID, osVersionID, maintainer, a
+ 			OSVersionID:  osVersionID,
+ 			Maintainer:   maintainer,
+ 			Architecture: arch,
++			Provides:     provides,
+ 		},
+ 		Licenses: []string{license},
+ 	}
+diff --git a/extractor/filesystem/os/apk/apk_vendor_test.go b/extractor/filesystem/os/apk/apk_vendor_test.go
+new file mode 100644
+index 0000000..46ca66f
+--- /dev/null
++++ b/extractor/filesystem/os/apk/apk_vendor_test.go
+@@ -0,0 +1,90 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package apk_test
++
++import (
++	"os"
++	"testing"
++
++	"github.com/google/go-cmp/cmp"
++	cpb "github.com/google/osv-scalibr/binary/proto/config_go_proto"
++	"github.com/google/osv-scalibr/extractor/filesystem"
++	"github.com/google/osv-scalibr/extractor/filesystem/os/apk"
++	apkmeta "github.com/google/osv-scalibr/extractor/filesystem/os/apk/metadata"
++	scalibrfs "github.com/google/osv-scalibr/fs"
++)
++
++// TestExtract_VendorProvides: the provided names are recorded, and the
++// ecosystem and PURL use VERSION_ID verbatim.
++func TestExtract_VendorProvides(t *testing.T) {
++	const osRelease = `ID=alpaquita
++NAME="BellSoft Alpaquita Linux"
++VERSION_ID=23
++PRETTY_NAME="BellSoft Alpaquita Linux Stream 23 (musl)"`
++
++	e, err := apk.New(&cpb.PluginConfig{})
++	if err != nil {
++		t.Fatalf("apk.New: %v", err)
++	}
++
++	d := t.TempDir()
++	createOsRelease(t, d, osRelease)
++
++	const path = "testdata/provides-installed"
++	r, err := os.Open(path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer r.Close()
++	info, err := os.Stat(path)
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	got, err := e.Extract(t.Context(), &filesystem.ScanInput{
++		FS: scalibrfs.DirFS(d), Path: path, Reader: r, Root: d, Info: info,
++	})
++	if err != nil {
++		t.Fatalf("Extract(): %v", err)
++	}
++	if len(got.Packages) != 2 {
++		t.Fatalf("Extract() returned %d packages, want 2", len(got.Packages))
++	}
++
++	jdk := got.Packages[0]
++	wantMeta := &apkmeta.Metadata{
++		PackageName:  "liberica21-lite-jdk-no-deps",
++		OriginName:   "liberica21-lite",
++		OSID:         "alpaquita",
++		OSVersionID:  "23",
++		Maintainer:   "BellSoft <info@bell-sw.com>",
++		Architecture: "x86_64",
++		Provides:     []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"},
++	}
++	if diff := cmp.Diff(wantMeta, jdk.Metadata); diff != "" {
++		t.Errorf("metadata (-want +got):\n%s", diff)
++	}
++	if got, want := jdk.Ecosystem().String(), "Alpaquita:23"; got != want {
++		t.Errorf("Ecosystem() = %q, want %q", got, want)
++	}
++	if got, want := jdk.PURL().String(), "pkg:apk/alpaquita/liberica21-lite-jdk-no-deps@21.0.2_p14-r1?arch=x86_64&distro=23&origin=liberica21-lite"; got != want {
++		t.Errorf("PURL() = %q, want %q", got, want)
++	}
++
++	sh := got.Packages[1]
++	if sh.Metadata.(*apkmeta.Metadata).Provides != nil {
++		t.Errorf("busybox-binsh Provides = %v, want nil (path and cmd: entries are not package names)", sh.Metadata.(*apkmeta.Metadata).Provides)
++	}
++}
+diff --git a/extractor/filesystem/os/apk/metadata/metadata.go b/extractor/filesystem/os/apk/metadata/metadata.go
+index aa61314..a212698 100644
+--- a/extractor/filesystem/os/apk/metadata/metadata.go
++++ b/extractor/filesystem/os/apk/metadata/metadata.go
+@@ -37,6 +37,10 @@ type Metadata struct {
+ 	OSVersionID  string
+ 	Maintainer   string
+ 	Architecture string
++	// Provides lists the package names of the "p:" field (without "=version",
++	// so:/cmd:/pc: capabilities and paths). Some distributions key advisories
++	// on a provided name, see osvutil.QueryNames. Not in the proto.
++	Provides []string
+ }
+ 
+ // ToNamespace extracts the PURL namespace from the metadata.
+diff --git a/extractor/filesystem/os/apk/testdata/provides-installed b/extractor/filesystem/os/apk/testdata/provides-installed
+new file mode 100644
+index 0000000..1274b19
+--- /dev/null
++++ b/extractor/filesystem/os/apk/testdata/provides-installed
+@@ -0,0 +1,41 @@
++C:Q1PJUDGE1RkPqM0+ncdq0AJzFa0Hg=
++P:liberica21-lite-jdk-no-deps
++V:21.0.2_p14-r1
++A:x86_64
++S:51583
++I:659456
++T:BellSoft Liberica JDK 21 Lite (JDK without dependencies)
++U:https://bell-sw.com/
++L:GPL-2.0 WITH Classpath-Exception-2.0
++o:liberica21-lite
++m:BellSoft <info@bell-sw.com>
++t:1709302952
++c:dirty
++D:liberica21-lite-jre-no-deps=21.0.2_p14-r1
++p:java-jdk-no-deps java21-jdk-no-deps openjdk21-lite-jdk-no-deps=21.0.2_p14-r1
++F:usr
++F:usr/lib
++F:usr/lib/jvm
++F:usr/lib/jvm/liberica21-lite
++R:release
++
++C:Q1aqSMoxhpSEkxAKVupVhHJ0J7sHQ=
++P:busybox-binsh
++V:1.36.1-r26
++A:x86_64
++S:1567
++I:4096
++T:busybox ash runtime
++U:https://busybox.net/
++L:GPL-2.0-only
++o:busybox
++m:Alpaquita Team <info@bell-sw.com>
++t:1709302952
++c:abc
++i:busybox=1.36.1-r26
++p:/bin/sh cmd:sh=1.36.1-r26
++F:bin
++R:sh
++a:0:0:777
++Z:Q1pcfTfDNEbNKQc2s1tia7da05M8Q=
++
+-- 
+2.43.0
+

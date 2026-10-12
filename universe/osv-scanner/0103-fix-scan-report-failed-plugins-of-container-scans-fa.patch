@@ -1,0 +1,83 @@
+From 079a16f410860ee0dc5974614195c64b06aff589 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 19:10:46 +0000
+Subject: [PATCH] fix(scan): report failed plugins of container scans, fail on
+ a missing offline database
+
+DoContainerScan ignored the plugin statuses of the osv-scalibr run: a
+vulnerability matcher that could not load its database was never mentioned
+and the scan reported no issues. Failed plugins are now logged as in source
+scans, and a failed vulnmatch/* plugin fails the scan when matching against
+cached databases (--offline-vulnerabilities without
+--download-offline-databases): a missing database is an error, not a silent
+zero. With downloads enabled the failure is only logged, so that an
+ecosystem not published on the download host does not abort the scan.
+---
+ pkg/osvscanner/osvscanner.go | 15 +++++++++++++++
+ pkg/osvscanner/scan.go       | 20 ++++++++++++++++++++
+ 2 files changed, 35 insertions(+)
+
+diff --git a/pkg/osvscanner/osvscanner.go b/pkg/osvscanner/osvscanner.go
+index e2d6df1..0a9d108 100644
+--- a/pkg/osvscanner/osvscanner.go
++++ b/pkg/osvscanner/osvscanner.go
+@@ -263,6 +263,21 @@ func DoContainerScan(actions ScannerActions) (models.VulnerabilityResults, error
+ 		return models.VulnerabilityResults{}, ErrNoPackagesFound
+ 	}
+ 
++	// --- Check status of the plugins ---
++	for _, status := range scalibrSR.PluginStatus {
++		if status.Status.Status == plugin.ScanStatusSucceeded {
++			continue
++		}
++		msg := status.Status.FailureReason
++		for _, fileError := range status.Status.FileErrors {
++			msg += fmt.Sprintf("\n\t%s: %s", fileError.FilePath, fileError.ErrorMessage)
++		}
++		cmdlogger.Errorf("Error during scan: (%s) %s", status.Name, msg)
++		if err := vulnMatchFailure(status, actions); err != nil {
++			return models.VulnerabilityResults{}, err
++		}
++	}
++
+ 	// --- Save Scalibr Scan Results ---
+ 	scanResults.Inventory = scalibrSR.Inventory
+ 
+diff --git a/pkg/osvscanner/scan.go b/pkg/osvscanner/scan.go
+index 3be2334..2d0c665 100644
+--- a/pkg/osvscanner/scan.go
++++ b/pkg/osvscanner/scan.go
+@@ -376,6 +376,9 @@ SBOMLoop:
+ 				if criticalError {
+ 					return nil, nil, errors.New("extraction failed on specified lockfile")
+ 				}
++				if err := vulnMatchFailure(status, actions); err != nil {
++					return nil, nil, err
++				}
+ 			}
+ 		}
+ 
+@@ -571,3 +574,20 @@ func dedupPackageVulns(vulns []*inventory.PackageVuln) []*inventory.PackageVuln
+ 
+ 	return result
+ }
++
++// vulnMatchFailure returns an error when a failed vulnerability matcher must
++// fail the scan: a missing or unreadable cached offline database
++// (--offline-vulnerabilities without --download-offline-databases). With
++// downloads enabled the failure is only logged, so that an ecosystem the
++// download host does not publish does not abort the scan.
++func vulnMatchFailure(status *plugin.Status, actions ScannerActions) error {
++	if status.Status.Status == plugin.ScanStatusSucceeded || !strings.HasPrefix(status.Name, "vulnmatch/") {
++		return nil
++	}
++
++	if actions.CompareOffline && !actions.DownloadDatabases {
++		return fmt.Errorf("vulnerability matching failed (%s): %s", status.Name, status.Status.FailureReason)
++	}
++
++	return nil
++}
+-- 
+2.43.0
+

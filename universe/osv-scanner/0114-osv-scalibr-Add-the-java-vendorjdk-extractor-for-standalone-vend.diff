@@ -1,0 +1,890 @@
+From 8790c186689c68ab7bb36a61c6abf3387ca36376 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 19:45:38 +0000
+Subject: [PATCH] Add the java/vendorjdk extractor for standalone vendor
+ runtimes
+
+Glue around the static detector of github.com/bell-sw/osv-internal/vendorjdk.
+The extractor triggers on the detector's candidate files - the JVM library
+(libjvm.so / libjvm.dylib / jvm.dll), the release file and rt.jar - and
+reports one package per runtime home; name, version, ecosystem
+("<JDK family>:<major>" / "<NIK family>:<nik>-<java>") and purl
+(pkg:generic/<namespace>/<jdk or nik name>@<version>?package_type=...)
+come from the detector. Other vendors are never reported; on the vendor
+distributions the apk-installed runtimes under usr/lib/jvm are skipped
+because the apk ecosystems cover them. Registered in the JavaArtifact list;
+extractor/convert.go derives ecosystem and purl from the new metadata type.
+
+The tests build their runtimes with the module's testfix package; nothing
+is checked in.
+---
+ .../osvlocal/internal/vulns/vendorjdk_test.go | 109 +++++++
+ extractor/convert.go                          |   7 +
+ .../java/vendorjdk/metadata/metadata.go       |  90 ++++++
+ .../language/java/vendorjdk/testdata_test.go  |  72 +++++
+ .../language/java/vendorjdk/vendorjdk.go      | 211 +++++++++++++
+ .../language/java/vendorjdk/vendorjdk_test.go | 289 ++++++++++++++++++
+ extractor/filesystem/list/list.go             |   2 +
+ 7 files changed, 780 insertions(+)
+ create mode 100644 enricher/vulnmatch/osvlocal/internal/vulns/vendorjdk_test.go
+ create mode 100644 extractor/filesystem/language/java/vendorjdk/metadata/metadata.go
+ create mode 100644 extractor/filesystem/language/java/vendorjdk/testdata_test.go
+ create mode 100644 extractor/filesystem/language/java/vendorjdk/vendorjdk.go
+ create mode 100644 extractor/filesystem/language/java/vendorjdk/vendorjdk_test.go
+
+diff --git a/enricher/vulnmatch/osvlocal/internal/vulns/vendorjdk_test.go b/enricher/vulnmatch/osvlocal/internal/vulns/vendorjdk_test.go
+new file mode 100644
+index 0000000..6f17c01
+--- /dev/null
++++ b/enricher/vulnmatch/osvlocal/internal/vulns/vendorjdk_test.go
+@@ -0,0 +1,109 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package vulns_test
++
++import (
++	"testing"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++
++	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/vulns"
++	"github.com/google/osv-scalibr/extractor"
++	vendorjdkmeta "github.com/google/osv-scalibr/extractor/filesystem/language/java/vendorjdk/metadata"
++	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
++)
++
++// The three kinds of JDK update release (PSU, CSPU, CPU) against
++// advisory ranges; the cases mirror the range tests of osv-internal/jdkver.
++func TestOSV_IsAffected_VendorJDKReleaseTypes(t *testing.T) {
++	vuln := func(ecosystem, introduced, fixed, last string) *osvpb.Vulnerability {
++		events := []*osvpb.Event{{Introduced: introduced}}
++		if fixed != "" {
++			events = append(events, &osvpb.Event{Fixed: fixed})
++		}
++		if last != "" {
++			events = append(events, &osvpb.Event{LastAffected: last})
++		}
++
++		return buildOSVWithAffected(&osvpb.Affected{
++			Package: &osvpb.Package{Ecosystem: ecosystem, Name: "jdk"},
++			Ranges:  []*osvpb.Range{buildEcosystemAffectsRange(events...)},
++		})
++	}
++	pkg := func(ecosystem, version string) *extractor.Package {
++		return &extractor.Package{
++			Name: "jdk", Version: version,
++			Metadata: &vendorjdkmeta.Metadata{Ecosystem: ecosystem, Variant: "jdk"},
++		}
++	}
++
++	jdk21, jdk8 := osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"), osvinternal.Ecosystem(osvinternal.EcosystemJDK, "8")
++	tests := []struct {
++		name                                        string
++		ecosystem, version, introduced, fixed, last string
++		want                                        bool
++	}{
++		// fixed only in the August 2026 CSPU
++		{"PSU before the CSPU fix", jdk21, "21.0.12+10", "21", "21.0.12.1+1", "", true},
++		{"CSPU clears", jdk21, "21.0.12.1+1", "21", "21.0.12.1+1", "", false},
++		{"CSPU release-file form clears", jdk21, "21.0.12.1+1-LTS", "21", "21.0.12.1+1", "", false},
++		{"CRaC CSPU build clears", jdk21, "21.0.12.1+2", "21", "21.0.12.1+1", "", false},
++		{"next PSU clears", jdk21, "21.0.13+5", "21", "21.0.12.1+1", "", false},
++		{"older PSU affected", jdk21, "21.0.2+14", "21", "21.0.12.1+1", "", true},
++		{"CPU of the quarter does not carry the CSPU fix", jdk21, "21.0.11.0.1+1", "21", "21.0.12.1+1", "", true},
++		{"Java 8 PSU before the CSPU fix", jdk8, "8u502+9", "8u0", "8u504+1", "", true},
++		{"Java 8 CSPU clears", jdk8, "8u504+1", "8u0", "8u504+1", "", false},
++		{"Java 8 CSPU banner form clears", jdk8, "1.8.0_504-b01", "8u0", "8u504+1", "", false},
++		{"Java 8 CPU before the CSPU fix", jdk8, "8u501+1", "8u0", "8u504+1", "", true},
++		// fixed in the July 2026 PSU
++		{"PSU fix: previous PSU affected", jdk21, "21.0.11+11", "21", "21.0.12+10", "", true},
++		{"PSU fix: PSU clears", jdk21, "21.0.12+10", "21", "21.0.12+10", "", false},
++		{"PSU fix: later CSPU clears", jdk21, "21.0.12.1+1", "21", "21.0.12+10", "", false},
++		{"PSU fix: CPU of the same quarter clears", jdk21, "21.0.11.0.1+1", "21", "21.0.12+10", "", false},
++		{"PSU fix: CPU of the previous quarter affected", jdk21, "21.0.10.0.1+1", "21", "21.0.12+10", "", true},
++		{"PSU fix: Java 8 CPU of the same quarter clears", jdk8, "8u501+1", "8u0", "8u502+9", "", false},
++		{"PSU fix: Java 8 CPU banner form clears", jdk8, "1.8.0_501-b01", "8u0", "8u502+9", "", false},
++		{"PSU fix: Java 8 previous CPU affected", jdk8, "8u491+1", "8u0", "8u502+9", "", true},
++		{"PSU fix: Java 8 previous PSU affected", jdk8, "8u492+9", "8u0", "8u502+9", "", true},
++		// January 2026 cycle (the advisories list "Fixed (21.0.10+10)", "Fixed (8u482+10)")
++		{"Jan CPU vs its cycle's PSU fix", jdk21, "21.0.9.0.1", "21", "21.0.10+10", "", false},
++		{"Jan CPU with build vs its cycle's PSU fix", jdk21, "21.0.9.0.1+1-LTS", "21", "21.0.10+10", "", false},
++		{"Jan CPU vs a later cycle's fix", jdk21, "21.0.9.0.1", "21", "21.0.11+11", "", true},
++		{"PSU before the Jan PSU fix", jdk21, "21.0.9+15", "21", "21.0.10+10", "", true},
++		{"Java 8 Jan CPU vs its cycle's PSU fix", jdk8, "8u481", "8u0", "8u482+10", "", false},
++		{"Java 8 Jan CPU vs a later cycle's fix", jdk8, "8u481+1", "8u0", "8u492+9", "", true},
++		{"Java 8 PSU before the Jan PSU fix", jdk8, "8u472+11", "8u0", "8u482+10", "", true},
++		// a regression introduced in a PSU does not reach the CPU of that quarter
++		{"regression in the PSU, CPU not affected", jdk21, "21.0.11.0.1+1", "21.0.12+10", "21.0.12.1+1", "", false},
++		{"regression in the PSU, PSU affected", jdk21, "21.0.12+10", "21.0.12+10", "21.0.12.1+1", "", true},
++		// last_affected bounds
++		{"last_affected PSU, CPU of that quarter affected", jdk21, "21.0.11.0.1+1", "21", "", "21.0.12+10", true},
++		{"last_affected PSU, CSPU not affected", jdk21, "21.0.12.1+1", "21", "", "21.0.12+10", false},
++		// line-start boundaries of the prototype data
++		{"line start 21, GA", jdk21, "21+37", "21", "21.0.12.1+1", "", true},
++		{"line start 21, CPU", jdk21, "21.0.0.0.1+1", "21", "21.0.1+12", "", false},
++		{"line start 8u0", jdk8, "8u402+7", "8u0", "8u504+1", "", true},
++		{"line start 8u0, banner", jdk8, "1.8.0_442-b09", "8u0", "8u442+9", "", false},
++		{"introduced 0", jdk21, "21.0.9.0.1+1", "0", "21.0.10+10", "", false},
++		{"unfixed", jdk21, "21.0.12.1+1", "21", "", "", true},
++	}
++	for _, tt := range tests {
++		got := vulns.IsAffected(vuln(tt.ecosystem, tt.introduced, tt.fixed, tt.last), pkg(tt.ecosystem, tt.version))
++		if got != tt.want {
++			t.Errorf("%s: %s %s, introduced %q fixed %q last_affected %q: IsAffected() = %v, want %v",
++				tt.name, tt.ecosystem, tt.version, tt.introduced, tt.fixed, tt.last, got, tt.want)
++		}
++	}
++}
+diff --git a/extractor/convert.go b/extractor/convert.go
+index b3442e8..49620ba 100644
+--- a/extractor/convert.go
++++ b/extractor/convert.go
+@@ -20,6 +20,7 @@ import (
+ 	hexpurl "github.com/google/osv-scalibr/extractor/filesystem/language/erlang/mixlock/purl"
+ 	gopurl "github.com/google/osv-scalibr/extractor/filesystem/language/golang/purl"
+ 	mavenpurl "github.com/google/osv-scalibr/extractor/filesystem/language/java/purl"
++	vendorjdkmeta "github.com/google/osv-scalibr/extractor/filesystem/language/java/vendorjdk/metadata"
+ 	npmpurl "github.com/google/osv-scalibr/extractor/filesystem/language/javascript/purl"
+ 	composerpurl "github.com/google/osv-scalibr/extractor/filesystem/language/php/purl"
+ 	"github.com/google/osv-scalibr/extractor/filesystem/language/python/pypipurl"
+@@ -60,6 +61,8 @@ func typeSpecificPURL(p *Package) *purl.PackageURL {
+ 		return spdxpurl.MakePackageURL(m)
+ 	case *cdxmeta.Metadata:
+ 		return cdxpurl.MakePackageURL(m)
++	case *vendorjdkmeta.Metadata:
++		return vendorjdkmeta.MakePackageURL(p.Version, m)
+ 	}
+ 
+ 	switch p.PURLType {
+@@ -109,6 +112,10 @@ func githubPURL(name, version string) *purl.PackageURL {
+ // toEcosystem converts a SCALIBR package structure into an OSV ecosystem value
+ // defined in https://ossf.github.io/osv-schema/#defined-ecosystems
+ func toEcosystem(p *Package) osvecosystem.Parsed {
++	if m, ok := p.Metadata.(*vendorjdkmeta.Metadata); ok {
++		return m.OSVEcosystem()
++	}
++
+ 	switch p.PURLType {
+ 	case purl.TypeDebian, purl.TypeOpkg, purl.TypeApk, purl.TypeRPM,
+ 		purl.TypeSnap, purl.TypePacman, purl.TypePortage:
+diff --git a/extractor/filesystem/language/java/vendorjdk/metadata/metadata.go b/extractor/filesystem/language/java/vendorjdk/metadata/metadata.go
+new file mode 100644
+index 0000000..2c89323
+--- /dev/null
++++ b/extractor/filesystem/language/java/vendorjdk/metadata/metadata.go
+@@ -0,0 +1,90 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++// Package metadata defines the Metadata of the runtimes found by the
++// java/vendorjdk extractor. Ecosystem and purl are the detector's
++// (github.com/bell-sw/osv-internal/vendorjdk), not derived here.
++package metadata
++
++import (
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++	"github.com/google/osv-scalibr/binary/proto/metadata"
++	"github.com/google/osv-scalibr/inventory/osvecosystem"
++	"github.com/google/osv-scalibr/log"
++	"github.com/google/osv-scalibr/purl"
++)
++
++func init() {
++	// no proto representation yet: the metadata is dropped when a scan result is serialized
++	metadata.RegisterNil[*Metadata]()
++}
++
++// Metadata holds the detection details of a vendor runtime.
++type Metadata struct {
++	// Ecosystem is the OSV ecosystem string of the runtime as the detector
++	// reports it: "<JDK family>:<java major>" or "<NIK family>:<nik major>-<java major>".
++	Ecosystem string
++	// PURL is the package URL as the detector reports it, e.g.
++	// pkg:generic/<namespace>/<name>@21.0.2%2B14?package_type=jdk.
++	PURL string
++	// Home is the runtime root inside the scanned file system (fs.FS
++	// notation, no leading slash), e.g. "opt/jdk-21.0.2".
++	Home string
++	// Major is the Java major version (8, 11, 17, 21, ...).
++	Major int
++	// Variant is the OSV package name ("jdk", "jre", "jdk-lite", ...; for
++	// NIK the bundle "core", "standard", "full").
++	Variant string
++	// Vendor is the vendor string read from the runtime (the module's RuntimeVendor).
++	Vendor string
++	// LibJVM is the path of the JVM library that anchored the detection;
++	// empty when the runtime was accepted on structured evidence alone.
++	LibJVM string
++	// Evidence lists where the vendor and the version were read, one line each.
++	Evidence []string
++}
++
++// IsProtoable marks the struct as a metadata type.
++func (m *Metadata) IsProtoable() {}
++
++// OSVEcosystem returns the parsed OSV ecosystem of the runtime.
++func (m *Metadata) OSVEcosystem() osvecosystem.Parsed {
++	if m == nil || m.Ecosystem == "" {
++		return osvecosystem.Parsed{}
++	}
++	eco, err := osvecosystem.Parse(m.Ecosystem)
++	if err != nil {
++		log.Errorf("vendorjdk: ecosystem %q: %v", m.Ecosystem, err)
++		return osvecosystem.Parsed{}
++	}
++	return eco
++}
++
++// MakePackageURL returns the package URL of the runtime; when the detector
++// gave none it is built for a JDK variant.
++func MakePackageURL(version string, m *Metadata) *purl.PackageURL {
++	if m == nil {
++		return nil
++	}
++	s := m.PURL
++	if s == "" {
++		s = osvjdk.PURL(m.Variant, version)
++	}
++	p, err := purl.FromString(s)
++	if err != nil {
++		log.Errorf("vendorjdk: purl %q: %v", s, err)
++		return nil
++	}
++	return &p
++}
+diff --git a/extractor/filesystem/language/java/vendorjdk/testdata_test.go b/extractor/filesystem/language/java/vendorjdk/testdata_test.go
+new file mode 100644
+index 0000000..6d5e41d
+--- /dev/null
++++ b/extractor/filesystem/language/java/vendorjdk/testdata_test.go
+@@ -0,0 +1,72 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package vendorjdk_test
++
++import (
++	"testing"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/testfix"
++)
++
++// buildTestRuntimes creates synthetic runtimes with the osv-internal testfix
++// package (fake JVM libraries carrying the strings the detector looks for,
++// release files, the Java 8 rt.jar manifest) under a temporary directory and
++// returns its path:
++//
++//	jdk-21.0.2/   JDK 21.0.2+14 with a server and a minimal VM
++//	jre-21.0.2/   JRE 21.0.2+14 (no bin/javac)
++//	jdk8u402/     JDK 8u402: release without IMPLEMENTOR, vendor in jre/lib/rt.jar
++//	zulu21/       Azul Zulu 21.0.2+13 (another vendor)
++//	vendor-linux/ a root of the vendor's distribution with the apk-installed usr/lib/jvm/jdk21-lite (stripped release)
++//	debian/       a Debian root with a standalone runtime under usr/lib/jvm
++func buildTestRuntimes(t *testing.T) string {
++	t.Helper()
++	root := t.TempDir()
++	lib21 := string(testfix.LibJVM(testfix.Banner("21.0.2+14-LTS"), osvinternal.RuntimeVendor))
++	testfix.Write(t, root,
++		// JDK 21.0.2+14 (tarball layout) with two VM flavours
++		testfix.Runtime{Home: "jdk-21.0.2", Version: "21.0.2+14-LTS", JDK: true, Extra: map[string]string{"lib/minimal/libjvm.so": lib21}},
++		testfix.Runtime{Home: "jre-21.0.2", Version: "21.0.2+14-LTS"},
++		// JDK 8u402 (JDK layout with the embedded jre/, vendor only in rt.jar and libjvm.so)
++		testfix.Runtime{Home: "jdk8u402", Version: "1.8.0_402-b07", JDK: true, Java8: true},
++		// another vendor
++		testfix.Runtime{Home: "zulu21", Version: "21.0.2+13-LTS", JDK: true, Vendor: "Azul Systems, Inc."},
++		// the vendor's distribution: an apk-installed runtime (stripped release, as apk ships it)
++		testfix.Runtime{Home: "vendor-linux/usr/lib/jvm/jdk21-lite", Version: "21.0.2+14-LTS", JDK: true, StrippedRelease: true},
++		// macOS tarball layouts: the JVM library (libjvm.dylib) is not part of these trees,
++		// the runtime is accepted on the structured evidence (release / rt.jar manifest)
++		testfix.Runtime{Home: "macos/jdk-21.0.2.jdk", Version: "21.0.2+14-LTS", JDK: true, NoLibrary: true},
++		testfix.Runtime{Home: "macos/jdk8u402.jdk", Version: "1.8.0_402-b07", JDK: true, Java8: true, NoLibrary: true},
++		// Windows layout: bin\server\jvm.dll, java.exe
++		testfix.Runtime{Home: "windows/jdk-21.0.2", Version: "21.0.2+14-LTS", JDK: true, OS: "windows"},
++		// Native Image Kit 23.1.0 core (GraalVM markers and the java.vendor.version string)
++		testfix.Runtime{Home: "nik-23.1.0", Version: "21.0.1+12-LTS", JDK: true, NIK: "23.1.0+1"},
++		// the other kinds of update release: a CSPU (out-of-cycle security release, four components) and a CPU
++		// (security-only build released with a PSU: five components on 9+, the odd update on 8)
++		testfix.Runtime{Home: "jdk-21.0.12.1", Version: "21.0.12.1+1-LTS", JDK: true},
++		testfix.Runtime{Home: "jdk-21.0.9.0.1", Version: "21.0.9.0.1+1-LTS", JDK: true},
++		testfix.Runtime{Home: "jdk8u504", Version: "1.8.0_504-b01", JDK: true, Java8: true},
++		testfix.Runtime{Home: "jdk8u481", Version: "1.8.0_481-b01", JDK: true, Java8: true},
++		// the same layout on a Debian root is a standalone install
++		testfix.Runtime{Home: "debian/usr/lib/jvm/jdk-21.0.2-x86_64", Version: "21.0.2+14-LTS", JDK: true},
++	)
++	testfix.WriteFiles(t, root, map[string][]byte{
++		"vendor-linux/etc/os-release": []byte(testfix.OSRelease(osvinternal.EcosystemLinux, "23")),
++		"debian/etc/os-release":       []byte("PRETTY_NAME=\"Debian GNU/Linux 11 (bullseye)\"\nID=debian\nVERSION_ID=\"11\"\n"),
++	})
++
++	return root
++}
+diff --git a/extractor/filesystem/language/java/vendorjdk/vendorjdk.go b/extractor/filesystem/language/java/vendorjdk/vendorjdk.go
+new file mode 100644
+index 0000000..e28d12a
+--- /dev/null
++++ b/extractor/filesystem/language/java/vendorjdk/vendorjdk.go
+@@ -0,0 +1,211 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++// Package vendorjdk extracts standalone vendor runtimes (JDK/JRE and
++// Native Image Kit installed from a tarball or package, or copied into
++// an image) as packages of the module's JDK and NIK OSV ecosystems
++// ("<family>:<major>" and "<family>:<nik major>-<java major>").
++//
++// It is glue around the shared detector github.com/bell-sw/osv-internal/vendorjdk:
++// the detector's candidate files (JVM library, release file, rt.jar) are
++// handed to it and a detected runtime becomes one package per runtime home
++// with name, version, ecosystem and purl from the detector. Other vendors
++// are never reported; on the vendor distributions the apk-installed
++// runtimes under /usr/lib/jvm are left to the apk ecosystems.
++package vendorjdk
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"io/fs"
++	"path"
++	"path/filepath"
++	"strings"
++
++	"github.com/bell-sw/osv-internal/distro"
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++	"github.com/google/osv-scalibr/extractor"
++	"github.com/google/osv-scalibr/extractor/filesystem"
++	vendorjdkmeta "github.com/google/osv-scalibr/extractor/filesystem/language/java/vendorjdk/metadata"
++	"github.com/google/osv-scalibr/extractor/filesystem/os/osrelease"
++	scalibrfs "github.com/google/osv-scalibr/fs"
++	"github.com/google/osv-scalibr/inventory"
++	"github.com/google/osv-scalibr/log"
++	"github.com/google/osv-scalibr/plugin"
++	"github.com/google/osv-scalibr/purl"
++
++	cpb "github.com/google/osv-scalibr/binary/proto/config_go_proto"
++)
++
++const (
++	// Name is the unique name of this extractor.
++	Name = "java/vendorjdk"
++)
++
++// vmDirServer is the VM flavour preferred when a runtime ships several
++// (server, client, minimal): only one JVM library per home is extracted.
++const vmDirServer = "server"
++
++// apkJVMDir is the directory of the apk-installed runtimes on the vendor distributions.
++const apkJVMDir = "usr/lib/jvm"
++
++// Detector is the detection back end: the module's vendorjdk.Detect (by JVM
++// library) and vendorjdk.DetectHome (by runtime home) unless replaced in tests.
++type Detector struct {
++	Detect     func(fsys fs.FS, libjvmPath string) (*osvjdk.Runtime, error)
++	DetectHome func(fsys fs.FS, home string) (*osvjdk.Runtime, error)
++}
++
++// Extractor extracts standalone vendor runtimes.
++type Extractor struct {
++	detector Detector
++}
++
++// New returns a vendor runtime extractor.
++func New(_ *cpb.PluginConfig) (filesystem.Extractor, error) {
++	return &Extractor{detector: Detector{Detect: osvjdk.Detect, DetectHome: osvjdk.DetectHome}}, nil
++}
++
++// NewWithDetector returns an extractor using the given detection back end
++// (tests).
++func NewWithDetector(d Detector) *Extractor {
++	return &Extractor{detector: d}
++}
++
++// Name of the extractor.
++func (e Extractor) Name() string { return Name }
++
++// Version of the extractor.
++func (e Extractor) Version() int { return 0 }
++
++// Requirements of the extractor.
++func (e Extractor) Requirements() *plugin.Capabilities { return &plugin.Capabilities{} }
++
++// FileRequired returns true for the files the detector works from: the JVM
++// library of a runtime (<home>/lib/<vm>/libjvm.so or libjvm.dylib,
++// <home>/bin/<vm>/jvm.dll, the Java 8 layouts under jre/), its release file
++// and rt.jar. Which of them produces the package is decided in Extract.
++func (e Extractor) FileRequired(api filesystem.FileAPI) bool {
++	return osvjdk.IsCandidate(filepath.ToSlash(api.Path()))
++}
++
++// isJVMLibrary reports whether base is the file name of a HotSpot library.
++func isJVMLibrary(base string) bool {
++	switch base {
++	case "libjvm.so", "libjvm.dylib", "jvm.dll":
++		return true
++	}
++	return false
++}
++
++// Extract detects the runtime the candidate file belongs to and reports it
++// once per runtime home.
++func (e Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inventory.Inventory, error) {
++	p := path.Clean(filepath.ToSlash(input.Path))
++	base := path.Base(p)
++
++	var rt *osvjdk.Runtime
++	var err error
++	if isJVMLibrary(base) {
++		// one package per runtime: when several VM flavours are installed the
++		// server VM is the one extracted
++		if vm := path.Base(path.Dir(p)); vm != vmDirServer {
++			if _, statErr := fs.Stat(input.FS, path.Join(path.Dir(path.Dir(p)), vmDirServer, base)); statErr == nil {
++				return inventory.Inventory{}, nil
++			}
++		}
++		rt, err = e.detector.Detect(input.FS, p)
++	} else {
++		home, ok := osvjdk.HomeOf(p)
++		if !ok {
++			return inventory.Inventory{}, nil
++		}
++		rt, err = e.detector.DetectHome(input.FS, home)
++	}
++	if err != nil {
++		return inventory.Inventory{}, fmt.Errorf("%s: %w", Name, err)
++	}
++	if rt == nil {
++		// another vendor, or not enough evidence
++		return inventory.Inventory{}, nil
++	}
++
++	// The file that reports the runtime is its JVM library when it has one
++	// (read by the detector for vendor and version), else its release file,
++	// else rt.jar; the other candidates of the same home stay silent.
++	if !anchors(input.FS, p, rt) {
++		return inventory.Inventory{}, nil
++	}
++
++	if managedByAPK(rt.Home) && isVendorDistribution(input.FS) {
++		log.Debugf("%s: skipping %s, installed by apk and covered by the OS ecosystem", Name, rt.Home)
++		return inventory.Inventory{}, nil
++	}
++
++	pkg := &extractor.Package{
++		Name:     rt.Variant,
++		Version:  rt.Version,
++		PURLType: purl.TypeGeneric,
++		Metadata: &vendorjdkmeta.Metadata{
++			Ecosystem: rt.Ecosystem(),
++			PURL:      rt.PURL(),
++			Home:      rt.Home,
++			Major:     rt.Major,
++			Variant:   rt.Variant,
++			Vendor:    rt.Vendor,
++			LibJVM:    rt.LibJVM,
++			Evidence:  rt.Evidence,
++		},
++		Location: extractor.LocationFromPath(rt.Home),
++		Plugins:  []string{Name},
++	}
++
++	return inventory.Inventory{Packages: []*extractor.Package{pkg}}, nil
++}
++
++// anchors reports whether candidate p is the file that reports runtime rt.
++func anchors(fsys fs.FS, p string, rt *osvjdk.Runtime) bool {
++	if rt.LibJVM != "" {
++		return p == path.Clean(filepath.ToSlash(rt.LibJVM))
++	}
++	release := path.Join(rt.Home, "release")
++	switch path.Base(p) {
++	case "release":
++		return p == release
++	case "rt.jar":
++		_, err := fs.Stat(fsys, release)
++		return err != nil // no release file: rt.jar is all there is
++	}
++	return false
++}
++
++// managedByAPK reports whether the home is where the vendor distributions
++// install their apk-packaged runtimes (usr/lib/jvm).
++func managedByAPK(home string) bool {
++	return osvjdk.ManagedByAPK(home) || strings.HasPrefix(path.Clean(home)+"/", apkJVMDir+"/")
++}
++
++// isVendorDistribution reports whether the scanned file system is a root
++// of one of the vendor distributions (os-release ID).
++func isVendorDistribution(fsys scalibrfs.FS) bool {
++	m, err := osrelease.GetOSRelease(fsys)
++	if err != nil {
++		if !errors.Is(err, osrelease.ErrNotADistro) && !errors.Is(err, fs.ErrNotExist) {
++			log.Debugf("%s: os-release: %v", Name, err)
++		}
++		return false
++	}
++	return distro.IsVendor(m["ID"])
++}
+diff --git a/extractor/filesystem/language/java/vendorjdk/vendorjdk_test.go b/extractor/filesystem/language/java/vendorjdk/vendorjdk_test.go
+new file mode 100644
+index 0000000..f2c7417
+--- /dev/null
++++ b/extractor/filesystem/language/java/vendorjdk/vendorjdk_test.go
+@@ -0,0 +1,289 @@
++// Copyright 2026 Google LLC
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package vendorjdk_test
++
++import (
++	"io/fs"
++	"os"
++	"path"
++	"path/filepath"
++	"strings"
++	"testing"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++	"github.com/google/go-cmp/cmp"
++	cpb "github.com/google/osv-scalibr/binary/proto/config_go_proto"
++	"github.com/google/osv-scalibr/extractor"
++	"github.com/google/osv-scalibr/extractor/filesystem"
++	"github.com/google/osv-scalibr/extractor/filesystem/language/java/vendorjdk"
++	vendorjdkmeta "github.com/google/osv-scalibr/extractor/filesystem/language/java/vendorjdk/metadata"
++	"github.com/google/osv-scalibr/extractor/filesystem/simplefileapi"
++	scalibrfs "github.com/google/osv-scalibr/fs"
++	"github.com/google/osv-scalibr/inventory"
++	"github.com/google/osv-scalibr/purl"
++)
++
++func TestFileRequired(t *testing.T) {
++	e, err := vendorjdk.New(&cpb.PluginConfig{})
++	if err != nil {
++		t.Fatal(err)
++	}
++	tests := []struct {
++		path string
++		want bool
++	}{
++		{"opt/jdk-21.0.2/lib/server/libjvm.so", true},
++		{"usr/lib/jvm/jdk-21.0.2-x86_64/lib/server/libjvm.so", true},
++		{"opt/jdk-21.0.2/lib/minimal/libjvm.so", true},
++		{"opt/jdk8u402/jre/lib/amd64/server/libjvm.so", true},
++		{"Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/Contents/Home/lib/server/libjvm.dylib", true},
++		{"Program Files/Java/jdk-21/bin/server/jvm.dll", true},
++		// the release file and rt.jar are candidates too (runtimes whose JVM library is not in the scanned tree)
++		{"opt/jdk-21.0.2/release", true},
++		{"opt/jdk8u402/jre/lib/rt.jar", true},
++		{"opt/jdk-21.0.2/bin/java", false},
++		{"opt/jdk-21.0.2/lib/libjava.so", false},
++		{"opt/jdk-21.0.2/lib/modules", false},
++	}
++	for _, tt := range tests {
++		if got := e.FileRequired(simplefileapi.New(tt.path, nil)); got != tt.want {
++			t.Errorf("FileRequired(%q) = %v, want %v", tt.path, got, tt.want)
++		}
++	}
++}
++
++func scanInput(t *testing.T, root, p string) *filesystem.ScanInput {
++	t.Helper()
++	fsys := scalibrfs.DirFS(root)
++	f, err := fsys.Open(p)
++	if err != nil {
++		t.Fatalf("open %s: %v", p, err)
++	}
++	t.Cleanup(func() { f.Close() })
++	info, err := f.Stat()
++	if err != nil {
++		t.Fatal(err)
++	}
++	return &filesystem.ScanInput{FS: fsys, Path: p, Root: root, Reader: f, Info: info}
++}
++
++// fakeDetector stands in for the osv-internal detector so that the glue can
++// be tested independently of it: every home under a non-"zulu" path is a
++// vendor JDK 21.0.2+14; the JVM library of a home is the first existing
++// server library, like the real detector's.
++func fakeDetector() vendorjdk.Detector {
++	runtime := func(fsys fs.FS, home, libjvm string) *osvjdk.Runtime {
++		if strings.HasPrefix(home, "zulu") {
++			return nil
++		}
++		variant := osvjdk.VariantJDK
++		if filepath.Base(home) == "jdk21-lite" {
++			variant = osvjdk.VariantJDKLite
++		}
++		if libjvm == "" {
++			for _, c := range []string{"lib/server/libjvm.so", "lib/server/libjvm.dylib", "bin/server/jvm.dll", "jre/lib/amd64/server/libjvm.so"} {
++				if _, err := fs.Stat(fsys, path.Join(home, c)); err == nil {
++					libjvm = path.Join(home, c)
++					break
++				}
++			}
++		}
++		return &osvjdk.Runtime{
++			Home: home, Major: 21, Variant: variant, Version: "21.0.2+14", Vendor: osvjdk.Vendor,
++			LibJVM: libjvm, Evidence: []string{"fake"},
++		}
++	}
++	return vendorjdk.Detector{
++		Detect: func(fsys fs.FS, libjvmPath string) (*osvjdk.Runtime, error) {
++			home, _ := osvjdk.HomeOf(libjvmPath)
++			return runtime(fsys, home, libjvmPath), nil
++		},
++		DetectHome: func(fsys fs.FS, home string) (*osvjdk.Runtime, error) {
++			return runtime(fsys, home, ""), nil
++		},
++	}
++}
++
++func wantPackage(home, variant, libjvm string) []*extractor.Package {
++	return []*extractor.Package{{
++		Name: variant, Version: "21.0.2+14", PURLType: purl.TypeGeneric,
++		Metadata: &vendorjdkmeta.Metadata{
++			Ecosystem: osvjdk.EcosystemFor(21), PURL: osvjdk.PURL(variant, "21.0.2+14"),
++			Home: home, Major: 21, Variant: variant, Vendor: osvjdk.Vendor, LibJVM: libjvm, Evidence: []string{"fake"},
++		},
++		Location: extractor.LocationFromPath(home), Plugins: []string{vendorjdk.Name},
++	}}
++}
++
++func TestExtract_Glue(t *testing.T) {
++	e := vendorjdk.NewWithDetector(fakeDetector())
++	testdata := buildTestRuntimes(t)
++
++	tests := []struct {
++		name string
++		root string
++		path string
++		want []*extractor.Package
++	}{
++		{name: "JVM library reports the runtime", root: ".", path: "jdk-21.0.2/lib/server/libjvm.so",
++			want: wantPackage("jdk-21.0.2", "jdk", "jdk-21.0.2/lib/server/libjvm.so")},
++		{name: "second VM flavour of the same runtime stays silent", root: ".", path: "jdk-21.0.2/lib/minimal/libjvm.so"},
++		{name: "release file of a runtime that has a JVM library stays silent", root: ".", path: "jdk-21.0.2/release"},
++		{name: "rt.jar of a runtime that has a JVM library stays silent", root: ".", path: "jdk8u402/jre/lib/rt.jar"},
++		{name: "another vendor (detector returns nil)", root: ".", path: "zulu21/lib/server/libjvm.so"},
++		{name: "release file reports a runtime without JVM library (macOS tree)", root: ".", path: "macos/jdk-21.0.2.jdk/release",
++			want: wantPackage("macos/jdk-21.0.2.jdk", "jdk", "")},
++		{name: "rt.jar stays silent when the home has a release file", root: ".", path: "macos/jdk8u402.jdk/jre/lib/rt.jar"},
++		{name: "Windows jvm.dll reports the runtime", root: ".", path: "windows/jdk-21.0.2/bin/server/jvm.dll",
++			want: wantPackage("windows/jdk-21.0.2", "jdk", "windows/jdk-21.0.2/bin/server/jvm.dll")},
++		{name: "apk-installed runtime on the vendor Linux is covered by the apk ecosystem", root: "vendor-linux", path: "usr/lib/jvm/jdk21-lite/lib/server/libjvm.so"},
++		{name: "the same path on another distribution is a standalone install", root: "debian", path: "usr/lib/jvm/jdk-21.0.2-x86_64/lib/server/libjvm.so",
++			want: wantPackage("usr/lib/jvm/jdk-21.0.2-x86_64", "jdk", "usr/lib/jvm/jdk-21.0.2-x86_64/lib/server/libjvm.so")},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got, err := e.Extract(t.Context(), scanInput(t, filepath.Join(testdata, tt.root), tt.path))
++			if err != nil {
++				t.Fatalf("Extract(): %v", err)
++			}
++			if diff := cmp.Diff(inventory.Inventory{Packages: tt.want}, got); diff != "" {
++				t.Errorf("Extract(%s) (-want +got):\n%s", tt.path, diff)
++			}
++		})
++	}
++}
++
++func TestPackageIdentity(t *testing.T) {
++	nik2321 := osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21")
++	jdk := &extractor.Package{
++		Name: "jdk", Version: "21.0.2+14", PURLType: purl.TypeGeneric,
++		Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvjdk.EcosystemFor(21), PURL: osvjdk.PURL("jdk", "21.0.2+14"), Home: "opt/jdk-21.0.2", Major: 21, Variant: "jdk"},
++	}
++	if got, want := jdk.Ecosystem().String(), osvjdk.EcosystemFor(21); got != want {
++		t.Errorf("Ecosystem() = %q, want %q", got, want)
++	}
++	if got, want := jdk.PURL().String(), osvjdk.PURL("jdk", "21.0.2+14"); got != want {
++		t.Errorf("PURL() = %q, want %q", got, want)
++	}
++	if got, want := jdk.Ecosystem().String(), osvjdk.EcosystemFor(21); got != want {
++		t.Errorf("ecosystem %q differs from the module's %q", got, want)
++	}
++
++	// the second product family passes through untouched
++	nik := &extractor.Package{
++		Name: "core", Version: "23.1.0+1", PURLType: purl.TypeGeneric,
++		Metadata: &vendorjdkmeta.Metadata{Ecosystem: nik2321, PURL: osvjdk.PURLNIK("core", "23.1.0+1"), Major: 21, Variant: "core"},
++	}
++	if got, want := nik.Ecosystem().String(), nik2321; got != want {
++		t.Errorf("Ecosystem() = %q, want %q", got, want)
++	}
++	if got, want := nik.PURL().String(), osvjdk.PURLNIK("core", "23.1.0+1"); got != want {
++		t.Errorf("PURL() = %q, want %q", got, want)
++	}
++
++	// without a purl from the detector the JDK purl is built from variant and version
++	jdk8 := &extractor.Package{Name: "jdk", Version: "8u402+7", PURLType: purl.TypeGeneric, Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvjdk.EcosystemFor(8), Major: 8, Variant: "jdk"}}
++	if got, want := jdk8.PURL().String(), osvjdk.PURL("jdk", "8u402+7"); got != want {
++		t.Errorf("PURL() = %q, want %q", got, want)
++	}
++	if got, want := jdk8.Ecosystem().String(), osvjdk.EcosystemFor(8); got != want {
++		t.Errorf("Ecosystem() = %q, want %q", got, want)
++	}
++}
++
++// TestExtract_Detector runs the real osv-internal detector over the synthetic
++// runtimes in testdata (fake JVM libraries carrying the real strings; macOS
++// trees without a JVM library).
++func TestExtract_Detector(t *testing.T) {
++	nik2321 := osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21")
++	testdata := buildTestRuntimes(t)
++	e, _ := vendorjdk.New(&cpb.PluginConfig{})
++
++	tests := []struct {
++		name    string
++		root    string
++		path    string
++		want    *extractor.Package // nil: nothing extracted
++		wantEco string
++	}{
++		{name: "JDK 21", root: ".", path: "jdk-21.0.2/lib/server/libjvm.so",
++			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
++		{name: "JDK 21 release file stays silent (JVM library reports)", root: ".", path: "jdk-21.0.2/release"},
++		{name: "JRE 21", root: ".", path: "jre-21.0.2/lib/server/libjvm.so",
++			want: &extractor.Package{Name: "jre", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
++		{name: "JDK 8 (vendor from rt.jar, version from libjvm.so)", root: ".", path: "jdk8u402/jre/lib/amd64/server/libjvm.so",
++			want: &extractor.Package{Name: "jdk", Version: "8u402+7"}, wantEco: osvjdk.EcosystemFor(8)},
++		{name: "JDK 8 rt.jar stays silent (JVM library reports)", root: ".", path: "jdk8u402/jre/lib/rt.jar"},
++		{name: "JDK 21 CSPU (four components)", root: ".", path: "jdk-21.0.12.1/lib/server/libjvm.so",
++			want: &extractor.Package{Name: "jdk", Version: "21.0.12.1+1"}, wantEco: osvjdk.EcosystemFor(21)},
++		{name: "JDK 21 CPU (five components)", root: ".", path: "jdk-21.0.9.0.1/lib/server/libjvm.so",
++			want: &extractor.Package{Name: "jdk", Version: "21.0.9.0.1+1"}, wantEco: osvjdk.EcosystemFor(21)},
++		{name: "JDK 8 CSPU", root: ".", path: "jdk8u504/jre/lib/amd64/server/libjvm.so",
++			want: &extractor.Package{Name: "jdk", Version: "8u504+1"}, wantEco: osvjdk.EcosystemFor(8)},
++		{name: "JDK 8 CPU", root: ".", path: "jdk8u481/jre/lib/amd64/server/libjvm.so",
++			want: &extractor.Package{Name: "jdk", Version: "8u481+1"}, wantEco: osvjdk.EcosystemFor(8)},
++		{name: "macOS JDK 21 without JVM library: release file", root: ".", path: "macos/jdk-21.0.2.jdk/release",
++			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
++		{name: "Windows JDK 21: jvm.dll", root: ".", path: "windows/jdk-21.0.2/bin/server/jvm.dll",
++			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
++		{name: "NIK 23.1.0 core is reported in its own ecosystem, never as a JDK", root: ".", path: "nik-23.1.0/lib/server/libjvm.so",
++			want: &extractor.Package{Name: "core", Version: "23.1.0+1"}, wantEco: nik2321},
++		{name: "Azul Zulu is not the vendor's", root: ".", path: "zulu21/lib/server/libjvm.so"},
++		{name: "Azul Zulu release file is not the vendor's", root: ".", path: "zulu21/release"},
++		{name: "apk-installed runtime on the vendor Linux is skipped", root: "vendor-linux", path: "usr/lib/jvm/jdk21-lite/lib/server/libjvm.so"},
++		{name: "a runtime under /usr/lib/jvm on Debian is reported", root: "debian", path: "usr/lib/jvm/jdk-21.0.2-x86_64/lib/server/libjvm.so",
++			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got, err := e.Extract(t.Context(), scanInput(t, filepath.Join(testdata, tt.root), tt.path))
++			if err != nil {
++				t.Fatalf("Extract(): %v", err)
++			}
++			if tt.want == nil {
++				if len(got.Packages) != 0 {
++					t.Fatalf("Extract(%s) = %+v, want nothing", tt.path, got.Packages[0])
++				}
++				return
++			}
++			if len(got.Packages) != 1 {
++				t.Fatalf("Extract(%s) returned %d packages, want 1", tt.path, len(got.Packages))
++			}
++			p := got.Packages[0]
++			if p.Name != tt.want.Name || p.Version != tt.want.Version || p.Ecosystem().String() != tt.wantEco {
++				t.Errorf("Extract(%s) = %s %s %s, want %s %s %s", tt.path, p.Ecosystem(), p.Name, p.Version, tt.wantEco, tt.want.Name, tt.want.Version)
++			}
++			wantPURL := osvjdk.PURL(tt.want.Name, tt.want.Version)
++			if osvinternal.Family(tt.wantEco) == osvinternal.EcosystemNIK {
++				wantPURL = osvjdk.PURLNIK(tt.want.Name, tt.want.Version)
++			}
++			if p.PURL() == nil || p.PURL().String() != wantPURL {
++				t.Errorf("PURL() = %v, want %s", p.PURL(), wantPURL)
++			}
++		})
++	}
++
++	// the macOS 8 tree: release without vendor, rt.jar carries it; the rt.jar candidate stays silent
++	// because the home has a release file, which is the anchor
++	got, err := e.Extract(t.Context(), scanInput(t, testdata, "macos/jdk8u402.jdk/release"))
++	if err != nil {
++		t.Fatalf("Extract(macos 8 release): %v", err)
++	}
++	if len(got.Packages) != 1 || got.Packages[0].Version != "8u402" && got.Packages[0].Version != "8u402+7" {
++		t.Errorf("Extract(macos 8 release) = %+v, want jdk 8u402 (vendor from the rt.jar manifest)", got.Packages)
++	}
++	_ = os.Getenv
++}
+diff --git a/extractor/filesystem/list/list.go b/extractor/filesystem/list/list.go
+index 4e08545..f2ff536 100644
+--- a/extractor/filesystem/list/list.go
++++ b/extractor/filesystem/list/list.go
+@@ -54,6 +54,7 @@ import (
+ 	"github.com/google/osv-scalibr/extractor/filesystem/language/java/gradleverificationmetadataxml"
+ 	"github.com/google/osv-scalibr/extractor/filesystem/language/java/gradleversioncatalog"
+ 	"github.com/google/osv-scalibr/extractor/filesystem/language/java/pomxml"
++	"github.com/google/osv-scalibr/extractor/filesystem/language/java/vendorjdk"
+ 	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/bunlock"
+ 	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/denojson"
+ 	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/denotssource"
+@@ -227,6 +228,7 @@ var (
+ 	// JavaArtifact extractors for Java.
+ 	JavaArtifact = InitMap{
+ 		javaarchive.Name: {protoCfg(javaarchive.New)},
++		vendorjdk.Name:   {protoCfg(vendorjdk.New)},
+ 	}
+ 	// JavascriptSource extractors for Javascript.
+ 	JavascriptSource = InitMap{
+-- 
+2.43.0
+

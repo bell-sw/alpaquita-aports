@@ -1,17 +1,37 @@
 pkgname=osv-scanner
 pkgver=2.5.0
-pkgrel=0
+pkgrel=18
 pkgdesc="Vulnerability scanner written in Go which uses the data provided by https://osv.dev"
 url="https://github.com/google/osv-scanner"
 arch="all"
 license="Apache-2.0"
-makedepends="go"
+makedepends="go osv-internal>=0.5.5"
 checkdepends="tzdata"
-# tests appears to be flaky? passes on local machines but fails on builder
-options="net !check"
+_scalibr_commit=eb1ca153f805d948e98a7079536833e8ff88bb31
+_scalibr_dir="osv-scalibr-$_scalibr_commit"
+_osvmod=github.com/bell-sw/osv-internal
+options="net"
 source="https://github.com/google/osv-scanner/archive/v$pkgver/osv-scanner-$pkgver.tar.gz
-
+	$_scalibr_dir.tar.gz::https://codeload.github.com/google/osv-scalibr/tar.gz/$_scalibr_commit
 	0100-feat-purl-Add-more-PURL-to-ecosystem-mappings.patch
+	0101-fix-filter-keep-packages-that-are-queried-by-version.patch
+	0102-feat-offline-local-db-url-for-the-offline-database-h.patch
+	0103-fix-scan-report-failed-plugins-of-container-scans-fa.patch
+	0104-fix-filter-treat-unknown-unknown-Maven-packages-as-u.patch
+	0105-Enable-the-java-vendorjdk-extractor-standalone-vendo.patch
+	0106-vendor-data-sources-vendor-url-vendor-feed-vendor-st.patch
+	0107-vendor-sources-a-configured-source-is-consulted-in-o.patch
+	0108-vendor-options-tests-the-product-families-from-the-m.patch
+	0109-osv-scalibr-apk-record-provided-names-and-resolve-source-package.diff
+	0110-osv-scalibr-osvlocal-keep-matching-the-other-packages-when-one-d.diff
+	0111-osv-scalibr-osvlocal-accept-file-archive-hosts-hosts-without-a-c.diff
+	0112-osv-scalibr-osvlocal-run-without-network-when-not-downloading-ke.diff
+	0113-osv-scalibr-Add-the-prototype-JDK-and-NIK-ecosystems-of-the-vend.diff
+	0114-osv-scalibr-Add-the-java-vendorjdk-extractor-for-standalone-vend.diff
+	0115-osv-scalibr-osvlocal-sources-of-the-vendor-databases-warn-when-o.diff
+	0116-osv-scalibr-osvlocal-a-configured-vendor-source-is-matched-next-.diff
+	0117-osv-scalibr-Recognise-the-vendor-s-distributions-by-the-module-s.diff
+	0118-osv-scalibr-Follow-the-module-s-Products-table-any-number-of-JDK.diff
 	"
 
 export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
@@ -25,14 +45,38 @@ export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
 #     - CVE-2026-5160
 #     - CVE-2026-44973
 
+prepare() {
+	default_prepare
+
+	cd "$srcdir/$_scalibr_dir"
+	local p; for p in "$srcdir"/*.diff; do
+		msg "${p##*/}"
+		patch -p1 -i "$p"
+	done
+	go mod edit -replace $_osvmod=/usr/share/go-modules/$_osvmod
+
+	cd "$builddir"
+	go mod edit \
+		-replace github.com/google/osv-scalibr="$srcdir/$_scalibr_dir" \
+		-replace $_osvmod=/usr/share/go-modules/$_osvmod
+}
+
 build() {
 	go build -o build/ ./cmd/...
 }
 
 check() {
-	# TestRun fails because more ghsa's were published since it was made
-	# shellcheck disable=2046
-	go test $(go list ./... | grep -v cmd/osv-scanner)
+	# unit tests of the packages changed by the vendor patches (upstream's full suites are not run: TestRun
+	# snapshots go stale as advisories are published, see the previous recipe). The osv-scalibr
+	# packages are tested from this module, i.e. with the dependency versions the binary is built
+	# with: osv-scalibr's own go.mod (x/net 0.54, grpc 1.81) does not compile its tests with go 1.27.
+	go test ./internal/scalibrannotator/filter/ ./internal/utility/purl/ ./internal/scalibrplugin/ \
+		./internal/imodels/ ./cmd/osv-scanner/internal/helper/ \
+		github.com/google/osv-scalibr/extractor/filesystem/os/apk/... \
+		github.com/google/osv-scalibr/extractor/filesystem/language/java/vendorjdk/... \
+		github.com/google/osv-scalibr/enricher/vulnmatch/... \
+		github.com/google/osv-scalibr/inventory/osvecosystem/ \
+		github.com/google/osv-scalibr/semantic/
 }
 
 package() {
@@ -41,5 +85,24 @@ package() {
 
 sha512sums="
 eb73a127f7cabc8a0a881ebb735241000db27ca3d9ccf889c42256fc04c3346294b0cbc841441fd7ef3e75a1591e8cd92f3c756bd514b8f5604027a0c2482256  osv-scanner-2.5.0.tar.gz
-d2d2984f414a9b443be47b34eb7a67a027b1ed5da61e4f921b2db0d0c70eb82b2089e2ba1e940cef979483b9c75a0cbf6a259a83e33147303ad66b5120211558  0100-feat-purl-Add-more-PURL-to-ecosystem-mappings.patch
+5f0d05bccc5d6fc6e0bc4f5cb652b98d7e8d28d5ff84bef656283c1181e46dff1b1deb99804fa3b386394e99e639c600535ae98e06c7c60c14976befcdd7732f  osv-scalibr-eb1ca153f805d948e98a7079536833e8ff88bb31.tar.gz
+86cb1aad40396737e3d59c5c2d2df752b981742eda413905042d7237b6bef300dc51dc776454d4f91657b463bbf2bca8b431b0222373f76d89dafa6bcc2b206a  0100-feat-purl-Add-more-PURL-to-ecosystem-mappings.patch
+4ddc7744740b634bedc60932dd2001cb4c74b7aa550639d1178bdbde3cade6ff6de6f34fc4bcf3005f1759a5b127d03fb031f0e8b4d5131a5655c065c06752ea  0101-fix-filter-keep-packages-that-are-queried-by-version.patch
+dc28f3db8afd5ba8643d82ba33fbb3bb67cede2066f7d5a49119cb6c17d705e41df60ea74b3932b65a99d1ade3966230e3815de745e4440fec1931a054f39b52  0102-feat-offline-local-db-url-for-the-offline-database-h.patch
+86b7413129d213c3f976a7a17d99189824bda35ed9e24b1abf9232d6584e0afa2b34befac123602980596e9f97a68a8b2b9fddf629337a8b1f35ef87408bc10b  0103-fix-scan-report-failed-plugins-of-container-scans-fa.patch
+4f8269d7b98dec976f09ff66388ad63123353a98743ff00bd510b02113ba56826a112d6e6d14e5863d64888b7cdcbd369d4d5c01abfbb3ceaa63e774e6b4cc87  0104-fix-filter-treat-unknown-unknown-Maven-packages-as-u.patch
+fd1aacfffe31ca85e62bad24017c21ff377f759e14a50b9079219d23c892346274c705e70db50dfa104cbb0c6f07ce3dd6b5b71d71bbdf9966f188c8b9171062  0105-Enable-the-java-vendorjdk-extractor-standalone-vendo.patch
+39dbd81a32fa2d75d2d29c609e62ed93002d47b9932db00ff5e3e6ce3d22baebda7b7f56988f8417c40ffe0223e1a99364c9223433bdf49271232cd1fb3a29c5  0106-vendor-data-sources-vendor-url-vendor-feed-vendor-st.patch
+3dda2bdbb376f116fa97a610167a75e49298ca14e260c3b6108d6af31c2e12cf4c570e7434ee5c17281618ccfd535ea12c08180aab179d5b03db167d0aff30c7  0107-vendor-sources-a-configured-source-is-consulted-in-o.patch
+ca2fb6eed78403880c197eb2bae949a21d80caab2910530e1317040379cc72bd24986de3ffe0bcb109abe0e48c4c964ca9fab52943a7d03325fffa3240cba146  0108-vendor-options-tests-the-product-families-from-the-m.patch
+1567eb97336d2dcb5ec926ce8172ae3f2cf520858570d2d43b6d4c11f520620619baca39b421911b8e38ce4c84493ce156988b4c3540e894b4ab440adbc12399  0109-osv-scalibr-apk-record-provided-names-and-resolve-source-package.diff
+26139e4479d8d09d18418d0c2b3d75bb7aac5288e8b4d07010455c396daefb69aec9ab2e6f95a9f709b79d109427e7eeb612a107399f856ef133462824ba32c9  0110-osv-scalibr-osvlocal-keep-matching-the-other-packages-when-one-d.diff
+27821a46b352b132a585de9b88ebe77ccaf3eecdc65995cdd10d88ba2195850fc3dc05c23d565bc14f9b167e2e1a6f134f8da33231161b8e59d26d93d9136afd  0111-osv-scalibr-osvlocal-accept-file-archive-hosts-hosts-without-a-c.diff
+6f685a66e8fd182341ec81c41a6bc7c47a4da54ef1a250afe761e15faeebf1102b7423d587c41761ae0275c409ddbce725b26e777416cd8e7883b6ceffe9df7f  0112-osv-scalibr-osvlocal-run-without-network-when-not-downloading-ke.diff
+0615c1e4bd11f5cff3075892233d097ac838e3983ff6e5e5d80050dea88e2f1f022da91726a7df49d38b9d1c4cc7e1d6171de27ee17fd5e9b67e6ce18b062a28  0113-osv-scalibr-Add-the-prototype-JDK-and-NIK-ecosystems-of-the-vend.diff
+1c1767ef4417f91f36955ecc37e7ae4c590fbc6576a32a2b0a619bfc09cac4ab53d981b0bb18df20ed3ef8b3bab8e09e021ef773a06cec0f28cf81c16c75c113  0114-osv-scalibr-Add-the-java-vendorjdk-extractor-for-standalone-vend.diff
+baa3082be2d4e8eafdd70a68d586445cb49ca4e6c586a5d97aa76f6e9033d4185926225b11e41a517309146b85dcd8f7429d4a360b3a16d7da0a566428a56317  0115-osv-scalibr-osvlocal-sources-of-the-vendor-databases-warn-when-o.diff
+ffcbb8294743543dcfb582b724a915e28640b38802ea641b21ec4bed209f0610e1389b705b73f5a794010fa866f54e4add5cd284e90435faff903d31b53f0b6f  0116-osv-scalibr-osvlocal-a-configured-vendor-source-is-matched-next-.diff
+81e7e43978a63d291aed7a9a232d9bb7eb490539ef1625819855b26aace01cfda758877bf52820e1f4ed7347f1c2471e288b10c97a663c16c8139edb800d1844  0117-osv-scalibr-Recognise-the-vendor-s-distributions-by-the-module-s.diff
+29d107fd2c7983e18db0a947658329814ee26fe79a28c852732c865c39b9a1e6cea9a144fd48c193644d786877e1fd380bf8d822f49ef8fbea5be78ec4c06cdf  0118-osv-scalibr-Follow-the-module-s-Products-table-any-number-of-JDK.diff
 "

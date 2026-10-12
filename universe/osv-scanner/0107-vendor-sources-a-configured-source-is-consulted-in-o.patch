@@ -1,0 +1,248 @@
+From 4ad58e7d2f9377edd71f0e8b81a02cfc4be8b83e Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Tue, 13 Oct 2026 12:45:06 +0000
+Subject: [PATCH] vendor sources: a configured source is consulted in online
+ scans
+
+A source given with --vendor-url or --vendor-feed is used in every scan,
+not only with --offline-vulnerabilities:
+
+* In online scans the products it covers are matched by vulnmatch/osvlocal
+  from the configured archives and left out of the vulnmatch/osvdev batch
+  query (osvdev.Options.MatchedLocally). Without the options nothing
+  changes.
+* An unavailable configured archive is handled like a built-in default: a
+  warning naming the source, and the scan continues; --vendor-strict fails
+  the scan.
+* A --vendor-url or feed naming a local location that does not exist is
+  rejected before the scan (checkVendorOptions).
+---
+ cmd/osv-scanner/internal/helper/flags.go |  4 +-
+ pkg/osvscanner/osvscanner.go             | 12 +++--
+ pkg/osvscanner/scan.go                   | 62 +++++++++++++++++++++---
+ pkg/osvscanner/vendor_internal_test.go   | 38 ++++++++++++++-
+ 4 files changed, 99 insertions(+), 17 deletions(-)
+
+diff --git a/cmd/osv-scanner/internal/helper/flags.go b/cmd/osv-scanner/internal/helper/flags.go
+index 1cb76770..03560f50 100644
+--- a/cmd/osv-scanner/internal/helper/flags.go
++++ b/cmd/osv-scanner/internal/helper/flags.go
+@@ -171,12 +171,12 @@ func BuildCommonScanFlags(defaultExtractors []string) []cli.Flag {
+ 		},
+ 		&cli.StringFlag{
+ 			Name:    "vendor-url",
+-			Usage:   "base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory",
++			Usage:   "base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory; used in online scans too (the products are matched from it instead of api.osv.dev)",
+ 			Sources: cli.EnvVars("OSV_SCANNER_VENDOR_URL"),
+ 		},
+ 		&cli.StringSliceFlag{
+ 			Name:    "vendor-feed",
+-			Usage:   "location of the vendor OSV archive of one product, as \"<product>=<url>\"; repeatable; products: " + strings.Join(osvinternal.Ecosystems, ", "),
++			Usage:   "location of the vendor OSV archive of one product, as \"<product>=<url>\"; repeatable; products: " + strings.Join(osvinternal.Ecosystems, ", ") + "; used like --vendor-url, which it overrides for that product",
+ 			Sources: cli.EnvVars("OSV_SCANNER_VENDOR_FEED"),
+ 		},
+ 		&cli.BoolFlag{
+diff --git a/pkg/osvscanner/osvscanner.go b/pkg/osvscanner/osvscanner.go
+index 1a162742..73176fa6 100644
+--- a/pkg/osvscanner/osvscanner.go
++++ b/pkg/osvscanner/osvscanner.go
+@@ -63,14 +63,16 @@ type ScannerActions struct {
+ 	// VendorURL is the base location of the OSV archives of the vendor
+ 	// products (<url>/<product>/all.zip): http(s), file:// or a directory.
+ 	// VendorFeeds locates single products as "<product>=<url>" pairs and wins
+-	// over VendorURL. Without either, the vendor distributions
+-	// come from the offline database host (LocalDBURL) and
+-	// the standalone runtimes from the module's product base URL.
++	// over VendorURL. A source given either way is consulted in every scan,
++	// also when everything else is queried from api.osv.dev. Without either,
++	// the vendor distributions come from api.osv.dev online and from the
++	// offline database host (LocalDBURL) offline, and the standalone runtimes
++	// from the module's product base URL.
+ 	VendorURL   string
+ 	VendorFeeds []string
+ 	// VendorStrict makes an unavailable database of a vendor product fail the
+-	// scan; by default it is a warning (the packages of that product were not
+-	// checked) and the exit code is unchanged.
++	// scan, even when a cached copy exists (it may be stale or from another
++	// source); by default it is a warning and the exit code is unchanged.
+ 	VendorStrict bool
+ 
+ 	// network-backed plugins
+diff --git a/pkg/osvscanner/scan.go b/pkg/osvscanner/scan.go
+index ce506b24..af0a08a7 100644
+--- a/pkg/osvscanner/scan.go
++++ b/pkg/osvscanner/scan.go
+@@ -5,6 +5,7 @@ import (
+ 	"context"
+ 	"errors"
+ 	"fmt"
++	"net/url"
+ 	"os"
+ 	"path/filepath"
+ 	"runtime"
+@@ -18,6 +19,7 @@ import (
+ 	"github.com/google/osv-scalibr/enricher"
+ 	"github.com/google/osv-scalibr/enricher/packagedeprecation"
+ 	"github.com/google/osv-scalibr/enricher/reachability/java"
++	"github.com/google/osv-scalibr/enricher/vulnmatch/osvdev"
+ 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal"
+ 	"github.com/google/osv-scalibr/extractor"
+ 	"github.com/google/osv-scalibr/extractor/filesystem"
+@@ -51,15 +53,18 @@ func configurePlugins(plugins []plugin.Plugin, accessors ExternalAccessors, acti
+ 			OSVClient:  accessors.OSVDevClient,
+ 		})
+ 		// Next to api.osv.dev the local matcher handles the ecosystems the API
+-		// does not serve (the vendor's JDK / NIK); offline it matches everything.
+-		// The feeds were validated by checkVendorOptions.
++		// does not serve (the vendor's JDK / NIK) and the vendor products with a
++		// configured source; offline it matches everything. The options were
++		// validated by checkVendorOptions.
+ 		feeds, _ := osvlocal.ParseVendorFeeds(actions.VendorFeeds)
+-		osvlocal.Configure(plug, osvlocal.Options{
++		local := osvlocal.Options{
+ 			LocalOnlyEcosystems: !actions.CompareOffline,
+ 			VendorURL:           actions.VendorURL,
+ 			VendorFeeds:         feeds,
+ 			VendorStrict:        actions.VendorStrict,
+-		})
++		}
++		osvlocal.Configure(plug, local)
++		osvdev.Configure(plug, osvdev.Options{MatchedLocally: local.MatchedLocally})
+ 	}
+ }
+ 
+@@ -162,7 +167,7 @@ func getPlugins(
+ 	if actions.CompareOffline {
+ 		actions.PluginsEnabled = append(actions.PluginsEnabled, "vulnmatch/osvlocal")
+ 	} else {
+-		// osvlocal is restricted to the ecosystems api.osv.dev does not serve, see configurePlugins
++		// osvlocal is restricted to the ecosystems osvdev leaves out, see configurePlugins
+ 		actions.PluginsEnabled = append(actions.PluginsEnabled, "vulnmatch/osvdev", "vulnmatch/osvlocal")
+ 	}
+ 
+@@ -588,11 +593,52 @@ func dedupPackageVulns(vulns []*inventory.PackageVuln) []*inventory.PackageVuln
+ 	return result
+ }
+ 
+-// checkVendorOptions validates the --vendor-feed pairs.
++// checkVendorOptions validates the --vendor-feed pairs and rejects a
++// --vendor-url or feed naming a local location that does not exist, so that
++// a typo is reported before the scan rather than as an unavailable database
++// of every product.
+ func checkVendorOptions(actions ScannerActions) error {
+-	_, err := osvlocal.ParseVendorFeeds(actions.VendorFeeds)
++	feeds, err := osvlocal.ParseVendorFeeds(actions.VendorFeeds)
++	if err != nil {
++		return err
++	}
++	if err := checkVendorLocation("--vendor-url", actions.VendorURL); err != nil {
++		return err
++	}
++	for family, location := range feeds {
++		if err := checkVendorLocation("--vendor-feed "+family, location); err != nil {
++			return err
++		}
++	}
++
++	return nil
++}
+ 
+-	return err
++// checkVendorLocation returns an error when location is a local path (plain
++// or file://) that does not exist. Remote locations are not checked.
++func checkVendorLocation(option, location string) error {
++	location = strings.TrimSpace(location)
++	lower := strings.ToLower(location)
++	if location == "" || strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
++		return nil
++	}
++	p := location
++	if strings.HasPrefix(lower, "file://") {
++		p = location[len("file://"):]
++		if u, err := url.Parse(location); err == nil {
++			p = u.Path
++			if u.Host != "" && u.Host != "localhost" {
++				// "file://relative/dir" is not valid but people type it:
++				// keep the host as the first path element (as osv-internal does)
++				p = filepath.Join(u.Host, p)
++			}
++		}
++	}
++	if _, err := os.Stat(p); err != nil {
++		return fmt.Errorf("%s: %q: %w", option, location, err)
++	}
++
++	return nil
+ }
+ 
+ // vulnMatchFailure returns an error when a failed vulnerability matcher must
+diff --git a/pkg/osvscanner/vendor_internal_test.go b/pkg/osvscanner/vendor_internal_test.go
+index 156f6a5e..f0983388 100644
+--- a/pkg/osvscanner/vendor_internal_test.go
++++ b/pkg/osvscanner/vendor_internal_test.go
+@@ -2,6 +2,8 @@ package osvscanner
+ 
+ import (
+ 	"net/url"
++	"os"
++	"path/filepath"
+ 	"strings"
+ 	"testing"
+ 
+@@ -36,6 +38,10 @@ func TestVulnMatchFailure(t *testing.T) {
+ 		{"online, vendor database unavailable, strict", failed("vulnmatch/osvlocal", unavailable), ScannerActions{VendorStrict: true}, true},
+ 		{"offline with downloads, vendor database unavailable, strict", failed("vulnmatch/osvlocal", unavailable), ScannerActions{CompareOffline: true, DownloadDatabases: true, VendorStrict: true}, true},
+ 		{"strict, failure of another kind", failed("vulnmatch/osvlocal", "db host returned 404 Not Found"), ScannerActions{VendorStrict: true}, false},
++		{"online, vendor database unavailable, --vendor-url given, not strict", failed("vulnmatch/osvlocal", unavailable), ScannerActions{VendorURL: "https://mirror.example/osv"}, false},
++		{"online, vendor database unavailable, --vendor-feed given, not strict", failed("vulnmatch/osvlocal", unavailable), ScannerActions{VendorFeeds: []string{osvinternal.EcosystemJDK + "=https://mirror.example/osv"}}, false},
++		{"online, vendor database unavailable, --vendor-url given, strict", failed("vulnmatch/osvlocal", unavailable), ScannerActions{VendorURL: "https://mirror.example/osv", VendorStrict: true}, true},
++		{"offline with downloads, vendor database unavailable, --vendor-url given, strict", failed("vulnmatch/osvlocal", unavailable), ScannerActions{CompareOffline: true, DownloadDatabases: true, VendorURL: "/srv/osv", VendorStrict: true}, true},
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+@@ -51,12 +57,40 @@ func TestVulnMatchFailure(t *testing.T) {
+ func TestCheckVendorOptions(t *testing.T) {
+ 	t.Parallel()
+ 
+-	if err := checkVendorOptions(ScannerActions{VendorFeeds: []string{osvinternal.EcosystemJDK + "=https://example.com/osv", strings.ToLower(osvinternal.EcosystemLinux) + "=/srv/osv"}}); err != nil {
+-		t.Errorf("checkVendorOptions() = %v, want nil", err)
++	dir := t.TempDir()
++	archive := filepath.Join(dir, "linux.zip")
++	if err := os.WriteFile(archive, []byte("PK"), 0o600); err != nil {
++		t.Fatal(err)
++	}
++
++	for _, ok := range []ScannerActions{
++		{},
++		{VendorFeeds: []string{osvinternal.EcosystemJDK + "=https://example.com/osv", strings.ToLower(osvinternal.EcosystemLinux) + "=" + dir}},
++		{VendorFeeds: []string{strings.ToLower(osvinternal.EcosystemLinux) + "=" + archive}},
++		{VendorURL: "https://example.com/osv"},
++		{VendorURL: dir},
++		{VendorURL: "file://" + dir},
++		{VendorURL: " " + dir + " "},
++	} {
++		if err := checkVendorOptions(ok); err != nil {
++			t.Errorf("checkVendorOptions(%+v) = %v, want nil", ok, err)
++		}
+ 	}
+ 	for _, bad := range []string{osvinternal.EcosystemJDK, "Zulu=https://example.com/osv"} {
+ 		if err := checkVendorOptions(ScannerActions{VendorFeeds: []string{bad}}); err == nil {
+ 			t.Errorf("checkVendorOptions(%q) = nil, want an error", bad)
+ 		}
+ 	}
++	// a local location that does not exist is rejected before the scan
++	missing := filepath.Join(dir, "missing")
++	for _, bad := range []ScannerActions{
++		{VendorURL: missing},
++		{VendorURL: "file://" + missing},
++		{VendorFeeds: []string{osvinternal.EcosystemNIK + "=" + missing}},
++		{VendorFeeds: []string{osvinternal.EcosystemNIK + "=" + filepath.Join(missing, "nik.zip")}},
++	} {
++		if err := checkVendorOptions(bad); err == nil {
++			t.Errorf("checkVendorOptions(%+v) = nil, want an error", bad)
++		}
++	}
+ }
+-- 
+2.43.0
+
