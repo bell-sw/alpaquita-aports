@@ -1,0 +1,745 @@
+From 19f5a4fc0ae701753518a2fc944a99addb515654 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Mon, 19 Oct 2026 13:33:25 +0000
+Subject: [PATCH] Runtime types from the module's Products table
+
+osv-internal 0.5.5 replaces its EcosystemJDK/EcosystemNIK constants by the
+Products table: a vendor may build the module with several JDK and NIK
+families. syft gives every family its own package type (pkg.VendorRuntimeType,
+the family's purl name); grype reads the family of a runtime package from that
+type (vendordb.ProductOfType) and matches it with the version grammar of the
+family's kind, and the vendor options list the module's families.
+---
+ cmd/grype/cli/options/vendor.go               | 21 +++--
+ cmd/grype/cli/options/vendor_test.go          | 14 +--
+ grype/matcher/vendorjdk/matcher.go            |  6 +-
+ .../matcher/vendorjdk/matcher_module_test.go  |  7 +-
+ grype/matcher/vendorjdk/matcher_test.go       | 35 +++++---
+ grype/pkg/package.go                          |  2 +-
+ grype/pkg/package_test.go                     | 15 ++--
+ grype/pkg/version_format.go                   |  5 +-
+ grype/vulnerability/vendordb/config.go        |  4 +-
+ grype/vulnerability/vendordb/criteria.go      | 41 +++++----
+ .../vendordb/engine_module_test.go            | 47 +++++-----
+ grype/vulnerability/vendordb/provider_test.go | 87 +++++++++++++------
+ 12 files changed, 176 insertions(+), 108 deletions(-)
+
+diff --git a/cmd/grype/cli/options/vendor.go b/cmd/grype/cli/options/vendor.go
+index f03b4e9..b33d1d7 100644
+--- a/cmd/grype/cli/options/vendor.go
++++ b/cmd/grype/cli/options/vendor.go
+@@ -40,13 +40,9 @@ const (
+ 
+ var vendorFeedHelp = `location of the vendor OSV archive of one product, as "<product>=<url>"; repeatable; products: ` + strings.Join(osvinternal.Ecosystems, ", ")
+ 
+-// vendorProducts are the product (ecosystem family) names accepted in a feed entry.
+-var vendorProducts = []string{
+-	vendordb.EcosystemLinux,
+-	vendordb.EcosystemHardened,
+-	vendordb.EcosystemJDK,
+-	vendordb.EcosystemNIK,
+-}
++// vendorProducts are the product (ecosystem family) names accepted in a feed entry: the module's distributions
++// and standalone product families.
++var vendorProducts = osvinternal.Ecosystems
+ 
+ var _ interface {
+ 	clio.FlagAdder
+@@ -73,7 +69,7 @@ func (b *Vendor) AddFlags(flags clio.FlagSet) {
+ 
+ func (b *Vendor) DescribeFields(descriptions clio.FieldDescriptionSet) {
+ 	descriptions.Add(&b.Enabled, `use the `+osvinternal.Vendor+` OSV data for its distributions and standalone JDK / NIK runtimes`)
+-	descriptions.Add(&b.URL, vendorURLHelp+`; empty = the built-in source of each product: `+vendordb.DefaultBaseURL+` for `+vendordb.EcosystemLinux+` and `+vendordb.EcosystemHardened+`, `+vendordb.DefaultJDKBaseURL+` for `+vendordb.EcosystemJDK+` and `+vendordb.EcosystemNIK)
++	descriptions.Add(&b.URL, vendorURLHelp+`; empty = the built-in source of each product: `+vendordb.DefaultBaseURL+` for `+vendordb.EcosystemLinux+` and `+vendordb.EcosystemHardened+`, `+vendordb.DefaultJDKBaseURL+` for the standalone runtimes (`+strings.Join(vendorRuntimeFamilies(), ", ")+`)`)
+ 	descriptions.Add(&b.Feed, vendorFeedHelp+`; a list of entries or a map product: url; an entry wins over url`)
+ 	descriptions.Add(&b.Strict, vendorStrictHelp)
+ 	descriptions.Add(&b.CacheDir, `directory holding the downloaded archives and their indexes (one sub-directory per product)`)
+@@ -220,3 +216,12 @@ func (b Vendor) ToConfig(autoUpdate bool) vendordb.Config {
+ 		Timeout:       b.DownloadTimeout,
+ 	}
+ }
++
++// vendorRuntimeFamilies are the families of the standalone products (osvinternal.Products).
++func vendorRuntimeFamilies() []string {
++	var out []string
++	for _, p := range osvinternal.Products {
++		out = append(out, p.Family)
++	}
++	return out
++}
+diff --git a/cmd/grype/cli/options/vendor_test.go b/cmd/grype/cli/options/vendor_test.go
+index 95c0186..85645e2 100644
+--- a/cmd/grype/cli/options/vendor_test.go
++++ b/cmd/grype/cli/options/vendor_test.go
+@@ -10,6 +10,7 @@ import (
+ 	"github.com/anchore/clio"
+ 	"github.com/anchore/grype/grype/vulnerability/vendordb"
+ 	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/testfix"
+ )
+ 
+ func TestVendor_Defaults(t *testing.T) {
+@@ -31,12 +32,12 @@ func TestVendor_Defaults(t *testing.T) {
+ // url / feed / strict: the feed of a product wins over url; product names are case-insensitive; the setting may come
+ // from the flag (repeatable), the environment (comma-separated pairs) or the config file (list or map).
+ func TestVendor_Feeds(t *testing.T) {
+-	linux, hardened, jdk, nik := vendordb.EcosystemLinux, vendordb.EcosystemHardened, vendordb.EcosystemJDK, vendordb.EcosystemNIK
++	linux, hardened, jdk, nik := vendordb.EcosystemLinux, vendordb.EcosystemHardened, testfix.Product(osvinternal.KindJDK).Family, testfix.Product(osvinternal.KindNIK).Family
+ 	want := map[string]string{
+-		vendordb.EcosystemLinux:    "file:///srv/a",
+-		vendordb.EcosystemHardened: "https://mirror.example/h,v2",
+-		vendordb.EcosystemJDK:      "/srv/jdk-osv/out",
+-		vendordb.EcosystemNIK:      "/srv/nik/all.zip",
++		linux:    "file:///srv/a",
++		hardened: "https://mirror.example/h,v2",
++		jdk:      "/srv/jdk-osv/out",
++		nik:      "/srv/nik/all.zip",
+ 	}
+ 	tests := []struct {
+ 		name string
+@@ -68,7 +69,8 @@ func TestVendor_Feeds(t *testing.T) {
+ }
+ 
+ func TestVendor_InvalidFeeds(t *testing.T) {
+-	for _, feed := range []any{"Zulu=/z", vendordb.EcosystemJDK, vendordb.EcosystemJDK + "=", []any{42}, 7} {
++	jdk := testfix.Product(osvinternal.KindJDK).Family
++	for _, feed := range []any{"Zulu=/z", jdk, jdk + "=", []any{42}, 7} {
+ 		b := defaultVendor(clio.Identification{Name: "grype"})
+ 		b.Feed = feed
+ 		assert.Error(t, b.PostLoad(), "%v", feed)
+diff --git a/grype/matcher/vendorjdk/matcher.go b/grype/matcher/vendorjdk/matcher.go
+index 75c474a..27db835 100644
+--- a/grype/matcher/vendorjdk/matcher.go
++++ b/grype/matcher/vendorjdk/matcher.go
+@@ -1,6 +1,6 @@
+ /*
+-Package vendorjdk matches standalone vendor runtimes found from their binaries (syft package types VendorJdkPkg and
+-VendorNikPkg, ecosystems "<JDK family>:<major>" and "<NIK family>:<nik major>-<java major>") against the OSV data
++Package vendorjdk matches standalone vendor runtimes found from their binaries (the syft package types of the product families, syftPkg.VendorRuntimeTypes;
++ecosystems "<JDK family>:<major>" and "<NIK family>:<nik major>-<java major>") against the OSV data
+ served by the vendordb provider. No CPE / NVD matching is attempted, so a runtime is never reported twice.
+ */
+ package vendorjdk
+@@ -28,7 +28,7 @@ func NewVendorJDKMatcher() *Matcher {
+ }
+ 
+ func (m *Matcher) PackageTypes() []syftPkg.Type {
+-	return []syftPkg.Type{syftPkg.VendorJdkPkg, syftPkg.VendorNikPkg}
++	return syftPkg.VendorRuntimeTypes()
+ }
+ 
+ func (m *Matcher) Type() match.MatcherType {
+diff --git a/grype/matcher/vendorjdk/matcher_module_test.go b/grype/matcher/vendorjdk/matcher_module_test.go
+index 02168ba..64c0926 100644
+--- a/grype/matcher/vendorjdk/matcher_module_test.go
++++ b/grype/matcher/vendorjdk/matcher_module_test.go
+@@ -8,7 +8,6 @@ import (
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/require"
+ 
+-	osvinternal "github.com/bell-sw/osv-internal"
+ 	bsmatch "github.com/bell-sw/osv-internal/match"
+ 	"github.com/bell-sw/osv-internal/osvdata"
+ 
+@@ -44,11 +43,11 @@ func (e indexEngine) Provenance() map[string]time.Time { return nil }
+ // ".0.1") is equivalent to the PSU of its cycle when compared with an advisory's fixed version (advisories list PSU
+ // versions only), and a CSPU (fourth component) is newer than the PSU it is built on.
+ func TestVendorJDKMatcher_ReleaseTypes(t *testing.T) {
+-	jdk21 := osvinternal.Ecosystem(vendordb.EcosystemJDK, "21")
++	jdk21 := jdkProduct.Ecosystem("21")
+ 	adv := func(id, fixed string) osvdata.Advisory {
+ 		return osvdata.Advisory{ID: "BELL-" + id, CVE: id, Ecosystem: jdk21, Package: "jdk", Introduced: "0", Fixed: fixed, Severity: "HIGH"}
+ 	}
+-	engine := indexEngine{idx: osvdata.New(vendordb.EcosystemJDK,
++	engine := indexEngine{idx: osvdata.New(jdkProduct.Family,
+ 		adv("CVE-2099-0010", "21.0.10+10"),
+ 		adv("CVE-2099-0011", "21.0.11+11"),
+ 		adv("CVE-2099-0012", "21.0.12.1+1"),
+@@ -69,7 +68,7 @@ func TestVendorJDKMatcher_ReleaseTypes(t *testing.T) {
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+-			p := pkg.Package{ID: pkg.ID(tt.version), Name: "jdk", Version: tt.version, Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java}
++			p := pkg.Package{ID: pkg.ID(tt.version), Name: "jdk", Version: tt.version, Type: jdkType, Language: syftPkg.Java}
+ 			matches, _, err := m.Match(store, p)
+ 			require.NoError(t, err)
+ 			var got []string
+diff --git a/grype/matcher/vendorjdk/matcher_test.go b/grype/matcher/vendorjdk/matcher_test.go
+index ce4dd81..99b17d8 100644
+--- a/grype/matcher/vendorjdk/matcher_test.go
++++ b/grype/matcher/vendorjdk/matcher_test.go
+@@ -8,6 +8,7 @@ import (
+ 
+ 	osvinternal "github.com/bell-sw/osv-internal"
+ 	"github.com/bell-sw/osv-internal/osvdata"
++	"github.com/bell-sw/osv-internal/testfix"
+ 	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
+ 
+ 	"github.com/anchore/grype/grype/match"
+@@ -18,8 +19,16 @@ import (
+ 	syftPkg "github.com/anchore/syft/syft/pkg"
+ )
+ 
++// The first JDK and NIK families of the module: the fixtures are theirs.
++var (
++	jdkProduct = testfix.Product(osvinternal.KindJDK)
++	nikProduct = testfix.Product(osvinternal.KindNIK)
++	jdkType    = syftPkg.VendorRuntimeType(jdkProduct.Family)
++	nikType    = syftPkg.VendorRuntimeType(nikProduct.Family)
++)
++
+ func TestVendorJDKMatcher(t *testing.T) {
+-	jdk21, jdk8, nik2321 := osvinternal.Ecosystem(vendordb.EcosystemJDK, "21"), osvinternal.Ecosystem(vendordb.EcosystemJDK, "8"), osvinternal.Ecosystem(vendordb.EcosystemNIK, "23-21")
++	jdk21, jdk8, nik2321 := jdkProduct.Ecosystem("21"), jdkProduct.Ecosystem("8"), nikProduct.Ecosystem("23-21")
+ 	engine := vendordbtest.New()
+ 	engine.Add(jdk21, "jdk", osvdata.Advisory{
+ 		ID: "BELL-CVE-2025-24855", CVE: "CVE-2025-24855", Introduced: "21.0.1+12", Fixed: "21.0.8+12", Severity: "HIGH",
+@@ -37,12 +46,14 @@ func TestVendorJDKMatcher(t *testing.T) {
+ 		ID: "BELL-CVE-2025-23165", CVE: "CVE-2025-23165", Introduced: "0", Fixed: "23.1.8+1", Severity: "HIGH",
+ 	}, func(v string) bool { return v == "23.1.0+1" })
+ 
+-	assert.Equal(t, []syftPkg.Type{syftPkg.VendorJdkPkg, syftPkg.VendorNikPkg}, m.PackageTypes())
++	assert.Equal(t, syftPkg.VendorRuntimeTypes(), m.PackageTypes(), "one package type per product family of the module")
++	assert.Contains(t, m.PackageTypes(), jdkType)
++	assert.Contains(t, m.PackageTypes(), nikType)
+ 	assert.Equal(t, match.VendorJDKMatcher, m.Type())
+ 
+ 	t.Run("jdk 21.0.2+14 is affected by both advisories", func(t *testing.T) {
+-		p := pkg.Package{ID: "jdk21", Name: "jdk", Version: "21.0.2+14", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java,
+-			PURL: osvjdk.PURL(osvjdk.VariantJDK, "21.0.2+14")}
++		p := pkg.Package{ID: "jdk21", Name: "jdk", Version: "21.0.2+14", Type: jdkType, Language: syftPkg.Java,
++			PURL: osvjdk.PURL(jdkProduct.Family, osvjdk.VariantJDK, "21.0.2+14")}
+ 		matches, ignores, err := m.Match(store, p)
+ 		require.NoError(t, err)
+ 		assert.Empty(t, ignores)
+@@ -68,7 +79,7 @@ func TestVendorJDKMatcher(t *testing.T) {
+ 	})
+ 
+ 	t.Run("jdk 8u402+7 uses the JDK:8 ecosystem", func(t *testing.T) {
+-		p := pkg.Package{ID: "jdk8", Name: "jdk", Version: "8u402+7", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java}
++		p := pkg.Package{ID: "jdk8", Name: "jdk", Version: "8u402+7", Type: jdkType, Language: syftPkg.Java}
+ 		matches, _, err := m.Match(store, p)
+ 		require.NoError(t, err)
+ 		require.Len(t, matches, 1)
+@@ -77,14 +88,14 @@ func TestVendorJDKMatcher(t *testing.T) {
+ 	})
+ 
+ 	t.Run("fixed runtime has no matches", func(t *testing.T) {
+-		p := pkg.Package{ID: "jdk21f", Name: "jdk", Version: "21.0.8+12", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java}
++		p := pkg.Package{ID: "jdk21f", Name: "jdk", Version: "21.0.8+12", Type: jdkType, Language: syftPkg.Java}
+ 		matches, _, err := m.Match(store, p)
+ 		require.NoError(t, err)
+ 		assert.Empty(t, matches)
+ 	})
+ 
+ 	t.Run("a CSPU version (fourth component) reaches the engine unchanged", func(t *testing.T) {
+-		p := pkg.Package{ID: "jdk21cspu", Name: "jdk", Version: "21.0.12.1+1", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java}
++		p := pkg.Package{ID: "jdk21cspu", Name: "jdk", Version: "21.0.12.1+1", Type: jdkType, Language: syftPkg.Java}
+ 		matches, _, err := m.Match(store, p)
+ 		require.NoError(t, err)
+ 		assert.Empty(t, matches)
+@@ -92,15 +103,15 @@ func TestVendorJDKMatcher(t *testing.T) {
+ 	})
+ 
+ 	t.Run("other variants are keyed separately", func(t *testing.T) {
+-		p := pkg.Package{ID: "jre21", Name: "jre", Version: "21.0.2+14", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java}
++		p := pkg.Package{ID: "jre21", Name: "jre", Version: "21.0.2+14", Type: jdkType, Language: syftPkg.Java}
+ 		matches, _, err := m.Match(store, p)
+ 		require.NoError(t, err)
+ 		assert.Empty(t, matches, "the fake feed has entries for jdk only")
+ 	})
+ 
+ 	t.Run("nik 23.1.0+1 core uses the NIK:23-21 ecosystem", func(t *testing.T) {
+-		p := pkg.Package{ID: "nik23", Name: "core", Version: "23.1.0+1", Type: syftPkg.VendorNikPkg, Language: syftPkg.Java,
+-			PURL:     osvjdk.PURLNIK(osvjdk.BundleCore, "23.1.0+1"),
++		p := pkg.Package{ID: "nik23", Name: "core", Version: "23.1.0+1", Type: nikType, Language: syftPkg.Java,
++			PURL:     osvjdk.PURL(nikProduct.Family, osvjdk.BundleCore, "23.1.0+1"),
+ 			Metadata: pkg.JavaVMInstallationMetadata{Release: pkg.JavaVMReleaseMetadata{JavaVersion: "21+37"}}}
+ 		matches, _, err := m.Match(store, p)
+ 		require.NoError(t, err)
+@@ -112,7 +123,7 @@ func TestVendorJDKMatcher(t *testing.T) {
+ 	})
+ 
+ 	t.Run("nik of another java line is keyed separately", func(t *testing.T) {
+-		p := pkg.Package{ID: "nik23-17", Name: "core", Version: "23.1.0+1", Type: syftPkg.VendorNikPkg, Language: syftPkg.Java,
++		p := pkg.Package{ID: "nik23-17", Name: "core", Version: "23.1.0+1", Type: nikType, Language: syftPkg.Java,
+ 			Metadata: pkg.JavaVMInstallationMetadata{Release: pkg.JavaVMReleaseMetadata{JavaVersion: "17.0.9"}}}
+ 		matches, _, err := m.Match(store, p)
+ 		require.NoError(t, err)
+@@ -120,7 +131,7 @@ func TestVendorJDKMatcher(t *testing.T) {
+ 	})
+ 
+ 	t.Run("unknown version is skipped", func(t *testing.T) {
+-		p := pkg.Package{ID: "jdkx", Name: "jdk", Version: "unknown", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java}
++		p := pkg.Package{ID: "jdkx", Name: "jdk", Version: "unknown", Type: jdkType, Language: syftPkg.Java}
+ 		matches, _, err := m.Match(store, p)
+ 		require.NoError(t, err)
+ 		assert.Empty(t, matches)
+diff --git a/grype/pkg/package.go b/grype/pkg/package.go
+index ebe2a3a..c1ec16a 100644
+--- a/grype/pkg/package.go
++++ b/grype/pkg/package.go
+@@ -256,7 +256,7 @@ func excludePackage(p *Package, parent *Package) bool {
+ 
+ 	// A vendor runtime found from its binaries that is owned by an OS package (e.g. an apk-installed JDK)
+ 	// is covered by the OS package's advisories; drop it regardless of the version notation (21.0.2_p14-r1 vs 21.0.2+14).
+-	if (p.Type == syftPkg.VendorJdkPkg || p.Type == syftPkg.VendorNikPkg) && isOSPackage(parent) {
++	if syftPkg.IsVendorRuntime(p.Type) && isOSPackage(parent) {
+ 		return true
+ 	}
+ 
+diff --git a/grype/pkg/package_test.go b/grype/pkg/package_test.go
+index c34105a..8b36ea9 100644
+--- a/grype/pkg/package_test.go
++++ b/grype/pkg/package_test.go
+@@ -18,6 +18,7 @@ import (
+ 	syftPkg "github.com/anchore/syft/syft/pkg"
+ 	"github.com/anchore/syft/syft/sbom"
+ 	"github.com/anchore/syft/syft/testutil"
++	osvinternal "github.com/bell-sw/osv-internal"
+ )
+ 
+ func TestNew(t *testing.T) {
+@@ -1339,6 +1340,10 @@ func TestFromPackages_OwnershipByFileOverlap(t *testing.T) {
+ }
+ 
+ func Test_RemovePackagesByOverlap(t *testing.T) {
++	// a fictional runtime family: the rule applies to every type of osvinternal.Products
++	saved := osvinternal.Products
++	t.Cleanup(func() { osvinternal.Products = saved })
++	osvinternal.Products = []osvinternal.Product{{Family: "Test JDK", PURLName: "test-jdk", Kind: osvinternal.KindJDK}}
+ 	tests := []struct {
+ 		name             string
+ 		sbom             *sbom.SBOM
+@@ -1417,16 +1422,16 @@ func Test_RemovePackagesByOverlap(t *testing.T) {
+ 		{
+ 			name: "vendor runtime owned by an apk package is covered by the apk ecosystem (any version notation)",
+ 			sbom: withLinuxRelease(catalogWithOverlaps(
+-				[]string{"apk:jdk21-lite-jdk-no-deps@21.0.2_p14-r1", "liberica-jdk:jdk-lite@21.0.2+14"},
+-				[]string{"apk:jdk21-lite-jdk-no-deps@21.0.2_p14-r1 -> liberica-jdk:jdk-lite@21.0.2+14"}), string(distro.VendorLinux)),
+-			expectedPackages: []string{"apk:jdk21-lite-jdk-no-deps@21.0.2_p14-r1"},
++				[]string{"apk:jdk21-lite@21.0.2_p14-r1", "test-jdk:jdk-lite@21.0.2+14"},
++				[]string{"apk:jdk21-lite@21.0.2_p14-r1 -> test-jdk:jdk-lite@21.0.2+14"}), string(distro.VendorLinux)),
++			expectedPackages: []string{"apk:jdk21-lite@21.0.2_p14-r1"},
+ 		},
+ 		{
+ 			name: "standalone vendor runtime (no owning OS package) is kept",
+ 			sbom: withLinuxRelease(catalogWithOverlaps(
+-				[]string{"deb:libc6@2.31-13", "liberica-jdk:jdk@21.0.2+14"},
++				[]string{"deb:libc6@2.31-13", "test-jdk:jdk@21.0.2+14"},
+ 				[]string{}), "debian"),
+-			expectedPackages: []string{"liberica-jdk:jdk@21.0.2+14", "deb:libc6@2.31-13"},
++			expectedPackages: []string{"test-jdk:jdk@21.0.2+14", "deb:libc6@2.31-13"},
+ 		},
+ 		{
+ 			name: "remove overlapping package when parent version is prefix of child version",
+diff --git a/grype/pkg/version_format.go b/grype/pkg/version_format.go
+index 619441c..dea7808 100644
+--- a/grype/pkg/version_format.go
++++ b/grype/pkg/version_format.go
+@@ -6,6 +6,9 @@ import (
+ )
+ 
+ func VersionFormat(p Package) version.Format {
++	if syftPkg.IsVendorRuntime(p.Type) {
++		return version.JVMFormat
++	}
+ 	switch p.Type {
+ 	case syftPkg.ApkPkg:
+ 		return version.ApkFormat
+@@ -29,8 +32,6 @@ func VersionFormat(p Package) version.Format {
+ 		return version.GolangFormat
+ 	case syftPkg.AlpmPkg:
+ 		return version.PacmanFormat
+-	case syftPkg.VendorJdkPkg, syftPkg.VendorNikPkg:
+-		return version.JVMFormat
+ 	}
+ 
+ 	if isJvmPackage(p) {
+diff --git a/grype/vulnerability/vendordb/config.go b/grype/vulnerability/vendordb/config.go
+index 15496ed..f28fa4e 100644
+--- a/grype/vulnerability/vendordb/config.go
++++ b/grype/vulnerability/vendordb/config.go
+@@ -9,12 +9,10 @@ import (
+ 	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
+ )
+ 
+-// Ecosystem names as published on osv.dev (and the prototype runtime ecosystems).
++// Ecosystem names of the distributions as published on osv.dev; the runtime families are osvinternal.Products.
+ const (
+ 	EcosystemLinux    = osvinternal.EcosystemLinux
+ 	EcosystemHardened = osvinternal.EcosystemHardened
+-	EcosystemJDK      = osvinternal.EcosystemJDK
+-	EcosystemNIK      = osvinternal.EcosystemNIK
+ 
+ 	// DefaultBaseURL (the osv.dev bucket) and DefaultJDKBaseURL are the module's default sources of the distribution
+ 	// and the runtime families (osvdata.DefaultBaseURLFor).
+diff --git a/grype/vulnerability/vendordb/criteria.go b/grype/vulnerability/vendordb/criteria.go
+index 67a23af..2931989 100644
+--- a/grype/vulnerability/vendordb/criteria.go
++++ b/grype/vulnerability/vendordb/criteria.go
+@@ -1,6 +1,7 @@
+ package vendordb
+ 
+ import (
++	osvinternal "github.com/bell-sw/osv-internal"
+ 	"fmt"
+ 	"strings"
+ 
+@@ -58,16 +59,20 @@ func ByRuntime(p pkg.Package) vulnerability.Criteria {
+ // (vendorjdk.Runtime.Ecosystem): the Java major comes from the JDK version, or for a NIK from the bundled Java version
+ // kept in the package metadata. It returns "" when the package is not a vendor runtime or the major is unknown.
+ func RuntimeEcosystem(p pkg.Package) string {
+-	rt := osvjdk.Runtime{Variant: p.Name, Version: p.Version}
+-	switch p.Type {
+-	case syftPkg.VendorJdkPkg:
++	product, ok := ProductOfType(p.Type)
++	if !ok {
++		return ""
++	}
++	rt := osvjdk.Runtime{Product: product.Family, Variant: p.Name, Version: p.Version}
++	switch product.Kind {
++	case osvinternal.KindJDK:
+ 		v, err := jdkver.Parse(p.Version)
+ 		if err != nil {
+ 			return ""
+ 		}
+-		rt.Product, rt.Major = osvjdk.ProductJDK, v.Major
+-	case syftPkg.VendorNikPkg:
+-		rt.Product, rt.IsNIK = osvjdk.ProductNIK, true
++		rt.Major = v.Major
++	case osvinternal.KindNIK:
++		rt.IsNIK = true
+ 		if md, ok := p.Metadata.(pkg.JavaVMInstallationMetadata); ok {
+ 			rt.Major = javaMajor(md.Release.JavaVersion)
+ 			if rt.Major == 0 {
+@@ -77,8 +82,6 @@ func RuntimeEcosystem(p pkg.Package) string {
+ 		if rt.NIKMajor() == 0 {
+ 			return ""
+ 		}
+-	default:
+-		return ""
+ 	}
+ 	if rt.Major == 0 {
+ 		return ""
+@@ -94,15 +97,21 @@ func (c *RuntimeCriteria) Summarize() string {
+ 	return fmt.Sprintf("%s runtime %s@%s", c.Ecosystem, c.Package, c.Version)
+ }
+ 
+-// FamilyOfType maps the syft package types of standalone vendor runtimes to their OSV ecosystem family.
+-func FamilyOfType(t syftPkg.Type) string {
+-	switch t {
+-	case syftPkg.VendorJdkPkg:
+-		return EcosystemJDK
+-	case syftPkg.VendorNikPkg:
+-		return EcosystemNIK
++// ProductOfType returns the product family of a syft package type of a standalone vendor runtime (one per family
++// of osvinternal.Products, named by the family's purl name); ok is false for any other type.
++func ProductOfType(t syftPkg.Type) (osvinternal.Product, bool) {
++	for _, p := range osvinternal.Products {
++		if syftPkg.Type(p.PURLName) == t {
++			return p, true
++		}
+ 	}
+-	return ""
++	return osvinternal.Product{}, false
++}
++
++// FamilyOfType maps the syft package type of a standalone vendor runtime to its OSV ecosystem family.
++func FamilyOfType(t syftPkg.Type) string {
++	p, _ := ProductOfType(t)
++	return p.Family
+ }
+ 
+ // IsVendorRuntimeType reports whether a syft package type is a standalone vendor runtime type.
+diff --git a/grype/vulnerability/vendordb/engine_module_test.go b/grype/vulnerability/vendordb/engine_module_test.go
+index ed97b59..04ce66e 100644
+--- a/grype/vulnerability/vendordb/engine_module_test.go
++++ b/grype/vulnerability/vendordb/engine_module_test.go
+@@ -80,7 +80,7 @@ func newRecordingEngine(t *testing.T, cfg Config) (Engine, *recorder, *[]string)
+ }
+ 
+ // With no configuration every family is requested from its built-in source: the osv.dev bucket for the two
+-// distributions, the module's product base URL for the two runtime families.
++// distributions, the module's product base URL for every runtime family.
+ func TestEngine_DefaultSources(t *testing.T) {
+ 	engine, rec, _ := newRecordingEngine(t, Config{})
+ 	ctx := context.Background()
+@@ -89,33 +89,36 @@ func TestEngine_DefaultSources(t *testing.T) {
+ 	require.NoError(t, err)
+ 	_, err = engine.APKFindings(ctx, EcosystemHardened, "stream", match.Package{Name: "glibc", Version: "2.37.0-r0", Origin: "glibc"})
+ 	require.NoError(t, err)
+-	_, err = engine.RuntimeFindings(ctx, osvinternal.Ecosystem(EcosystemJDK, "21"), "jdk", "21.0.2+14")
+-	require.NoError(t, err)
+-	_, err = engine.RuntimeFindings(ctx, osvinternal.Ecosystem(EcosystemNIK, "23-21"), "core", "23.1.0+1")
+-	require.NoError(t, err)
+-
+-	assert.Equal(t, []string{
++	want := []string{
+ 		archiveURL(osvdata.DefaultBaseURL, EcosystemLinux),
+ 		archiveURL(osvdata.DefaultBaseURL, EcosystemHardened),
+-		archiveURL(osvdata.DefaultProductBaseURL, EcosystemJDK),
+-		archiveURL(osvdata.DefaultProductBaseURL, EcosystemNIK),
+-	}, rec.requested())
++	}
++	for _, p := range osvinternal.Products {
++		if p.Kind == osvinternal.KindNIK {
++			_, err = engine.RuntimeFindings(ctx, p.Ecosystem("23-21"), "core", "23.1.0+1")
++		} else {
++			_, err = engine.RuntimeFindings(ctx, p.Ecosystem("21"), "jdk", "21.0.2+14")
++		}
++		require.NoError(t, err, p.Family)
++		want = append(want, archiveURL(osvdata.DefaultProductBaseURL, p.Family))
++	}
++	assert.Equal(t, want, rec.requested())
+ }
+ 
+ // A global base URL and the per-family overrides win over the built-in sources.
+ func TestEngine_Overrides(t *testing.T) {
+ 	engine, rec, _ := newRecordingEngine(t, Config{
+ 		BaseURL:       "https://mirror.example/osv",
+-		EcosystemURLs: map[string]string{EcosystemNIK: "https://nik.example/data"},
++		EcosystemURLs: map[string]string{nikProduct.Family: "https://nik.example/data"},
+ 	})
+ 	ctx := context.Background()
+ 	_, _ = engine.Advisories(ctx, EcosystemLinux, "stream", "glibc")
+-	_, _ = engine.RuntimeFindings(ctx, osvinternal.Ecosystem(EcosystemJDK, "21"), "jdk", "21.0.2+14")
+-	_, _ = engine.RuntimeFindings(ctx, osvinternal.Ecosystem(EcosystemNIK, "23-21"), "core", "23.1.0+1")
++	_, _ = engine.RuntimeFindings(ctx, jdkProduct.Ecosystem("21"), "jdk", "21.0.2+14")
++	_, _ = engine.RuntimeFindings(ctx, nikProduct.Ecosystem("23-21"), "core", "23.1.0+1")
+ 	assert.Equal(t, []string{
+ 		archiveURL("https://mirror.example/osv", EcosystemLinux),
+-		archiveURL("https://mirror.example/osv", EcosystemJDK),
+-		archiveURL("https://nik.example/data", EcosystemNIK),
++		archiveURL("https://mirror.example/osv", jdkProduct.Family),
++		archiveURL("https://nik.example/data", nikProduct.Family),
+ 	}, rec.requested())
+ }
+ 
+@@ -126,7 +129,7 @@ func TestEngine_UnavailableWarnsOnceAndContinues(t *testing.T) {
+ 	ctx := context.Background()
+ 
+ 	for i := 0; i < 3; i++ {
+-		findings, err := engine.RuntimeFindings(ctx, osvinternal.Ecosystem(EcosystemJDK, "21"), "jdk", "21.0.2+14")
++		findings, err := engine.RuntimeFindings(ctx, jdkProduct.Ecosystem("21"), "jdk", "21.0.2+14")
+ 		require.NoError(t, err)
+ 		assert.Empty(t, findings)
+ 		advisories, err := engine.Advisories(ctx, EcosystemLinux, "23", "openjdk21-lite")
+@@ -135,7 +138,7 @@ func TestEngine_UnavailableWarnsOnceAndContinues(t *testing.T) {
+ 	}
+ 
+ 	require.Len(t, *warnings, 2, "one warning per family")
+-	assert.Equal(t, unavailableWarning(EcosystemJDK, "HTTP 404"), (*warnings)[0])
++	assert.Equal(t, unavailableWarning(jdkProduct.Family, "HTTP 404"), (*warnings)[0])
+ 	assert.Equal(t, unavailableWarning(EcosystemLinux, "HTTP 404"), (*warnings)[1])
+ 	assert.Len(t, rec.requested(), 2, "an unavailable family is not requested again during the scan")
+ }
+@@ -150,15 +153,15 @@ func TestEngine_OfflineWithoutCacheWarns(t *testing.T) {
+ 	require.NoError(t, err)
+ 	assert.Empty(t, vulns)
+ 
+-	jdk := pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: syftPkg.VendorJdkPkg}
+-	vulns, err = p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, syftPkg.VendorJdkPkg), search.ByPackageName("jdk"), ByRuntime(jdk))
++	jdk := pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: jdkType}
++	vulns, err = p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, jdkType), search.ByPackageName("jdk"), ByRuntime(jdk))
+ 	require.NoError(t, err)
+ 	assert.Empty(t, vulns)
+ 
+ 	require.Len(t, *warnings, 2)
+ 	assert.Contains(t, (*warnings)[0], fmt.Sprintf("%s OSV data for %q is unavailable (", osvinternal.Vendor, EcosystemHardened))
+ 	assert.Contains(t, (*warnings)[0], fmt.Sprintf("packages of this product were NOT checked against %s advisories. Source: %s", osvinternal.Vendor, defaultArchiveURL(EcosystemHardened)))
+-	assert.Contains(t, (*warnings)[1], fmt.Sprintf("%s OSV data for %q is unavailable (", osvinternal.Vendor, EcosystemJDK))
++	assert.Contains(t, (*warnings)[1], fmt.Sprintf("%s OSV data for %q is unavailable (", osvinternal.Vendor, jdkProduct.Family))
+ 	assert.Empty(t, rec.requested(), "offline: nothing is downloaded")
+ }
+ 
+@@ -167,11 +170,11 @@ func TestEngine_OfflineWithoutCacheWarns(t *testing.T) {
+ func TestEngine_StrictFails(t *testing.T) {
+ 	for _, offline := range []bool{false, true} {
+ 		engine, _, warnings := newRecordingEngine(t, Config{Strict: true, Offline: offline})
+-		_, err := engine.RuntimeFindings(context.Background(), osvinternal.Ecosystem(EcosystemJDK, "21"), "jdk", "21.0.2+14")
++		_, err := engine.RuntimeFindings(context.Background(), jdkProduct.Ecosystem("21"), "jdk", "21.0.2+14")
+ 		require.Error(t, err)
+ 		var unavailable *osvdata.UnavailableError
+ 		require.True(t, errors.As(err, &unavailable), "%v", err)
+-		assert.Equal(t, EcosystemJDK, unavailable.Family)
++		assert.Equal(t, jdkProduct.Family, unavailable.Family)
+ 		assert.Equal(t, offline, errors.Is(err, osvdata.ErrNotCached))
+ 		assert.Empty(t, *warnings)
+ 
+diff --git a/grype/vulnerability/vendordb/provider_test.go b/grype/vulnerability/vendordb/provider_test.go
+index f4ccee1..46e2b30 100644
+--- a/grype/vulnerability/vendordb/provider_test.go
++++ b/grype/vulnerability/vendordb/provider_test.go
+@@ -13,6 +13,7 @@ import (
+ 	osvinternal "github.com/bell-sw/osv-internal"
+ 	"github.com/bell-sw/osv-internal/match"
+ 	"github.com/bell-sw/osv-internal/osvdata"
++	"github.com/bell-sw/osv-internal/testfix"
+ 
+ 	"github.com/anchore/grype/grype/distro"
+ 	"github.com/anchore/grype/grype/pkg"
+@@ -24,6 +25,14 @@ import (
+ 	syftPkg "github.com/anchore/syft/syft/pkg"
+ )
+ 
++// The first JDK and NIK families of the module: the fixtures are theirs.
++var (
++	jdkProduct = testfix.Product(osvinternal.KindJDK)
++	nikProduct = testfix.Product(osvinternal.KindNIK)
++	jdkType    = syftPkg.VendorRuntimeType(jdkProduct.Family)
++	nikType    = syftPkg.VendorRuntimeType(nikProduct.Family)
++)
++
+ func apkLess(a, b string) bool {
+ 	// enough for the fixtures below: compare "-rN" releases of the same upstream version, else lexical
+ 	ai := strings.LastIndex(a, "-r")
+@@ -75,7 +84,7 @@ func newFixture() (*vendordbtest.Engine, vulnerability.Provider) {
+ 	engine.Add(osvinternal.Ecosystem(EcosystemLinux, "stream"), "zlib", osvdata.Advisory{
+ 		ID: "BELL-CVE-2026-1000", CVE: "CVE-2026-1000", Introduced: "1.3.1-r0", Severity: "LOW",
+ 	}, func(v string) bool { return true })
+-	engine.Add(osvinternal.Ecosystem(EcosystemJDK, "21"), "jdk", osvdata.Advisory{
++	engine.Add(jdkProduct.Ecosystem("21"), "jdk", osvdata.Advisory{
+ 		ID: "BELL-CVE-2025-24855", CVE: "CVE-2025-24855", Introduced: "21.0.1+12", Fixed: "21.0.8+12", Severity: "HIGH",
+ 		CVSSVector: "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H", CVSSScore: 7.8,
+ 	}, func(v string) bool { return v == "21.0.2+14" })
+@@ -207,19 +216,19 @@ func TestProvider_UnaffectedAndIDCriteria(t *testing.T) {
+ 
+ func TestProvider_RuntimeQuery(t *testing.T) {
+ 	engine, p := newFixture()
+-	jdk := pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java,
++	jdk := pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: jdkType, Language: syftPkg.Java,
+ 		Metadata: pkg.JavaVMInstallationMetadata{Release: pkg.JavaVMReleaseMetadata{JavaVersion: "21"}}}
+ 
+-	vulns, err := p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, syftPkg.VendorJdkPkg), search.ByPackageName("jdk"), ByRuntime(jdk))
++	vulns, err := p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, jdkType), search.ByPackageName("jdk"), ByRuntime(jdk))
+ 	require.NoError(t, err)
+ 	require.Len(t, vulns, 1)
+ 	v := vulns[0]
+ 	assert.Equal(t, "CVE-2025-24855", v.ID)
+-	assert.Equal(t, RuntimeNamespace(osvinternal.Ecosystem(EcosystemJDK, "21")), v.Namespace)
++	assert.Equal(t, RuntimeNamespace(jdkProduct.Ecosystem("21")), v.Namespace)
+ 	assert.Equal(t, []string{"21.0.8+12"}, v.Fix.Versions, "fixed versions in product notation")
+ 	assert.Equal(t, ">= 21.0.1+12, < 21.0.8+12 (jvm)", v.Constraint.String())
+ 	assert.Equal(t, "High", v.Metadata.Severity)
+-	assert.Contains(t, engine.Calls, "runtime "+osvinternal.Ecosystem(EcosystemJDK, "21")+" jdk@21.0.2+14")
++	assert.Contains(t, engine.Calls, "runtime "+jdkProduct.Ecosystem("21")+" jdk@21.0.2+14")
+ 
+ 	// another version of the same runtime is evaluated by the module, not by grype
+ 	vulnerable, err := v.Constraint.Satisfied(version.New("21.0.9+10", version.JVMFormat))
+@@ -234,19 +243,19 @@ func TestProvider_RuntimeQuery(t *testing.T) {
+ 
+ func TestProvider_NIKQuery(t *testing.T) {
+ 	engine, p := newFixture()
+-	engine.Add(osvinternal.Ecosystem(EcosystemNIK, "23-21"), "core", osvdata.Advisory{
++	engine.Add(nikProduct.Ecosystem("23-21"), "core", osvdata.Advisory{
+ 		ID: "BELL-CVE-2025-23165", CVE: "CVE-2025-23165", Introduced: "0", Fixed: "23.1.8", Severity: "HIGH",
+ 	}, func(v string) bool { return v == "23.1.0+1" })
+-	nik := pkg.Package{Name: "core", Version: "23.1.0+1", Type: syftPkg.VendorNikPkg, Language: syftPkg.Java,
++	nik := pkg.Package{Name: "core", Version: "23.1.0+1", Type: nikType, Language: syftPkg.Java,
+ 		Metadata: pkg.JavaVMInstallationMetadata{Release: pkg.JavaVMReleaseMetadata{JavaVersion: "21"}}}
+ 
+-	vulns, err := p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, syftPkg.VendorNikPkg), search.ByPackageName("core"), ByRuntime(nik))
++	vulns, err := p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, nikType), search.ByPackageName("core"), ByRuntime(nik))
+ 	require.NoError(t, err)
+ 	require.Len(t, vulns, 1)
+ 	assert.Equal(t, "CVE-2025-23165", vulns[0].ID)
+-	assert.Equal(t, RuntimeNamespace(osvinternal.Ecosystem(EcosystemNIK, "23-21")), vulns[0].Namespace)
++	assert.Equal(t, RuntimeNamespace(nikProduct.Ecosystem("23-21")), vulns[0].Namespace)
+ 	assert.Equal(t, []string{"23.1.8"}, vulns[0].Fix.Versions)
+-	assert.Contains(t, engine.Calls, "runtime "+osvinternal.Ecosystem(EcosystemNIK, "23-21")+" core@23.1.0+1")
++	assert.Contains(t, engine.Calls, "runtime "+nikProduct.Ecosystem("23-21")+" core@23.1.0+1")
+ }
+ 
+ func TestJavaMajor(t *testing.T) {
+@@ -258,27 +267,53 @@ func TestJavaMajor(t *testing.T) {
+ 	assert.Equal(t, 0, javaMajor(""))
+ }
+ 
+-// The ecosystem of a runtime package is the module's (vendorjdk.Runtime.Ecosystem), for both product families.
++// Every product family of the module has its own syft package type (the family's purl name) and maps back to it.
++func TestProductOfType(t *testing.T) {
++	for _, p := range osvinternal.Products {
++		typ := syftPkg.VendorRuntimeType(p.Family)
++		assert.Equal(t, syftPkg.Type(p.PURLName), typ)
++		got, ok := ProductOfType(typ)
++		assert.True(t, ok)
++		assert.Equal(t, p, got)
++		assert.Equal(t, p.Family, FamilyOfType(typ))
++		assert.True(t, IsVendorRuntimeType(typ))
++	}
++	_, ok := ProductOfType(syftPkg.BinaryPkg)
++	assert.False(t, ok)
++	assert.Equal(t, "", FamilyOfType(syftPkg.BinaryPkg))
++	assert.False(t, IsVendorRuntimeType(syftPkg.BinaryPkg))
++}
++
++// The ecosystem of a runtime package is the module's (vendorjdk.Runtime.Ecosystem), for every product family.
+ func TestRuntimeEcosystem(t *testing.T) {
+ 	nikMeta := func(javaVersion, runtimeVersion string) pkg.JavaVMInstallationMetadata {
+ 		return pkg.JavaVMInstallationMetadata{Release: pkg.JavaVMReleaseMetadata{JavaVersion: javaVersion, JavaRuntimeVersion: runtimeVersion}}
+ 	}
+-	tests := []struct {
++	type testCase struct {
+ 		name string
+ 		p    pkg.Package
+ 		want string
+-	}{
+-		{"jdk 21", pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: syftPkg.VendorJdkPkg}, osvinternal.Ecosystem(EcosystemJDK, "21")},
+-		{"jre 8", pkg.Package{Name: "jre", Version: "8u402+7", Type: syftPkg.VendorJdkPkg}, osvinternal.Ecosystem(EcosystemJDK, "8")},
+-		{"jdk GA", pkg.Package{Name: "jdk-lite", Version: "21+37", Type: syftPkg.VendorJdkPkg}, osvinternal.Ecosystem(EcosystemJDK, "21")},
+-		{"jdk CSPU", pkg.Package{Name: "jdk", Version: "21.0.12.1+1", Type: syftPkg.VendorJdkPkg}, osvinternal.Ecosystem(EcosystemJDK, "21")},
+-		{"jdk 8 CSPU", pkg.Package{Name: "jdk", Version: "8u504+1", Type: syftPkg.VendorJdkPkg}, osvinternal.Ecosystem(EcosystemJDK, "8")},
+-		{"jdk bad version", pkg.Package{Name: "jdk", Version: "unknown", Type: syftPkg.VendorJdkPkg}, ""},
+-		{"nik core", pkg.Package{Name: "core", Version: "23.1.0+1", Type: syftPkg.VendorNikPkg, Metadata: nikMeta("21+37", "")}, osvinternal.Ecosystem(EcosystemNIK, "23-21")},
+-		{"nik from runtime version", pkg.Package{Name: "full", Version: "24.0.1+1", Type: syftPkg.VendorNikPkg, Metadata: nikMeta("", "22.0.1+10")}, osvinternal.Ecosystem(EcosystemNIK, "24-22")},
+-		{"nik without java line", pkg.Package{Name: "core", Version: "23.1.0+1", Type: syftPkg.VendorNikPkg}, ""},
++	}
++	tests := []testCase{
++		{"jdk 21", pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: jdkType}, jdkProduct.Ecosystem("21")},
++		{"jre 8", pkg.Package{Name: "jre", Version: "8u402+7", Type: jdkType}, jdkProduct.Ecosystem("8")},
++		{"jdk GA", pkg.Package{Name: "jdk-lite", Version: "21+37", Type: jdkType}, jdkProduct.Ecosystem("21")},
++		{"jdk CSPU", pkg.Package{Name: "jdk", Version: "21.0.12.1+1", Type: jdkType}, jdkProduct.Ecosystem("21")},
++		{"jdk 8 CSPU", pkg.Package{Name: "jdk", Version: "8u504+1", Type: jdkType}, jdkProduct.Ecosystem("8")},
++		{"jdk bad version", pkg.Package{Name: "jdk", Version: "unknown", Type: jdkType}, ""},
++		{"nik core", pkg.Package{Name: "core", Version: "23.1.0+1", Type: nikType, Metadata: nikMeta("21+37", "")}, nikProduct.Ecosystem("23-21")},
++		{"nik from runtime version", pkg.Package{Name: "full", Version: "24.0.1+1", Type: nikType, Metadata: nikMeta("", "22.0.1+10")}, nikProduct.Ecosystem("24-22")},
++		{"nik without java line", pkg.Package{Name: "core", Version: "23.1.0+1", Type: nikType}, ""},
+ 		{"other type", pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: syftPkg.BinaryPkg}, ""},
+ 	}
++	for _, product := range osvinternal.Products {
++		typ := syftPkg.VendorRuntimeType(product.Family)
++		tc := testCase{"family " + product.Family, pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: typ}, product.Ecosystem("21")}
++		if product.Kind == osvinternal.KindNIK {
++			tc = testCase{"family " + product.Family, pkg.Package{Name: "core", Version: "23.1.0+1", Type: typ, Metadata: nikMeta("21+37", "")}, product.Ecosystem("23-21")}
++		}
++		tests = append(tests, tc)
++	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			assert.Equal(t, tt.want, RuntimeEcosystem(tt.p))
+@@ -289,8 +324,8 @@ func TestRuntimeEcosystem(t *testing.T) {
+ // A runtime whose ecosystem cannot be determined is not matched (and the engine is not asked).
+ func TestProvider_RuntimeWithoutEcosystem(t *testing.T) {
+ 	engine, p := newFixture()
+-	nik := pkg.Package{Name: "core", Version: "23.1.0+1", Type: syftPkg.VendorNikPkg, Language: syftPkg.Java}
+-	vulns, err := p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, syftPkg.VendorNikPkg), search.ByPackageName("core"), ByRuntime(nik))
++	nik := pkg.Package{Name: "core", Version: "23.1.0+1", Type: nikType, Language: syftPkg.Java}
++	vulns, err := p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, nikType), search.ByPackageName("core"), ByRuntime(nik))
+ 	require.NoError(t, err)
+ 	assert.Empty(t, vulns)
+ 	assert.Empty(t, engine.Calls)
+@@ -394,8 +429,8 @@ func TestProvider_SourceErrorsAreMarked(t *testing.T) {
+ 	assert.ErrorIs(t, err, ErrSourceUnavailable)
+ 	assert.ErrorIs(t, err, cause)
+ 
+-	jdk := pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: syftPkg.VendorJdkPkg}
+-	_, err = p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, syftPkg.VendorJdkPkg), search.ByPackageName("jdk"), ByRuntime(jdk))
++	jdk := pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: jdkType}
++	_, err = p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, jdkType), search.ByPackageName("jdk"), ByRuntime(jdk))
+ 	require.Error(t, err)
+ 	assert.ErrorIs(t, err, ErrSourceUnavailable)
+ 
+-- 
+2.55.0
+

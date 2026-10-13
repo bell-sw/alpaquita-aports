@@ -1,0 +1,2664 @@
+From 88dd9c06d840374610d23b1163529324312cb08f Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 23:08:43 +0000
+Subject: [PATCH] feat(vendordb): serve the vendor distributions and runtimes
+ from its OSV data
+
+Local (vendor-specific) change, applied after the upstream series.
+
+Add grype/vulnerability/vendordb, a vulnerability.Provider wrapping the
+provider of grype.LoadVulnerabilityDB: queries for the vendor distro
+namespaces and for the vendor JDK / NIK package types are answered from the
+OSV bulk archives the vendor publishes (<base>/<ecosystem>/all.zip),
+everything else by Anchore's database; `grype db` is untouched.
+
+Archive download, cache (24 h TTL, compact index), apk / JDK / NIK range
+evaluation and the origin -> provides alias resolution are the shared
+osv-internal module's (github.com/bell-sw/osv-internal); the adapter routes
+criteria, builds grype vulnerabilities (CVE as id, BELL-CVE id as advisory
+and related vulnerability, fix state, severity from the CVSS vector, record
+URL as data source) and enriches the metadata from the wrapped database by
+CVE id (NVD CVSS, EPSS, KEV, CWEs).
+
+Configuration follows the scheme shared by every scanner with vendor
+support: --vendor-url / GRYPE_VENDOR_URL / vendor.url (base location for
+all products), --vendor-feed "<product>=<url>" (repeatable) /
+GRYPE_VENDOR_FEED (comma-separated) / vendor.feed (list or map),
+--vendor-strict / GRYPE_VENDOR_STRICT / vendor.strict; precedence feed >
+url > built-in source (the osv.dev bucket for the distributions, the
+module's product base URL for the standalone runtimes). Grype-specific:
+vendor.{enabled,cache-dir,cache-ttl,download-timeout}.
+
+The distro types, the IDMapping keys, the ecosystems of the OSV transformer
+and the namespace prefix (vendordb.Provider) take their values from
+osv-internal, as do the tests.
+
+When the archive of a family cannot be obtained (download failure, HTTP
+error, db.auto-update=false with nothing cached) the scan prints the
+module's canonical warning once per family, at WARN level and as a closing
+notification, and continues without that family's findings; the exit code
+is not affected. With --vendor-strict the scan fails instead.
+
+The apk matcher does not consult NVD's CPE records for the packages of
+these two distributions, like trivy and osv-scanner: grype's NVD fallback
+exists for Alpine's secdb, which lists fixed CVEs only, while the vendor
+feed carries affected ranges with and without a fix. Other apk
+distributions keep the stock behaviour.
+
+go.mod requires github.com/bell-sw/osv-internal v0.5.0. The module is
+private; the build replaces the import path with the module source
+installed by the osv-internal package (see the APKBUILD).
+---
+ cmd/grype/cli/commands/root.go                |  22 +
+ cmd/grype/cli/options/grype.go                |   2 +
+ cmd/grype/cli/options/vendor.go               | 222 ++++++++
+ cmd/grype/cli/options/vendor_test.go          |  83 +++
+ go.mod                                        |   1 +
+ .../transformers/osv/transform_vendor.go      |  11 +-
+ .../transformers/osv/transform_vendor_test.go |   4 +-
+ grype/distro/type.go                          |  64 +--
+ grype/matcher/apk/matcher.go                  |  17 +
+ grype/matcher/apk/vendor_db_test.go           |  18 +-
+ grype/matcher/apk/vendor_test.go              | 228 +++++++++
+ grype/vulnerability/vendordb/config.go        |  56 +++
+ grype/vulnerability/vendordb/constraint.go    |  64 +++
+ grype/vulnerability/vendordb/criteria.go      | 131 +++++
+ grype/vulnerability/vendordb/engine.go        |  38 ++
+ grype/vulnerability/vendordb/engine_module.go | 132 +++++
+ .../vendordb/engine_module_test.go            | 183 +++++++
+ grype/vulnerability/vendordb/provider.go      | 473 ++++++++++++++++++
+ grype/vulnerability/vendordb/provider_test.go | 406 +++++++++++++++
+ .../vendordb/vendordbtest/engine.go           | 150 ++++++
+ internal/dbtest/builder.go                    |   8 +
+ 21 files changed, 2274 insertions(+), 39 deletions(-)
+ create mode 100644 cmd/grype/cli/options/vendor.go
+ create mode 100644 cmd/grype/cli/options/vendor_test.go
+ create mode 100644 grype/matcher/apk/vendor_test.go
+ create mode 100644 grype/vulnerability/vendordb/config.go
+ create mode 100644 grype/vulnerability/vendordb/constraint.go
+ create mode 100644 grype/vulnerability/vendordb/criteria.go
+ create mode 100644 grype/vulnerability/vendordb/engine.go
+ create mode 100644 grype/vulnerability/vendordb/engine_module.go
+ create mode 100644 grype/vulnerability/vendordb/engine_module_test.go
+ create mode 100644 grype/vulnerability/vendordb/provider.go
+ create mode 100644 grype/vulnerability/vendordb/provider_test.go
+ create mode 100644 grype/vulnerability/vendordb/vendordbtest/engine.go
+
+diff --git a/cmd/grype/cli/commands/root.go b/cmd/grype/cli/commands/root.go
+index 760b475..21781c1 100644
+--- a/cmd/grype/cli/commands/root.go
++++ b/cmd/grype/cli/commands/root.go
+@@ -35,6 +35,7 @@ import (
+ 	"github.com/anchore/grype/grype/vex"
+ 	vexStatus "github.com/anchore/grype/grype/vex/status"
+ 	"github.com/anchore/grype/grype/vulnerability"
++	"github.com/anchore/grype/grype/vulnerability/vendordb"
+ 	"github.com/anchore/grype/internal"
+ 	"github.com/anchore/grype/internal/bus"
+ 	"github.com/anchore/grype/internal/format"
+@@ -177,6 +178,9 @@ func runGrype(ctx context.Context, app clio.Application, opts *options.Grype, us
+ 			}()
+ 			log.Debug("loading DB")
+ 			vp, status, err = grype.LoadVulnerabilityDB(opts.ToClientConfig(), opts.ToCuratorConfig(), opts.DB.AutoUpdate)
++			if err == nil && status != nil && status.Error == nil {
++				vp, err = wrapWithVendorDB(vp, opts)
++			}
+ 
+ 			return validateDBLoad(err, status)
+ 		},
+@@ -393,6 +397,24 @@ func getMatcherConfig(opts *options.Grype) matcher.Config {
+ 	}
+ }
+ 
++// wrapWithVendorDB composes the vendor OSV data source with the vulnerability database: the vendor namespaces are
++// answered from the OSV archives (fetched lazily, when a scan contains vendor packages), everything else by the
++// database.
++func wrapWithVendorDB(vp vulnerability.Provider, opts *options.Grype) (vulnerability.Provider, error) {
++	if !opts.Vendor.Enabled {
++		log.Debug("vendor OSV data source disabled")
++		return vp, nil
++	}
++	cfg := opts.Vendor.ToConfig(opts.DB.AutoUpdate)
++	// repeat the unavailable-archive warning as a notification at the end of the run
++	cfg.Warn = bus.Notify
++	engine, err := vendordb.NewEngine(cfg)
++	if err != nil {
++		return nil, fmt.Errorf("unable to configure the vendor OSV data source: %w", err)
++	}
++	return vendordb.Wrap(vp, engine), nil
++}
++
+ func getMatchers(opts *options.Grype) []match.Matcher {
+ 	return matcher.NewDefaultMatchers(getMatcherConfig(opts))
+ }
+diff --git a/cmd/grype/cli/options/grype.go b/cmd/grype/cli/options/grype.go
+index af10c1f..721dc2e 100644
+--- a/cmd/grype/cli/options/grype.go
++++ b/cmd/grype/cli/options/grype.go
+@@ -42,6 +42,7 @@ type Grype struct {
+ 	FixChannel                 FixChannels        `yaml:"fix-channel" json:"fix-channel" mapstructure:"fix-channel"`                                                       // the fix channels to apply to the distro when matching
+ 	Timestamp                  bool               `yaml:"timestamp" json:"timestamp" mapstructure:"timestamp"`
+ 	Alerts                     Alerts             `yaml:"alerts" json:"alerts" mapstructure:"alerts"`
++	Vendor                     Vendor             `yaml:"vendor" json:"vendor" mapstructure:"vendor"` // vendor OSV data source (the vendor's distributions and standalone JDK / NIK runtimes)
+ 	DatabaseCommand            `yaml:",inline" json:",inline" mapstructure:",squash"`
+ }
+ 
+@@ -74,6 +75,7 @@ func DefaultGrype(id clio.Identification) *Grype {
+ 		SortBy:                     defaultSortBy(),
+ 		Timestamp:                  true,
+ 		Alerts:                     defaultAlerts(),
++		Vendor:                     defaultVendor(id),
+ 	}
+ }
+ 
+diff --git a/cmd/grype/cli/options/vendor.go b/cmd/grype/cli/options/vendor.go
+new file mode 100644
+index 0000000..f03b4e9
+--- /dev/null
++++ b/cmd/grype/cli/options/vendor.go
+@@ -0,0 +1,222 @@
++package options
++
++import (
++	"fmt"
++	"path/filepath"
++	"sort"
++	"strings"
++	"time"
++
++	"github.com/adrg/xdg"
++	"github.com/anchore/clio"
++	"github.com/anchore/go-homedir"
++	"github.com/anchore/grype/grype/vulnerability/vendordb"
++	osvinternal "github.com/bell-sw/osv-internal"
++)
++
++// Vendor configures the vendor OSV data source: "vendor:" in the config file, GRYPE_VENDOR_* in the environment;
++// url / feed / strict are the option scheme shared by every scanner with vendor support.
++type Vendor struct {
++	Enabled bool   `yaml:"enabled" json:"enabled" mapstructure:"enabled"`
++	URL     string `yaml:"url" json:"url" mapstructure:"url"` // --vendor-url, GRYPE_VENDOR_URL
++	// Feed locates the archive of single products: "<product>=<url>" entries (--vendor-feed, repeatable;
++	// GRYPE_VENDOR_FEED, comma-separated pairs; in the config file a list of such entries or a map product -> url).
++	Feed            any           `yaml:"feed" json:"feed" mapstructure:"feed"`
++	Strict          bool          `yaml:"strict" json:"strict" mapstructure:"strict"`                               // --vendor-strict, GRYPE_VENDOR_STRICT
++	CacheDir        string        `yaml:"cache-dir" json:"cache-dir" mapstructure:"cache-dir"`                      // GRYPE_VENDOR_CACHE_DIR
++	CacheTTL        time.Duration `yaml:"cache-ttl" json:"cache-ttl" mapstructure:"cache-ttl"`                      // GRYPE_VENDOR_CACHE_TTL
++	DownloadTimeout time.Duration `yaml:"download-timeout" json:"download-timeout" mapstructure:"download-timeout"` // GRYPE_VENDOR_DOWNLOAD_TIMEOUT
++
++	// feedFlag receives --vendor-feed; feeds is the validated result of the flag, the environment and the file.
++	feedFlag []string
++	feeds    map[string]string
++}
++
++// Help texts of the three shared options; word for word the same in every scanner.
++const (
++	vendorURLHelp    = `base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory`
++	vendorStrictHelp = `fail when vendor OSV data is unavailable instead of warning and continuing`
++)
++
++var vendorFeedHelp = `location of the vendor OSV archive of one product, as "<product>=<url>"; repeatable; products: ` + strings.Join(osvinternal.Ecosystems, ", ")
++
++// vendorProducts are the product (ecosystem family) names accepted in a feed entry.
++var vendorProducts = []string{
++	vendordb.EcosystemLinux,
++	vendordb.EcosystemHardened,
++	vendordb.EcosystemJDK,
++	vendordb.EcosystemNIK,
++}
++
++var _ interface {
++	clio.FlagAdder
++	clio.FieldDescriber
++	clio.PostLoader
++} = (*Vendor)(nil)
++
++func defaultVendor(id clio.Identification) Vendor {
++	return Vendor{
++		Enabled: true,
++		// url and feed are empty by default so that each product keeps its built-in source (see DescribeFields)
++		Feed:            []string{},
++		CacheDir:        filepath.Join(xdg.CacheHome, id.Name),
++		CacheTTL:        vendordb.DefaultCacheTTL,
++		DownloadTimeout: vendordb.DefaultTimeout,
++	}
++}
++
++func (b *Vendor) AddFlags(flags clio.FlagSet) {
++	flags.StringVarP(&b.URL, "vendor-url", "", vendorURLHelp)
++	flags.StringArrayVarP(&b.feedFlag, "vendor-feed", "", vendorFeedHelp)
++	flags.BoolVarP(&b.Strict, "vendor-strict", "", vendorStrictHelp)
++}
++
++func (b *Vendor) DescribeFields(descriptions clio.FieldDescriptionSet) {
++	descriptions.Add(&b.Enabled, `use the `+osvinternal.Vendor+` OSV data for its distributions and standalone JDK / NIK runtimes`)
++	descriptions.Add(&b.URL, vendorURLHelp+`; empty = the built-in source of each product: `+vendordb.DefaultBaseURL+` for `+vendordb.EcosystemLinux+` and `+vendordb.EcosystemHardened+`, `+vendordb.DefaultJDKBaseURL+` for `+vendordb.EcosystemJDK+` and `+vendordb.EcosystemNIK)
++	descriptions.Add(&b.Feed, vendorFeedHelp+`; a list of entries or a map product: url; an entry wins over url`)
++	descriptions.Add(&b.Strict, vendorStrictHelp)
++	descriptions.Add(&b.CacheDir, `directory holding the downloaded archives and their indexes (one sub-directory per product)`)
++	descriptions.Add(&b.CacheTTL, `how long a downloaded archive is reused before it is refreshed (db.auto-update=false always reuses it)`)
++	descriptions.Add(&b.DownloadTimeout, `timeout for downloading one archive`)
++}
++
++func (b *Vendor) PostLoad() error {
++	var err error
++	if b.CacheDir, err = homedir.Expand(b.CacheDir); err != nil {
++		return err
++	}
++	entries, err := vendorFeedEntries(b.Feed)
++	if err != nil {
++		return err
++	}
++	// the flag is the most specific setting: its entries are applied last
++	b.feeds, err = parseVendorFeeds(append(entries, b.feedFlag...))
++	if err != nil {
++		return err
++	}
++	// show the effective setting in `grype config`
++	if len(b.feeds) > 0 {
++		var list []string
++		for _, product := range vendorProducts {
++			if u, ok := b.feeds[product]; ok {
++				list = append(list, product+"="+u)
++			}
++		}
++		b.Feed = list
++	}
++	return nil
++}
++
++// vendorFeedEntries flattens the raw feed setting into "<product>=<url>" entries: a comma-separated string (the
++// environment), a list (config file) or a map product -> url (config file).
++func vendorFeedEntries(raw any) ([]string, error) {
++	switch v := raw.(type) {
++	case nil:
++		return nil, nil
++	case string:
++		return splitVendorFeedList(v), nil
++	case []string:
++		var out []string
++		for _, e := range v {
++			out = append(out, splitVendorFeedList(e)...)
++		}
++		return out, nil
++	case []any:
++		var out []string
++		for _, e := range v {
++			s, ok := e.(string)
++			if !ok {
++				return nil, fmt.Errorf("vendor.feed: entry %v is not a \"<product>=<url>\" string", e)
++			}
++			out = append(out, splitVendorFeedList(s)...)
++		}
++		return out, nil
++	case map[string]any:
++		keys := make([]string, 0, len(v))
++		for k := range v {
++			keys = append(keys, k)
++		}
++		sort.Strings(keys)
++		var out []string
++		for _, k := range keys {
++			out = append(out, fmt.Sprintf("%s=%v", k, v[k]))
++		}
++		return out, nil
++	case map[string]string:
++		return vendorFeedEntries(toAnyMap(v))
++	}
++	return nil, fmt.Errorf("vendor.feed: unsupported value of type %T (want a list of \"<product>=<url>\" entries or a map)", raw)
++}
++
++func toAnyMap(m map[string]string) map[string]any {
++	out := make(map[string]any, len(m))
++	for k, v := range m {
++		out[k] = v
++	}
++	return out
++}
++
++// splitVendorFeedList splits comma-separated pairs; a comma only separates when the text after it starts another
++// "<product>=" pair, so URLs containing commas survive.
++func splitVendorFeedList(s string) []string {
++	var out []string
++	for _, part := range strings.Split(s, ",") {
++		name, _, isPair := strings.Cut(part, "=")
++		if _, known := vendorProduct(name); (!isPair || !known) && len(out) > 0 {
++			out[len(out)-1] += "," + part
++			continue
++		}
++		if strings.TrimSpace(part) != "" {
++			out = append(out, part)
++		}
++	}
++	return out
++}
++
++// vendorProduct returns the canonical product name for a case-insensitive spelling.
++func vendorProduct(name string) (string, bool) {
++	name = strings.TrimSpace(name)
++	for _, p := range vendorProducts {
++		if strings.EqualFold(p, name) {
++			return p, true
++		}
++	}
++	return "", false
++}
++
++// parseVendorFeeds validates "<product>=<url>" entries; later entries win.
++func parseVendorFeeds(entries []string) (map[string]string, error) {
++	feeds := map[string]string{}
++	for _, e := range entries {
++		name, location, ok := strings.Cut(e, "=")
++		location = strings.TrimSpace(location)
++		if !ok || location == "" {
++			return nil, fmt.Errorf("invalid vendor feed %q: want \"<product>=<url>\"", e)
++		}
++		product, known := vendorProduct(name)
++		if !known {
++			return nil, fmt.Errorf("invalid vendor feed %q: unknown product %q (products: %s)", e, strings.TrimSpace(name), strings.Join(vendorProducts, ", "))
++		}
++		feeds[product] = location
++	}
++	return feeds, nil
++}
++
++// ToConfig builds the adapter configuration; offline follows grype's db.auto-update setting. Precedence of the
++// archive location of a product: feed entry, then url, then the built-in source.
++func (b Vendor) ToConfig(autoUpdate bool) vendordb.Config {
++	urls := map[string]string{}
++	for product, location := range b.feeds {
++		urls[product] = location
++	}
++	return vendordb.Config{
++		BaseURL:       b.URL,
++		EcosystemURLs: urls,
++		CacheDir:      b.CacheDir,
++		TTL:           b.CacheTTL,
++		Offline:       !autoUpdate,
++		Strict:        b.Strict,
++		Timeout:       b.DownloadTimeout,
++	}
++}
+diff --git a/cmd/grype/cli/options/vendor_test.go b/cmd/grype/cli/options/vendor_test.go
+new file mode 100644
+index 0000000..95c0186
+--- /dev/null
++++ b/cmd/grype/cli/options/vendor_test.go
+@@ -0,0 +1,83 @@
++package options
++
++import (
++	"strings"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	"github.com/anchore/clio"
++	"github.com/anchore/grype/grype/vulnerability/vendordb"
++	osvinternal "github.com/bell-sw/osv-internal"
++)
++
++func TestVendor_Defaults(t *testing.T) {
++	b := defaultVendor(clio.Identification{Name: "grype"})
++	require.NoError(t, b.PostLoad())
++	assert.True(t, b.Enabled)
++	assert.False(t, b.Strict, "an unavailable archive warns by default")
++	assert.Empty(t, b.URL, "no explicit base location by default: each product keeps the module's own source")
++
++	cfg := b.ToConfig(true)
++	assert.False(t, cfg.Offline)
++	assert.False(t, cfg.Strict)
++	assert.Empty(t, cfg.BaseURL)
++	assert.Empty(t, cfg.EcosystemURLs)
++
++	assert.True(t, b.ToConfig(false).Offline, "db.auto-update=false means no downloads")
++}
++
++// url / feed / strict: the feed of a product wins over url; product names are case-insensitive; the setting may come
++// from the flag (repeatable), the environment (comma-separated pairs) or the config file (list or map).
++func TestVendor_Feeds(t *testing.T) {
++	linux, hardened, jdk, nik := vendordb.EcosystemLinux, vendordb.EcosystemHardened, vendordb.EcosystemJDK, vendordb.EcosystemNIK
++	want := map[string]string{
++		vendordb.EcosystemLinux:    "file:///srv/a",
++		vendordb.EcosystemHardened: "https://mirror.example/h,v2",
++		vendordb.EcosystemJDK:      "/srv/jdk-osv/out",
++		vendordb.EcosystemNIK:      "/srv/nik/all.zip",
++	}
++	tests := []struct {
++		name string
++		feed any
++		flag []string
++	}{
++		{name: "environment: comma-separated pairs", feed: linux + "=file:///srv/a," + strings.ToLower(hardened) + "=https://mirror.example/h,v2," + jdk + "=/srv/jdk-osv/out," + strings.ToUpper(nik) + "=/srv/nik/all.zip"},
++		{name: "config file: list", feed: []any{linux + "=file:///srv/a", hardened + "=https://mirror.example/h,v2", jdk + "=/srv/jdk-osv/out", nik + "=/srv/nik/all.zip"}},
++		{name: "config file: map", feed: map[string]any{strings.ToLower(linux): "file:///srv/a", hardened: "https://mirror.example/h,v2", jdk: "/srv/jdk-osv/out", nik: "/srv/nik/all.zip"}},
++		{name: "flag, repeated", flag: []string{linux + "=file:///srv/a", hardened + "=https://mirror.example/h,v2", jdk + "=/srv/jdk-osv/out", nik + "=/srv/nik/all.zip"}},
++		{name: "flag entries win over the file", feed: map[string]any{jdk: "/other", linux: "file:///srv/a"}, flag: []string{strings.ToLower(jdk) + "=/srv/jdk-osv/out", hardened + "=https://mirror.example/h,v2", nik + "=/srv/nik/all.zip"}},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			b := defaultVendor(clio.Identification{Name: "grype"})
++			b.URL = "https://base.example/osv"
++			b.Strict = true
++			if tt.feed != nil {
++				b.Feed = tt.feed
++			}
++			b.feedFlag = tt.flag
++			require.NoError(t, b.PostLoad())
++			cfg := b.ToConfig(true)
++			assert.Equal(t, "https://base.example/osv", cfg.BaseURL)
++			assert.Equal(t, want, cfg.EcosystemURLs)
++			assert.True(t, cfg.Strict)
++		})
++	}
++}
++
++func TestVendor_InvalidFeeds(t *testing.T) {
++	for _, feed := range []any{"Zulu=/z", vendordb.EcosystemJDK, vendordb.EcosystemJDK + "=", []any{42}, 7} {
++		b := defaultVendor(clio.Identification{Name: "grype"})
++		b.Feed = feed
++		assert.Error(t, b.PostLoad(), "%v", feed)
++	}
++}
++
++// The help texts of the three shared options are fixed (identical in every scanner with vendor support).
++func TestVendor_HelpTexts(t *testing.T) {
++	assert.Equal(t, "base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory", vendorURLHelp)
++	assert.Equal(t, `location of the vendor OSV archive of one product, as "<product>=<url>"; repeatable; products: `+strings.Join(osvinternal.Ecosystems, ", "), vendorFeedHelp)
++	assert.Equal(t, "fail when vendor OSV data is unavailable instead of warning and continuing", vendorStrictHelp)
++}
+diff --git a/go.mod b/go.mod
+index cf725f6..73d4de4 100644
+--- a/go.mod
++++ b/go.mod
+@@ -138,6 +138,7 @@ require (
+ 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
+ 	github.com/bahlo/generic-list-go v0.2.0 // indirect
+ 	github.com/becheran/wildmatch-go v1.0.0 // indirect
++	github.com/bell-sw/osv-internal v0.5.0
+ 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
+ 	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb // indirect
+ 	github.com/bodgit/plumbing v1.3.0 // indirect
+diff --git a/grype/db/v6/build/transformers/osv/transform_vendor.go b/grype/db/v6/build/transformers/osv/transform_vendor.go
+index a298d92..a0a9204 100644
+--- a/grype/db/v6/build/transformers/osv/transform_vendor.go
++++ b/grype/db/v6/build/transformers/osv/transform_vendor.go
+@@ -6,6 +6,9 @@ import (
+ 	"strconv"
+ 	"strings"
+ 
++	osvinternal "github.com/bell-sw/osv-internal"
++	osvdistro "github.com/bell-sw/osv-internal/distro"
++
+ 	"github.com/anchore/grype/grype/db/data"
+ 	"github.com/anchore/grype/grype/db/internal/provider/unmarshal"
+ 	"github.com/anchore/grype/grype/db/internal/versionutil"
+@@ -174,10 +177,10 @@ func vendorOSFromEcosystem(ecosystem string) *db.OperatingSystem {
+ 
+ 	var osName string
+ 	switch base {
+-	case "Alpaquita":
+-		osName = "alpaquita"
+-	case "BellSoft Hardened Containers":
+-		osName = "bellsoft-hardened-containers"
++	case osvinternal.EcosystemLinux:
++		osName = osvdistro.IDLinux
++	case osvinternal.EcosystemHardened:
++		osName = osvdistro.IDHardened
+ 	default:
+ 		return nil
+ 	}
+diff --git a/grype/db/v6/build/transformers/osv/transform_vendor_test.go b/grype/db/v6/build/transformers/osv/transform_vendor_test.go
+index a3d35d7..99c9966 100644
+--- a/grype/db/v6/build/transformers/osv/transform_vendor_test.go
++++ b/grype/db/v6/build/transformers/osv/transform_vendor_test.go
+@@ -6,6 +6,8 @@ import (
+ 	"testing"
+ 	"time"
+ 
++	"github.com/bell-sw/osv-internal/testfix"
++
+ 	db "github.com/anchore/grype/grype/db/v6"
+ 	"github.com/anchore/grype/grype/db/v6/build/transformers"
+ 	"github.com/anchore/grype/grype/distro"
+@@ -20,7 +22,7 @@ func TestVendorTransform(t *testing.T) {
+ 	tests := []transformCase{
+ 		{
+ 			name:        "expat CVE-2025-59375",
+-			fixturePath: "testdata/BELL-CVE-2025-59375.json",
++			fixturePath: testfix.RewriteOSVFile(t, "testdata/BELL-CVE-2025-59375.json"),
+ 			want: []transformers.RelatedEntries{{
+ 				VulnerabilityHandle: &db.VulnerabilityHandle{
+ 					Name:          "BELL-CVE-2025-59375",
+diff --git a/grype/distro/type.go b/grype/distro/type.go
+index 98844a4..4a541fe 100644
+--- a/grype/distro/type.go
++++ b/grype/distro/type.go
+@@ -1,6 +1,8 @@
+ package distro
+ 
+ import (
++	osvdistro "github.com/bell-sw/osv-internal/distro"
++
+ 	"github.com/anchore/syft/syft/linux"
+ )
+ 
+@@ -16,8 +18,8 @@ const (
+ 	CentOS         Type = "centos"
+ 	Fedora         Type = "fedora"
+ 	Alpine         Type = "alpine"
+-	VendorLinux    Type = "alpaquita"                    // the vendor's Linux distribution (VERSION_ID stream|23|25)
+-	VendorHardened Type = "bellsoft-hardened-containers" // the vendor's hardened container images
++	VendorLinux    Type = osvdistro.IDLinux    // the vendor's Linux distribution (VERSION_ID stream|23|25)
++	VendorHardened Type = osvdistro.IDHardened // the vendor's hardened container images
+ 	Busybox        Type = "busybox"
+ 	AmazonLinux    Type = "amazonlinux"
+ 	OracleLinux    Type = "oraclelinux"
+@@ -78,35 +80,35 @@ var All = []Type{
+ 
+ // IDMapping maps a distro ID from the /etc/os-release (e.g. like "ubuntu") to a Distro type.
+ var IDMapping = map[string]Type{
+-	"debian":                       Debian,
+-	"ubuntu":                       Ubuntu,
+-	"rhel":                         RedHat,
+-	"centos":                       CentOS,
+-	"fedora":                       Fedora,
+-	"alpine":                       Alpine,
+-	"alpaquita":                    VendorLinux,
+-	"bellsoft-hardened-containers": VendorHardened,
+-	"busybox":                      Busybox,
+-	"amzn":                         AmazonLinux,
+-	"ol":                           OracleLinux,
+-	"arch":                         ArchLinux,
+-	"opensuse-leap":                OpenSuseLeap,
+-	"sles":                         SLES,
+-	"photon":                       Photon,
+-	"echo":                         Echo,
+-	"mariner":                      Mariner,
+-	"azurelinux":                   Azure,
+-	"rocky":                        RockyLinux,
+-	"almalinux":                    AlmaLinux,
+-	"gentoo":                       Gentoo,
+-	"wolfi":                        Wolfi,
+-	"chainguard":                   Chainguard,
+-	"minimos":                      MinimOS,
+-	"raspbian":                     Raspbian,
+-	"scientific":                   Scientific,
+-	"secureos":                     SecureOS,
+-	"postmarketos":                 PostmarketOS,
+-	"hummingbird":                  Hummingbird,
++	"debian":             Debian,
++	"ubuntu":             Ubuntu,
++	"rhel":               RedHat,
++	"centos":             CentOS,
++	"fedora":             Fedora,
++	"alpine":             Alpine,
++	osvdistro.IDLinux:    VendorLinux,
++	osvdistro.IDHardened: VendorHardened,
++	"busybox":            Busybox,
++	"amzn":               AmazonLinux,
++	"ol":                 OracleLinux,
++	"arch":               ArchLinux,
++	"opensuse-leap":      OpenSuseLeap,
++	"sles":               SLES,
++	"photon":             Photon,
++	"echo":               Echo,
++	"mariner":            Mariner,
++	"azurelinux":         Azure,
++	"rocky":              RockyLinux,
++	"almalinux":          AlmaLinux,
++	"gentoo":             Gentoo,
++	"wolfi":              Wolfi,
++	"chainguard":         Chainguard,
++	"minimos":            MinimOS,
++	"raspbian":           Raspbian,
++	"scientific":         Scientific,
++	"secureos":           SecureOS,
++	"postmarketos":       PostmarketOS,
++	"hummingbird":        Hummingbird,
+ }
+ 
+ // aliasTypes maps common aliases to their corresponding Type.
+diff --git a/grype/matcher/apk/matcher.go b/grype/matcher/apk/matcher.go
+index 91519df..8b42947 100644
+--- a/grype/matcher/apk/matcher.go
++++ b/grype/matcher/apk/matcher.go
+@@ -12,6 +12,7 @@ import (
+ 	"github.com/anchore/grype/grype/search"
+ 	"github.com/anchore/grype/grype/version"
+ 	"github.com/anchore/grype/grype/vulnerability"
++	"github.com/anchore/grype/grype/vulnerability/vendordb"
+ 	"github.com/anchore/grype/internal/log"
+ 	syftPkg "github.com/anchore/syft/syft/pkg"
+ )
+@@ -36,6 +37,15 @@ func (m *Matcher) Type() match.MatcherType {
+ }
+ 
+ func (m *Matcher) Match(store vulnerability.Provider, p pkg.Package) ([]match.Match, []match.IgnoreFilter, error) {
++	matches, ignores, err := m.match(store, p)
++	if err != nil && errors.Is(err, vendordb.ErrSourceUnavailable) {
++		// strict mode (or a cache fault): the vendor OSV data could not be obtained and the scan must fail
++		return nil, nil, match.NewFatalError(m.Type(), err)
++	}
++	return matches, ignores, err
++}
++
++func (m *Matcher) match(store vulnerability.Provider, p pkg.Package) ([]match.Match, []match.IgnoreFilter, error) {
+ 	var matches []match.Match
+ 	var ignoreFilters []match.IgnoreFilter
+ 
+@@ -196,6 +206,13 @@ func (m *Matcher) findMatchesForPackage(store vulnerability.Provider, p pkg.Pack
+ 		return nil, nil, err
+ 	}
+ 
++	// the vendor feed is the only source for its distributions (as in trivy and osv-scanner): NVD's CPE records
++	// are not consulted. The fallback below exists for Alpine's secdb, which lists fixed CVEs only; the vendor
++	// feed carries affected ranges with and without a fix.
++	if vendordb.IsVendorDistro(p.Distro) {
++		return secDBMatches, secDBIgnores, nil
++	}
++
+ 	// TODO: are there other errors that we should handle here that causes this to short circuit
+ 	cpeMatches, cpeIgnores, err := m.cpeMatchesWithoutSecDBFixes(store, p)
+ 	if err != nil && !errors.Is(err, internal.ErrEmptyCPEMatch) {
+diff --git a/grype/matcher/apk/vendor_db_test.go b/grype/matcher/apk/vendor_db_test.go
+index c016772..ae74720 100644
+--- a/grype/matcher/apk/vendor_db_test.go
++++ b/grype/matcher/apk/vendor_db_test.go
+@@ -3,6 +3,8 @@ package apk
+ import (
+ 	"testing"
+ 
++	"github.com/bell-sw/osv-internal/testfix"
++
+ 	"github.com/anchore/grype/grype/distro"
+ 	"github.com/anchore/grype/grype/match"
+ 	"github.com/anchore/grype/grype/pkg"
+@@ -11,6 +13,16 @@ import (
+ 	syftPkg "github.com/anchore/syft/syft/pkg"
+ )
+ 
++// vendorDBs builds the test database from the vendor records of testdata/vendor-apk; when the module is
++// built for another vendor the records are served with the current family names and ids (testfix.RewriteOSVDir).
++func vendorDBs(t *testing.T) *dbtest.Builder {
++	b := dbtest.DBs(t, "vendor-apk")
++	if testfix.Renamed() {
++		b = b.WithFixtureDir(testfix.RewriteOSVDir(t, "testdata/vendor-apk"))
++	}
++	return b
++}
++
+ // TestMatcherApk_Vendor drives the apk matcher against a DB built from a real
+ // vendor record. BELL-CVE-2025-59375 fixes expat 2.7.2-r0 on three release
+ // lines, each with its own affected floor:
+@@ -19,7 +31,7 @@ import (
+ //	Linux / hardened containers : 23      → [2.5.0-r0, 2.7.2-r0)
+ //	Linux / hardened containers : 25      → [2.7.1-r0, 2.7.2-r0)
+ func TestMatcherApk_Vendor(t *testing.T) {
+-	dbtest.DBs(t, "vendor-apk").Run(func(t *testing.T, db *dbtest.DB) {
++	vendorDBs(t).Run(func(t *testing.T, db *dbtest.DB) {
+ 		matcher := Matcher{}
+ 
+ 		linuxStream := distro.New(distro.VendorLinux, "stream", "")
+@@ -132,7 +144,7 @@ func TestMatcherApk_Vendor(t *testing.T) {
+ //	BELL-CVE-2026-21637 (nodejs):  23 → fixed 20.20.0-r0, 25 → fixed 22.22.2-r0, stream → fixed 24.14.1-r0
+ //	BELL-CVE-2026-3219  (py3-pip): stream only → [22.3.1-r2, 26.1-r0)
+ func TestMatcherApk_Vendor_SBOMImages(t *testing.T) {
+-	dbtest.DBs(t, "vendor-apk").Run(func(t *testing.T, db *dbtest.DB) {
++	vendorDBs(t).Run(func(t *testing.T, db *dbtest.DB) {
+ 		matcher := Matcher{}
+ 
+ 		linuxStream := distro.New(distro.VendorLinux, "stream", "")
+@@ -235,7 +247,7 @@ func TestMatcherApk_Vendor_SBOMImages(t *testing.T) {
+ // The same package name and version on Alpine or Wolfi never matches a
+ // BELL-* record (and gets no ignore rule from one).
+ func TestMatcherApk_Vendor_OtherDistrosUntouched(t *testing.T) {
+-	dbtest.DBs(t, "vendor-apk").Run(func(t *testing.T, db *dbtest.DB) {
++	vendorDBs(t).Run(func(t *testing.T, db *dbtest.DB) {
+ 		matcher := Matcher{}
+ 		for name, d := range map[string]*distro.Distro{
+ 			"alpine 3.18":   dbtest.Alpine318,
+diff --git a/grype/matcher/apk/vendor_test.go b/grype/matcher/apk/vendor_test.go
+new file mode 100644
+index 0000000..dbe6ddf
+--- /dev/null
++++ b/grype/matcher/apk/vendor_test.go
+@@ -0,0 +1,228 @@
++package apk
++
++import (
++	"context"
++	"errors"
++	"strings"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/match"
++	"github.com/bell-sw/osv-internal/osvdata"
++
++	"github.com/anchore/grype/grype/distro"
++	grypematch "github.com/anchore/grype/grype/match"
++	"github.com/anchore/grype/grype/pkg"
++	"github.com/anchore/grype/grype/version"
++	"github.com/anchore/grype/grype/vulnerability"
++	"github.com/anchore/grype/grype/vulnerability/mock"
++	"github.com/anchore/grype/grype/vulnerability/vendordb"
++	"github.com/anchore/grype/grype/vulnerability/vendordb/vendordbtest"
++	"github.com/anchore/syft/syft/cpe"
++	syftPkg "github.com/anchore/syft/syft/pkg"
++)
++
++// The vendor apk path through the OSV provider with the feed-name resolution. The fake engine stands in for the
++// osv-internal module; the real range evaluation is covered by the module's tests and the integration run.
++func newVendorStore(t *testing.T) (vulnerability.Provider, *vendordbtest.Engine) {
++	t.Helper()
++	engine := vendordbtest.New()
++	expat := osvdata.Advisory{
++		ID: "BELL-CVE-2025-59375", CVE: "CVE-2025-59375", Introduced: "2.5.0-r0", Fixed: "2.7.2-r0", Severity: "HIGH",
++		CVSSVector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H", CVSSScore: 7.5,
++	}
++	affected := func(v string) bool { return strings.HasPrefix(v, "2.5.") || strings.HasPrefix(v, "2.6.") }
++	engine.Add(osvinternal.Ecosystem(vendordb.EcosystemLinux, "23"), "expat", expat, affected)
++	engine.Add(osvinternal.Ecosystem(vendordb.EcosystemHardened, "23"), "expat", expat, affected)
++	engine.Add(osvinternal.Ecosystem(vendordb.EcosystemLinux, "23"), "openjdk21-lite", osvdata.Advisory{
++		ID: "BELL-CVE-2025-30754", CVE: "CVE-2025-30754", Introduced: "0", Fixed: "21.0.8_p12-r0", Severity: "MEDIUM",
++	}, func(v string) bool { return strings.HasPrefix(v, "21.0.2") })
++
++	// NVD knows a CVE for expat that the vendor feed does not, and one it does (which must be de-duplicated)
++	nvdKnown := vulnerability.Vulnerability{
++		Reference:   vulnerability.Reference{ID: "CVE-2025-59375", Namespace: "nvd:cpe"},
++		PackageName: "expat",
++		Constraint:  version.MustGetConstraint("< 2.7.2", version.UnknownFormat),
++		CPEs:        []cpe.CPE{cpe.Must("cpe:2.3:a:libexpat_project:libexpat:*:*:*:*:*:*:*:*", "")},
++	}
++	nvdOnly := vulnerability.Vulnerability{
++		Reference:   vulnerability.Reference{ID: "CVE-2099-0001", Namespace: "nvd:cpe"},
++		PackageName: "expat",
++		Constraint:  version.MustGetConstraint("< 9.0", version.UnknownFormat),
++		CPEs:        []cpe.CPE{cpe.Must("cpe:2.3:a:libexpat_project:libexpat:*:*:*:*:*:*:*:*", "")},
++		Fix:         vulnerability.Fix{Versions: []string{"9.0"}, State: vulnerability.FixStateFixed},
++	}
++	return vendordb.Wrap(mock.VulnerabilityProvider(nvdKnown, nvdOnly), engine), engine
++}
++
++func matchIDs(matches []grypematch.Match) []string {
++	var out []string
++	for _, m := range matches {
++		out = append(out, m.Vulnerability.ID+"@"+m.Vulnerability.Namespace)
++	}
++	return out
++}
++
++func TestMatcherApk_Vendor_DirectMatch(t *testing.T) {
++	store, engine := newVendorStore(t)
++	matcher := Matcher{}
++	linux23 := distro.New(distro.VendorLinux, "23", "")
++
++	p := pkg.Package{ID: "expat-1", Name: "expat", Version: "2.6.0-r0", Type: syftPkg.ApkPkg, Distro: linux23}
++	matches, ignores, err := matcher.Match(store, p)
++	require.NoError(t, err)
++	assert.Empty(t, ignores)
++	require.Len(t, matches, 1, "%v", matchIDs(matches))
++	m := matches[0]
++	assert.Equal(t, "CVE-2025-59375", m.Vulnerability.ID)
++	assert.Equal(t, vendordb.DistroNamespace(linux23, "23"), m.Vulnerability.Namespace)
++	assert.Equal(t, []string{"2.7.2-r0"}, m.Vulnerability.Fix.Versions)
++	require.NotEmpty(t, m.Details)
++	assert.Equal(t, grypematch.ExactDirectMatch, m.Details[0].Type)
++	assert.Equal(t, grypematch.ApkMatcher, m.Details[0].Matcher)
++	dp, ok := m.Details[0].SearchedBy.(grypematch.DistroParameters)
++	require.True(t, ok, "%T", m.Details[0].SearchedBy)
++	assert.Equal(t, string(distro.VendorLinux), dp.Distro.Type)
++	assert.Equal(t, "23", dp.Distro.Version)
++	assert.Equal(t, "expat", dp.Package.Name)
++	assert.Contains(t, engine.Calls, "apk "+osvinternal.Ecosystem(vendordb.EcosystemLinux, "23")+" expat@2.6.0-r0")
++}
++
++func TestMatcherApk_Vendor_FixedVersionDoesNotMatch(t *testing.T) {
++	store, _ := newVendorStore(t)
++	matcher := Matcher{}
++	linux23 := distro.New(distro.VendorLinux, "23", "")
++
++	p := pkg.Package{ID: "expat-2", Name: "expat", Version: "2.7.2-r0", Type: syftPkg.ApkPkg, Distro: linux23}
++	matches, _, err := matcher.Match(store, p)
++	require.NoError(t, err)
++	assert.Empty(t, matchIDs(matches))
++}
++
++func TestMatcherApk_Vendor_IndirectMatchThroughProvidedName(t *testing.T) {
++	store, _ := newVendorStore(t)
++	matcher := Matcher{}
++	linux23 := distro.New(distro.VendorLinux, "23", "")
++
++	// jdk21-lite-jdk-no-deps (origin jdk21-lite) provides openjdk21-lite-jdk-no-deps; the feed keys the
++	// advisory on openjdk21-lite
++	p := pkg.Package{
++		ID: "jdk-1", Name: "jdk21-lite-jdk-no-deps", Version: "21.0.2_p14-r1", Type: syftPkg.ApkPkg, Distro: linux23,
++		Upstreams: []pkg.UpstreamPackage{{Name: "jdk21-lite"}},
++		Metadata:  pkg.ApkMetadata{Provides: []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"}},
++	}
++	matches, _, err := matcher.Match(store, p)
++	require.NoError(t, err)
++	require.Len(t, matches, 1, "%v", matchIDs(matches))
++	m := matches[0]
++	assert.Equal(t, "CVE-2025-30754", m.Vulnerability.ID)
++	assert.Equal(t, "openjdk21-lite", m.Vulnerability.PackageName)
++	assert.Equal(t, "jdk21-lite-jdk-no-deps", m.Package.Name, "the match is reported against the installed package")
++	require.NotEmpty(t, m.Details)
++	assert.Equal(t, grypematch.ExactIndirectMatch, m.Details[0].Type)
++
++	// the same package without provides (an SBOM re-scan) only has the origin to go on
++	p.Metadata = nil
++	matches, _, err = matcher.Match(store, p)
++	require.NoError(t, err)
++	assert.Empty(t, matchIDs(matches), "no provided names to resolve through")
++}
++
++func TestMatcherApk_Vendor_FamiliesDoNotMix(t *testing.T) {
++	store, _ := newVendorStore(t)
++	matcher := Matcher{}
++
++	hardened := distro.New(distro.VendorHardened, "23", "")
++	p := pkg.Package{ID: "expat-3", Name: "expat", Version: "2.6.0-r0", Type: syftPkg.ApkPkg, Distro: hardened}
++	matches, _, err := matcher.Match(store, p)
++	require.NoError(t, err)
++	require.Len(t, matches, 1)
++	assert.Equal(t, vendordb.DistroNamespace(hardened, "23"), matches[0].Vulnerability.Namespace)
++
++	stream := distro.New(distro.VendorHardened, "stream", "")
++	p.Distro = stream
++	matches, _, err = matcher.Match(store, p)
++	require.NoError(t, err)
++	assert.Empty(t, matchIDs(matches), "release 'stream' has no entry in the fake feed")
++}
++
++// NVD's CPE records are never consulted for the vendor distributions, neither for a CVE the feed knows nor for
++// one it does not; Alpine keeps the NVD fallback.
++func TestMatcherApk_Vendor_NoNvdCpeFallback(t *testing.T) {
++	store, _ := newVendorStore(t)
++	matcher := Matcher{}
++	linux23 := distro.New(distro.VendorLinux, "23", "")
++	libexpat := cpe.Must("cpe:2.3:a:libexpat_project:libexpat:2.6.0:*:*:*:*:*:*:*", "")
++
++	p := pkg.Package{ID: "expat-4", Name: "expat", Version: "2.6.0-r0", Type: syftPkg.ApkPkg, Distro: linux23, CPEs: []cpe.CPE{libexpat}}
++	matches, _, err := matcher.Match(store, p)
++	require.NoError(t, err)
++	assert.Equal(t, []string{"CVE-2025-59375@" + vendordb.DistroNamespace(linux23, "23")}, matchIDs(matches), "only the vendor record; no nvd:cpe row")
++
++	// a package the feed does not know at all: nothing, whatever NVD says about its CPE
++	p = pkg.Package{ID: "libexpat-1", Name: "libexpat", Version: "2.6.0-r0", Type: syftPkg.ApkPkg, Distro: linux23, CPEs: []cpe.CPE{libexpat}}
++	matches, _, err = matcher.Match(store, p)
++	require.NoError(t, err)
++	assert.Empty(t, matchIDs(matches))
++
++	// an unavailable archive without strict mode answers with no advisories: no finding at all, not every NVD row
++	empty := vendordb.Wrap(mock.VulnerabilityProvider(), vendordbtest.New())
++	p = pkg.Package{ID: "expat-7", Name: "expat", Version: "2.6.0-r0", Type: syftPkg.ApkPkg, Distro: linux23, CPEs: []cpe.CPE{libexpat}}
++	matches, _, err = matcher.Match(empty, p)
++	require.NoError(t, err)
++	assert.Empty(t, matchIDs(matches))
++
++	// other distros are untouched: Alpine keeps the NVD rows for CVEs its secdb does not know, fix state unknown
++	p = pkg.Package{ID: "expat-8", Name: "expat", Version: "2.6.0-r0", Type: syftPkg.ApkPkg, Distro: distro.New(distro.Alpine, "3.18", ""), CPEs: []cpe.CPE{libexpat}}
++	matches, _, err = matcher.Match(store, p)
++	require.NoError(t, err)
++	assert.ElementsMatch(t, []string{"CVE-2025-59375@nvd:cpe", "CVE-2099-0001@nvd:cpe"}, matchIDs(matches))
++	for _, m := range matches {
++		if m.Vulnerability.ID == "CVE-2099-0001" {
++			assert.Equal(t, vulnerability.FixStateUnknown, m.Vulnerability.Fix.State, "NVD fix data is not trusted for distro packages")
++		}
++	}
++}
++
++func TestMatcherApk_Vendor_UnknownVersionSkipped(t *testing.T) {
++	store, engine := newVendorStore(t)
++	matcher := Matcher{}
++	p := pkg.Package{ID: "expat-5", Name: "expat", Version: "unknown", Type: syftPkg.ApkPkg, Distro: distro.New(distro.VendorLinux, "23", "")}
++	matches, _, err := matcher.Match(store, p)
++	require.NoError(t, err)
++	assert.Empty(t, matches)
++	for _, call := range engine.Calls {
++		assert.False(t, strings.HasPrefix(call, "apk "), "no range evaluation for an unknown version: %s", call)
++	}
++}
++
++type unavailableEngine struct {
++	vendordbtest.Engine
++}
++
++func (u *unavailableEngine) APKFindings(context.Context, string, string, match.Package) ([]match.Finding, error) {
++	return nil, errors.New("OSV archive is not cached and updates are disabled")
++}
++
++func (u *unavailableEngine) Advisories(context.Context, string, string, string) ([]osvdata.Advisory, error) {
++	return nil, errors.New("OSV archive is not cached and updates are disabled")
++}
++
++// An unavailable vendor data source is a fatal matcher error: the scan must fail rather than report nothing.
++func TestMatcherApk_Vendor_SourceUnavailableIsFatal(t *testing.T) {
++	store := vendordb.Wrap(mock.VulnerabilityProvider(), &unavailableEngine{})
++	matcher := Matcher{}
++	p := pkg.Package{ID: "expat-6", Name: "expat", Version: "2.6.0-r0", Type: syftPkg.ApkPkg, Distro: distro.New(distro.VendorLinux, "23", "")}
++	_, _, err := matcher.Match(store, p)
++	require.Error(t, err)
++	assert.True(t, grypematch.IsFatalError(err), "%v", err)
++	assert.Contains(t, err.Error(), "OSV archive is not cached and updates are disabled")
++
++	// other distros are not affected by the vendor source state
++	alpine := pkg.Package{ID: "openssl-1", Name: "openssl", Version: "3.1.4-r0", Type: syftPkg.ApkPkg, Distro: distro.New(distro.Alpine, "3.18", "")}
++	_, _, err = matcher.Match(store, alpine)
++	require.NoError(t, err)
++}
+diff --git a/grype/vulnerability/vendordb/config.go b/grype/vulnerability/vendordb/config.go
+new file mode 100644
+index 0000000..15496ed
+--- /dev/null
++++ b/grype/vulnerability/vendordb/config.go
+@@ -0,0 +1,56 @@
++package vendordb
++
++import (
++	"net/http"
++	"time"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/osvdata"
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++)
++
++// Ecosystem names as published on osv.dev (and the prototype runtime ecosystems).
++const (
++	EcosystemLinux    = osvinternal.EcosystemLinux
++	EcosystemHardened = osvinternal.EcosystemHardened
++	EcosystemJDK      = osvinternal.EcosystemJDK
++	EcosystemNIK      = osvinternal.EcosystemNIK
++
++	// DefaultBaseURL (the osv.dev bucket) and DefaultJDKBaseURL are the module's default sources of the distribution
++	// and the runtime families (osvdata.DefaultBaseURLFor).
++	DefaultBaseURL    = osvdata.DefaultBaseURL
++	DefaultJDKBaseURL = osvdata.DefaultProductBaseURL
++
++	// Provider is the namespace prefix of every vulnerability served by this adapter: the vendor's id, the
++	// module's purl namespace.
++	Provider = osvjdk.PURLNamespace
++
++	DefaultCacheTTL = osvdata.DefaultTTL
++	DefaultTimeout  = 5 * time.Minute
++)
++
++// Config is the adapter configuration (populated from the CLI options: vendor.* / GRYPE_VENDOR_*).
++type Config struct {
++	// BaseURL serves every ecosystem unless overridden; accepts https://, file:// and plain directory paths. Empty
++	// (the default) means each family uses its own default source.
++	BaseURL string
++	// EcosystemURLs overrides the base URL per ecosystem name (e.g. the JDK family -> a local HTTP server or path).
++	EcosystemURLs map[string]string
++	// CacheDir holds <ecosystem>/ sub-directories with the downloaded archive, timestamp and index.
++	CacheDir string
++	// TTL is the cache lifetime; an older archive is re-downloaded (unless Offline).
++	TTL time.Duration
++	// Offline forbids downloads (grype db.auto-update=false): a present cache is used, a missing one makes the
++	// family unavailable.
++	Offline bool
++	// Strict turns an unavailable archive (download failure, HTTP error, offline with nothing cached) into an error
++	// that fails the scan. By default the scan warns once per family and continues without that family's findings.
++	Strict bool
++	// Warn, when set, also receives the warning about an unavailable family (the CLI shows it as a notification);
++	// the warning is always logged at WARN level.
++	Warn func(message string)
++	// HTTPClient replaces the download client (tests).
++	HTTPClient *http.Client
++	// Timeout bounds one archive download.
++	Timeout time.Duration
++}
+diff --git a/grype/vulnerability/vendordb/constraint.go b/grype/vulnerability/vendordb/constraint.go
+new file mode 100644
+index 0000000..36496fa
+--- /dev/null
++++ b/grype/vulnerability/vendordb/constraint.go
+@@ -0,0 +1,64 @@
++package vendordb
++
++import (
++	"fmt"
++	"strings"
++
++	"github.com/bell-sw/osv-internal/osvdata"
++
++	"github.com/anchore/grype/grype/version"
++)
++
++// evaluator answers whether the given version is affected by the advisory (delegated to the module).
++type evaluator func(advisoryID, ver string) (bool, error)
++
++// rangeConstraint is a version.Constraint backed by the module's range evaluation: String() renders the OSV range,
++// Satisfied() asks the engine, so grype never re-implements apk or JDK version comparison.
++type rangeConstraint struct {
++	display    string
++	format     version.Format
++	advisoryID string
++	eval       evaluator
++}
++
++func newRangeConstraint(a osvdata.Advisory, format version.Format, eval evaluator) version.Constraint {
++	var parts []string
++	if a.Introduced != "" && a.Introduced != "0" {
++		parts = append(parts, ">= "+a.Introduced)
++	}
++	switch {
++	case a.Fixed != "":
++		parts = append(parts, "< "+a.Fixed)
++	case a.LastAffected != "":
++		parts = append(parts, "<= "+a.LastAffected)
++	}
++	display := strings.Join(parts, ", ")
++	if display == "" {
++		display = ">= 0"
++	}
++	return &rangeConstraint{display: display, format: format, advisoryID: a.ID, eval: eval}
++}
++
++func (c *rangeConstraint) String() string {
++	return fmt.Sprintf("%s (%s)", c.display, strings.ToLower(c.format.String()))
++}
++
++func (c *rangeConstraint) Value() string {
++	return c.display
++}
++
++func (c *rangeConstraint) Format() version.Format {
++	return c.format
++}
++
++func (c *rangeConstraint) Satisfied(v *version.Version) (bool, error) {
++	if v == nil {
++		return false, version.ErrNoVersionProvided
++	}
++	if c.eval == nil {
++		return false, nil
++	}
++	return c.eval(c.advisoryID, v.Raw)
++}
++
++var _ version.Constraint = (*rangeConstraint)(nil)
+diff --git a/grype/vulnerability/vendordb/criteria.go b/grype/vulnerability/vendordb/criteria.go
+new file mode 100644
+index 0000000..67a23af
+--- /dev/null
++++ b/grype/vulnerability/vendordb/criteria.go
+@@ -0,0 +1,131 @@
++package vendordb
++
++import (
++	"fmt"
++	"strings"
++
++	"github.com/bell-sw/osv-internal/jdkver"
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
++	"github.com/anchore/grype/grype/distro"
++	"github.com/anchore/grype/grype/pkg"
++	"github.com/anchore/grype/grype/vulnerability"
++	syftPkg "github.com/anchore/syft/syft/pkg"
++)
++
++// IsVendorDistro reports whether the distro is served by the vendor OSV data.
++func IsVendorDistro(d *distro.Distro) bool {
++	if d == nil {
++		return false
++	}
++	return ecosystemForDistro(d.Type) != ""
++}
++
++// ecosystemForDistro maps a grype distro type to the OSV ecosystem family.
++func ecosystemForDistro(t distro.Type) string {
++	switch t {
++	case distro.VendorLinux:
++		return EcosystemLinux
++	case distro.VendorHardened:
++		return EcosystemHardened
++	}
++	return ""
++}
++
++// releaseOf returns the VERSION_ID the distro was created from ("stream", "23", "25"), untouched.
++func releaseOf(d distro.Distro) string {
++	if d.Version != "" {
++		return d.Version
++	}
++	return d.LabelVersion()
++}
++
++// RuntimeCriteria asks the provider to evaluate a standalone vendor runtime in its product ecosystem (JDK
++// "<family>:<major>", package = variant, version "21.0.2+14" / "8u402+7"; NIK "<family>:<nik major>-<java major>", package =
++// bundle, version "23.1.0+1"). Other providers ignore it.
++type RuntimeCriteria struct {
++	Ecosystem string
++	Package   string
++	Version   string
++}
++
++// ByRuntime builds the RuntimeCriteria for a vendor JDK / NIK package.
++func ByRuntime(p pkg.Package) vulnerability.Criteria {
++	return &RuntimeCriteria{Ecosystem: RuntimeEcosystem(p), Package: p.Name, Version: p.Version}
++}
++
++// RuntimeEcosystem returns the OSV ecosystem of a vendor JDK / NIK package, as the shared module names it
++// (vendorjdk.Runtime.Ecosystem): the Java major comes from the JDK version, or for a NIK from the bundled Java version
++// kept in the package metadata. It returns "" when the package is not a vendor runtime or the major is unknown.
++func RuntimeEcosystem(p pkg.Package) string {
++	rt := osvjdk.Runtime{Variant: p.Name, Version: p.Version}
++	switch p.Type {
++	case syftPkg.VendorJdkPkg:
++		v, err := jdkver.Parse(p.Version)
++		if err != nil {
++			return ""
++		}
++		rt.Product, rt.Major = osvjdk.ProductJDK, v.Major
++	case syftPkg.VendorNikPkg:
++		rt.Product, rt.IsNIK = osvjdk.ProductNIK, true
++		if md, ok := p.Metadata.(pkg.JavaVMInstallationMetadata); ok {
++			rt.Major = javaMajor(md.Release.JavaVersion)
++			if rt.Major == 0 {
++				rt.Major = javaMajor(md.Release.JavaRuntimeVersion)
++			}
++		}
++		if rt.NIKMajor() == 0 {
++			return ""
++		}
++	default:
++		return ""
++	}
++	if rt.Major == 0 {
++		return ""
++	}
++	return rt.Ecosystem()
++}
++
++func (c *RuntimeCriteria) MatchesVulnerability(_ vulnerability.Vulnerability) (bool, string, error) {
++	return true, "", nil
++}
++
++func (c *RuntimeCriteria) Summarize() string {
++	return fmt.Sprintf("%s runtime %s@%s", c.Ecosystem, c.Package, c.Version)
++}
++
++// FamilyOfType maps the syft package types of standalone vendor runtimes to their OSV ecosystem family.
++func FamilyOfType(t syftPkg.Type) string {
++	switch t {
++	case syftPkg.VendorJdkPkg:
++		return EcosystemJDK
++	case syftPkg.VendorNikPkg:
++		return EcosystemNIK
++	}
++	return ""
++}
++
++// IsVendorRuntimeType reports whether a syft package type is a standalone vendor runtime type.
++func IsVendorRuntimeType(t syftPkg.Type) bool {
++	return FamilyOfType(t) != ""
++}
++
++// javaMajor extracts the Java major from a JAVA_VERSION-like string: "21", "21.0.2", "21+37" -> 21; "1.8.0_402" -> 8.
++func javaMajor(v string) int {
++	v = strings.TrimSpace(v)
++	if strings.HasPrefix(v, "1.") {
++		v = v[2:]
++	}
++	n := 0
++	for _, r := range v {
++		if r < '0' || r > '9' {
++			break
++		}
++		n = n*10 + int(r-'0')
++	}
++	return n
++}
++
++var _ interface {
++	vulnerability.Criteria
++} = (*RuntimeCriteria)(nil)
+diff --git a/grype/vulnerability/vendordb/engine.go b/grype/vulnerability/vendordb/engine.go
+new file mode 100644
+index 0000000..973be70
+--- /dev/null
++++ b/grype/vulnerability/vendordb/engine.go
+@@ -0,0 +1,38 @@
++/*
++Package vendordb is grype's adapter for the vendor OSV data (its apk-based distributions and standalone JDK and
++NIK runtimes). It composes a vulnerability.Provider: queries for the vendor distro namespaces and
++the vendor JDK / NIK package types are answered from the OSV bulk archives through the shared osv-internal
++module, every other query by the wrapped provider (Anchore's database); `grype db` is untouched.
++
++The adapter owns the grype-specific concerns only: criteria routing, namespaces, vulnerability/match shapes, metadata
++enrichment from the wrapped provider and configuration. Archive fetch/cache/index, range evaluation and the alias
++resolution are the module's (see Engine).
++*/
++package vendordb
++
++import (
++	"context"
++	"time"
++
++	"github.com/bell-sw/osv-internal/match"
++	"github.com/bell-sw/osv-internal/osvdata"
++)
++
++// Engine is the slice of the osv-internal module used by the adapter (bound in engine_module.go; faked in tests).
++type Engine interface {
++	// APKFindings evaluates an installed apk package of the given ecosystem family (the module's EcosystemLinux /
++	// EcosystemHardened) and release ("stream", "23", "25") against the feed, resolving the feed name through origin and
++	// provided names. Only findings whose range contains the installed version are returned.
++	APKFindings(ctx context.Context, family, release string, p match.Package) ([]match.Finding, error)
++	// RuntimeFindings evaluates a standalone vendor runtime against its product ecosystem, given in full as the module
++	// names it ("<JDK family>:21" with package = variant such as "jdk" and version "21.0.2+14" / "8u402+7";
++	// "<NIK family>:23-21" with package = bundle such as "core" and version "23.1.0+1").
++	RuntimeFindings(ctx context.Context, ecosystem, pkgName, version string) ([]match.Finding, error)
++	// Advisories lists every advisory of the family/release keyed on a feed (source) package name, whatever the
++	// version; used for grype's fix bookkeeping and NVD de-duplication.
++	Advisories(ctx context.Context, family, release, feedName string) ([]osvdata.Advisory, error)
++	// EOL returns the end-of-life date of a distribution release, or nil when it never reaches end of life or is unknown.
++	EOL(release string) *time.Time
++	// Provenance reports, per family already loaded, when its archive was captured.
++	Provenance() map[string]time.Time
++}
+diff --git a/grype/vulnerability/vendordb/engine_module.go b/grype/vulnerability/vendordb/engine_module.go
+new file mode 100644
+index 0000000..a692f74
+--- /dev/null
++++ b/grype/vulnerability/vendordb/engine_module.go
+@@ -0,0 +1,132 @@
++package vendordb
++
++import (
++	"context"
++	"fmt"
++	"net/http"
++	"sync"
++	"time"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/distro"
++	"github.com/bell-sw/osv-internal/match"
++	"github.com/bell-sw/osv-internal/osvdata"
++
++	"github.com/anchore/grype/internal/log"
++)
++
++// NewEngine binds the adapter to the shared osv-internal module.
++func NewEngine(cfg Config) (Engine, error) {
++	src := &osvdata.Source{
++		// an empty base URL keeps the module's per-family defaults (osvdata.DefaultBaseURLFor)
++		BaseURL:  cfg.BaseURL,
++		URLs:     cfg.EcosystemURLs,
++		CacheDir: cfg.CacheDir,
++		TTL:      cfg.TTL,
++		Offline:  cfg.Offline,
++		Logf: func(format string, args ...any) {
++			log.Debugf("vendordb: "+format, args...)
++		},
++	}
++	switch {
++	case cfg.HTTPClient != nil:
++		src.HTTPClient = cfg.HTTPClient
++	case cfg.Timeout > 0:
++		src.HTTPClient = &http.Client{Timeout: cfg.Timeout}
++	}
++	return &moduleEngine{source: src, strict: cfg.Strict, warn: cfg.Warn, loaded: map[string]time.Time{}, unavailable: map[string]bool{}}, nil
++}
++
++type moduleEngine struct {
++	source      *osvdata.Source
++	strict      bool
++	warn        func(string)
++	mu          sync.Mutex
++	loaded      map[string]time.Time
++	unavailable map[string]bool
++}
++
++// index returns the index of a family. An unavailable archive is warned about once per family with the module's
++// canonical text and yields no findings (nil index, nil error); in strict mode it is an error.
++func (e *moduleEngine) index(ctx context.Context, family string) (*osvdata.Index, error) {
++	e.mu.Lock()
++	gone := e.unavailable[family]
++	e.mu.Unlock()
++	if gone {
++		return nil, nil
++	}
++
++	var idx *osvdata.Index
++	var err error
++	if e.strict {
++		idx, err = e.source.Ecosystem(ctx, family)
++	} else {
++		var warning string
++		idx, warning, err = e.source.EcosystemOrWarn(ctx, family)
++		if err == nil && warning != "" {
++			e.mu.Lock()
++			first := !e.unavailable[family]
++			e.unavailable[family] = true
++			e.mu.Unlock()
++			if first {
++				log.Warn(warning)
++				if e.warn != nil {
++					e.warn(warning)
++				}
++			}
++			return nil, nil
++		}
++	}
++	if err != nil {
++		return nil, fmt.Errorf("unable to load the vendor OSV archive for %q: %w", family, err)
++	}
++	e.mu.Lock()
++	if _, ok := e.loaded[family]; !ok {
++		e.loaded[family] = idx.DownloadedAt
++		log.WithFields("ecosystem", family, "records", idx.Records, "advisories", idx.Len(), "downloaded", idx.DownloadedAt, "stale", idx.Stale).Info("loaded vendor OSV data")
++	}
++	e.mu.Unlock()
++	return idx, nil
++}
++
++func (e *moduleEngine) APKFindings(ctx context.Context, family, release string, p match.Package) ([]match.Finding, error) {
++	idx, err := e.index(ctx, family)
++	if err != nil || idx == nil {
++		return nil, err
++	}
++	return match.MatchAPK(idx, p, release)
++}
++
++func (e *moduleEngine) RuntimeFindings(ctx context.Context, ecosystem, pkgName, version string) ([]match.Finding, error) {
++	idx, err := e.index(ctx, osvinternal.Family(ecosystem))
++	if err != nil || idx == nil {
++		return nil, err
++	}
++	return match.MatchProduct(idx, ecosystem, pkgName, version)
++}
++
++func (e *moduleEngine) Advisories(ctx context.Context, family, release, feedName string) ([]osvdata.Advisory, error) {
++	idx, err := e.index(ctx, family)
++	if err != nil || idx == nil {
++		return nil, err
++	}
++	return idx.Advisories(feedName, release), nil
++}
++
++func (e *moduleEngine) EOL(release string) *time.Time {
++	eol, known := distro.EOL(release)
++	if !known || eol.IsZero() {
++		return nil
++	}
++	return &eol
++}
++
++func (e *moduleEngine) Provenance() map[string]time.Time {
++	e.mu.Lock()
++	defer e.mu.Unlock()
++	out := make(map[string]time.Time, len(e.loaded))
++	for k, v := range e.loaded {
++		out[k] = v
++	}
++	return out
++}
+diff --git a/grype/vulnerability/vendordb/engine_module_test.go b/grype/vulnerability/vendordb/engine_module_test.go
+new file mode 100644
+index 0000000..ed97b59
+--- /dev/null
++++ b/grype/vulnerability/vendordb/engine_module_test.go
+@@ -0,0 +1,183 @@
++package vendordb
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"io"
++	"net/http"
++	"net/url"
++	"strings"
++	"sync"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/match"
++	"github.com/bell-sw/osv-internal/osvdata"
++
++	"github.com/anchore/grype/grype/distro"
++	"github.com/anchore/grype/grype/pkg"
++	"github.com/anchore/grype/grype/search"
++	"github.com/anchore/grype/grype/vulnerability/mock"
++	syftPkg "github.com/anchore/syft/syft/pkg"
++)
++
++// recorder is an http.RoundTripper that records every requested URL and answers with a fixed status.
++type recorder struct {
++	mu     sync.Mutex
++	urls   []string
++	status int
++}
++
++func (r *recorder) RoundTrip(req *http.Request) (*http.Response, error) {
++	r.mu.Lock()
++	r.urls = append(r.urls, req.URL.String())
++	r.mu.Unlock()
++	return &http.Response{
++		StatusCode: r.status,
++		Status:     http.StatusText(r.status),
++		Body:       io.NopCloser(strings.NewReader("")),
++		Header:     http.Header{},
++		Request:    req,
++	}, nil
++}
++
++func (r *recorder) requested() []string {
++	r.mu.Lock()
++	defer r.mu.Unlock()
++	return append([]string(nil), r.urls...)
++}
++
++// archiveURL is where the module fetches the archive of a family below a base URL (<base>/<family>/all.zip);
++// defaultArchiveURL applies the module's built-in base of the family.
++func archiveURL(base, family string) string {
++	return base + "/" + url.PathEscape(family) + "/" + osvdata.ArchiveName
++}
++
++func defaultArchiveURL(family string) string {
++	return archiveURL(osvdata.DefaultBaseURLFor(family), family)
++}
++
++// unavailableWarning is the module's canonical warning for a family whose archive could not be fetched from its
++// default source.
++func unavailableWarning(family, reason string) string {
++	return (&osvdata.UnavailableError{Family: family, Reason: reason, URL: defaultArchiveURL(family)}).Warning()
++}
++
++func newRecordingEngine(t *testing.T, cfg Config) (Engine, *recorder, *[]string) {
++	t.Helper()
++	rec := &recorder{status: http.StatusNotFound}
++	var warnings []string
++	cfg.CacheDir = t.TempDir()
++	cfg.HTTPClient = &http.Client{Transport: rec}
++	cfg.Warn = func(msg string) { warnings = append(warnings, msg) }
++	engine, err := NewEngine(cfg)
++	require.NoError(t, err)
++	return engine, rec, &warnings
++}
++
++// With no configuration every family is requested from its built-in source: the osv.dev bucket for the two
++// distributions, the module's product base URL for the two runtime families.
++func TestEngine_DefaultSources(t *testing.T) {
++	engine, rec, _ := newRecordingEngine(t, Config{})
++	ctx := context.Background()
++
++	_, err := engine.Advisories(ctx, EcosystemLinux, "stream", "glibc")
++	require.NoError(t, err)
++	_, err = engine.APKFindings(ctx, EcosystemHardened, "stream", match.Package{Name: "glibc", Version: "2.37.0-r0", Origin: "glibc"})
++	require.NoError(t, err)
++	_, err = engine.RuntimeFindings(ctx, osvinternal.Ecosystem(EcosystemJDK, "21"), "jdk", "21.0.2+14")
++	require.NoError(t, err)
++	_, err = engine.RuntimeFindings(ctx, osvinternal.Ecosystem(EcosystemNIK, "23-21"), "core", "23.1.0+1")
++	require.NoError(t, err)
++
++	assert.Equal(t, []string{
++		archiveURL(osvdata.DefaultBaseURL, EcosystemLinux),
++		archiveURL(osvdata.DefaultBaseURL, EcosystemHardened),
++		archiveURL(osvdata.DefaultProductBaseURL, EcosystemJDK),
++		archiveURL(osvdata.DefaultProductBaseURL, EcosystemNIK),
++	}, rec.requested())
++}
++
++// A global base URL and the per-family overrides win over the built-in sources.
++func TestEngine_Overrides(t *testing.T) {
++	engine, rec, _ := newRecordingEngine(t, Config{
++		BaseURL:       "https://mirror.example/osv",
++		EcosystemURLs: map[string]string{EcosystemNIK: "https://nik.example/data"},
++	})
++	ctx := context.Background()
++	_, _ = engine.Advisories(ctx, EcosystemLinux, "stream", "glibc")
++	_, _ = engine.RuntimeFindings(ctx, osvinternal.Ecosystem(EcosystemJDK, "21"), "jdk", "21.0.2+14")
++	_, _ = engine.RuntimeFindings(ctx, osvinternal.Ecosystem(EcosystemNIK, "23-21"), "core", "23.1.0+1")
++	assert.Equal(t, []string{
++		archiveURL("https://mirror.example/osv", EcosystemLinux),
++		archiveURL("https://mirror.example/osv", EcosystemJDK),
++		archiveURL("https://nik.example/data", EcosystemNIK),
++	}, rec.requested())
++}
++
++// An archive that cannot be obtained is not an error: one canonical warning per family, no findings from that
++// family, and the source is not asked again for every package.
++func TestEngine_UnavailableWarnsOnceAndContinues(t *testing.T) {
++	engine, rec, warnings := newRecordingEngine(t, Config{})
++	ctx := context.Background()
++
++	for i := 0; i < 3; i++ {
++		findings, err := engine.RuntimeFindings(ctx, osvinternal.Ecosystem(EcosystemJDK, "21"), "jdk", "21.0.2+14")
++		require.NoError(t, err)
++		assert.Empty(t, findings)
++		advisories, err := engine.Advisories(ctx, EcosystemLinux, "23", "openjdk21-lite")
++		require.NoError(t, err)
++		assert.Empty(t, advisories)
++	}
++
++	require.Len(t, *warnings, 2, "one warning per family")
++	assert.Equal(t, unavailableWarning(EcosystemJDK, "HTTP 404"), (*warnings)[0])
++	assert.Equal(t, unavailableWarning(EcosystemLinux, "HTTP 404"), (*warnings)[1])
++	assert.Len(t, rec.requested(), 2, "an unavailable family is not requested again during the scan")
++}
++
++// The same policy with updates disabled and nothing cached; through the provider a scan simply gets no vendor
++// vulnerabilities for the affected packages.
++func TestEngine_OfflineWithoutCacheWarns(t *testing.T) {
++	engine, rec, warnings := newRecordingEngine(t, Config{Offline: true})
++	p := Wrap(mock.VulnerabilityProvider(), engine)
++
++	vulns, err := p.FindVulnerabilities(search.ByPackageName("glibc"), search.ByDistro(*distro.New(distro.VendorHardened, "stream", "")))
++	require.NoError(t, err)
++	assert.Empty(t, vulns)
++
++	jdk := pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: syftPkg.VendorJdkPkg}
++	vulns, err = p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, syftPkg.VendorJdkPkg), search.ByPackageName("jdk"), ByRuntime(jdk))
++	require.NoError(t, err)
++	assert.Empty(t, vulns)
++
++	require.Len(t, *warnings, 2)
++	assert.Contains(t, (*warnings)[0], fmt.Sprintf("%s OSV data for %q is unavailable (", osvinternal.Vendor, EcosystemHardened))
++	assert.Contains(t, (*warnings)[0], fmt.Sprintf("packages of this product were NOT checked against %s advisories. Source: %s", osvinternal.Vendor, defaultArchiveURL(EcosystemHardened)))
++	assert.Contains(t, (*warnings)[1], fmt.Sprintf("%s OSV data for %q is unavailable (", osvinternal.Vendor, EcosystemJDK))
++	assert.Empty(t, rec.requested(), "offline: nothing is downloaded")
++}
++
++// Strict mode restores failing: the error names the family, is an osvdata.UnavailableError and reaches the matchers
++// marked as ErrSourceUnavailable.
++func TestEngine_StrictFails(t *testing.T) {
++	for _, offline := range []bool{false, true} {
++		engine, _, warnings := newRecordingEngine(t, Config{Strict: true, Offline: offline})
++		_, err := engine.RuntimeFindings(context.Background(), osvinternal.Ecosystem(EcosystemJDK, "21"), "jdk", "21.0.2+14")
++		require.Error(t, err)
++		var unavailable *osvdata.UnavailableError
++		require.True(t, errors.As(err, &unavailable), "%v", err)
++		assert.Equal(t, EcosystemJDK, unavailable.Family)
++		assert.Equal(t, offline, errors.Is(err, osvdata.ErrNotCached))
++		assert.Empty(t, *warnings)
++
++		p := Wrap(mock.VulnerabilityProvider(), engine)
++		_, err = p.FindVulnerabilities(search.ByPackageName("glibc"), search.ByDistro(*distro.New(distro.VendorLinux, "stream", "")))
++		require.Error(t, err)
++		assert.ErrorIs(t, err, ErrSourceUnavailable)
++	}
++}
+diff --git a/grype/vulnerability/vendordb/provider.go b/grype/vulnerability/vendordb/provider.go
+new file mode 100644
+index 0000000..5a0cde0
+--- /dev/null
++++ b/grype/vulnerability/vendordb/provider.go
+@@ -0,0 +1,473 @@
++package vendordb
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"strings"
++	"sync"
++	"time"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/match"
++	"github.com/bell-sw/osv-internal/osvdata"
++
++	"github.com/anchore/grype/grype/distro"
++	"github.com/anchore/grype/grype/pkg"
++	"github.com/anchore/grype/grype/search"
++	"github.com/anchore/grype/grype/version"
++	"github.com/anchore/grype/grype/vulnerability"
++	"github.com/anchore/grype/internal/cvss"
++	"github.com/anchore/grype/internal/log"
++)
++
++var (
++	_ vulnerability.Provider              = (*provider)(nil)
++	_ vulnerability.StoreMetadataProvider = (*provider)(nil)
++	_ vulnerability.EOLChecker            = (*provider)(nil)
++)
++
++// ErrSourceUnavailable marks every error of the vendor OSV data source that reaches a matcher (in strict mode an
++// archive that cannot be obtained, in any mode a cache fault or an unreadable index); matchers turn it into a fatal
++// error. Without strict mode an unavailable archive is a warning, not an error.
++var ErrSourceUnavailable = errors.New(osvinternal.Vendor + " OSV data source unavailable")
++
++type sourceError struct {
++	err error
++}
++
++func (e *sourceError) Error() string { return "vendor osv: " + e.err.Error() }
++func (e *sourceError) Unwrap() error { return e.err }
++func (e *sourceError) Is(target error) bool {
++	return target == ErrSourceUnavailable
++}
++
++func wrapSourceError(err error) error {
++	if err == nil {
++		return nil
++	}
++	return &sourceError{err: err}
++}
++
++// Wrap composes the vendor OSV source with an existing provider (Anchore's database): vendor distro namespaces and
++// vendor JDK / NIK packages are answered from the OSV data, everything else by upstream.
++func Wrap(upstream vulnerability.Provider, engine Engine) vulnerability.Provider {
++	return &provider{
++		upstream:  upstream,
++		engine:    engine,
++		metaCache: map[string]*vulnerability.Metadata{},
++	}
++}
++
++type provider struct {
++	upstream  vulnerability.Provider
++	engine    Engine
++	mu        sync.Mutex
++	metaCache map[string]*vulnerability.Metadata
++}
++
++type queryKind int
++
++const (
++	upstreamQuery queryKind = iota
++	apkQuery
++	jdkQuery
++)
++
++// query is one flattened AND-row of criteria classified for routing.
++type query struct {
++	kind       queryKind
++	ecosystem  string // apk: ecosystem family
++	release    string // apk: VERSION_ID
++	distro     *distro.Distro
++	name       string // ByPackageName
++	jdk        *RuntimeCriteria
++	id         string // ByID
++	unaffected bool
++	rest       []vulnerability.Criteria // criteria applied as in-memory filters
++}
++
++func classify(row []vulnerability.Criteria) query {
++	q := query{}
++	for _, c := range row {
++		switch c := c.(type) {
++		case *search.DistroCriteria:
++			for i := range c.Distros {
++				d := c.Distros[i]
++				if eco := ecosystemForDistro(d.Type); eco != "" {
++					q.kind = apkQuery
++					q.ecosystem = eco
++					q.release = releaseOf(d)
++					q.distro = &d
++					break
++				}
++			}
++		case *search.EcosystemCriteria:
++			if IsVendorRuntimeType(c.PackageType) {
++				q.kind = jdkQuery
++			}
++		case *search.PackageNameCriteria:
++			q.name = c.PackageName
++		case *RuntimeCriteria:
++			q.jdk = c
++		case *search.IDCriteria:
++			q.id = c.ID
++		case *search.UnaffectedCriteria:
++			q.unaffected = true
++		default:
++			q.rest = append(q.rest, c)
++		}
++	}
++	return q
++}
++
++func (p *provider) FindVulnerabilities(criteria ...vulnerability.Criteria) ([]vulnerability.Vulnerability, error) {
++	if err := search.ValidateCriteria(criteria); err != nil {
++		return nil, err
++	}
++
++	var rows [][]vulnerability.Criteria
++	var queries []query
++	ours := false
++	for _, row := range search.CriteriaIterator(criteria) {
++		q := classify(row)
++		if q.kind != upstreamQuery {
++			ours = true
++		}
++		rows = append(rows, row)
++		queries = append(queries, q)
++	}
++	if !ours {
++		return p.upstream.FindVulnerabilities(criteria...)
++	}
++
++	var out []vulnerability.Vulnerability
++	for i, q := range queries {
++		var vulns []vulnerability.Vulnerability
++		var err error
++		switch q.kind {
++		case upstreamQuery:
++			vulns, err = p.upstream.FindVulnerabilities(rows[i]...)
++		case apkQuery:
++			vulns, err = p.findAPK(q)
++		case jdkQuery:
++			vulns, err = p.findJDK(q)
++		}
++		if err != nil {
++			return nil, err
++		}
++		out = append(out, vulns...)
++	}
++	return out, nil
++}
++
++func (p *provider) findAPK(q query) ([]vulnerability.Vulnerability, error) {
++	if q.unaffected {
++		// the vendor feed carries affected ranges only (no NAK / unaffected records)
++		return nil, nil
++	}
++	ctx := context.Background()
++	ns := DistroNamespace(q.distro, q.release)
++	var vulns []vulnerability.Vulnerability
++	if q.name == "" {
++		log.WithFields("ecosystem", q.ecosystem, "release", q.release).Trace("vendor osv: distro search without a package name; nothing to do")
++		return nil, nil
++	}
++	advisories, err := p.engine.Advisories(ctx, q.ecosystem, q.release, q.name)
++	if err != nil {
++		return nil, wrapSourceError(err)
++	}
++	for _, a := range advisories {
++		vulns = append(vulns, p.newVulnerability(ns, a, q.name, p.apkEvaluator(q, q.name), version.ApkFormat))
++	}
++	return p.filter(vulns, q)
++}
++
++func (p *provider) findJDK(q query) ([]vulnerability.Vulnerability, error) {
++	if q.unaffected {
++		return nil, nil
++	}
++	if q.jdk == nil {
++		log.WithFields("package", q.name).Trace("vendor osv: runtime search without the runtime criteria; nothing to do")
++		return nil, nil
++	}
++	if q.jdk.Ecosystem == "" {
++		log.WithFields("package", q.jdk.Package, "version", q.jdk.Version).Warn("vendor osv: unable to determine the ecosystem of a vendor runtime; not matched")
++		return nil, nil
++	}
++	findings, err := p.engine.RuntimeFindings(context.Background(), q.jdk.Ecosystem, q.jdk.Package, q.jdk.Version)
++	if err != nil {
++		return nil, wrapSourceError(err)
++	}
++	var vulns []vulnerability.Vulnerability
++	for _, f := range findings {
++		ns := RuntimeNamespace(f.Ecosystem)
++		vulns = append(vulns, p.newVulnerability(ns, f.Advisory, q.jdk.Package, p.runtimeEvaluator(*q.jdk), version.JVMFormat))
++	}
++	return p.filter(vulns, q)
++}
++
++// filter applies the ID criteria and every criteria that is not routed structurally.
++func (p *provider) filter(vulns []vulnerability.Vulnerability, q query) ([]vulnerability.Vulnerability, error) {
++	var out []vulnerability.Vulnerability
++	for _, v := range vulns {
++		if q.id != "" && !hasID(v, q.id) {
++			continue
++		}
++		keep := true
++		for _, c := range q.rest {
++			ok, reason, err := c.MatchesVulnerability(v)
++			if err != nil {
++				return nil, err
++			}
++			if !ok {
++				vulnerability.LogDropped(v.ID, "vendordb", reason, v)
++				keep = false
++				break
++			}
++		}
++		if keep {
++			out = append(out, v)
++		}
++	}
++	return out, nil
++}
++
++func hasID(v vulnerability.Vulnerability, id string) bool {
++	if strings.EqualFold(v.ID, id) {
++		return true
++	}
++	for _, r := range v.RelatedVulnerabilities {
++		if strings.EqualFold(r.ID, id) {
++			return true
++		}
++	}
++	return false
++}
++
++// apkEvaluator answers "is <version> of this feed name affected by advisory <id>?" through the engine, so that
++// grype's constraint checks (e.g. NVD de-duplication) use the module's apk range evaluation.
++func (p *provider) apkEvaluator(q query, feedName string) evaluator {
++	return func(advisoryID, ver string) (bool, error) {
++		findings, err := p.engine.APKFindings(context.Background(), q.ecosystem, q.release, match.Package{Name: feedName, Version: ver, Origin: feedName})
++		if err != nil {
++			return false, wrapSourceError(err)
++		}
++		for _, f := range findings {
++			if f.Advisory.ID == advisoryID {
++				return true, nil
++			}
++		}
++		return false, nil
++	}
++}
++
++func (p *provider) runtimeEvaluator(c RuntimeCriteria) evaluator {
++	return func(advisoryID, ver string) (bool, error) {
++		findings, err := p.engine.RuntimeFindings(context.Background(), c.Ecosystem, c.Package, ver)
++		if err != nil {
++			return false, wrapSourceError(err)
++		}
++		for _, f := range findings {
++			if f.Advisory.ID == advisoryID {
++				return true, nil
++			}
++		}
++		return false, nil
++	}
++}
++
++// DistroNamespace is "<provider>:distro:<id>:<release>", the v5-style distro namespace grype's distro criteria parse.
++func DistroNamespace(d *distro.Distro, release string) string {
++	id := ""
++	if d != nil {
++		id = d.ID()
++	}
++	return fmt.Sprintf("%s:distro:%s:%s", Provider, id, release)
++}
++
++// RuntimeNamespace maps a product ecosystem "<family>:<release>" to the namespace
++// "<provider>:<family lower-cased, spaces hyphenated>:<release>".
++func RuntimeNamespace(ecosystem string) string {
++	family, release, _ := strings.Cut(ecosystem, ":")
++	id := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(family), " ", "-"))
++	return fmt.Sprintf("%s:%s:%s", Provider, id, strings.TrimSpace(release))
++}
++
++func (p *provider) newVulnerability(ns string, a osvdata.Advisory, pkgName string, eval evaluator, format version.Format) vulnerability.Vulnerability {
++	id := a.CVE
++	if id == "" {
++		id = a.ID
++	}
++	fix := vulnerability.Fix{State: vulnerability.FixStateNotFixed}
++	if a.Fixed != "" {
++		fix = vulnerability.Fix{Versions: []string{a.Fixed}, State: vulnerability.FixStateFixed}
++	}
++	var related []vulnerability.Reference
++	if id != a.ID {
++		related = append(related, vulnerability.Reference{ID: a.ID, Namespace: ns})
++	}
++	for _, alias := range a.Aliases {
++		if alias != id && alias != a.ID {
++			related = append(related, vulnerability.Reference{ID: alias, Namespace: ns})
++		}
++	}
++	link := a.SourceURL
++	if link == "" && len(a.References) > 0 {
++		link = a.References[0].URL
++	}
++	return vulnerability.Vulnerability{
++		Reference:              vulnerability.Reference{ID: id, Namespace: ns},
++		PackageName:            pkgName,
++		Constraint:             newRangeConstraint(a, format, eval),
++		Fix:                    fix,
++		Advisories:             []vulnerability.Advisory{{ID: a.ID, Link: link}},
++		RelatedVulnerabilities: related,
++		Metadata:               p.metadata(ns, id, a),
++	}
++}
++
++// metadata builds the vendor metadata (severity from the CVSS vector, record URLs, description) enriched from the
++// upstream database by CVE id (NVD CVSS, EPSS, KEV, CWEs). Cached per advisory and namespace.
++func (p *provider) metadata(ns, id string, a osvdata.Advisory) *vulnerability.Metadata {
++	key := ns + "|" + a.ID
++	p.mu.Lock()
++	if m, ok := p.metaCache[key]; ok {
++		p.mu.Unlock()
++		return m
++	}
++	p.mu.Unlock()
++
++	m := &vulnerability.Metadata{
++		ID:          id,
++		DataSource:  a.SourceURL,
++		Namespace:   ns,
++		Severity:    severityString(vulnerability.UnknownSeverity),
++		Description: a.Details,
++	}
++	if m.Description == "" {
++		m.Description = a.Summary
++	}
++	if m.DataSource == "" && len(a.References) > 0 {
++		m.DataSource = a.References[0].URL
++	}
++	for _, ref := range a.References {
++		if ref.URL != m.DataSource {
++			m.URLs = append(m.URLs, ref.URL)
++		}
++	}
++	m.URLs = append(m.URLs, a.OSVURL())
++
++	if a.Severity != "" {
++		m.Severity = severityString(vulnerability.ParseSeverity(a.Severity))
++	}
++	if a.CVSSVector != "" {
++		metrics, err := cvss.ParseMetricsFromVector(a.CVSSVector)
++		if err != nil || metrics == nil {
++			log.WithFields("advisory", a.ID, "vector", a.CVSSVector, "error", err).Debug("vendor osv: unable to parse CVSS vector")
++			metrics = &vulnerability.CvssMetrics{BaseScore: a.CVSSScore}
++		}
++		if m.Severity == severityString(vulnerability.UnknownSeverity) {
++			m.Severity = severityString(cvss.SeverityFromBaseScore(metrics.BaseScore))
++		}
++		m.Cvss = append(m.Cvss, vulnerability.Cvss{
++			Source:  osvinternal.Vendor,
++			Type:    "Primary",
++			Version: cvssVersionOf(a),
++			Vector:  a.CVSSVector,
++			Metrics: *metrics,
++		})
++	}
++
++	if a.CVE != "" && p.upstream != nil {
++		if nvd, err := p.upstream.VulnerabilityMetadata(vulnerability.Reference{ID: a.CVE, Namespace: "nvd:cpe"}); err == nil && nvd != nil {
++			m.Cvss = append(m.Cvss, nvd.Cvss...)
++			m.KnownExploited = nvd.KnownExploited
++			m.EPSS = nvd.EPSS
++			m.CWEs = nvd.CWEs
++			if m.Severity == severityString(vulnerability.UnknownSeverity) && nvd.Severity != "" {
++				m.Severity = nvd.Severity
++			}
++			if m.Description == "" {
++				m.Description = nvd.Description
++			}
++		}
++	}
++
++	p.mu.Lock()
++	p.metaCache[key] = m
++	p.mu.Unlock()
++	return m
++}
++
++func cvssVersionOf(a osvdata.Advisory) string {
++	if a.CVSSVersion != "" {
++		return a.CVSSVersion
++	}
++	if strings.HasPrefix(a.CVSSVector, "CVSS:") {
++		if v, _, ok := strings.Cut(strings.TrimPrefix(a.CVSSVector, "CVSS:"), "/"); ok {
++			return v
++		}
++	}
++	return ""
++}
++
++func severityString(s vulnerability.Severity) string {
++	str := s.String()
++	if str == "" {
++		return "Unknown"
++	}
++	return strings.ToUpper(str[:1]) + str[1:]
++}
++
++// Deprecated: vulnerability.Vulnerability objects carry their metadata; kept for the interface.
++func (p *provider) VulnerabilityMetadata(ref vulnerability.Reference) (*vulnerability.Metadata, error) {
++	if strings.HasPrefix(ref.Namespace, Provider+":") {
++		p.mu.Lock()
++		defer p.mu.Unlock()
++		for _, m := range p.metaCache {
++			if m.Namespace == ref.Namespace && (m.ID == ref.ID) {
++				return m, nil
++			}
++		}
++		return &vulnerability.Metadata{ID: ref.ID, DataSource: Provider, Namespace: ref.Namespace, Severity: severityString(vulnerability.UnknownSeverity)}, nil
++	}
++	return p.upstream.VulnerabilityMetadata(ref)
++}
++
++func (p *provider) PackageSearchNames(pk pkg.Package) []string {
++	return p.upstream.PackageSearchNames(pk)
++}
++
++func (p *provider) Close() error {
++	return p.upstream.Close()
++}
++
++func (p *provider) DataProvenance() (map[string]vulnerability.DataProvenance, error) {
++	out := map[string]vulnerability.DataProvenance{}
++	if dpr, ok := p.upstream.(vulnerability.StoreMetadataProvider); ok {
++		dps, err := dpr.DataProvenance()
++		if err != nil {
++			return nil, err
++		}
++		for k, v := range dps {
++			out[k] = v
++		}
++	}
++	for eco, captured := range p.engine.Provenance() {
++		out[Provider+"/"+eco] = vulnerability.DataProvenance{DateCaptured: captured}
++	}
++	return out, nil
++}
++
++func (p *provider) GetOperatingSystemEOL(d *distro.Distro) (eolDate, eoasDate *time.Time, err error) {
++	if d != nil {
++		if eco := ecosystemForDistro(d.Type); eco != "" {
++			return p.engine.EOL(releaseOf(*d)), nil, nil
++		}
++	}
++	if checker, ok := p.upstream.(vulnerability.EOLChecker); ok {
++		return checker.GetOperatingSystemEOL(d)
++	}
++	return nil, nil, nil
++}
+diff --git a/grype/vulnerability/vendordb/provider_test.go b/grype/vulnerability/vendordb/provider_test.go
+new file mode 100644
+index 0000000..f4ccee1
+--- /dev/null
++++ b/grype/vulnerability/vendordb/provider_test.go
+@@ -0,0 +1,406 @@
++package vendordb
++
++import (
++	"context"
++	"errors"
++	"strings"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/match"
++	"github.com/bell-sw/osv-internal/osvdata"
++
++	"github.com/anchore/grype/grype/distro"
++	"github.com/anchore/grype/grype/pkg"
++	"github.com/anchore/grype/grype/search"
++	"github.com/anchore/grype/grype/version"
++	"github.com/anchore/grype/grype/vulnerability"
++	"github.com/anchore/grype/grype/vulnerability/mock"
++	"github.com/anchore/grype/grype/vulnerability/vendordb/vendordbtest"
++	syftPkg "github.com/anchore/syft/syft/pkg"
++)
++
++func apkLess(a, b string) bool {
++	// enough for the fixtures below: compare "-rN" releases of the same upstream version, else lexical
++	ai := strings.LastIndex(a, "-r")
++	bi := strings.LastIndex(b, "-r")
++	if ai > 0 && bi > 0 && a[:ai] == b[:bi] {
++		return len(a[ai:]) < len(b[bi:]) || (len(a[ai:]) == len(b[bi:]) && a[ai:] < b[bi:])
++	}
++	return a < b
++}
++
++func rangeOf(introduced, fixed string) func(string) bool {
++	return func(v string) bool {
++		if introduced != "" && introduced != "0" && apkLess(v, introduced) {
++			return false
++		}
++		if fixed != "" && !apkLess(v, fixed) {
++			return false
++		}
++		return true
++	}
++}
++
++func expatAdvisory(introduced, fixed string) osvdata.Advisory {
++	return osvdata.Advisory{
++		ID:          "BELL-CVE-2025-59375",
++		CVE:         "CVE-2025-59375",
++		Introduced:  introduced,
++		Fixed:       fixed,
++		Severity:    "HIGH",
++		CVSSVersion: "3.1",
++		CVSSVector:  "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
++		CVSSScore:   7.5,
++		Details:     "libexpat before 2.7.2 has a signed integer overflow in big2_update_position",
++		References:  []osvdata.Reference{{Type: "ADVISORY", URL: "https://docs.bell-sw.com/security/cves/CVE-2025-59375"}},
++		SourceURL:   "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-59375.json",
++		Published:   time.Date(2025, 9, 15, 0, 0, 0, 0, time.UTC),
++	}
++}
++
++func newFixture() (*vendordbtest.Engine, vulnerability.Provider) {
++	engine := vendordbtest.New()
++	engine.Add(osvinternal.Ecosystem(EcosystemLinux, "stream"), "expat", expatAdvisory("2.4.9-r0", "2.7.2-r0"), rangeOf("2.4.9-r0", "2.7.2-r0"))
++	engine.Add(osvinternal.Ecosystem(EcosystemLinux, "23"), "expat", expatAdvisory("2.5.0-r0", "2.7.2-r0"), rangeOf("2.5.0-r0", "2.7.2-r0"))
++	engine.Add(osvinternal.Ecosystem(EcosystemHardened, "stream"), "expat", expatAdvisory("2.4.9-r0", "2.7.2-r0"), rangeOf("2.4.9-r0", "2.7.2-r0"))
++	engine.Add(osvinternal.Ecosystem(EcosystemLinux, "23"), "openjdk21-lite", osvdata.Advisory{
++		ID: "BELL-CVE-2025-30754", CVE: "CVE-2025-30754", Introduced: "0", Fixed: "21.0.8_p12-r0", Severity: "MEDIUM",
++		CVSSVector: "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N", CVSSScore: 4.8,
++	}, func(v string) bool { return strings.HasPrefix(v, "21.0.2") })
++	engine.Add(osvinternal.Ecosystem(EcosystemLinux, "stream"), "zlib", osvdata.Advisory{
++		ID: "BELL-CVE-2026-1000", CVE: "CVE-2026-1000", Introduced: "1.3.1-r0", Severity: "LOW",
++	}, func(v string) bool { return true })
++	engine.Add(osvinternal.Ecosystem(EcosystemJDK, "21"), "jdk", osvdata.Advisory{
++		ID: "BELL-CVE-2025-24855", CVE: "CVE-2025-24855", Introduced: "21.0.1+12", Fixed: "21.0.8+12", Severity: "HIGH",
++		CVSSVector: "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H", CVSSScore: 7.8,
++	}, func(v string) bool { return v == "21.0.2+14" })
++
++	nvd := vulnerability.Vulnerability{
++		Reference: vulnerability.Reference{ID: "CVE-2025-59375", Namespace: "nvd:cpe", Internal: vulnerability.Metadata{
++			ID: "CVE-2025-59375", Namespace: "nvd:cpe", Severity: "High",
++			Cvss: []vulnerability.Cvss{{Source: "nvd@nist.gov", Type: "Primary", Version: "3.1", Vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H", Metrics: vulnerability.CvssMetrics{BaseScore: 7.5}}},
++			EPSS: []vulnerability.EPSS{{CVE: "CVE-2025-59375", EPSS: 0.001, Percentile: 0.2}},
++		}},
++		PackageName: "libexpat",
++	}
++	alpine := vulnerability.Vulnerability{
++		Reference:   vulnerability.Reference{ID: "CVE-2024-0727", Namespace: "alpine:distro:alpine:3.18"},
++		PackageName: "openssl",
++		Constraint:  version.MustGetConstraint("< 3.1.4-r5", version.ApkFormat),
++	}
++	upstream := mock.VulnerabilityProvider(nvd, alpine)
++	return engine, Wrap(upstream, engine)
++}
++
++func TestProvider_DistroNameQuery(t *testing.T) {
++	engine, p := newFixture()
++	linux23 := distro.New(distro.VendorLinux, "23", "")
++
++	// the apk matcher resolves jdk21-lite-jdk-no-deps to the feed name openjdk21-lite and searches it like an
++	// origin package: a distro + name query lists the advisories keyed on that name
++	vulns, err := p.FindVulnerabilities(search.ByDistro(*linux23), search.ByPackageName("openjdk21-lite"))
++	require.NoError(t, err)
++	require.Len(t, vulns, 1)
++	v := vulns[0]
++	assert.Equal(t, "CVE-2025-30754", v.ID, "the CVE is the vulnerability id")
++	assert.Equal(t, DistroNamespace(linux23, "23"), v.Namespace)
++	assert.Equal(t, "openjdk21-lite", v.PackageName)
++	assert.Equal(t, vulnerability.FixStateFixed, v.Fix.State)
++	assert.Equal(t, []string{"21.0.8_p12-r0"}, v.Fix.Versions)
++	require.Len(t, v.Advisories, 1)
++	assert.Equal(t, "BELL-CVE-2025-30754", v.Advisories[0].ID)
++	require.Len(t, v.RelatedVulnerabilities, 1)
++	assert.Equal(t, "BELL-CVE-2025-30754", v.RelatedVulnerabilities[0].ID, "the BELL id is kept as a related id")
++	require.NotNil(t, v.Metadata)
++	assert.Equal(t, "Medium", v.Metadata.Severity)
++	assert.Equal(t, "< 21.0.8_p12-r0 (apk)", v.Constraint.String())
++	assert.Contains(t, engine.Calls, "advisories "+osvinternal.Ecosystem(EcosystemLinux, "23")+" openjdk21-lite")
++
++	// the version check is delegated to the module's apk range evaluation
++	vulnerable, err := v.Constraint.Satisfied(version.New("21.0.2_p14-r1", version.ApkFormat))
++	require.NoError(t, err)
++	assert.True(t, vulnerable)
++	vulnerable, err = v.Constraint.Satisfied(version.New("21.0.8_p12-r0", version.ApkFormat))
++	require.NoError(t, err)
++	assert.False(t, vulnerable)
++
++	// names the feed does not know yield nothing (the apk matcher then tries the provided names)
++	vulns, err = p.FindVulnerabilities(search.ByDistro(*linux23), search.ByPackageName("jdk21-lite-jdk-no-deps"))
++	require.NoError(t, err)
++	assert.Empty(t, vulns)
++
++	// the distro criteria of grype's own search layer accept the namespace
++	ok, _, err := search.ByDistro(*linux23).MatchesVulnerability(v)
++	require.NoError(t, err)
++	assert.True(t, ok)
++}
++
++func TestProvider_FamiliesAreIsolated(t *testing.T) {
++	_, p := newFixture()
++	hardened := distro.New(distro.VendorHardened, "stream", "")
++
++	vulns, err := p.FindVulnerabilities(search.ByDistro(*hardened), search.ByPackageName("expat"))
++	require.NoError(t, err)
++	require.Len(t, vulns, 1)
++	assert.Equal(t, DistroNamespace(hardened, "stream"), vulns[0].Namespace)
++
++	// a release outside the feed yields nothing (never the other release's ranges)
++	linux25 := distro.New(distro.VendorLinux, "25", "")
++	vulns, err = p.FindVulnerabilities(search.ByDistro(*linux25), search.ByPackageName("expat"))
++	require.NoError(t, err)
++	assert.Empty(t, vulns)
++}
++
++func TestProvider_NameQueryUsesModuleEvaluation(t *testing.T) {
++	_, p := newFixture()
++	stream := distro.New(distro.VendorLinux, "stream", "")
++
++	// a bare name search (what grype's NVD de-duplication does) lists every advisory of the feed name
++	vulns, err := p.FindVulnerabilities(search.ByPackageName("expat"), search.ByDistro(*stream))
++	require.NoError(t, err)
++	require.Len(t, vulns, 1)
++	v := vulns[0]
++	assert.Equal(t, ">= 2.4.9-r0, < 2.7.2-r0 (apk)", v.Constraint.String())
++
++	vulnerable, err := v.Constraint.Satisfied(version.New("2.6.0-r0", version.ApkFormat))
++	require.NoError(t, err)
++	assert.True(t, vulnerable)
++	vulnerable, err = v.Constraint.Satisfied(version.New("2.7.2-r0", version.ApkFormat))
++	require.NoError(t, err)
++	assert.False(t, vulnerable)
++
++	// a version criteria is honoured as an in-memory filter
++	vulns, err = p.FindVulnerabilities(search.ByPackageName("expat"), search.ByDistro(*stream), search.ByVersion(*version.New("2.7.2-r0", version.ApkFormat)))
++	require.NoError(t, err)
++	assert.Empty(t, vulns)
++
++	// unfixed ranges are reported with an empty fix
++	vulns, err = p.FindVulnerabilities(search.ByPackageName("zlib"), search.ByDistro(*stream))
++	require.NoError(t, err)
++	require.Len(t, vulns, 1)
++	assert.Equal(t, vulnerability.FixStateNotFixed, vulns[0].Fix.State)
++	assert.Empty(t, vulns[0].Fix.Versions)
++	assert.Equal(t, ">= 1.3.1-r0 (apk)", vulns[0].Constraint.String())
++}
++
++func TestProvider_UnaffectedAndIDCriteria(t *testing.T) {
++	_, p := newFixture()
++	stream := distro.New(distro.VendorLinux, "stream", "")
++
++	vulns, err := p.FindVulnerabilities(search.ByPackageName("expat"), search.ByDistro(*stream), search.ForUnaffected())
++	require.NoError(t, err)
++	assert.Empty(t, vulns, "the feed carries no NAK records")
++
++	vulns, err = p.FindVulnerabilities(search.ByPackageName("expat"), search.ByDistro(*stream), search.ByID("BELL-CVE-2025-59375"))
++	require.NoError(t, err)
++	assert.Len(t, vulns, 1, "the BELL id selects the record")
++
++	vulns, err = p.FindVulnerabilities(search.ByPackageName("expat"), search.ByDistro(*stream), search.ByID("CVE-2000-0001"))
++	require.NoError(t, err)
++	assert.Empty(t, vulns)
++}
++
++func TestProvider_RuntimeQuery(t *testing.T) {
++	engine, p := newFixture()
++	jdk := pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java,
++		Metadata: pkg.JavaVMInstallationMetadata{Release: pkg.JavaVMReleaseMetadata{JavaVersion: "21"}}}
++
++	vulns, err := p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, syftPkg.VendorJdkPkg), search.ByPackageName("jdk"), ByRuntime(jdk))
++	require.NoError(t, err)
++	require.Len(t, vulns, 1)
++	v := vulns[0]
++	assert.Equal(t, "CVE-2025-24855", v.ID)
++	assert.Equal(t, RuntimeNamespace(osvinternal.Ecosystem(EcosystemJDK, "21")), v.Namespace)
++	assert.Equal(t, []string{"21.0.8+12"}, v.Fix.Versions, "fixed versions in product notation")
++	assert.Equal(t, ">= 21.0.1+12, < 21.0.8+12 (jvm)", v.Constraint.String())
++	assert.Equal(t, "High", v.Metadata.Severity)
++	assert.Contains(t, engine.Calls, "runtime "+osvinternal.Ecosystem(EcosystemJDK, "21")+" jdk@21.0.2+14")
++
++	// another version of the same runtime is evaluated by the module, not by grype
++	vulnerable, err := v.Constraint.Satisfied(version.New("21.0.9+10", version.JVMFormat))
++	require.NoError(t, err)
++	assert.False(t, vulnerable)
++
++	// the generic java ecosystem never reaches the runtime data
++	vulns, err = p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, syftPkg.JavaPkg), search.ByPackageName("jdk"))
++	require.NoError(t, err)
++	assert.Empty(t, vulns)
++}
++
++func TestProvider_NIKQuery(t *testing.T) {
++	engine, p := newFixture()
++	engine.Add(osvinternal.Ecosystem(EcosystemNIK, "23-21"), "core", osvdata.Advisory{
++		ID: "BELL-CVE-2025-23165", CVE: "CVE-2025-23165", Introduced: "0", Fixed: "23.1.8", Severity: "HIGH",
++	}, func(v string) bool { return v == "23.1.0+1" })
++	nik := pkg.Package{Name: "core", Version: "23.1.0+1", Type: syftPkg.VendorNikPkg, Language: syftPkg.Java,
++		Metadata: pkg.JavaVMInstallationMetadata{Release: pkg.JavaVMReleaseMetadata{JavaVersion: "21"}}}
++
++	vulns, err := p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, syftPkg.VendorNikPkg), search.ByPackageName("core"), ByRuntime(nik))
++	require.NoError(t, err)
++	require.Len(t, vulns, 1)
++	assert.Equal(t, "CVE-2025-23165", vulns[0].ID)
++	assert.Equal(t, RuntimeNamespace(osvinternal.Ecosystem(EcosystemNIK, "23-21")), vulns[0].Namespace)
++	assert.Equal(t, []string{"23.1.8"}, vulns[0].Fix.Versions)
++	assert.Contains(t, engine.Calls, "runtime "+osvinternal.Ecosystem(EcosystemNIK, "23-21")+" core@23.1.0+1")
++}
++
++func TestJavaMajor(t *testing.T) {
++	assert.Equal(t, 21, javaMajor("21"))
++	assert.Equal(t, 21, javaMajor("21.0.2"))
++	assert.Equal(t, 8, javaMajor("1.8.0_402"))
++	assert.Equal(t, 17, javaMajor("17.0.10"))
++	assert.Equal(t, 21, javaMajor("21+37"))
++	assert.Equal(t, 0, javaMajor(""))
++}
++
++// The ecosystem of a runtime package is the module's (vendorjdk.Runtime.Ecosystem), for both product families.
++func TestRuntimeEcosystem(t *testing.T) {
++	nikMeta := func(javaVersion, runtimeVersion string) pkg.JavaVMInstallationMetadata {
++		return pkg.JavaVMInstallationMetadata{Release: pkg.JavaVMReleaseMetadata{JavaVersion: javaVersion, JavaRuntimeVersion: runtimeVersion}}
++	}
++	tests := []struct {
++		name string
++		p    pkg.Package
++		want string
++	}{
++		{"jdk 21", pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: syftPkg.VendorJdkPkg}, osvinternal.Ecosystem(EcosystemJDK, "21")},
++		{"jre 8", pkg.Package{Name: "jre", Version: "8u402+7", Type: syftPkg.VendorJdkPkg}, osvinternal.Ecosystem(EcosystemJDK, "8")},
++		{"jdk GA", pkg.Package{Name: "jdk-lite", Version: "21+37", Type: syftPkg.VendorJdkPkg}, osvinternal.Ecosystem(EcosystemJDK, "21")},
++		{"jdk CSPU", pkg.Package{Name: "jdk", Version: "21.0.12.1+1", Type: syftPkg.VendorJdkPkg}, osvinternal.Ecosystem(EcosystemJDK, "21")},
++		{"jdk 8 CSPU", pkg.Package{Name: "jdk", Version: "8u504+1", Type: syftPkg.VendorJdkPkg}, osvinternal.Ecosystem(EcosystemJDK, "8")},
++		{"jdk bad version", pkg.Package{Name: "jdk", Version: "unknown", Type: syftPkg.VendorJdkPkg}, ""},
++		{"nik core", pkg.Package{Name: "core", Version: "23.1.0+1", Type: syftPkg.VendorNikPkg, Metadata: nikMeta("21+37", "")}, osvinternal.Ecosystem(EcosystemNIK, "23-21")},
++		{"nik from runtime version", pkg.Package{Name: "full", Version: "24.0.1+1", Type: syftPkg.VendorNikPkg, Metadata: nikMeta("", "22.0.1+10")}, osvinternal.Ecosystem(EcosystemNIK, "24-22")},
++		{"nik without java line", pkg.Package{Name: "core", Version: "23.1.0+1", Type: syftPkg.VendorNikPkg}, ""},
++		{"other type", pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: syftPkg.BinaryPkg}, ""},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			assert.Equal(t, tt.want, RuntimeEcosystem(tt.p))
++		})
++	}
++}
++
++// A runtime whose ecosystem cannot be determined is not matched (and the engine is not asked).
++func TestProvider_RuntimeWithoutEcosystem(t *testing.T) {
++	engine, p := newFixture()
++	nik := pkg.Package{Name: "core", Version: "23.1.0+1", Type: syftPkg.VendorNikPkg, Language: syftPkg.Java}
++	vulns, err := p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, syftPkg.VendorNikPkg), search.ByPackageName("core"), ByRuntime(nik))
++	require.NoError(t, err)
++	assert.Empty(t, vulns)
++	assert.Empty(t, engine.Calls)
++}
++
++func TestProvider_UpstreamUntouched(t *testing.T) {
++	engine, p := newFixture()
++	alpine := distro.New(distro.Alpine, "3.18", "")
++
++	vulns, err := p.FindVulnerabilities(search.ByPackageName("openssl"), search.ByDistro(*alpine))
++	require.NoError(t, err)
++	require.Len(t, vulns, 1)
++	assert.Equal(t, "CVE-2024-0727", vulns[0].ID)
++	assert.Equal(t, "alpine:distro:alpine:3.18", vulns[0].Namespace)
++	assert.Empty(t, engine.Calls, "no vendor query for another distro")
++
++	// OR criteria mixing both worlds are routed per branch
++	stream := distro.New(distro.VendorLinux, "stream", "")
++	vulns, err = p.FindVulnerabilities(search.ByPackageName("expat"), search.Or(search.ByDistro(*alpine), search.ByDistro(*stream)))
++	require.NoError(t, err)
++	require.Len(t, vulns, 1)
++	assert.Equal(t, DistroNamespace(stream, "stream"), vulns[0].Namespace)
++}
++
++func TestProvider_MetadataEnrichedFromNVD(t *testing.T) {
++	_, p := newFixture()
++	stream := distro.New(distro.VendorLinux, "stream", "")
++	vulns, err := p.FindVulnerabilities(search.ByPackageName("expat"), search.ByDistro(*stream))
++	require.NoError(t, err)
++	require.Len(t, vulns, 1)
++	m := vulns[0].Metadata
++	require.NotNil(t, m)
++	assert.Equal(t, "CVE-2025-59375", m.ID)
++	assert.Equal(t, "High", m.Severity)
++	assert.Equal(t, "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-59375.json", m.DataSource)
++	assert.Contains(t, m.URLs, "https://docs.bell-sw.com/security/cves/CVE-2025-59375")
++	assert.Contains(t, m.URLs, "https://osv.dev/vulnerability/BELL-CVE-2025-59375")
++	require.Len(t, m.Cvss, 2, "vendor vector plus NVD")
++	assert.Equal(t, osvinternal.Vendor, m.Cvss[0].Source)
++	assert.Equal(t, 7.5, m.Cvss[0].Metrics.BaseScore)
++	assert.Equal(t, "nvd@nist.gov", m.Cvss[1].Source)
++	require.Len(t, m.EPSS, 1)
++	assert.Equal(t, 0.001, m.EPSS[0].EPSS)
++	assert.Contains(t, m.Description, "libexpat")
++
++	// deprecated lookup path still answers for our namespaces
++	meta, err := p.VulnerabilityMetadata(vulnerability.Reference{ID: "CVE-2025-59375", Namespace: DistroNamespace(stream, "stream")})
++	require.NoError(t, err)
++	assert.Equal(t, "High", meta.Severity)
++}
++
++func TestProvider_EOLAndProvenance(t *testing.T) {
++	_, p := newFixture()
++	checker := p.(vulnerability.EOLChecker)
++	eol, _, err := checker.GetOperatingSystemEOL(distro.New(distro.VendorLinux, "23", ""))
++	require.NoError(t, err)
++	require.NotNil(t, eol)
++	assert.Equal(t, 2026, eol.Year())
++	eol, _, err = checker.GetOperatingSystemEOL(distro.New(distro.VendorLinux, "stream", ""))
++	require.NoError(t, err)
++	assert.Nil(t, eol, "stream never reaches end of life")
++
++	dps, err := p.(vulnerability.StoreMetadataProvider).DataProvenance()
++	require.NoError(t, err)
++	_, ok := dps[Provider+"/"+EcosystemLinux]
++	assert.True(t, ok)
++}
++
++func TestReleaseOf(t *testing.T) {
++	assert.Equal(t, "stream", releaseOf(*distro.New(distro.VendorLinux, "stream", "")))
++	assert.Equal(t, "23", releaseOf(*distro.New(distro.VendorLinux, "23", "")))
++	assert.Equal(t, "stream", releaseOf(*distro.NewFromNameVersion(string(distro.VendorLinux), "stream")), "a --distro hint keeps the label")
++	assert.Equal(t, "25", releaseOf(*distro.NewFromNameVersion(string(distro.VendorHardened), "25")))
++}
++
++type failingEngine struct {
++	vendordbtest.Engine
++	err error
++}
++
++func (f *failingEngine) APKFindings(context.Context, string, string, match.Package) ([]match.Finding, error) {
++	return nil, f.err
++}
++
++func (f *failingEngine) Advisories(context.Context, string, string, string) ([]osvdata.Advisory, error) {
++	return nil, f.err
++}
++
++func (f *failingEngine) RuntimeFindings(context.Context, string, string, string) ([]match.Finding, error) {
++	return nil, f.err
++}
++
++// An engine error (strict mode: a missing or failed archive) wraps ErrSourceUnavailable.
++func TestProvider_SourceErrorsAreMarked(t *testing.T) {
++	cause := errors.New("OSV archive is not cached and updates are disabled")
++	p := Wrap(mock.VulnerabilityProvider(), &failingEngine{err: cause})
++	stream := distro.New(distro.VendorLinux, "stream", "")
++
++	_, err := p.FindVulnerabilities(search.ByPackageName("expat"), search.ByDistro(*stream))
++	require.Error(t, err)
++	assert.ErrorIs(t, err, ErrSourceUnavailable)
++	assert.ErrorIs(t, err, cause)
++
++	jdk := pkg.Package{Name: "jdk", Version: "21.0.2+14", Type: syftPkg.VendorJdkPkg}
++	_, err = p.FindVulnerabilities(search.ByEcosystem(syftPkg.Java, syftPkg.VendorJdkPkg), search.ByPackageName("jdk"), ByRuntime(jdk))
++	require.Error(t, err)
++	assert.ErrorIs(t, err, ErrSourceUnavailable)
++
++	// other distros are unaffected
++	vulns, err := p.FindVulnerabilities(search.ByPackageName("openssl"), search.ByDistro(*distro.New(distro.Alpine, "3.18", "")))
++	require.NoError(t, err)
++	assert.Empty(t, vulns)
++}
+diff --git a/grype/vulnerability/vendordb/vendordbtest/engine.go b/grype/vulnerability/vendordb/vendordbtest/engine.go
+new file mode 100644
+index 0000000..0b1d5ad
+--- /dev/null
++++ b/grype/vulnerability/vendordb/vendordbtest/engine.go
+@@ -0,0 +1,150 @@
++/*
++Package vendordbtest provides an in-memory Engine for unit tests of the adapter and the matchers: findings are
++served from static tables keyed by (ecosystem, feed name), with a minimal version check
++so that tests can exercise grype's constraint plumbing without the real module data.
++*/
++package vendordbtest
++
++import (
++	"context"
++	"fmt"
++	"strings"
++	"time"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/match"
++	"github.com/bell-sw/osv-internal/osvdata"
++)
++
++// Entry is one feed entry of the fake: an advisory for a package under an ecosystem with a version predicate.
++type Entry struct {
++	Advisory osvdata.Advisory
++	// Affected decides whether an installed version is inside the advisory's range.
++	Affected func(version string) bool
++}
++
++// Engine is a static vendordb.Engine.
++type Engine struct {
++	// Entries by full ecosystem ("<family>:23", "<family>:21") then feed name ("openjdk21-lite", "jdk").
++	Entries map[string]map[string][]Entry
++	// Calls records every query, for assertions.
++	Calls []string
++}
++
++func New() *Engine {
++	return &Engine{Entries: map[string]map[string][]Entry{}}
++}
++
++// Add registers an entry.
++func (e *Engine) Add(ecosystem, feedName string, a osvdata.Advisory, affected func(version string) bool) {
++	if e.Entries[ecosystem] == nil {
++		e.Entries[ecosystem] = map[string][]Entry{}
++	}
++	a.Ecosystem = ecosystem
++	a.Package = feedName
++	if a.CVE == "" {
++		a.CVE = a.ID
++	}
++	e.Entries[ecosystem][feedName] = append(e.Entries[ecosystem][feedName], Entry{Advisory: a, Affected: affected})
++}
++
++// candidates mirrors the module's resolution order: origin, provided names, provided names minus the sub-package
++// suffix; the first name known to the feed wins.
++func candidates(p match.Package) []string {
++	origin := p.Origin
++	if origin == "" {
++		origin = p.Name
++	}
++	names := []string{origin}
++	suffix := ""
++	if strings.HasPrefix(p.Name, origin) {
++		suffix = strings.TrimPrefix(p.Name, origin)
++	}
++	var stripped []string
++	for _, pv := range p.Provides {
++		if strings.Contains(pv, ":") || strings.HasPrefix(pv, "/") {
++			continue
++		}
++		if i := strings.IndexAny(pv, "=<>~"); i > 0 {
++			pv = pv[:i]
++		}
++		names = append(names, pv)
++		if suffix != "" && strings.HasSuffix(pv, suffix) {
++			stripped = append(stripped, strings.TrimSuffix(pv, suffix))
++		}
++	}
++	return append(names, stripped...)
++}
++
++func (e *Engine) APKFindings(_ context.Context, family, release string, p match.Package) ([]match.Finding, error) {
++	eco := osvinternal.Ecosystem(family, release)
++	e.Calls = append(e.Calls, fmt.Sprintf("apk %s %s@%s", eco, p.Name, p.Version))
++	byName := e.Entries[eco]
++	for _, name := range candidates(p) {
++		entries, ok := byName[name]
++		if !ok {
++			continue
++		}
++		var out []match.Finding
++		for _, en := range entries {
++			if en.Affected != nil && !en.Affected(p.Version) {
++				continue
++			}
++			out = append(out, match.Finding{
++				Advisory:         en.Advisory,
++				Ecosystem:        eco,
++				MatchedName:      name,
++				InstalledVersion: p.Version,
++				FixedVersion:     en.Advisory.Fixed,
++				Unfixed:          en.Advisory.Fixed == "",
++			})
++		}
++		return out, nil
++	}
++	return nil, nil
++}
++
++func (e *Engine) RuntimeFindings(_ context.Context, ecosystem, pkgName, version string) ([]match.Finding, error) {
++	e.Calls = append(e.Calls, fmt.Sprintf("runtime %s %s@%s", ecosystem, pkgName, version))
++	var out []match.Finding
++	for _, en := range e.Entries[ecosystem][pkgName] {
++		if en.Affected != nil && !en.Affected(version) {
++			continue
++		}
++		out = append(out, match.Finding{
++			Advisory:         en.Advisory,
++			Ecosystem:        ecosystem,
++			MatchedName:      pkgName,
++			InstalledVersion: version,
++			FixedVersion:     en.Advisory.Fixed,
++			Unfixed:          en.Advisory.Fixed == "",
++		})
++	}
++	return out, nil
++}
++
++func (e *Engine) Advisories(_ context.Context, family, release, feedName string) ([]osvdata.Advisory, error) {
++	eco := osvinternal.Ecosystem(family, release)
++	e.Calls = append(e.Calls, fmt.Sprintf("advisories %s %s", eco, feedName))
++	var out []osvdata.Advisory
++	for _, en := range e.Entries[eco][feedName] {
++		out = append(out, en.Advisory)
++	}
++	return out, nil
++}
++
++func (e *Engine) EOL(release string) *time.Time {
++	switch release {
++	case "23":
++		t := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
++		return &t
++	case "25":
++		t := time.Date(2031, 12, 31, 0, 0, 0, 0, time.UTC)
++		return &t
++	}
++	return nil
++}
++
++func (e *Engine) Provenance() map[string]time.Time {
++	return map[string]time.Time{osvinternal.EcosystemLinux: time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)}
++}
+diff --git a/internal/dbtest/builder.go b/internal/dbtest/builder.go
+index d7eaed1..f3587a5 100644
+--- a/internal/dbtest/builder.go
++++ b/internal/dbtest/builder.go
+@@ -102,6 +102,14 @@ func SharedDBs(t *testing.T, fixtureName string) *Builder {
+ 	}
+ }
+ 
++// WithFixtureDir replaces the fixture directory with one the test derived from the on-disk fixture (a rewritten
++// copy); the database built from it is cached below the test's temporary directory, not in testdata/cache.
++func (b *Builder) WithFixtureDir(dir string) *Builder {
++	b.fixtureDir = dir
++	b.cacheDir = filepath.Join(b.t.TempDir(), "cache")
++	return b
++}
++
+ // SelectOnly specifies patterns to filter which vulnerability records are included in the built database.
+ // This enables creating focused test databases from larger fixtures.
+ //
+-- 
+2.55.0
+

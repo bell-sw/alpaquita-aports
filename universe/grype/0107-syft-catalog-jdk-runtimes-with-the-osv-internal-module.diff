@@ -1,0 +1,1525 @@
+From 9d878c5d7625ecd5f4c3e9117c7d0bea4600c283 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 20:08:46 +0000
+Subject: [PATCH] feat(java): catalog the vendor's JDK and NIK runtimes with
+ the osv-internal module
+
+Local (vendor-specific) change, applied after the upstream series.
+
+Add the java-vendor-jdk-cataloger, which identifies standalone vendor
+runtimes with the shared github.com/bell-sw/osv-internal detector and
+reports them with the identity of the prototype OSV ecosystems:
+
+* JDK/JRE: package type VendorJdkPkg (the module's purl name), name =
+  variant (jdk, jre, jdk-lite, ...), version in product notation
+  (21.0.2+14, 8u402+7), purl
+  pkg:generic/<namespace>/<jdk name>@<v>?package_type=<variant>, ecosystem
+  "<JDK family>:<major>";
+* Native Image Kit: package type VendorNikPkg, name = bundle (core,
+  standard, full), version 23.1.0+1, purl
+  pkg:generic/<namespace>/<nik name>@<v>?package_type=<bundle>, ecosystem
+  "<NIK family>:<nik major>-<java major>" (the bundled Java version is kept
+  in the JavaVMInstallation metadata).
+
+Detection is anchored on the JVM library of Linux, macOS and Windows
+layouts (libjvm.so, libjvm.dylib, jvm.dll; names compared
+case-insensitively) with a release-file fallback; other vendors are never
+reported. Runtimes under /usr/lib/jvm on the vendor distributions are apk
+packages and are left to the apk ecosystem. The packages carry no CPE.
+
+The module-free java-binary-vendor-jdk / java-binary-vendor-nik
+classifiers of the upstream series are superseded and removed from the
+default classifier set. The guards of the generic java classifiers and of
+the JVM release cataloger now ask the module's detector
+(vendorjdk.IsRuntimeHome), so the cataloger and the guards cannot disagree
+about a runtime; jvmvendor only locates the runtime home. Both types are
+excluded by file-ownership overlap.
+
+The release type the module derives from a JDK version (psu, cpu, cspu) is
+exposed as "vendor-release-type=<type>" in the buildInfo field of the JVM
+release metadata.
+
+The tests build their runtimes with the module's testfix package; no
+fixture is kept on disk.
+
+go.mod requires github.com/bell-sw/osv-internal v0.5.0 (private; the build
+replaces the import path with the module source installed by the
+osv-internal package, see the APKBUILD).
+---
+ go.mod                                        |   1 +
+ ...lude_binaries_by_file_ownership_overlap.go |   2 +
+ internal/task/package_tasks.go                |   1 +
+ syft/pkg/cataloger/binary/classifiers_java.go |  56 +--
+ .../binary/classifiers_java_vendorjdk_test.go |  64 ++--
+ .../internal/cpegenerate/generate.go          |   6 +
+ .../cataloger/internal/vendorjdk/distro.go    |   7 +
+ .../internal/vendorjdk/resolverfs.go          | 281 +++++++++++++++
+ .../cataloger/internal/vendorjdk/vendorjdk.go | 131 +++++++
+ syft/pkg/cataloger/java/capabilities.yaml     |  42 +++
+ syft/pkg/cataloger/java/jvm_vendorjdk_test.go |  25 +-
+ syft/pkg/cataloger/java/parse_jvm_release.go  |  10 +-
+ .../pkg/cataloger/java/vendorjdk_cataloger.go | 206 +++++++++++
+ .../java/vendorjdk_cataloger_test.go          | 330 ++++++++++++++++++
+ syft/pkg/type.go                              |  21 ++
+ syft/pkg/type_test.go                         |  12 +
+ 16 files changed, 1088 insertions(+), 107 deletions(-)
+ create mode 100644 syft/pkg/cataloger/internal/vendorjdk/distro.go
+ create mode 100644 syft/pkg/cataloger/internal/vendorjdk/resolverfs.go
+ create mode 100644 syft/pkg/cataloger/internal/vendorjdk/vendorjdk.go
+ create mode 100644 syft/pkg/cataloger/java/vendorjdk_cataloger.go
+ create mode 100644 syft/pkg/cataloger/java/vendorjdk_cataloger_test.go
+
+diff --git a/go.mod b/go.mod
+index 9fdcdff..3293c6c 100644
+--- a/go.mod
++++ b/go.mod
+@@ -151,6 +151,7 @@ require (
+ 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
+ 	github.com/bahlo/generic-list-go v0.2.0 // indirect
+ 	github.com/becheran/wildmatch-go v1.0.0 // indirect
++	github.com/bell-sw/osv-internal v0.5.0
+ 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
+ 	github.com/bodgit/plumbing v1.3.0 // indirect
+ 	github.com/bodgit/sevenzip v1.6.1 // indirect
+diff --git a/internal/relationship/exclude_binaries_by_file_ownership_overlap.go b/internal/relationship/exclude_binaries_by_file_ownership_overlap.go
+index ee7c977..9fc3d5a 100644
+--- a/internal/relationship/exclude_binaries_by_file_ownership_overlap.go
++++ b/internal/relationship/exclude_binaries_by_file_ownership_overlap.go
+@@ -21,6 +21,8 @@ var (
+ 	}
+ 	binaryCatalogerTypes = []pkg.Type{
+ 		pkg.BinaryPkg,
++		pkg.VendorJdkPkg, // a runtime found from its binaries; an OS package owning its files is authoritative
++		pkg.VendorNikPkg,
+ 	}
+ 	bitnamiCatalogerTypes = []pkg.Type{
+ 		pkg.BitnamiPkg,
+diff --git a/internal/task/package_tasks.go b/internal/task/package_tasks.go
+index 12e1242..71fae3a 100644
+--- a/internal/task/package_tasks.go
++++ b/internal/task/package_tasks.go
+@@ -165,6 +165,7 @@ func DefaultPackageTaskFactories() Factories {
+ 		newSimplePackageTaskFactory(githubactions.NewActionUsageCataloger, pkgcataloging.DeclaredTag, pkgcataloging.DirectoryTag, "github", "github-actions"),
+ 		newSimplePackageTaskFactory(githubactions.NewWorkflowUsageCataloger, pkgcataloging.DeclaredTag, pkgcataloging.DirectoryTag, "github", "github-actions"),
+ 		newSimplePackageTaskFactory(java.NewJvmDistributionCataloger, pkgcataloging.DeclaredTag, pkgcataloging.DirectoryTag, pkgcataloging.InstalledTag, pkgcataloging.ImageTag, "java", "jvm", "jdk", "jre"),
++		newSimplePackageTaskFactory(java.NewVendorJDKCataloger, pkgcataloging.DeclaredTag, pkgcataloging.DirectoryTag, pkgcataloging.InstalledTag, pkgcataloging.ImageTag, "java", "jvm", "jdk", "jre", "vendor-jdk"),
+ 		newPackageTaskFactory(
+ 			func(cfg CatalogingFactoryConfig) pkg.Cataloger {
+ 				return kernel.NewLinuxKernelCataloger(cfg.PackagesConfig.LinuxKernel)
+diff --git a/syft/pkg/cataloger/binary/classifiers_java.go b/syft/pkg/cataloger/binary/classifiers_java.go
+index 8c9e4bc..fada344 100644
+--- a/syft/pkg/cataloger/binary/classifiers_java.go
++++ b/syft/pkg/cataloger/binary/classifiers_java.go
+@@ -5,6 +5,7 @@ import (
+ 	"github.com/anchore/syft/syft/pkg"
+ 	"github.com/anchore/syft/syft/pkg/cataloger/internal/binutils"
+ 	"github.com/anchore/syft/syft/pkg/cataloger/internal/jvmvendor"
++	"github.com/anchore/syft/syft/pkg/cataloger/internal/vendorjdk"
+ )
+ 
+ //nolint:funlen
+@@ -12,26 +13,8 @@ func defaultJavaClassifiers() []binutils.Classifier {
+ 	m := binutils.ContextualEvidenceMatchers{CatalogerName: catalogerName}
+ 
+ 	return []binutils.Classifier{
+-		{
+-			// The vendor's JDK/JRE, identified from the JVM library: its java.vm.vendor constant and the
+-			// HotSpot banner "... JRE (21.0.2+14-LTS), built on ...". The launcher holds the version but not the vendor, so
+-			// the generic java-binary classes below defer to this one (see notVendorRuntime). No CPE: NVD has no entry for
+-			// the vendor's runtime and oracle:openjdk would make every CVE show up twice. A GraalVM-based runtime is NIK, next entry.
+-			Class:           "java-binary-vendor-jdk",
+-			FileGlob:        jvmvendor.JVMLibraryGlob,
+-			EvidenceMatcher: vendorRuntimeMatcher(false),
+-			Package:         "liberica-jdk",
+-			PURL:            mustPURL("pkg:generic/bellsoft/liberica-jdk@version"),
+-		},
+-		{
+-			// The vendor's Native Image Kit: a vendor runtime with GraalVM markers (GRAALVM_VERSION in release,
+-			// lib/svm/, bin/native-image); the version is the java.vendor.version "Liberica-NIK-23.1.0-1" (-> 23.1.0+1).
+-			Class:           "java-binary-vendor-nik",
+-			FileGlob:        jvmvendor.JVMLibraryGlob,
+-			EvidenceMatcher: vendorRuntimeMatcher(true),
+-			Package:         "liberica-nik",
+-			PURL:            mustPURL("pkg:generic/bellsoft/liberica-nik@version"),
+-		},
++		// The vendor's runtimes are catalogued by the java-vendor-jdk-cataloger; the generic java-binary classes
++		// below defer to it for the same runtime (see notVendorRuntime).
+ 		{
+ 			Class:    "java-binary",
+ 			FileGlob: "**/java",
+@@ -217,37 +200,12 @@ func defaultJavaClassifiers() []binutils.Classifier {
+ 	}
+ }
+ 
+-// vendorRuntimeMatcher classifies the runtime a JVM library belongs to when it is the vendor's: a JDK/JRE
+-// (version from the HotSpot banner) or, with nik set, a Native Image Kit (version from the vendor version).
+-func vendorRuntimeMatcher(nik bool) binutils.EvidenceMatcher {
+-	return func(classifier binutils.Classifier, context binutils.MatcherContext) ([]pkg.Package, error) {
+-		home := jvmvendor.RuntimeHome(context.Resolver, context.Location.RealPath)
+-		if home == "" {
+-			return nil, nil
+-		}
+-		rt := jvmvendor.Inspect(context.Resolver, home)
+-		if rt.Vendor != jvmvendor.Vendor || rt.NIK != nik {
+-			return nil, nil
+-		}
+-		version := rt.Version
+-		if nik {
+-			version = rt.NIKVersion
+-		}
+-		if version == "" {
+-			return nil, nil
+-		}
+-		p := binutils.NewClassifierPackage(classifier, context.Location, map[string]string{"version": version}, catalogerName)
+-		if p == nil {
+-			return nil, nil
+-		}
+-		return []pkg.Package{*p}, nil
+-	}
+-}
+-
+ // notVendorRuntime succeeds (with no packages) unless the launcher being classified belongs to a vendor
+-// runtime, which the java-binary-vendor-jdk/-nik classifiers report from the JVM library instead.
++// runtime, which the java-vendor-jdk-cataloger reports instead. The verdict is the shared detector's, the same the
++// cataloger uses, so the two cannot disagree; jvmvendor only locates the runtime home.
+ func notVendorRuntime(_ binutils.Classifier, context binutils.MatcherContext) ([]pkg.Package, error) {
+-	if jvmvendor.IsVendorRuntime(context.Resolver, context.Location.RealPath) {
++	home := jvmvendor.RuntimeHome(context.Resolver, context.Location.RealPath)
++	if home != "" && vendorjdk.IsRuntimeHome(context.Resolver, home) {
+ 		return nil, nil
+ 	}
+ 	return []pkg.Package{}, nil
+diff --git a/syft/pkg/cataloger/binary/classifiers_java_vendorjdk_test.go b/syft/pkg/cataloger/binary/classifiers_java_vendorjdk_test.go
+index 315fb50..8487b31 100644
+--- a/syft/pkg/cataloger/binary/classifiers_java_vendorjdk_test.go
++++ b/syft/pkg/cataloger/binary/classifiers_java_vendorjdk_test.go
+@@ -2,59 +2,44 @@ package binary
+ 
+ import (
+ 	"context"
+-	"strings"
+ 	"testing"
+ 
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/require"
+ 
++	"github.com/bell-sw/osv-internal/testfix"
++
+ 	"github.com/anchore/syft/syft/pkg"
+ 	"github.com/anchore/syft/syft/source"
+ 	"github.com/anchore/syft/syft/source/directorysource"
+ )
+ 
+-// A vendor runtime is classified once, from libjvm.so, with the vendor purl and no (Oracle) CPE; the
+-// generic java-binary classes do not emit a second package for its launcher. Other vendors are untouched.
++// The vendor's runtimes are catalogued by the java-vendor-jdk-cataloger; the binary classifiers emit nothing for
++// them. Other vendors are untouched.
+ func TestVendorJDKClassifier(t *testing.T) {
+ 	tests := []struct {
+-		fixture  string
++		name     string
++		runtime  testfix.Runtime
+ 		wantPkgs []string // "name@version"
+ 		wantPURL string
+ 	}{
++		{name: "jdk 21", runtime: testfix.Runtime{Home: "usr/lib/jvm/jdk-21.0.2-x86_64", Version: "21.0.2+14-LTS", JDK: true}},
++		{name: "jdk 8", runtime: testfix.Runtime{Home: "opt/jdk8u402", Version: "1.8.0_402-b07", JDK: true, Java8: true}},
++		{name: "nik 23", runtime: testfix.Runtime{Home: "opt/nik-core-openjdk21-23.1.0", Version: "21+37-LTS", JDK: true, NIK: "23.1.0+1"}},
++		{name: "jdk 21 on macOS", runtime: testfix.Runtime{Home: "Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk", Version: "21.0.2+14-LTS", JDK: true, OS: "darwin"}},
++		{name: "jdk 21 on Windows", runtime: testfix.Runtime{Home: "Program Files/Java/jdk-21.0.2", Version: "21.0.2+14-LTS", JDK: true, OS: "windows"}},
+ 		{
+-			fixture:  "test-fixtures/vendorjdk/jdk-21",
+-			wantPkgs: []string{"liberica-jdk@21.0.2+14-LTS"},
+-			wantPURL: "pkg:generic/bellsoft/liberica-jdk@21.0.2%2B14-LTS",
+-		},
+-		{
+-			fixture:  "test-fixtures/vendorjdk/jdk-8",
+-			wantPkgs: []string{"liberica-jdk@1.8.0_402-b07"},
+-			wantPURL: "pkg:generic/bellsoft/liberica-jdk@1.8.0_402-b07",
+-		},
+-		{
+-			fixture:  "test-fixtures/vendorjdk/nik-23",
+-			wantPkgs: []string{"liberica-nik@23.1.0+1"},
+-			wantPURL: "pkg:generic/bellsoft/liberica-nik@23.1.0%2B1",
+-		},
+-		{
+-			fixture:  "test-fixtures/vendorjdk/macos-21",
+-			wantPkgs: []string{"liberica-jdk@21.0.2+14-LTS"},
+-			wantPURL: "pkg:generic/bellsoft/liberica-jdk@21.0.2%2B14-LTS",
+-		},
+-		{
+-			fixture:  "test-fixtures/vendorjdk/windows-21",
+-			wantPkgs: []string{"liberica-jdk@21.0.2+14-LTS"},
+-			wantPURL: "pkg:generic/bellsoft/liberica-jdk@21.0.2%2B14-LTS",
+-		},
+-		{
+-			fixture:  "test-fixtures/vendorjdk/zulu-21",
++			name:     "zulu 21 (another vendor)",
++			runtime:  testfix.Runtime{Home: "usr/lib/jvm/zulu21-ca-amd64", Version: "21.0.2+13-LTS", JDK: true, Vendor: "Azul Systems, Inc."},
+ 			wantPkgs: []string{"zulu@21.0.2+13-LTS"},
+ 			wantPURL: "pkg:generic/azul/zulu@21.0.2%2B13-LTS",
+ 		},
+ 	}
+ 	for _, tt := range tests {
+-		t.Run(tt.fixture, func(t *testing.T) {
+-			src, err := directorysource.NewFromPath(tt.fixture)
++		t.Run(tt.name, func(t *testing.T) {
++			dir := t.TempDir()
++			testfix.Write(t, dir, tt.runtime)
++			src, err := directorysource.NewFromPath(dir)
+ 			require.NoError(t, err)
+ 			resolver, err := src.FileResolver(source.SquashedScope)
+ 			require.NoError(t, err)
+@@ -68,23 +53,16 @@ func TestVendorJDKClassifier(t *testing.T) {
+ 				got = append(got, p.Name+"@"+p.Version)
+ 			}
+ 			require.Equal(t, tt.wantPkgs, got, "one runtime, one package")
++			if len(packages) == 0 {
++				return
++			}
+ 			p := packages[0]
+ 			assert.Equal(t, pkg.BinaryPkg, p.Type)
+ 			assert.Equal(t, tt.wantPURL, p.PURL)
++			require.NotEmpty(t, p.CPEs, "another vendor keeps its CPEs")
+ 			for _, c := range p.CPEs {
+ 				assert.NotContains(t, c.Attributes.BindToFmtString(), "oracle:openjdk", "no generic OpenJDK CPE")
+ 			}
+-			if strings.HasPrefix(p.Name, "liberica") {
+-				assert.Empty(t, p.CPEs, "no CPE is declared for the vendor runtime (none exists in the NVD dictionary)")
+-				md, ok := p.Metadata.(pkg.BinarySignature)
+-				require.True(t, ok)
+-				require.NotEmpty(t, md.Matches)
+-				assert.True(t, strings.HasPrefix(md.Matches[0].Classifier, "java-binary-vendor-"), md.Matches[0].Classifier)
+-				lib := md.Matches[0].Location.RealPath
+-				assert.True(t, strings.HasSuffix(lib, "/libjvm.so") || strings.HasSuffix(lib, "/libjvm.dylib") || strings.HasSuffix(lib, "/jvm.dll"), lib)
+-			} else {
+-				require.NotEmpty(t, p.CPEs, "zulu keeps its CPEs")
+-			}
+ 		})
+ 	}
+ }
+diff --git a/syft/pkg/cataloger/internal/cpegenerate/generate.go b/syft/pkg/cataloger/internal/cpegenerate/generate.go
+index 44f3606..1464229 100644
+--- a/syft/pkg/cataloger/internal/cpegenerate/generate.go
++++ b/syft/pkg/cataloger/internal/cpegenerate/generate.go
+@@ -145,6 +145,12 @@ func FromPackageAttributes(p pkg.Package) []cpe.CPE {
+ 		return nil
+ 	}
+ 
++	// no CPE for a standalone vendor runtime: it is matched by purl against the vendor's advisories, and a
++	// generic oracle:openjdk CPE would make SBOM consumers report every CVE twice
++	if p.Type == pkg.VendorJdkPkg || p.Type == pkg.VendorNikPkg {
++		return nil
++	}
++
+ 	vendors := candidateVendors(p)
+ 	products := candidateProducts(p)
+ 	targetSWs := candidateTargetSw(p)
+diff --git a/syft/pkg/cataloger/internal/vendorjdk/distro.go b/syft/pkg/cataloger/internal/vendorjdk/distro.go
+new file mode 100644
+index 0000000..af67b89
+--- /dev/null
++++ b/syft/pkg/cataloger/internal/vendorjdk/distro.go
+@@ -0,0 +1,7 @@
++package vendorjdk
++
++import bsdistro "github.com/bell-sw/osv-internal/distro"
++
++func isVendorDistro(id string) bool {
++	return bsdistro.IsVendor(id)
++}
+diff --git a/syft/pkg/cataloger/internal/vendorjdk/resolverfs.go b/syft/pkg/cataloger/internal/vendorjdk/resolverfs.go
+new file mode 100644
+index 0000000..af763fc
+--- /dev/null
++++ b/syft/pkg/cataloger/internal/vendorjdk/resolverfs.go
+@@ -0,0 +1,281 @@
++/*
++Package vendorjdk is the glue between syft's file.Resolver and the runtime detector of the shared osv-internal module
++(github.com/bell-sw/osv-internal/vendorjdk): it adapts a resolver to the io/fs.FS the detector reads, caches verdicts
++per runtime home, and carries the "apk-managed runtime" rule of the vendor distributions.
++*/
++package vendorjdk
++
++import (
++	"errors"
++	"io"
++	"io/fs"
++	"path"
++	"sort"
++	"strings"
++	"time"
++
++	"github.com/anchore/syft/syft/file"
++	"github.com/anchore/syft/syft/internal/unionreader"
++)
++
++// FS adapts a file.Resolver to io/fs.FS (plus StatFS, ReadDirFS and ReadFileFS). Names are in fs.FS notation
++// ("opt/jdk-21.0.2/release"); they are looked up as absolute resolver paths.
++type FS struct {
++	Resolver file.Resolver
++}
++
++var (
++	_ fs.FS         = (*FS)(nil)
++	_ fs.StatFS     = (*FS)(nil)
++	_ fs.ReadDirFS  = (*FS)(nil)
++	_ fs.ReadFileFS = (*FS)(nil)
++)
++
++// NewFS wraps a resolver.
++func NewFS(resolver file.Resolver) *FS {
++	return &FS{Resolver: resolver}
++}
++
++// ToFSName converts a resolver path to fs.FS notation.
++func ToFSName(p string) string {
++	p = path.Clean("/" + p)
++	if p == "/" {
++		return "."
++	}
++	return strings.TrimPrefix(p, "/")
++}
++
++// ToResolverPath converts an fs.FS name to the absolute path resolvers use.
++func ToResolverPath(name string) string {
++	if name == "." || name == "" {
++		return "/"
++	}
++	return "/" + strings.TrimPrefix(name, "/")
++}
++
++func (f *FS) location(name string) (*file.Location, error) {
++	if !fs.ValidPath(name) {
++		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
++	}
++	locs, err := f.Resolver.FilesByPath(ToResolverPath(name))
++	if err != nil {
++		return nil, &fs.PathError{Op: "open", Path: name, Err: err}
++	}
++	if len(locs) == 0 {
++		return nil, nil
++	}
++	return &locs[0], nil
++}
++
++func (f *FS) Open(name string) (fs.File, error) {
++	loc, err := f.location(name)
++	if err != nil {
++		return nil, err
++	}
++	if loc == nil {
++		if f.Resolver.HasPath(ToResolverPath(name)) || name == "." {
++			return &dirFile{fsys: f, name: name}, nil
++		}
++		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
++	}
++	meta, err := f.Resolver.FileMetadataByLocation(*loc)
++	if err != nil {
++		return nil, &fs.PathError{Op: "open", Path: name, Err: err}
++	}
++	rc, err := f.Resolver.FileContentsByLocation(*loc)
++	if err != nil {
++		return nil, &fs.PathError{Op: "open", Path: name, Err: err}
++	}
++	return &resolverFile{name: name, rc: rc, info: fileInfo{name: path.Base(name), meta: meta}}, nil
++}
++
++func (f *FS) Stat(name string) (fs.FileInfo, error) {
++	loc, err := f.location(name)
++	if err != nil {
++		return nil, err
++	}
++	if loc == nil {
++		if f.Resolver.HasPath(ToResolverPath(name)) || name == "." {
++			return dirInfo{name: path.Base(name)}, nil
++		}
++		return nil, &fs.PathError{Op: "stat", Path: name, Err: fs.ErrNotExist}
++	}
++	meta, err := f.Resolver.FileMetadataByLocation(*loc)
++	if err != nil {
++		return nil, &fs.PathError{Op: "stat", Path: name, Err: err}
++	}
++	return fileInfo{name: path.Base(name), meta: meta}, nil
++}
++
++func (f *FS) ReadFile(name string) ([]byte, error) {
++	fh, err := f.Open(name)
++	if err != nil {
++		return nil, err
++	}
++	defer fh.Close()
++	return io.ReadAll(fh)
++}
++
++// ReadDir lists the immediate children of a directory: files from the resolver plus directories derived from the
++// paths below them (resolvers index files only).
++func (f *FS) ReadDir(name string) ([]fs.DirEntry, error) {
++	if !fs.ValidPath(name) {
++		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrInvalid}
++	}
++	base := ToResolverPath(name)
++	if base != "/" && !f.Resolver.HasPath(base) {
++		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrNotExist}
++	}
++	locs, err := f.Resolver.FilesByGlob(path.Join(base, "**"))
++	if err != nil {
++		return nil, &fs.PathError{Op: "readdir", Path: name, Err: err}
++	}
++	prefix := strings.TrimSuffix(base, "/") + "/"
++	seen := map[string]fs.DirEntry{}
++	for _, loc := range locs {
++		// directory sources report paths relative to the scanned root, images absolute ones
++		real := "/" + strings.TrimPrefix(loc.RealPath, "/")
++		rel := strings.TrimPrefix(real, prefix)
++		if rel == real || rel == "" {
++			continue
++		}
++		child, rest, isDir := strings.Cut(rel, "/")
++		if _, ok := seen[child]; ok {
++			continue
++		}
++		if isDir && rest != "" {
++			seen[child] = dirInfo{name: child}
++			continue
++		}
++		meta, err := f.Resolver.FileMetadataByLocation(loc)
++		if err != nil {
++			continue
++		}
++		seen[child] = fs.FileInfoToDirEntry(fileInfo{name: child, meta: meta})
++	}
++	var out []fs.DirEntry
++	for _, e := range seen {
++		out = append(out, e)
++	}
++	sort.Slice(out, func(i, j int) bool { return out[i].Name() < out[j].Name() })
++	return out, nil
++}
++
++type resolverFile struct {
++	name string
++	rc   io.ReadCloser
++	info fileInfo
++	ra   unionreader.UnionReader
++}
++
++func (r *resolverFile) Read(p []byte) (int, error) {
++	if r.ra != nil {
++		return r.ra.Read(p)
++	}
++	return r.rc.Read(p)
++}
++
++// ReadAt is served through a union reader (seekable when the resolver supports it, buffered otherwise).
++func (r *resolverFile) ReadAt(p []byte, off int64) (int, error) {
++	if r.ra == nil {
++		ur, err := unionreader.GetUnionReader(r.rc)
++		if err != nil {
++			return 0, err
++		}
++		r.ra = ur
++	}
++	return r.ra.ReadAt(p, off)
++}
++
++func (r *resolverFile) Seek(offset int64, whence int) (int64, error) {
++	if r.ra == nil {
++		ur, err := unionreader.GetUnionReader(r.rc)
++		if err != nil {
++			return 0, err
++		}
++		r.ra = ur
++	}
++	return r.ra.Seek(offset, whence)
++}
++
++func (r *resolverFile) Stat() (fs.FileInfo, error) { return r.info, nil }
++
++func (r *resolverFile) Close() error {
++	if r.ra != nil {
++		return r.ra.Close()
++	}
++	return r.rc.Close()
++}
++
++type fileInfo struct {
++	name string
++	meta file.Metadata
++}
++
++func (i fileInfo) Name() string { return i.name }
++func (i fileInfo) Size() int64 {
++	if i.meta.FileInfo != nil {
++		return i.meta.Size()
++	}
++	return 0
++}
++func (i fileInfo) Mode() fs.FileMode {
++	if i.meta.FileInfo != nil {
++		return i.meta.Mode()
++	}
++	return 0o644
++}
++func (i fileInfo) ModTime() time.Time {
++	if i.meta.FileInfo != nil {
++		return i.meta.ModTime()
++	}
++	return time.Time{}
++}
++func (i fileInfo) IsDir() bool { return false }
++func (i fileInfo) Sys() any    { return nil }
++
++type dirInfo struct{ name string }
++
++func (d dirInfo) Name() string               { return d.name }
++func (d dirInfo) Size() int64                { return 0 }
++func (d dirInfo) Mode() fs.FileMode          { return fs.ModeDir | 0o755 }
++func (d dirInfo) ModTime() time.Time         { return time.Time{} }
++func (d dirInfo) IsDir() bool                { return true }
++func (d dirInfo) Sys() any                   { return nil }
++func (d dirInfo) Type() fs.FileMode          { return fs.ModeDir }
++func (d dirInfo) Info() (fs.FileInfo, error) { return d, nil }
++
++type dirFile struct {
++	fsys    *FS
++	name    string
++	entries []fs.DirEntry
++	offset  int
++}
++
++func (d *dirFile) Read([]byte) (int, error) {
++	return 0, &fs.PathError{Op: "read", Path: d.name, Err: errors.New("is a directory")}
++}
++func (d *dirFile) Stat() (fs.FileInfo, error) { return dirInfo{name: path.Base(d.name)}, nil }
++func (d *dirFile) Close() error               { return nil }
++func (d *dirFile) ReadDir(n int) ([]fs.DirEntry, error) {
++	if d.entries == nil {
++		entries, err := d.fsys.ReadDir(d.name)
++		if err != nil {
++			return nil, err
++		}
++		d.entries = entries
++	}
++	rest := d.entries[d.offset:]
++	if n <= 0 {
++		d.offset = len(d.entries)
++		return rest, nil
++	}
++	if len(rest) == 0 {
++		return nil, io.EOF
++	}
++	if n > len(rest) {
++		n = len(rest)
++	}
++	d.offset += n
++	return rest[:n], nil
++}
+diff --git a/syft/pkg/cataloger/internal/vendorjdk/vendorjdk.go b/syft/pkg/cataloger/internal/vendorjdk/vendorjdk.go
+new file mode 100644
+index 0000000..acc05b1
+--- /dev/null
++++ b/syft/pkg/cataloger/internal/vendorjdk/vendorjdk.go
+@@ -0,0 +1,131 @@
++package vendorjdk
++
++import (
++	"fmt"
++	"path"
++	"sort"
++	"sync"
++
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
++	"github.com/anchore/syft/internal/log"
++	"github.com/anchore/syft/syft/file"
++	"github.com/anchore/syft/syft/linux"
++)
++
++// Runtime is the module's detection result.
++type Runtime = osvjdk.Runtime
++
++// Vendor is the module's vendor string (re-exported for the catalogers).
++const Vendor = osvjdk.Vendor
++
++type probeKey struct {
++	resolver string
++	home     string
++}
++
++var (
++	probeCache   = map[probeKey]*Runtime{}
++	probeCacheMu sync.Mutex
++)
++
++func cacheKey(resolver file.Resolver, home string) probeKey {
++	return probeKey{resolver: fmt.Sprintf("%p", resolver), home: home}
++}
++
++// ProbeHome runs the module's detector on a runtime home (resolver path or fs.FS name) and caches the verdict per
++// resolver and home. It returns nil for runtimes of other vendors and non-runtimes; a NIK is returned with
++// IsNIK set.
++func ProbeHome(resolver file.Resolver, home string) (*Runtime, error) {
++	name := ToFSName(home)
++	key := cacheKey(resolver, name)
++	probeCacheMu.Lock()
++	rt, ok := probeCache[key]
++	probeCacheMu.Unlock()
++	if ok {
++		return rt, nil
++	}
++	rt, err := osvjdk.DetectHome(NewFS(resolver), name)
++	if err != nil {
++		return nil, err
++	}
++	probeCacheMu.Lock()
++	probeCache[key] = rt
++	probeCacheMu.Unlock()
++	return rt, nil
++}
++
++// Detect runs the module's detector anchored on a libjvm.so location and caches the verdict by the runtime home.
++func Detect(resolver file.Resolver, libjvm file.Location) (*Runtime, error) {
++	name := ToFSName(libjvm.RealPath)
++	home, ok := osvjdk.HomeOf(name)
++	if ok {
++		probeCacheMu.Lock()
++		rt, cached := probeCache[cacheKey(resolver, home)]
++		probeCacheMu.Unlock()
++		if cached {
++			return rt, nil
++		}
++	}
++	rt, err := osvjdk.Detect(NewFS(resolver), name)
++	if err != nil {
++		return nil, err
++	}
++	if rt != nil {
++		home = rt.Home
++		ok = true
++	}
++	if ok {
++		probeCacheMu.Lock()
++		probeCache[cacheKey(resolver, home)] = rt
++		probeCacheMu.Unlock()
++	}
++	return rt, nil
++}
++
++// IsRuntimeHome reports whether the runtime rooted at home (resolver path) is a vendor runtime, so that
++// the generic JVM catalogers can leave it to the vendor JDK cataloger.
++func IsRuntimeHome(resolver file.Resolver, home string) bool {
++	rt, err := ProbeHome(resolver, home)
++	if err != nil {
++		log.WithFields("home", home, "error", err).Debug("unable to probe JVM home for a vendor runtime")
++		return false
++	}
++	return rt != nil
++}
++
++// HomeFromPath returns the runtime home (resolver path) a candidate file belongs to, by layout; "" when the path is
++// not a runtime candidate (libjvm.so, release, rt.jar, bin/java...).
++func HomeFromPath(p string) string {
++	home, ok := osvjdk.HomeOf(ToFSName(p))
++	if !ok {
++		return ""
++	}
++	return ToResolverPath(home)
++}
++
++// ManagedByAPK reports whether a runtime home must be left to the apk ecosystem: the vendor distributions
++// install their runtimes under /usr/lib/jvm as apk packages.
++func ManagedByAPK(release *linux.Release, home string) bool {
++	if release == nil {
++		return false
++	}
++	if !osvjdk.ManagedByAPK(ToFSName(home)) {
++		return false
++	}
++	return isVendorDistro(release.ID)
++}
++
++// OwnedFiles lists every file below a runtime home (resolver paths), for file-ownership relationships.
++func OwnedFiles(resolver file.Resolver, home string) []string {
++	locs, err := resolver.FilesByGlob(path.Join(ToResolverPath(home), "**"))
++	if err != nil {
++		log.WithFields("home", home, "error", err).Trace("unable to list runtime files")
++	}
++	var out []string
++	for _, loc := range locs {
++		out = append(out, loc.RealPath)
++	}
++	sort.Strings(out)
++	return out
++}
+diff --git a/syft/pkg/cataloger/java/capabilities.yaml b/syft/pkg/cataloger/java/capabilities.yaml
+index 06c5526..7df68a5 100644
+--- a/syft/pkg/cataloger/java/capabilities.yaml
++++ b/syft/pkg/cataloger/java/capabilities.yaml
+@@ -244,6 +244,48 @@ catalogers:
+             default: false
+           - name: package_manager.package_integrity_hash
+             default: false
++  - ecosystem: java # MANUAL
++    name: java-vendor-jdk-cataloger # AUTO-GENERATED
++    type: custom # AUTO-GENERATED
++    source: # AUTO-GENERATED
++      file: syft/pkg/cataloger/java/vendorjdk_cataloger.go
++      function: NewVendorJDKCataloger
++    selectors: # AUTO-GENERATED
++      - declared
++      - directory
++      - image
++      - installed
++      - java
++      - jdk
++      - jre
++      - jvm
++      - liberica
++      - package
++    detectors: # MANUAL - edit detectors here
++      - method: glob
++        criteria:
++          - '**/libjvm.so'
++          - '**/release'
++        comment: a BellSoft Liberica JDK/JRE runtime, anchored on libjvm.so (vendor string and HotSpot banner) and corroborated by the release file or the rt.jar manifest
++    package_types: # AUTO-GENERATED
++      - liberica-jdk
++    capabilities: # MANUAL - edit capabilities here
++      - name: license
++        default: false
++      - name: dependency.depth
++        default: null
++      - name: dependency.edges
++        default: ""
++      - name: dependency.kinds
++        default: null
++      - name: package_manager.files.listing
++        default: true
++        evidence:
++          - JavaVMInstallation.Files
++      - name: package_manager.files.digests
++        default: false
++      - name: package_manager.package_integrity_hash
++        default: false
+   - ecosystem: java # MANUAL
+     name: graalvm-native-image-cataloger # AUTO-GENERATED
+     type: custom # AUTO-GENERATED
+diff --git a/syft/pkg/cataloger/java/jvm_vendorjdk_test.go b/syft/pkg/cataloger/java/jvm_vendorjdk_test.go
+index 9e1b379..90b49bb 100644
+--- a/syft/pkg/cataloger/java/jvm_vendorjdk_test.go
++++ b/syft/pkg/cataloger/java/jvm_vendorjdk_test.go
+@@ -7,25 +7,30 @@ import (
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/require"
+ 
++	"github.com/bell-sw/osv-internal/testfix"
++
+ 	"github.com/anchore/syft/syft/source"
+ 	"github.com/anchore/syft/syft/source/directorysource"
+ )
+ 
+-// The JVM release cataloger leaves the vendor's runtimes to the binary classifier (java-binary-vendor-jdk) so that
+-// the runtime is not reported a second time as a generic OpenJDK package; other vendors keep being catalogued.
+-func TestJvmDistributionCataloger_LeavesVendorRuntimesToTheClassifier(t *testing.T) {
++// The JVM release cataloger leaves the vendor's runtimes to the java-vendor-jdk-cataloger, so that a runtime is not
++// reported a second time as a generic OpenJDK package; other vendors keep being catalogued.
++func TestJvmDistributionCataloger_LeavesVendorRuntimesToTheVendorCataloger(t *testing.T) {
+ 	tests := []struct {
+-		fixture  string
++		name     string
++		runtime  testfix.Runtime
+ 		wantPkgs []string
+ 	}{
+-		{fixture: "../binary/test-fixtures/vendorjdk/jdk-21", wantPkgs: nil},
+-		{fixture: "../binary/test-fixtures/vendorjdk/jdk-8", wantPkgs: nil},
+-		{fixture: "../binary/test-fixtures/vendorjdk/nik-23", wantPkgs: nil},
+-		{fixture: "../binary/test-fixtures/vendorjdk/zulu-21", wantPkgs: []string{"zulu@21.0.2+13-LTS"}},
++		{name: "jdk 21", runtime: testfix.Runtime{Home: "usr/lib/jvm/jdk-21.0.2-x86_64", Version: "21.0.2+14-LTS", JDK: true}},
++		{name: "jdk 8", runtime: testfix.Runtime{Home: "opt/jdk8u402", Version: "1.8.0_402-b07", JDK: true, Java8: true}},
++		{name: "nik 23", runtime: testfix.Runtime{Home: "opt/nik-core-openjdk21-23.1.0", Version: "21+37-LTS", JDK: true, NIK: "23.1.0+1"}},
++		{name: "zulu 21", runtime: testfix.Runtime{Home: "usr/lib/jvm/zulu21-ca-amd64", Version: "21.0.2+13-LTS", JDK: true, Vendor: "Azul Systems, Inc."}, wantPkgs: []string{"zulu@21.0.2+13-LTS"}},
+ 	}
+ 	for _, tt := range tests {
+-		t.Run(tt.fixture, func(t *testing.T) {
+-			src, err := directorysource.NewFromPath(tt.fixture)
++		t.Run(tt.name, func(t *testing.T) {
++			dir := t.TempDir()
++			testfix.Write(t, dir, tt.runtime)
++			src, err := directorysource.NewFromPath(dir)
+ 			require.NoError(t, err)
+ 			resolver, err := src.FileResolver(source.SquashedScope)
+ 			require.NoError(t, err)
+diff --git a/syft/pkg/cataloger/java/parse_jvm_release.go b/syft/pkg/cataloger/java/parse_jvm_release.go
+index 2968b1e..17dc79c 100644
+--- a/syft/pkg/cataloger/java/parse_jvm_release.go
++++ b/syft/pkg/cataloger/java/parse_jvm_release.go
+@@ -19,7 +19,7 @@ import (
+ 	"github.com/anchore/syft/syft/file"
+ 	"github.com/anchore/syft/syft/pkg"
+ 	"github.com/anchore/syft/syft/pkg/cataloger/generic"
+-	"github.com/anchore/syft/syft/pkg/cataloger/internal/jvmvendor"
++	"github.com/anchore/syft/syft/pkg/cataloger/internal/vendorjdk"
+ )
+ 
+ const (
+@@ -84,10 +84,10 @@ func parseJVMRelease(_ context.Context, resolver file.Resolver, _ *generic.Envir
+ 
+ 	installDir := path.Dir(reader.Path())
+ 
+-	// The vendor's runtimes are classified from libjvm.so by the binary cataloger (java-binary-vendor-jdk); the
+-	// release file must not turn them into a second, generic OpenJDK package with an oracle:openjdk CPE
+-	if jvmvendor.Inspect(resolver, installDir).Vendor == jvmvendor.Vendor {
+-		log.WithFields("path", reader.Path()).Trace("JVM release belongs to a vendor runtime; left to the binary classifier")
++	// The vendor's runtimes are catalogued by the java-vendor-jdk-cataloger; the release file must not turn
++	// them into a second, generic OpenJDK package
++	if vendorjdk.IsRuntimeHome(resolver, installDir) {
++		log.WithFields("path", reader.Path()).Trace("JVM release belongs to a vendor runtime; left to the vendor JDK cataloger")
+ 		return nil, nil, nil
+ 	}
+ 
+diff --git a/syft/pkg/cataloger/java/vendorjdk_cataloger.go b/syft/pkg/cataloger/java/vendorjdk_cataloger.go
+new file mode 100644
+index 0000000..3d058c8
+--- /dev/null
++++ b/syft/pkg/cataloger/java/vendorjdk_cataloger.go
+@@ -0,0 +1,206 @@
++package java
++
++import (
++	"context"
++	"path"
++	"sort"
++	"strconv"
++	"strings"
++
++	"github.com/go-viper/mapstructure/v2"
++
++	"github.com/anchore/syft/internal/log"
++	"github.com/anchore/syft/syft/artifact"
++	"github.com/anchore/syft/syft/file"
++	"github.com/anchore/syft/syft/linux"
++	"github.com/anchore/syft/syft/pkg"
++	"github.com/anchore/syft/syft/pkg/cataloger/internal/vendorjdk"
++)
++
++const vendorJDKCatalogerName = "java-vendor-jdk-cataloger"
++
++// releaseTypeKey prefixes the release type in JavaVMRelease.BuildInfo: "vendor-release-type=cspu".
++const releaseTypeKey = "vendor-release-type"
++
++// anchorNames are the JVM libraries a runtime is identified from (Linux, macOS and Windows layouts) and
++// releaseName the release file of the fallback path. File names are compared case-insensitively: Windows
++// file systems are, and a runtime copied from one may carry JVM.DLL or RELEASE. syft's indexed globs are
++// case-sensitive, so the candidates are selected from the resolver's locations by lower-cased base name.
++var anchorNames = map[string]bool{"libjvm.so": true, "libjvm.dylib": true, "jvm.dll": true}
++
++const releaseName = "release"
++
++// runtimeCandidates returns the JVM library and release file locations of the source, each sorted by path.
++func runtimeCandidates(ctx context.Context, resolver file.Resolver) (libs, releases []file.Location) {
++	for loc := range resolver.AllLocations(ctx) {
++		switch base := strings.ToLower(path.Base(loc.RealPath)); {
++		case anchorNames[base]:
++			libs = append(libs, loc)
++		case base == releaseName:
++			releases = append(releases, loc)
++		}
++	}
++	sort.Slice(libs, func(i, j int) bool { return libs[i].RealPath < libs[j].RealPath })
++	sort.Slice(releases, func(i, j int) bool { return releases[i].RealPath < releases[j].RealPath })
++	return libs, releases
++}
++
++// NewVendorJDKCataloger returns a cataloger that reports standalone vendor runtimes with the identity of the shared
++// osv-internal module: JDK/JRE as pkg.VendorJdkPkg (purl pkg:generic/<namespace>/<jdk name>, name = variant,
++// version in product notation, ecosystem "<JDK family>:<major>") and the Native Image Kit as pkg.VendorNikPkg
++// (pkg:generic/<namespace>/<nik name>, name = bundle, ecosystem "<NIK family>:<nik major>-<java major>"); a NIK is
++// reported once, as NIK. Detection is the module's, anchored on the JVM library with the release file as fallback;
++// other vendors are left to the JVM release cataloger and the binary classifiers, and runtimes under /usr/lib/jvm on
++// the vendor distributions to apk. The packages carry no CPE (see cpegenerate).
++func NewVendorJDKCataloger() pkg.Cataloger {
++	return vendorJDKCataloger{}
++}
++
++type vendorJDKCataloger struct{}
++
++func (c vendorJDKCataloger) Name() string {
++	return vendorJDKCatalogerName
++}
++
++func (c vendorJDKCataloger) Catalog(ctx context.Context, resolver file.Resolver) ([]pkg.Package, []artifact.Relationship, error) {
++	release := linux.IdentifyRelease(resolver)
++
++	// anchor: every JVM library in the source
++	libs, releases := runtimeCandidates(ctx, resolver)
++
++	runtimes := map[string]*vendorjdk.Runtime{}
++	anchors := map[string]file.Location{}
++	for _, loc := range libs {
++		rt, err := vendorjdk.Detect(resolver, loc)
++		if err != nil {
++			log.WithFields("path", loc.RealPath, "error", err).Debug("unable to inspect JVM library")
++			continue
++		}
++		if rt == nil {
++			continue
++		}
++		if _, seen := runtimes[rt.Home]; seen {
++			continue
++		}
++		runtimes[rt.Home] = rt
++		anchors[rt.Home] = loc
++	}
++
++	// fallback: a release file declaring the vendor whose JVM library is unreadable or absent
++	for _, loc := range releases {
++		home := vendorjdk.ToFSName(path.Dir(loc.RealPath))
++		if _, seen := runtimes[home]; seen {
++			continue
++		}
++		rt, err := vendorjdk.ProbeHome(resolver, home)
++		if err != nil {
++			log.WithFields("home", home, "error", err).Debug("unable to inspect JVM home")
++			continue
++		}
++		if rt != nil {
++			runtimes[rt.Home] = rt
++		}
++	}
++
++	var homes []string
++	for home := range runtimes {
++		homes = append(homes, home)
++	}
++	sort.Strings(homes)
++
++	var pkgs []pkg.Package
++	for _, home := range homes {
++		rt := runtimes[home]
++		if vendorjdk.ManagedByAPK(release, home) {
++			log.WithFields("home", home, "distro", release.ID).Trace("vendor runtime is an apk package; left to the apk ecosystem")
++			continue
++		}
++		var anchor *file.Location
++		if loc, ok := anchors[home]; ok {
++			anchor = &loc
++		}
++		pkgs = append(pkgs, newRuntimePackage(resolver, rt, anchor))
++	}
++	return pkgs, nil, nil
++}
++
++func newRuntimePackage(resolver file.Resolver, rt *vendorjdk.Runtime, libjvm *file.Location) pkg.Package {
++	locations := file.NewLocationSet()
++	var releaseLoc *file.Location
++	if locs, err := resolver.FilesByPath(vendorjdk.ToResolverPath(path.Join(rt.Home, "release"))); err == nil && len(locs) > 0 {
++		releaseLoc = &locs[0]
++	}
++	if libjvm == nil && rt.LibJVM != "" {
++		if locs, err := resolver.FilesByPath(vendorjdk.ToResolverPath(rt.LibJVM)); err == nil && len(locs) > 0 {
++			libjvm = &locs[0]
++		}
++	}
++	switch {
++	case releaseLoc != nil && libjvm != nil:
++		locations.Add(releaseLoc.WithAnnotation(pkg.EvidenceAnnotationKey, pkg.PrimaryEvidenceAnnotation))
++		locations.Add(libjvm.WithAnnotation(pkg.EvidenceAnnotationKey, pkg.SupportingEvidenceAnnotation))
++	case releaseLoc != nil:
++		locations.Add(releaseLoc.WithAnnotation(pkg.EvidenceAnnotationKey, pkg.PrimaryEvidenceAnnotation))
++	case libjvm != nil:
++		locations.Add(libjvm.WithAnnotation(pkg.EvidenceAnnotationKey, pkg.PrimaryEvidenceAnnotation))
++	}
++
++	typ := pkg.VendorJdkPkg
++	if rt.IsNIK {
++		typ = pkg.VendorNikPkg
++	}
++	p := pkg.Package{
++		Name:      rt.Variant,
++		Version:   rt.Version,
++		Locations: locations,
++		Language:  pkg.Java,
++		Type:      typ,
++		PURL:      rt.PURL(),
++		Licenses:  pkg.NewLicenseSet(),
++		Metadata: pkg.JavaVMInstallation{
++			Release: runtimeReleaseInfo(rt),
++			Files:   vendorjdk.OwnedFiles(resolver, rt.Home),
++		},
++	}
++	p.SetID()
++	return p
++}
++
++func runtimeReleaseInfo(rt *vendorjdk.Runtime) pkg.JavaVMRelease {
++	data := make(map[string]any, len(rt.Release))
++	for k, v := range rt.Release {
++		data[k] = v
++	}
++	if mods, ok := rt.Release["MODULES"]; ok {
++		data["MODULES"] = splitFields(mods)
++	}
++	var ri pkg.JavaVMRelease
++	if err := mapstructure.Decode(data, &ri); err != nil {
++		log.WithFields("home", rt.Home, "error", err).Debug("unable to decode release info")
++	}
++	if ri.Implementor == "" {
++		ri.Implementor = rt.Vendor
++	}
++	if ri.JavaRuntimeVersion == "" {
++		ri.JavaRuntimeVersion = rt.Version
++	}
++	if ri.JavaVersion == "" || rt.IsNIK {
++		// the bundled Java line; consumers derive the "<NIK family>:<nik major>-<java major>" ecosystem from it
++		ri.JavaVersion = strconv.Itoa(rt.Major)
++		if rt.JavaVersion != "" {
++			ri.JavaVersion = rt.JavaVersion
++		}
++	}
++	if ri.BuildInfo == "" && !rt.IsNIK {
++		// the module's release type of a JDK update (psu, cpu, cspu); the release file has no field for it,
++		// so it is exposed through the otherwise unused BUILD_INFO slot of the JVM release metadata
++		if t := rt.ReleaseType.String(); t != "" && t != "unknown" {
++			ri.BuildInfo = releaseTypeKey + "=" + t
++		}
++	}
++	return ri
++}
++
++func splitFields(s string) []string {
++	return strings.Fields(s)
++}
+diff --git a/syft/pkg/cataloger/java/vendorjdk_cataloger_test.go b/syft/pkg/cataloger/java/vendorjdk_cataloger_test.go
+new file mode 100644
+index 0000000..ee8520d
+--- /dev/null
++++ b/syft/pkg/cataloger/java/vendorjdk_cataloger_test.go
+@@ -0,0 +1,330 @@
++package java_test
++
++import (
++	"context"
++	"strings"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	_ "modernc.org/sqlite" // the default cataloger set includes the rpm cataloger
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/testfix"
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
++	"github.com/anchore/syft/syft"
++	"github.com/anchore/syft/syft/pkg"
++	"github.com/anchore/syft/syft/sbom"
++	"github.com/anchore/syft/syft/source/directorysource"
++)
++
++// The runtimes of these tests are built by the module's testfix package.
++
++// catalog writes the files (paths relative to the root, forward slashes) and the runtimes into a temporary
++// directory and runs the full default cataloging pipeline over it (binary classifiers, JVM release cataloger, vendor
++// JDK cataloger, relationship exclusions, CPE generation).
++func catalog(t *testing.T, files map[string][]byte, runtimes ...testfix.Runtime) *sbom.SBOM {
++	t.Helper()
++	dir := t.TempDir()
++	testfix.WriteFiles(t, dir, files)
++	testfix.Write(t, dir, runtimes...)
++	src, err := directorysource.NewFromPath(dir)
++	require.NoError(t, err)
++	s, err := syft.CreateSBOM(context.Background(), src, syft.DefaultCreateSBOMConfig())
++	require.NoError(t, err)
++	return s
++}
++
++// upperCaseWindows returns the files of a Windows runtime with upper-case names below bin/ (BIN/SERVER/JVM.DLL,
++// BIN/JAVA.EXE), as installers sometimes leave them.
++func upperCaseWindows(rt testfix.Runtime) map[string][]byte {
++	out := map[string][]byte{}
++	for p, data := range rt.Files() {
++		if rel, ok := strings.CutPrefix(p, rt.Home+"/bin/"); ok {
++			p = rt.Home + "/BIN/" + strings.ToUpper(rel)
++		}
++		out[p] = data
++	}
++	return out
++}
++
++func packagesOfType(s *sbom.SBOM, t pkg.Type) []pkg.Package {
++	var out []pkg.Package
++	for p := range s.Artifacts.Packages.Enumerate(t) {
++		out = append(out, p)
++	}
++	return out
++}
++
++// runtimePackages drops the jar archives syft's java archive cataloger reports from inside a runtime (rt.jar of a
++// Java 8 install is cataloged as java-archive "rt", as for every other vendor); everything else describes the runtime.
++func runtimePackages(s *sbom.SBOM) []pkg.Package {
++	var out []pkg.Package
++	for _, p := range s.Artifacts.Packages.Sorted() {
++		if p.Type == pkg.JavaPkg {
++			continue
++		}
++		out = append(out, p)
++	}
++	return out
++}
++
++// underHome reports whether a resolver path lies below a runtime home (directory sources yield relative paths).
++func underHome(p, home string) bool {
++	return strings.HasPrefix(strings.TrimPrefix(p, "/"), strings.TrimPrefix(home, "/")+"/")
++}
++
++func describe(pkgs []pkg.Package) []string {
++	var out []string
++	for _, p := range pkgs {
++		out = append(out, string(p.Type)+":"+p.Name+"@"+p.Version+" purl="+p.PURL)
++	}
++	return out
++}
++
++var (
++	jdkPURLPrefix = "pkg:generic/" + osvjdk.PURLNamespace + "/" + osvjdk.PURLNameJDK + "@"
++	nikPURLPrefix = "pkg:generic/" + osvjdk.PURLNamespace + "/" + osvjdk.PURLNameNIK + "@"
++)
++
++// A vendor runtime is reported once, as the vendor's JDK (purl from the shared module, no generic CPE), and the
++// generic java classifiers / JVM release cataloger do not emit a second package for the same runtime.
++func TestVendorJDKCataloger_OneRuntimeOnePackage(t *testing.T) {
++	tests := []struct {
++		name        string
++		runtime     testfix.Runtime
++		files       map[string][]byte // instead of runtime
++		wantVariant string
++		wantVersion string
++		wantHome    string
++		wantRelease string
++	}{
++		{
++			name:        "jdk 21 (release IMPLEMENTOR + libjvm.so)",
++			runtime:     testfix.Runtime{Home: "usr/lib/jvm/jdk-21.0.2-x86_64", Version: "21.0.2+14-LTS", JDK: true},
++			wantVariant: osvjdk.VariantJDK,
++			wantVersion: "21.0.2+14",
++			wantHome:    "/usr/lib/jvm/jdk-21.0.2-x86_64",
++			wantRelease: "vendor-release-type=psu",
++		},
++		{
++			name:        "jdk 21 CSPU (four-component version passed through unchanged)",
++			runtime:     testfix.Runtime{Home: "opt/jdk-21.0.12.1", Version: "21.0.12.1+1-LTS", JDK: true},
++			wantVariant: osvjdk.VariantJDK,
++			wantVersion: "21.0.12.1+1",
++			wantHome:    "/opt/jdk-21.0.12.1",
++			wantRelease: "vendor-release-type=cspu",
++		},
++		{
++			name:        "jdk 8 (rt.jar manifest + libjvm.so, no IMPLEMENTOR)",
++			runtime:     testfix.Runtime{Home: "opt/jdk8u402", Version: "1.8.0_402-b07", JDK: true, Java8: true},
++			wantVariant: osvjdk.VariantJDK,
++			wantVersion: "8u402+7",
++			wantHome:    "/opt/jdk8u402",
++		},
++		{
++			name:        "jre 21 lite",
++			runtime:     testfix.Runtime{Home: "opt/jre-21.0.2-lite", Version: "21.0.2+14-LTS"},
++			wantVariant: osvjdk.VariantJRELite,
++			wantVersion: "21.0.2+14",
++			wantHome:    "/opt/jre-21.0.2-lite",
++		},
++		{
++			name:        "jdk 21 full",
++			runtime:     testfix.Runtime{Home: "opt/jdk-21.0.2-full", Version: "21.0.2+14-LTS", JDK: true, Full: true},
++			wantVariant: osvjdk.VariantJDKFull,
++			wantVersion: "21.0.2+14",
++			wantHome:    "/opt/jdk-21.0.2-full",
++		},
++		{
++			name:        "jdk 21 on macOS (libjvm.dylib in a .jdk bundle)",
++			runtime:     testfix.Runtime{Home: "Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk", Version: "21.0.2+14-LTS", JDK: true, OS: "darwin"},
++			wantVariant: osvjdk.VariantJDK,
++			wantVersion: "21.0.2+14",
++			wantHome:    "/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk",
++		},
++		{
++			name:        "jdk 21 on Windows (bin/server/jvm.dll)",
++			runtime:     testfix.Runtime{Home: "Program Files/Java/jdk-21.0.2", Version: "21.0.2+14-LTS", JDK: true, OS: "windows"},
++			wantVariant: osvjdk.VariantJDK,
++			wantVersion: "21.0.2+14",
++			wantHome:    "/Program Files/Java/jdk-21.0.2",
++		},
++		{
++			name:        "jdk 21 on Windows with upper-case file names (BIN/SERVER/JVM.DLL)",
++			files:       upperCaseWindows(testfix.Runtime{Home: "Program Files/Java/JDK-21.0.2", Version: "21.0.2+14-LTS", JDK: true, OS: "windows"}),
++			wantVariant: osvjdk.VariantJDK,
++			wantVersion: "21.0.2+14",
++			wantHome:    "/Program Files/Java/JDK-21.0.2",
++		},
++		{
++			name:        "jdk 21 from the release file alone",
++			runtime:     testfix.Runtime{Home: "opt/jdk-21.0.2", Version: "21.0.2+14-LTS", JDK: true, NoLibrary: true},
++			wantVariant: osvjdk.VariantJDK,
++			wantVersion: "21.0.2+14",
++			wantHome:    "/opt/jdk-21.0.2",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			var s *sbom.SBOM
++			if tt.files != nil {
++				s = catalog(t, tt.files)
++			} else {
++				s = catalog(t, nil, tt.runtime)
++			}
++			all := runtimePackages(s)
++			require.Len(t, all, 1, "exactly one package for one runtime: %v", describe(all))
++
++			p := all[0]
++			assert.Equal(t, pkg.VendorJdkPkg, p.Type)
++			assert.Equal(t, tt.wantVariant, p.Name)
++			assert.Equal(t, tt.wantVersion, p.Version)
++			assert.Equal(t, osvjdk.PURL(tt.wantVariant, tt.wantVersion), p.PURL)
++			assert.True(t, strings.HasPrefix(p.PURL, jdkPURLPrefix), p.PURL)
++			assert.Contains(t, p.PURL, "package_type="+tt.wantVariant)
++			assert.Empty(t, p.CPEs, "a vendor runtime must not carry a generic (oracle:openjdk) or generated CPE")
++			assert.Equal(t, pkg.Java, p.Language)
++			assert.Equal(t, "java-vendor-jdk-cataloger", p.FoundBy)
++
++			md, ok := p.Metadata.(pkg.JavaVMInstallation)
++			require.True(t, ok, "metadata type %T", p.Metadata)
++			assert.Equal(t, osvjdk.Vendor, md.Release.Implementor)
++			if tt.wantRelease != "" {
++				assert.Equal(t, tt.wantRelease, md.Release.BuildInfo)
++			}
++			assert.NotEmpty(t, md.Files)
++			for _, loc := range p.Locations.ToSlice() {
++				assert.True(t, underHome(loc.RealPath, tt.wantHome), loc.RealPath)
++			}
++			for _, f := range md.Files {
++				assert.True(t, underHome(f, tt.wantHome), f)
++			}
++		})
++	}
++}
++
++// Other vendors keep today's behaviour: Zulu is reported by the generic catalogers with its own CPEs and never as the
++// vendor's JDK.
++func TestVendorJDKCataloger_OtherVendorsUntouched(t *testing.T) {
++	s := catalog(t, nil, testfix.Runtime{Home: "usr/lib/jvm/zulu21-ca-amd64", Version: "21.0.2+13-LTS", JDK: true, Vendor: "Azul Systems, Inc."})
++	assert.Empty(t, packagesOfType(s, pkg.VendorJdkPkg), "a Zulu runtime must never be reported as the vendor's JDK")
++
++	binaries := packagesOfType(s, pkg.BinaryPkg)
++	require.NotEmpty(t, binaries, "the generic java catalogers must still report the Zulu runtime")
++	var sawZulu bool
++	for _, p := range binaries {
++		if p.Name != "zulu" {
++			continue
++		}
++		sawZulu = true
++		assert.Equal(t, "21.0.2+13-LTS", p.Version)
++		var cpes []string
++		for _, c := range p.CPEs {
++			cpes = append(cpes, c.Attributes.BindToFmtString())
++		}
++		assert.Contains(t, strings.Join(cpes, " "), "cpe:2.3:a:azul:zulu:", "zulu keeps its CPEs")
++	}
++	assert.True(t, sawZulu, "expected a zulu binary package, got %v", describe(binaries))
++}
++
++// A Native Image Kit is reported once, as NIK (bundle name, NIK version, the NIK purl), never as a JDK, and the
++// bundled Java line is kept in the metadata for the "<NIK family>:<nik major>-<java major>" ecosystem.
++func TestVendorJDKCataloger_NIK(t *testing.T) {
++	tests := []struct {
++		name        string
++		runtime     testfix.Runtime
++		wantBundle  string
++		wantVersion string
++		wantJava    string
++		wantHome    string
++	}{
++		{
++			name:        "nik 23.1.0 core (java.vendor.version string)",
++			runtime:     testfix.Runtime{Home: "opt/nik-core-openjdk21-23.1.0", Version: "21+37-LTS", JDK: true, NIK: "23.1.0+1"},
++			wantBundle:  osvjdk.BundleCore,
++			wantVersion: "23.1.0+1",
++			wantJava:    "21+37",
++			wantHome:    "/opt/nik-core-openjdk21-23.1.0",
++		},
++		{
++			name: "graalvm-based runtime without the vendor version string (GRAALVM_VERSION fallback)",
++			runtime: testfix.Runtime{Home: "opt/nik-23", Version: "21.0.2+14-LTS", JDK: true, NIK: "23.1.2",
++				Extra: map[string]string{"lib/modules": "\x00" + osvinternal.RuntimeVendor + "\x00", "bin/native-image": "#!/bin/sh\n"}},
++			wantBundle:  osvjdk.BundleCore,
++			wantVersion: "23.1.2",
++			wantJava:    "21.0.2+14",
++			wantHome:    "/opt/nik-23",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			s := catalog(t, nil, tt.runtime)
++			assert.Empty(t, describe(packagesOfType(s, pkg.VendorJdkPkg)), "a NIK must never be reported as a JDK")
++			all := runtimePackages(s)
++			require.Len(t, all, 1, "exactly one package for one runtime: %v", describe(all))
++
++			p := all[0]
++			assert.Equal(t, pkg.VendorNikPkg, p.Type)
++			assert.Equal(t, tt.wantBundle, p.Name)
++			assert.Equal(t, tt.wantVersion, p.Version)
++			assert.Equal(t, osvjdk.PURLNIK(tt.wantBundle, tt.wantVersion), p.PURL)
++			assert.True(t, strings.HasPrefix(p.PURL, nikPURLPrefix), p.PURL)
++			assert.Empty(t, p.CPEs)
++			assert.Equal(t, "java-vendor-jdk-cataloger", p.FoundBy)
++
++			md, ok := p.Metadata.(pkg.JavaVMInstallation)
++			require.True(t, ok, "metadata type %T", p.Metadata)
++			assert.Equal(t, osvjdk.Vendor, md.Release.Implementor)
++			assert.Equal(t, tt.wantJava, md.Release.JavaVersion)
++			for _, loc := range p.Locations.ToSlice() {
++				assert.True(t, underHome(loc.RealPath, tt.wantHome), loc.RealPath)
++			}
++		})
++	}
++}
++
++// Runtimes that are not the vendor's produce no vendor package: vendor mismatches between the JVM library and the
++// structured sources, a stripped release file without binary evidence.
++func TestVendorJDKCataloger_NegativeCases(t *testing.T) {
++	for _, tc := range []struct {
++		name    string
++		runtime testfix.Runtime
++	}{
++		{"release of another vendor, vendor library", testfix.Runtime{Home: "opt/jdk-x", Version: "21.0.2+13-LTS", JDK: true, Vendor: "Azul Systems, Inc.", LibraryVendor: osvinternal.RuntimeVendor}},
++		{"java 8 manifest of another vendor, vendor library", testfix.Runtime{Home: "opt/jdk8", Version: "1.8.0_402-b07", JDK: true, Java8: true, Vendor: "Oracle Corporation", LibraryVendor: osvinternal.RuntimeVendor}},
++		{"stripped release file, no library", testfix.Runtime{Home: "opt/jdk", Version: "21.0.2+14-LTS", StrippedRelease: true, NoLibrary: true}},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			s := catalog(t, nil, tc.runtime)
++			assert.Empty(t, describe(packagesOfType(s, pkg.VendorJdkPkg)))
++			assert.Empty(t, describe(packagesOfType(s, pkg.VendorNikPkg)))
++		})
++	}
++}
++
++// On the vendor's distributions the runtime under /usr/lib/jvm is an apk package covered by the apk ecosystem: the
++// vendor JDK cataloger leaves it alone and the generic classifiers do not resurrect it either.
++func TestVendorJDKCataloger_ApkManagedRuntimeSkipped(t *testing.T) {
++	s := catalog(t,
++		map[string][]byte{"etc/os-release": []byte(testfix.OSRelease(osvinternal.EcosystemLinux, "23"))},
++		testfix.Runtime{Home: "usr/lib/jvm/jdk21-lite", Version: "21.0.2+14-LTS", JDK: true, StrippedRelease: true},
++	)
++	require.NotNil(t, s.Artifacts.LinuxDistribution)
++	assert.Equal(t, osvinternal.OSReleaseIDLinux, s.Artifacts.LinuxDistribution.ID)
++	assert.Empty(t, describe(packagesOfType(s, pkg.VendorJdkPkg)))
++	assert.Empty(t, describe(packagesOfType(s, pkg.BinaryPkg)), "no generic java package for a vendor runtime")
++}
++
++// File names are matched case-insensitively: the JVM library of the upper-case Windows layout anchors the package.
++func TestVendorJDKCataloger_CaseInsensitiveNames(t *testing.T) {
++	s := catalog(t, upperCaseWindows(testfix.Runtime{Home: "Program Files/Java/JDK-21.0.2", Version: "21.0.2+14-LTS", JDK: true, OS: "windows"}))
++	libs := packagesOfType(s, pkg.VendorJdkPkg)
++	require.Len(t, libs, 1)
++	var paths []string
++	for _, loc := range libs[0].Locations.ToSlice() {
++		paths = append(paths, loc.RealPath)
++	}
++	assert.Contains(t, strings.Join(paths, " "), "BIN/SERVER/JVM.DLL")
++}
+diff --git a/syft/pkg/type.go b/syft/pkg/type.go
+index d4abe75..8944d39 100644
+--- a/syft/pkg/type.go
++++ b/syft/pkg/type.go
+@@ -1,6 +1,8 @@
+ package pkg
+ 
+ import (
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
+ 	"github.com/anchore/packageurl-go"
+ )
+ 
+@@ -37,6 +39,8 @@ const (
+ 	KbPkg                   Type = "msrc-kb"
+ 	LinuxKernelPkg          Type = "linux-kernel"
+ 	LinuxKernelModulePkg    Type = "linux-kernel-module"
++	VendorJdkPkg            Type = osvjdk.PURLNameJDK // a standalone vendor JDK/JRE runtime (not an OS package)
++	VendorNikPkg            Type = osvjdk.PURLNameNIK // a standalone vendor Native Image Kit runtime
+ 	NixPkg                  Type = "nix"
+ 	NpmPkg                  Type = "npm"
+ 	OpamPkg                 Type = "opam"
+@@ -82,6 +86,8 @@ var AllPkgs = []Type{
+ 	KbPkg,
+ 	LinuxKernelPkg,
+ 	LinuxKernelModulePkg,
++	VendorJdkPkg,
++	VendorNikPkg,
+ 	NixPkg,
+ 	NpmPkg,
+ 	OpamPkg,
+@@ -144,6 +150,8 @@ func (t Type) PackageURLType() string {
+ 		return "generic/linux-kernel"
+ 	case LinuxKernelModulePkg:
+ 		return packageurl.TypeGeneric
++	case VendorJdkPkg, VendorNikPkg:
++		return packageurl.TypeGeneric
+ 	case PhpComposerPkg:
+ 		return packageurl.TypeComposer
+ 	case PhpPearPkg, PhpPeclPkg:
+@@ -188,6 +196,15 @@ func TypeFromPURL(p string) Type {
+ 		return UnknownPkg
+ 	}
+ 
++	if purl.Type == packageurl.TypeGeneric && purl.Namespace == osvjdk.PURLNamespace {
++		// the vendor's standalone runtimes: pkg:generic/<namespace>/<name>, both from the osv-internal module
++		switch purl.Name {
++		case osvjdk.PURLNameJDK:
++			return VendorJdkPkg
++		case osvjdk.PURLNameNIK:
++			return VendorNikPkg
++		}
++	}
+ 	ptype := purl.Type
+ 	if ptype == "generic" {
+ 		ptype = purl.Name
+@@ -246,6 +263,10 @@ func TypeByName(name string) Type {
+ 		return LinuxKernelPkg
+ 	case "linux-kernel-module":
+ 		return LinuxKernelModulePkg
++	case osvjdk.PURLNameJDK:
++		return VendorJdkPkg
++	case osvjdk.PURLNameNIK:
++		return VendorNikPkg
+ 	case "nix":
+ 		return NixPkg
+ 	case "opam":
+diff --git a/syft/pkg/type_test.go b/syft/pkg/type_test.go
+index 580ea5c..5897dda 100644
+--- a/syft/pkg/type_test.go
++++ b/syft/pkg/type_test.go
+@@ -3,6 +3,8 @@ package pkg
+ import (
+ 	"testing"
+ 
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
+ 	"github.com/scylladb/go-set/strset"
+ 	"github.com/stretchr/testify/assert"
+ )
+@@ -140,6 +142,16 @@ func TestTypeFromPURL(t *testing.T) {
+ 			purl:     "pkg:generic/conda@1.2.3",
+ 			expected: CondaPkg,
+ 		},
++		{
++			name:     osvjdk.PURLNameJDK,
++			purl:     osvjdk.PURL(osvjdk.VariantJDK, "21.0.2+14"),
++			expected: VendorJdkPkg,
++		},
++		{
++			name:     osvjdk.PURLNameNIK,
++			purl:     osvjdk.PURLNIK(osvjdk.BundleCore, "23.1.0+1"),
++			expected: VendorNikPkg,
++		},
+ 	}
+ 
+ 	var pkgTypes = strset.New()

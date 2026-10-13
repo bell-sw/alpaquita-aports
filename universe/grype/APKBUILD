@@ -1,20 +1,33 @@
 pkgname=grype
 pkgver=0.114.0
-pkgrel=7
+pkgrel=14
+_syftver=1.45.1
+_osvmod=/usr/share/go-modules/github.com/bell-sw/osv-internal
 pkgdesc="Vulnerability scanner for container images, filesystems, and SBOMs"
 url="https://github.com/anchore/grype"
 license="Apache-2.0"
 arch="all !armhf !armv7 !x86" # FTBFS on 32-bit arches
-makedepends="go"
+# git is to apply git binary diffs
+makedepends="go git osv-internal>=0.5.5"
 subpackages="
 	$pkgname-bash-completion
 	"
 source="https://github.com/anchore/grype/archive/v$pkgver/grype-$pkgver.tar.gz
+	https://github.com/anchore/syft/archive/v$_syftver/syft-$_syftver.tar.gz
 	disable-update-check.patch
 
+	0100-recognize-our-distros.patch
+	0101-resolve-advisories-through-apk-provided-names.patch
+	0102-transform-osv-records-into-distro-keyed-affected-packages.patch
+	0103-serve-our-ecosystems-from-osv-data.patch
+	0104-match-standalone-jdk-runtimes-against-their-osv-ecosystems.patch
+	0105-runtime-types-from-the-module-s-products-table.patch
+	0106-syft-classify-jdk-runtimes.diff
+	0107-syft-catalog-jdk-runtimes-with-the-osv-internal-module.diff
+	0108-syft-runtime-types-from-the-module-s-products-table.diff
 	9999-go-mod.patch
 	"
-options="net !check" # Go modules, tests need docker
+options="net" # Go modules
 
 # secfixes:
 #   0.114.0-r3:
@@ -31,6 +44,22 @@ options="net !check" # Go modules, tests need docker
 #   0.104.1-r0:
 #     - CVE-2025-65965
 
+prepare() {
+	default_prepare
+
+	cd "$srcdir/syft-$_syftver"
+	local p; for p in "$srcdir"/*.diff; do
+		msg "${p##*/}"
+		git apply -v -p1 "$p"
+	done
+	go mod edit -replace github.com/bell-sw/osv-internal="$_osvmod"
+
+	cd "$builddir"
+	go mod edit \
+		-replace github.com/anchore/syft="$srcdir/syft-$_syftver" \
+		-replace github.com/bell-sw/osv-internal="$_osvmod"
+}
+
 build() {
 	go build -ldflags "
 		-X main.version=$pkgver
@@ -41,7 +70,33 @@ build() {
 }
 
 check() {
-	go test ./...
+	# The Go unit tests of every package the vendor changes touch; the rest of the upstream suite
+	# needs docker and the network. -trimpath (abuild's default GOFLAGS) is dropped for the tests:
+	# grype's dbtest fixtures are located through the source path of the test file.
+	# They also fingerprint the source tree through `git rev-parse --show-toplevel`, hence the git init.
+	local goflags
+	goflags="$(echo " $GOFLAGS " | sed 's/ -trimpath / /g')"
+	[ -d .git ] || git init -q .
+
+	GOFLAGS="$goflags" go test \
+		./grype/distro/ \
+		./grype/matcher/apk/ \
+		./grype/matcher/vendorjdk/ \
+		./grype/vulnerability/vendordb/... \
+		./grype/db/v6/build/transformers/osv/ \
+		./cmd/grype/cli/options/
+	# TestSyftLocationExcludes builds a docker image
+	GOFLAGS="$goflags" go test -skip TestSyftLocationExcludes ./grype/pkg/
+
+	cd "$srcdir/syft-$_syftver"
+	GOFLAGS="$goflags" go test \
+		./syft/pkg/ \
+		./syft/pkg/cataloger/internal/jvmvendor/ \
+		./syft/pkg/cataloger/internal/cpegenerate/ \
+		./internal/relationship/ \
+		./internal/task/
+	GOFLAGS="$goflags" go test -run 'VendorJDK|Jvm' ./syft/pkg/cataloger/java/
+	GOFLAGS="$goflags" go test -run 'VendorJDK' ./syft/pkg/cataloger/binary/
 }
 
 package() {
@@ -52,6 +107,16 @@ package() {
 
 sha512sums="
 fe3e3358445f49d9d5f01035ce4aa2c505d9112c9e32f43c0627a3849808f5e0e73ca651002854977c13b6cdaba41fed83f5a14bf23fa98d4d85981724edd059  grype-0.114.0.tar.gz
+7229d0a6cdb7dfd0e5c4e9c79994546e484e7dfa53c57381946ca33d8389797810ae27aa475b3862895887b9a1f0380fcd9f88587cd88c641d305183f138ac34  syft-1.45.1.tar.gz
 ba6bf89ade82b3f31dc0f39346ba1ce18fc9096464d8173b1eec2c03aead327fac9f65dd91d4fff1b35b02042e32b8d47a79ee9f5da94a38468135aa345d77e3  disable-update-check.patch
+8695a9ac8a50afdfd8ae807d844f46fbadf6c2defa3c5ef541b534bbe44db684cdf593e3ae457de5e077af00c1dd076005d8590685a6a7eebe18fa4643eec5c7  0100-recognize-our-distros.patch
+c7dae258c5dc563b4abd94b7a2e3dfcfb93ef3d3dac960009afc9b16354b523ef4ee3657d5d7ea2035b4aef93aa37fef1cc003a680aae23fcf95cb9c0347a66f  0101-resolve-advisories-through-apk-provided-names.patch
+b20fbe86a826f8c906c4b2225752229cb954169f44a65b4d2130bc553326adc5fff8e86623b9041acd0977d19bb31c8a76b5cbdd881bfb9a4e1f7ba5ba99d89a  0102-transform-osv-records-into-distro-keyed-affected-packages.patch
+f704a6cbb8880380c02c9d027d8d5a9ddddfa4bd80e27b5115bb84d6ff22af6e47084be0366996528326d632686bcb8796147732907cc3e8cb2bdb523ea9ced5  0103-serve-our-ecosystems-from-osv-data.patch
+6166124bea6918a669958b5eb71db6e43c738006eb83f40cd558cf2af97994684d7cbf19df7db0013e9311aaed687a2fa97b1fc9aabb2d756672397f462ef677  0104-match-standalone-jdk-runtimes-against-their-osv-ecosystems.patch
+5eedb2721afd3b2d8ee42eaa623be884598b8321c04263556872c4b40b56d26307a1dd2ff45f567568c4710081b4ff551f845706d24639c9eac7e0f70d166786  0105-runtime-types-from-the-module-s-products-table.patch
+48f422bfa8f162b5863b6cd86520ab930238af36ea8b3c8014b98abc523a63d553eb9ba5cfb03299a2073e59e6d0510a309a39e56317c208174a35fe7d142726  0106-syft-classify-jdk-runtimes.diff
+1d809387c39206f9cdf5134e15134dece67da61d75192ac082744315db355a1f033219644362e6daa6ec6fa92533e04c3e91c87ace1773371000cbcc5725774c  0107-syft-catalog-jdk-runtimes-with-the-osv-internal-module.diff
+4efaa7cf1e4de50ae03929a09fed76723245cb5d096759db840c9bb4b6c856d04c4f47c60597f220411f664822a8a04801bd7d59dbb4990bd008e0d03aed4096  0108-syft-runtime-types-from-the-module-s-products-table.diff
 285ed6143c49f9563fa39d4b156e597a963db38c6be110f789d0e5b92bb66ea82899cfa08d9784e0009881d2e92d27ee6d9329d94489e127cbb02a8ea0e88358  9999-go-mod.patch
 "

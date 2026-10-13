@@ -1,0 +1,420 @@
+From f0000183673d80f39fbb1a3b7dc5630b52fea0f8 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 23:08:43 +0000
+Subject: [PATCH] feat(vendorjdk): match standalone vendor JDK and NIK runtimes
+ against their OSV ecosystems
+
+Local (vendor-specific) change, applied after the upstream series.
+
+Add the vendor JDK matcher for the VendorJdkPkg and VendorNikPkg package
+types reported by syft's java-vendor-jdk-cataloger. It searches by the
+package's product ecosystem (the module's JDK and NIK families,
+"<family>:<major>" / "<family>:<nik major>-<java major>") through the
+vendordb provider; no CPE matching is attempted, so a runtime is never
+reported twice. An unavailable archive follows the provider's policy
+(warning by default, fatal in strict mode).
+
+Both types use the JVM version format. A vendor runtime owned by an OS
+package (an apk-installed JDK on the vendor Linux) is dropped by the
+package overlap rules whatever the version notation, so only the apk
+package's advisories are reported for it.
+---
+ grype/match/matcher_type.go                   |   2 +
+ grype/matcher/matchers.go                     |   2 +
+ grype/matcher/vendorjdk/matcher.go            |  59 ++++++++
+ .../matcher/vendorjdk/matcher_module_test.go  |  84 ++++++++++++
+ grype/matcher/vendorjdk/matcher_test.go       | 128 ++++++++++++++++++
+ grype/pkg/package.go                          |   6 +
+ grype/pkg/package_test.go                     |  14 ++
+ grype/pkg/version_format.go                   |   2 +
+ 8 files changed, 297 insertions(+)
+ create mode 100644 grype/matcher/vendorjdk/matcher.go
+ create mode 100644 grype/matcher/vendorjdk/matcher_module_test.go
+ create mode 100644 grype/matcher/vendorjdk/matcher_test.go
+
+diff --git a/grype/match/matcher_type.go b/grype/match/matcher_type.go
+index 58a8649..6923088 100644
+--- a/grype/match/matcher_type.go
++++ b/grype/match/matcher_type.go
+@@ -20,6 +20,7 @@ const (
+ 	BitnamiMatcher     MatcherType = "bitnami-matcher"
+ 	PacmanMatcher      MatcherType = "pacman-matcher"
+ 	HexMatcher         MatcherType = "hex-matcher"
++	VendorJDKMatcher   MatcherType = "vendor-jdk-matcher"
+ )
+ 
+ var AllMatcherTypes = []MatcherType{
+@@ -40,6 +41,7 @@ var AllMatcherTypes = []MatcherType{
+ 	BitnamiMatcher,
+ 	PacmanMatcher,
+ 	HexMatcher,
++	VendorJDKMatcher,
+ }
+ 
+ type MatcherType string
+diff --git a/grype/matcher/matchers.go b/grype/matcher/matchers.go
+index 7ca44d6..177bd68 100644
+--- a/grype/matcher/matchers.go
++++ b/grype/matcher/matchers.go
+@@ -18,6 +18,7 @@ import (
+ 	"github.com/anchore/grype/grype/matcher/ruby"
+ 	"github.com/anchore/grype/grype/matcher/rust"
+ 	"github.com/anchore/grype/grype/matcher/stock"
++	"github.com/anchore/grype/grype/matcher/vendorjdk"
+ )
+ 
+ // Config contains values used by individual matcher structs for advanced configuration
+@@ -53,5 +54,6 @@ func NewDefaultMatchers(mc Config) []match.Matcher {
+ 		stock.NewStockMatcher(mc.Stock),
+ 		&bitnami.Matcher{},
+ 		&pacman.Matcher{},
++		vendorjdk.NewVendorJDKMatcher(),
+ 	}
+ }
+diff --git a/grype/matcher/vendorjdk/matcher.go b/grype/matcher/vendorjdk/matcher.go
+new file mode 100644
+index 0000000..75c474a
+--- /dev/null
++++ b/grype/matcher/vendorjdk/matcher.go
+@@ -0,0 +1,59 @@
++/*
++Package vendorjdk matches standalone vendor runtimes found from their binaries (syft package types VendorJdkPkg and
++VendorNikPkg, ecosystems "<JDK family>:<major>" and "<NIK family>:<nik major>-<java major>") against the OSV data
++served by the vendordb provider. No CPE / NVD matching is attempted, so a runtime is never reported twice.
++*/
++package vendorjdk
++
++import (
++	"errors"
++	"fmt"
++
++	"github.com/anchore/grype/grype/match"
++	"github.com/anchore/grype/grype/matcher/internal"
++	"github.com/anchore/grype/grype/matcher/internal/result"
++	"github.com/anchore/grype/grype/pkg"
++	"github.com/anchore/grype/grype/search"
++	"github.com/anchore/grype/grype/version"
++	"github.com/anchore/grype/grype/vulnerability"
++	"github.com/anchore/grype/grype/vulnerability/vendordb"
++	"github.com/anchore/grype/internal/log"
++	syftPkg "github.com/anchore/syft/syft/pkg"
++)
++
++type Matcher struct{}
++
++func NewVendorJDKMatcher() *Matcher {
++	return &Matcher{}
++}
++
++func (m *Matcher) PackageTypes() []syftPkg.Type {
++	return []syftPkg.Type{syftPkg.VendorJdkPkg, syftPkg.VendorNikPkg}
++}
++
++func (m *Matcher) Type() match.MatcherType {
++	return match.VendorJDKMatcher
++}
++
++func (m *Matcher) Match(store vulnerability.Provider, p pkg.Package) ([]match.Match, []match.IgnoreFilter, error) {
++	if p.Version == "" || p.Version == "unknown" {
++		log.WithFields("package", p.Name).Trace("skipping vendor runtime with unknown version")
++		return nil, nil, nil
++	}
++	rp := result.NewProvider(store, p, m.Type())
++	set, err := rp.FindResults(
++		search.ByEcosystem(syftPkg.Java, p.Type),
++		search.ByPackageName(p.Name),
++		vendordb.ByRuntime(p),
++		internal.OnlyVulnerableVersions(version.New(p.Version, pkg.VersionFormat(p))),
++	)
++	if err != nil {
++		err = fmt.Errorf("vendor jdk matcher failed for %s@%s: %w", p.Name, p.Version, err)
++		if errors.Is(err, vendordb.ErrSourceUnavailable) {
++			// strict mode: the archive could not be obtained and the scan must fail
++			return nil, nil, match.NewFatalError(m.Type(), err)
++		}
++		return nil, nil, err
++	}
++	return set.ToMatches(), nil, nil
++}
+diff --git a/grype/matcher/vendorjdk/matcher_module_test.go b/grype/matcher/vendorjdk/matcher_module_test.go
+new file mode 100644
+index 0000000..02168ba
+--- /dev/null
++++ b/grype/matcher/vendorjdk/matcher_module_test.go
+@@ -0,0 +1,84 @@
++package vendorjdk
++
++import (
++	"context"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	bsmatch "github.com/bell-sw/osv-internal/match"
++	"github.com/bell-sw/osv-internal/osvdata"
++
++	"github.com/anchore/grype/grype/pkg"
++	"github.com/anchore/grype/grype/vulnerability/mock"
++	"github.com/anchore/grype/grype/vulnerability/vendordb"
++	syftPkg "github.com/anchore/syft/syft/pkg"
++)
++
++// indexEngine serves runtime queries from an in-memory index with the shared module's own range evaluation, so the
++// tests below exercise the real version semantics end to end (matcher -> provider -> module).
++type indexEngine struct {
++	idx *osvdata.Index
++}
++
++func (e indexEngine) APKFindings(context.Context, string, string, bsmatch.Package) ([]bsmatch.Finding, error) {
++	return nil, nil
++}
++
++func (e indexEngine) RuntimeFindings(_ context.Context, ecosystem, pkgName, version string) ([]bsmatch.Finding, error) {
++	return bsmatch.MatchProduct(e.idx, ecosystem, pkgName, version)
++}
++
++func (e indexEngine) Advisories(context.Context, string, string, string) ([]osvdata.Advisory, error) {
++	return nil, nil
++}
++
++func (e indexEngine) EOL(string) *time.Time { return nil }
++
++func (e indexEngine) Provenance() map[string]time.Time { return nil }
++
++// The vendor's JDK release types reach the module unchanged and untruncated: a CPU (five components, the previous PSU plus
++// ".0.1") is equivalent to the PSU of its cycle when compared with an advisory's fixed version (advisories list PSU
++// versions only), and a CSPU (fourth component) is newer than the PSU it is built on.
++func TestVendorJDKMatcher_ReleaseTypes(t *testing.T) {
++	jdk21 := osvinternal.Ecosystem(vendordb.EcosystemJDK, "21")
++	adv := func(id, fixed string) osvdata.Advisory {
++		return osvdata.Advisory{ID: "BELL-" + id, CVE: id, Ecosystem: jdk21, Package: "jdk", Introduced: "0", Fixed: fixed, Severity: "HIGH"}
++	}
++	engine := indexEngine{idx: osvdata.New(vendordb.EcosystemJDK,
++		adv("CVE-2099-0010", "21.0.10+10"),
++		adv("CVE-2099-0011", "21.0.11+11"),
++		adv("CVE-2099-0012", "21.0.12.1+1"),
++	)}
++	store := vendordb.Wrap(mock.VulnerabilityProvider(), engine)
++	m := NewVendorJDKMatcher()
++
++	tests := []struct {
++		name    string
++		version string
++		want    []string
++	}{
++		{"CPU of the 21.0.10 cycle: fixed by 21.0.10+10, affected by later fixes", "21.0.9.0.1+1", []string{"CVE-2099-0011", "CVE-2099-0012"}},
++		{"PSU 21.0.10+10", "21.0.10+10", []string{"CVE-2099-0011", "CVE-2099-0012"}},
++		{"PSU 21.0.9+10 is older than its CPU", "21.0.9+10", []string{"CVE-2099-0010", "CVE-2099-0011", "CVE-2099-0012"}},
++		{"PSU 21.0.12+10 is older than the CSPU fix", "21.0.12+10", []string{"CVE-2099-0012"}},
++		{"CSPU 21.0.12.1+1 carries the fix", "21.0.12.1+1", nil},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			p := pkg.Package{ID: pkg.ID(tt.version), Name: "jdk", Version: tt.version, Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java}
++			matches, _, err := m.Match(store, p)
++			require.NoError(t, err)
++			var got []string
++			for _, mm := range matches {
++				got = append(got, mm.Vulnerability.ID)
++				assert.Equal(t, tt.version, mm.Package.Version, "the installed version is reported verbatim")
++				assert.Equal(t, vendordb.RuntimeNamespace(jdk21), mm.Vulnerability.Namespace)
++			}
++			assert.ElementsMatch(t, tt.want, got)
++		})
++	}
++}
+diff --git a/grype/matcher/vendorjdk/matcher_test.go b/grype/matcher/vendorjdk/matcher_test.go
+new file mode 100644
+index 0000000..ce4dd81
+--- /dev/null
++++ b/grype/matcher/vendorjdk/matcher_test.go
+@@ -0,0 +1,128 @@
++package vendorjdk
++
++import (
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/osvdata"
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
++	"github.com/anchore/grype/grype/match"
++	"github.com/anchore/grype/grype/pkg"
++	"github.com/anchore/grype/grype/vulnerability/mock"
++	"github.com/anchore/grype/grype/vulnerability/vendordb"
++	"github.com/anchore/grype/grype/vulnerability/vendordb/vendordbtest"
++	syftPkg "github.com/anchore/syft/syft/pkg"
++)
++
++func TestVendorJDKMatcher(t *testing.T) {
++	jdk21, jdk8, nik2321 := osvinternal.Ecosystem(vendordb.EcosystemJDK, "21"), osvinternal.Ecosystem(vendordb.EcosystemJDK, "8"), osvinternal.Ecosystem(vendordb.EcosystemNIK, "23-21")
++	engine := vendordbtest.New()
++	engine.Add(jdk21, "jdk", osvdata.Advisory{
++		ID: "BELL-CVE-2025-24855", CVE: "CVE-2025-24855", Introduced: "21.0.1+12", Fixed: "21.0.8+12", Severity: "HIGH",
++	}, func(v string) bool { return v == "21.0.2+14" })
++	engine.Add(jdk21, "jdk", osvdata.Advisory{
++		ID: "BELL-CVE-2025-30754", CVE: "CVE-2025-30754", Introduced: "0", Fixed: "21.0.8+12", Severity: "MEDIUM",
++	}, func(v string) bool { return v == "21.0.2+14" })
++	engine.Add(jdk8, "jdk", osvdata.Advisory{
++		ID: "BELL-CVE-2025-24855", CVE: "CVE-2025-24855", Introduced: "0", Fixed: "8u462+11", Severity: "HIGH",
++	}, func(v string) bool { return v == "8u402+7" })
++	store := vendordb.Wrap(mock.VulnerabilityProvider(), engine)
++	m := NewVendorJDKMatcher()
++
++	engine.Add(nik2321, "core", osvdata.Advisory{
++		ID: "BELL-CVE-2025-23165", CVE: "CVE-2025-23165", Introduced: "0", Fixed: "23.1.8+1", Severity: "HIGH",
++	}, func(v string) bool { return v == "23.1.0+1" })
++
++	assert.Equal(t, []syftPkg.Type{syftPkg.VendorJdkPkg, syftPkg.VendorNikPkg}, m.PackageTypes())
++	assert.Equal(t, match.VendorJDKMatcher, m.Type())
++
++	t.Run("jdk 21.0.2+14 is affected by both advisories", func(t *testing.T) {
++		p := pkg.Package{ID: "jdk21", Name: "jdk", Version: "21.0.2+14", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java,
++			PURL: osvjdk.PURL(osvjdk.VariantJDK, "21.0.2+14")}
++		matches, ignores, err := m.Match(store, p)
++		require.NoError(t, err)
++		assert.Empty(t, ignores)
++		require.Len(t, matches, 2)
++		ids := map[string]match.Match{}
++		for _, mm := range matches {
++			ids[mm.Vulnerability.ID] = mm
++		}
++		require.Contains(t, ids, "CVE-2025-24855")
++		require.Contains(t, ids, "CVE-2025-30754")
++		mm := ids["CVE-2025-24855"]
++		assert.Equal(t, vendordb.RuntimeNamespace(jdk21), mm.Vulnerability.Namespace)
++		assert.Equal(t, []string{"21.0.8+12"}, mm.Vulnerability.Fix.Versions)
++		assert.Equal(t, "jdk", mm.Package.Name)
++		require.NotEmpty(t, mm.Details)
++		assert.Equal(t, match.ExactDirectMatch, mm.Details[0].Type)
++		assert.Equal(t, match.VendorJDKMatcher, mm.Details[0].Matcher)
++		ep, ok := mm.Details[0].SearchedBy.(match.EcosystemParameters)
++		require.True(t, ok, "%T", mm.Details[0].SearchedBy)
++		assert.Equal(t, "java", ep.Language)
++		assert.Equal(t, "jdk", ep.Package.Name)
++		assert.Equal(t, "21.0.2+14", ep.Package.Version)
++	})
++
++	t.Run("jdk 8u402+7 uses the JDK:8 ecosystem", func(t *testing.T) {
++		p := pkg.Package{ID: "jdk8", Name: "jdk", Version: "8u402+7", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java}
++		matches, _, err := m.Match(store, p)
++		require.NoError(t, err)
++		require.Len(t, matches, 1)
++		assert.Equal(t, vendordb.RuntimeNamespace(jdk8), matches[0].Vulnerability.Namespace)
++		assert.Equal(t, []string{"8u462+11"}, matches[0].Vulnerability.Fix.Versions)
++	})
++
++	t.Run("fixed runtime has no matches", func(t *testing.T) {
++		p := pkg.Package{ID: "jdk21f", Name: "jdk", Version: "21.0.8+12", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java}
++		matches, _, err := m.Match(store, p)
++		require.NoError(t, err)
++		assert.Empty(t, matches)
++	})
++
++	t.Run("a CSPU version (fourth component) reaches the engine unchanged", func(t *testing.T) {
++		p := pkg.Package{ID: "jdk21cspu", Name: "jdk", Version: "21.0.12.1+1", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java}
++		matches, _, err := m.Match(store, p)
++		require.NoError(t, err)
++		assert.Empty(t, matches)
++		assert.Contains(t, engine.Calls, "runtime "+jdk21+" jdk@21.0.12.1+1")
++	})
++
++	t.Run("other variants are keyed separately", func(t *testing.T) {
++		p := pkg.Package{ID: "jre21", Name: "jre", Version: "21.0.2+14", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java}
++		matches, _, err := m.Match(store, p)
++		require.NoError(t, err)
++		assert.Empty(t, matches, "the fake feed has entries for jdk only")
++	})
++
++	t.Run("nik 23.1.0+1 core uses the NIK:23-21 ecosystem", func(t *testing.T) {
++		p := pkg.Package{ID: "nik23", Name: "core", Version: "23.1.0+1", Type: syftPkg.VendorNikPkg, Language: syftPkg.Java,
++			PURL:     osvjdk.PURLNIK(osvjdk.BundleCore, "23.1.0+1"),
++			Metadata: pkg.JavaVMInstallationMetadata{Release: pkg.JavaVMReleaseMetadata{JavaVersion: "21+37"}}}
++		matches, _, err := m.Match(store, p)
++		require.NoError(t, err)
++		require.Len(t, matches, 1)
++		assert.Equal(t, "CVE-2025-23165", matches[0].Vulnerability.ID)
++		assert.Equal(t, vendordb.RuntimeNamespace(nik2321), matches[0].Vulnerability.Namespace)
++		assert.Equal(t, []string{"23.1.8+1"}, matches[0].Vulnerability.Fix.Versions)
++		assert.Equal(t, match.VendorJDKMatcher, matches[0].Details[0].Matcher)
++	})
++
++	t.Run("nik of another java line is keyed separately", func(t *testing.T) {
++		p := pkg.Package{ID: "nik23-17", Name: "core", Version: "23.1.0+1", Type: syftPkg.VendorNikPkg, Language: syftPkg.Java,
++			Metadata: pkg.JavaVMInstallationMetadata{Release: pkg.JavaVMReleaseMetadata{JavaVersion: "17.0.9"}}}
++		matches, _, err := m.Match(store, p)
++		require.NoError(t, err)
++		assert.Empty(t, matches)
++	})
++
++	t.Run("unknown version is skipped", func(t *testing.T) {
++		p := pkg.Package{ID: "jdkx", Name: "jdk", Version: "unknown", Type: syftPkg.VendorJdkPkg, Language: syftPkg.Java}
++		matches, _, err := m.Match(store, p)
++		require.NoError(t, err)
++		assert.Empty(t, matches)
++	})
++}
+diff --git a/grype/pkg/package.go b/grype/pkg/package.go
+index c4c05e7..ebe2a3a 100644
+--- a/grype/pkg/package.go
++++ b/grype/pkg/package.go
+@@ -254,6 +254,12 @@ func excludePackage(p *Package, parent *Package) bool {
+ 	// python      3.9.2      binary
+ 	// python3.9   3.9.2-1    deb
+ 
++	// A vendor runtime found from its binaries that is owned by an OS package (e.g. an apk-installed JDK)
++	// is covered by the OS package's advisories; drop it regardless of the version notation (21.0.2_p14-r1 vs 21.0.2+14).
++	if (p.Type == syftPkg.VendorJdkPkg || p.Type == syftPkg.VendorNikPkg) && isOSPackage(parent) {
++		return true
++	}
++
+ 	// If the version is not approximately the same, keep both
+ 	if !strings.HasPrefix(parent.Version, p.Version) && !strings.HasPrefix(p.Version, parent.Version) {
+ 		return false
+diff --git a/grype/pkg/package_test.go b/grype/pkg/package_test.go
+index 5e1d0c3..c34105a 100644
+--- a/grype/pkg/package_test.go
++++ b/grype/pkg/package_test.go
+@@ -1414,6 +1414,20 @@ func Test_RemovePackagesByOverlap(t *testing.T) {
+ 				[]string{"rpm:python3-rpm@4.14.3-26.el8 -> python:rpm@4.14.3"}), "amzn"),
+ 			expectedPackages: []string{"rpm:python3-rpm@4.14.3-26.el8", "python:rpm@4.14.3"},
+ 		},
++		{
++			name: "vendor runtime owned by an apk package is covered by the apk ecosystem (any version notation)",
++			sbom: withLinuxRelease(catalogWithOverlaps(
++				[]string{"apk:jdk21-lite-jdk-no-deps@21.0.2_p14-r1", "liberica-jdk:jdk-lite@21.0.2+14"},
++				[]string{"apk:jdk21-lite-jdk-no-deps@21.0.2_p14-r1 -> liberica-jdk:jdk-lite@21.0.2+14"}), string(distro.VendorLinux)),
++			expectedPackages: []string{"apk:jdk21-lite-jdk-no-deps@21.0.2_p14-r1"},
++		},
++		{
++			name: "standalone vendor runtime (no owning OS package) is kept",
++			sbom: withLinuxRelease(catalogWithOverlaps(
++				[]string{"deb:libc6@2.31-13", "liberica-jdk:jdk@21.0.2+14"},
++				[]string{}), "debian"),
++			expectedPackages: []string{"liberica-jdk:jdk@21.0.2+14", "deb:libc6@2.31-13"},
++		},
+ 		{
+ 			name: "remove overlapping package when parent version is prefix of child version",
+ 			sbom: withLinuxRelease(catalogWithOverlaps(
+diff --git a/grype/pkg/version_format.go b/grype/pkg/version_format.go
+index f5a685b..619441c 100644
+--- a/grype/pkg/version_format.go
++++ b/grype/pkg/version_format.go
+@@ -29,6 +29,8 @@ func VersionFormat(p Package) version.Format {
+ 		return version.GolangFormat
+ 	case syftPkg.AlpmPkg:
+ 		return version.PacmanFormat
++	case syftPkg.VendorJdkPkg, syftPkg.VendorNikPkg:
++		return version.JVMFormat
+ 	}
+ 
+ 	if isJvmPackage(p) {
+-- 
+2.55.0
+

@@ -1,0 +1,1065 @@
+From e376e60df24c815201cddf25b4b897cedd3befc5 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 20:05:31 +0000
+Subject: [PATCH] feat(binary): classify the vendor's JDK and Native Image Kit
+ runtimes
+
+Add the java-binary-vendor-jdk and java-binary-vendor-nik classifiers. A
+vendor runtime is identified from its JVM library (libjvm.so,
+libjvm.dylib or jvm.dll): the java.vm.vendor constant (jvmvendor.Vendor)
+and the HotSpot banner "... JRE (21.0.2+14-LTS), built on ..." give vendor
+and version; the release file's IMPLEMENTOR, when present, must agree. A
+runtime with GraalVM markers (GRAALVM_VERSION in release, lib/svm/,
+bin/native-image) is the vendor's Native Image Kit, versioned from its
+java.vendor.version (Liberica-NIK-23.1.0-1 -> 23.1.0+1). Packages are
+pkg:generic/bellsoft/liberica-jdk and pkg:generic/bellsoft/liberica-nik
+without a CPE: the NVD dictionary has no entry for them, and the generic
+oracle:openjdk CPE made every CVE show up twice.
+
+One runtime, one package: the generic java-binary classes and the JVM
+release cataloger leave the vendor's runtimes to these classifiers. Other
+vendors are classified as before.
+---
+ syft/pkg/cataloger/binary/classifiers_java.go |  66 ++++-
+ .../binary/classifiers_java_vendorjdk_test.go |  90 ++++++
+ .../jvm/jdk-21.0.2-bellsoft-x86_64/bin/java   | Bin 0 -> 69 bytes
+ .../jvm/jdk-21.0.2-bellsoft-x86_64/bin/javac  |   0
+ .../jdk-21.0.2-bellsoft-x86_64/lib/modules    | Bin 0 -> 10 bytes
+ .../lib/server/libjvm.so                      | Bin 0 -> 264 bytes
+ .../jvm/jdk-21.0.2-bellsoft-x86_64/release    |   9 +
+ .../vendorjdk/jdk-8/opt/jdk8u402/bin/java     | Bin 0 -> 69 bytes
+ .../vendorjdk/jdk-8/opt/jdk8u402/bin/javac    |   0
+ .../vendorjdk/jdk-8/opt/jdk8u402/jre/bin/java | Bin 0 -> 69 bytes
+ .../jdk8u402/jre/lib/amd64/server/libjvm.so   | Bin 0 -> 264 bytes
+ .../opt/jdk8u402/jre/lib/ext/nashorn.jar      |   0
+ .../jdk-8/opt/jdk8u402/jre/lib/rt.jar         | Bin 0 -> 479 bytes
+ .../vendorjdk/jdk-8/opt/jdk8u402/release      |   5 +
+ .../jdk-21.0.2.jdk/bin/java                   | Bin 0 -> 69 bytes
+ .../jdk-21.0.2.jdk/bin/javac                  |   0
+ .../jdk-21.0.2.jdk/lib/server/libjvm.dylib    | Bin 0 -> 264 bytes
+ .../jdk-21.0.2.jdk/release                    |   9 +
+ .../bin/java                                  | Bin 0 -> 65 bytes
+ .../bin/javac                                 |   0
+ .../bin/native-image                          | Bin 0 -> 42 bytes
+ .../lib/graalvm/svm-driver.jar                |   0
+ .../lib/modules                               | Bin 0 -> 32 bytes
+ .../lib/server/libjvm.so                      | Bin 0 -> 256 bytes
+ .../lib/svm/builder/svm.jar                   |   0
+ .../release                                   |  10 +
+ .../BellSoft/jdk-21.0.2/bin/java.exe          | Bin 0 -> 69 bytes
+ .../BellSoft/jdk-21.0.2/bin/javac.exe         |   0
+ .../BellSoft/jdk-21.0.2/bin/server/jvm.dll    | Bin 0 -> 264 bytes
+ .../Program Files/BellSoft/jdk-21.0.2/release |   9 +
+ .../usr/lib/jvm/zulu21-ca-amd64/bin/java      | Bin 0 -> 69 bytes
+ .../usr/lib/jvm/zulu21-ca-amd64/bin/javac     |   0
+ .../jvm/zulu21-ca-amd64/lib/server/libjvm.so  | Bin 0 -> 274 bytes
+ .../usr/lib/jvm/zulu21-ca-amd64/release       |  10 +
+ .../cataloger/internal/jvmvendor/jvmvendor.go | 273 ++++++++++++++++++
+ .../internal/jvmvendor/jvmvendor_test.go      |  98 +++++++
+ syft/pkg/cataloger/java/jvm_vendorjdk_test.go |  41 +++
+ syft/pkg/cataloger/java/parse_jvm_release.go  |   9 +
+ 38 files changed, 625 insertions(+), 4 deletions(-)
+ create mode 100644 syft/pkg/cataloger/binary/classifiers_java_vendorjdk_test.go
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/bin/java
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/bin/javac
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/lib/modules
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/lib/server/libjvm.so
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/release
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/bin/java
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/bin/javac
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/jre/bin/java
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/jre/lib/amd64/server/libjvm.so
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/jre/lib/ext/nashorn.jar
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/jre/lib/rt.jar
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/release
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/macos-21/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/bin/java
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/macos-21/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/bin/javac
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/macos-21/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/lib/server/libjvm.dylib
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/macos-21/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/release
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/bin/java
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/bin/javac
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/bin/native-image
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/lib/graalvm/svm-driver.jar
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/lib/modules
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/lib/server/libjvm.so
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/lib/svm/builder/svm.jar
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/release
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/windows-21/Program Files/BellSoft/jdk-21.0.2/bin/java.exe
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/windows-21/Program Files/BellSoft/jdk-21.0.2/bin/javac.exe
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/windows-21/Program Files/BellSoft/jdk-21.0.2/bin/server/jvm.dll
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/windows-21/Program Files/BellSoft/jdk-21.0.2/release
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/zulu-21/usr/lib/jvm/zulu21-ca-amd64/bin/java
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/zulu-21/usr/lib/jvm/zulu21-ca-amd64/bin/javac
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/zulu-21/usr/lib/jvm/zulu21-ca-amd64/lib/server/libjvm.so
+ create mode 100644 syft/pkg/cataloger/binary/test-fixtures/vendorjdk/zulu-21/usr/lib/jvm/zulu21-ca-amd64/release
+ create mode 100644 syft/pkg/cataloger/internal/jvmvendor/jvmvendor.go
+ create mode 100644 syft/pkg/cataloger/internal/jvmvendor/jvmvendor_test.go
+ create mode 100644 syft/pkg/cataloger/java/jvm_vendorjdk_test.go
+
+diff --git a/syft/pkg/cataloger/binary/classifiers_java.go b/syft/pkg/cataloger/binary/classifiers_java.go
+index 376e45e..8c9e4bc 100644
+--- a/syft/pkg/cataloger/binary/classifiers_java.go
++++ b/syft/pkg/cataloger/binary/classifiers_java.go
+@@ -2,7 +2,9 @@ package binary
+ 
+ import (
+ 	"github.com/anchore/syft/syft/cpe"
++	"github.com/anchore/syft/syft/pkg"
+ 	"github.com/anchore/syft/syft/pkg/cataloger/internal/binutils"
++	"github.com/anchore/syft/syft/pkg/cataloger/internal/jvmvendor"
+ )
+ 
+ //nolint:funlen
+@@ -10,10 +12,30 @@ func defaultJavaClassifiers() []binutils.Classifier {
+ 	m := binutils.ContextualEvidenceMatchers{CatalogerName: catalogerName}
+ 
+ 	return []binutils.Classifier{
++		{
++			// The vendor's JDK/JRE, identified from the JVM library: its java.vm.vendor constant and the
++			// HotSpot banner "... JRE (21.0.2+14-LTS), built on ...". The launcher holds the version but not the vendor, so
++			// the generic java-binary classes below defer to this one (see notVendorRuntime). No CPE: NVD has no entry for
++			// the vendor's runtime and oracle:openjdk would make every CVE show up twice. A GraalVM-based runtime is NIK, next entry.
++			Class:           "java-binary-vendor-jdk",
++			FileGlob:        jvmvendor.JVMLibraryGlob,
++			EvidenceMatcher: vendorRuntimeMatcher(false),
++			Package:         "liberica-jdk",
++			PURL:            mustPURL("pkg:generic/bellsoft/liberica-jdk@version"),
++		},
++		{
++			// The vendor's Native Image Kit: a vendor runtime with GraalVM markers (GRAALVM_VERSION in release,
++			// lib/svm/, bin/native-image); the version is the java.vendor.version "Liberica-NIK-23.1.0-1" (-> 23.1.0+1).
++			Class:           "java-binary-vendor-nik",
++			FileGlob:        jvmvendor.JVMLibraryGlob,
++			EvidenceMatcher: vendorRuntimeMatcher(true),
++			Package:         "liberica-nik",
++			PURL:            mustPURL("pkg:generic/bellsoft/liberica-nik@version"),
++		},
+ 		{
+ 			Class:    "java-binary",
+ 			FileGlob: "**/java",
+-			EvidenceMatcher: binutils.BranchingEvidenceMatcher([]binutils.Classifier{
++			EvidenceMatcher: binutils.MatchAll(notVendorRuntime, binutils.BranchingEvidenceMatcher([]binutils.Classifier{
+ 				{
+ 					Class: "java-binary-graalvm",
+ 					EvidenceMatcher: m.FileContentsVersionMatcher(
+@@ -108,12 +130,12 @@ func defaultJavaClassifiers() []binutils.Classifier {
+ 					PURL:    mustPURL("pkg:generic/oracle/jre@version"),
+ 					CPEs:    singleCPE("cpe:2.3:a:oracle:jre:*:*:*:*:*:*:*:*", cpe.NVDDictionaryLookupSource),
+ 				},
+-			}...),
++			}...)),
+ 		},
+ 		{
+ 			Class:    "java-jdb-binary",
+ 			FileGlob: "**/jdb",
+-			EvidenceMatcher: binutils.BranchingEvidenceMatcher([]binutils.Classifier{
++			EvidenceMatcher: binutils.MatchAll(notVendorRuntime, binutils.BranchingEvidenceMatcher([]binutils.Classifier{
+ 				{
+ 					Class: "java-binary-graalvm",
+ 					EvidenceMatcher: m.FileContentsVersionMatcher(
+@@ -190,7 +212,43 @@ func defaultJavaClassifiers() []binutils.Classifier {
+ 					PURL:    mustPURL("pkg:generic/oracle/jdk@version"),
+ 					CPEs:    singleCPE("cpe:2.3:a:oracle:jdk:*:*:*:*:*:*:*:*", cpe.NVDDictionaryLookupSource),
+ 				},
+-			}...),
++			}...)),
+ 		},
+ 	}
+ }
++
++// vendorRuntimeMatcher classifies the runtime a JVM library belongs to when it is the vendor's: a JDK/JRE
++// (version from the HotSpot banner) or, with nik set, a Native Image Kit (version from the vendor version).
++func vendorRuntimeMatcher(nik bool) binutils.EvidenceMatcher {
++	return func(classifier binutils.Classifier, context binutils.MatcherContext) ([]pkg.Package, error) {
++		home := jvmvendor.RuntimeHome(context.Resolver, context.Location.RealPath)
++		if home == "" {
++			return nil, nil
++		}
++		rt := jvmvendor.Inspect(context.Resolver, home)
++		if rt.Vendor != jvmvendor.Vendor || rt.NIK != nik {
++			return nil, nil
++		}
++		version := rt.Version
++		if nik {
++			version = rt.NIKVersion
++		}
++		if version == "" {
++			return nil, nil
++		}
++		p := binutils.NewClassifierPackage(classifier, context.Location, map[string]string{"version": version}, catalogerName)
++		if p == nil {
++			return nil, nil
++		}
++		return []pkg.Package{*p}, nil
++	}
++}
++
++// notVendorRuntime succeeds (with no packages) unless the launcher being classified belongs to a vendor
++// runtime, which the java-binary-vendor-jdk/-nik classifiers report from the JVM library instead.
++func notVendorRuntime(_ binutils.Classifier, context binutils.MatcherContext) ([]pkg.Package, error) {
++	if jvmvendor.IsVendorRuntime(context.Resolver, context.Location.RealPath) {
++		return nil, nil
++	}
++	return []pkg.Package{}, nil
++}
+diff --git a/syft/pkg/cataloger/binary/classifiers_java_vendorjdk_test.go b/syft/pkg/cataloger/binary/classifiers_java_vendorjdk_test.go
+new file mode 100644
+index 0000000..315fb50
+--- /dev/null
++++ b/syft/pkg/cataloger/binary/classifiers_java_vendorjdk_test.go
+@@ -0,0 +1,90 @@
++package binary
++
++import (
++	"context"
++	"strings"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	"github.com/anchore/syft/syft/pkg"
++	"github.com/anchore/syft/syft/source"
++	"github.com/anchore/syft/syft/source/directorysource"
++)
++
++// A vendor runtime is classified once, from libjvm.so, with the vendor purl and no (Oracle) CPE; the
++// generic java-binary classes do not emit a second package for its launcher. Other vendors are untouched.
++func TestVendorJDKClassifier(t *testing.T) {
++	tests := []struct {
++		fixture  string
++		wantPkgs []string // "name@version"
++		wantPURL string
++	}{
++		{
++			fixture:  "test-fixtures/vendorjdk/jdk-21",
++			wantPkgs: []string{"liberica-jdk@21.0.2+14-LTS"},
++			wantPURL: "pkg:generic/bellsoft/liberica-jdk@21.0.2%2B14-LTS",
++		},
++		{
++			fixture:  "test-fixtures/vendorjdk/jdk-8",
++			wantPkgs: []string{"liberica-jdk@1.8.0_402-b07"},
++			wantPURL: "pkg:generic/bellsoft/liberica-jdk@1.8.0_402-b07",
++		},
++		{
++			fixture:  "test-fixtures/vendorjdk/nik-23",
++			wantPkgs: []string{"liberica-nik@23.1.0+1"},
++			wantPURL: "pkg:generic/bellsoft/liberica-nik@23.1.0%2B1",
++		},
++		{
++			fixture:  "test-fixtures/vendorjdk/macos-21",
++			wantPkgs: []string{"liberica-jdk@21.0.2+14-LTS"},
++			wantPURL: "pkg:generic/bellsoft/liberica-jdk@21.0.2%2B14-LTS",
++		},
++		{
++			fixture:  "test-fixtures/vendorjdk/windows-21",
++			wantPkgs: []string{"liberica-jdk@21.0.2+14-LTS"},
++			wantPURL: "pkg:generic/bellsoft/liberica-jdk@21.0.2%2B14-LTS",
++		},
++		{
++			fixture:  "test-fixtures/vendorjdk/zulu-21",
++			wantPkgs: []string{"zulu@21.0.2+13-LTS"},
++			wantPURL: "pkg:generic/azul/zulu@21.0.2%2B13-LTS",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.fixture, func(t *testing.T) {
++			src, err := directorysource.NewFromPath(tt.fixture)
++			require.NoError(t, err)
++			resolver, err := src.FileResolver(source.SquashedScope)
++			require.NoError(t, err)
++
++			c := NewClassifierCataloger(DefaultClassifierCatalogerConfig())
++			packages, _, err := c.Catalog(context.Background(), resolver)
++			require.NoError(t, err)
++
++			var got []string
++			for _, p := range packages {
++				got = append(got, p.Name+"@"+p.Version)
++			}
++			require.Equal(t, tt.wantPkgs, got, "one runtime, one package")
++			p := packages[0]
++			assert.Equal(t, pkg.BinaryPkg, p.Type)
++			assert.Equal(t, tt.wantPURL, p.PURL)
++			for _, c := range p.CPEs {
++				assert.NotContains(t, c.Attributes.BindToFmtString(), "oracle:openjdk", "no generic OpenJDK CPE")
++			}
++			if strings.HasPrefix(p.Name, "liberica") {
++				assert.Empty(t, p.CPEs, "no CPE is declared for the vendor runtime (none exists in the NVD dictionary)")
++				md, ok := p.Metadata.(pkg.BinarySignature)
++				require.True(t, ok)
++				require.NotEmpty(t, md.Matches)
++				assert.True(t, strings.HasPrefix(md.Matches[0].Classifier, "java-binary-vendor-"), md.Matches[0].Classifier)
++				lib := md.Matches[0].Location.RealPath
++				assert.True(t, strings.HasSuffix(lib, "/libjvm.so") || strings.HasSuffix(lib, "/libjvm.dylib") || strings.HasSuffix(lib, "/jvm.dll"), lib)
++			} else {
++				require.NotEmpty(t, p.CPEs, "zulu keeps its CPEs")
++			}
++		})
++	}
++}
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/bin/java b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/bin/java
+new file mode 100644
+index 0000000000000000000000000000000000000000..407c236fef1536cb30c979d768b63d739afb022c
+GIT binary patch
+literal 69
+tcmb<-^>Jfh$S+9E%Sy>+$Vx0rWH8V(U@$V&Gte{AHZ;-o2?=H(1OV$x2}1w?
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/bin/javac b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/bin/javac
+new file mode 100644
+index 0000000..e69de29
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/lib/modules b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/lib/modules
+new file mode 100644
+index 0000000000000000000000000000000000000000..f5f6011ea8d1c25caa1bf28fdc3b00dccac3a983
+GIT binary patch
+literal 10
+RcmZQ@O3ld$&QB|0000nm0~`PV
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/lib/server/libjvm.so b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/lib/server/libjvm.so
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec27d074d1f25af7d27f806b2f950a16d1b95ac1
+GIT binary patch
+literal 264
+zcmbu#!3u&f7y#fs%8#d_HrzA?kCGkC2vRz9n>uSTw-|HfsaNkFbm}{Q@1ojaZ5+0O
+zD>Wl@=bjTk5-)UbEJDYJ(B*ayNsM#ppcd8(3+DquxlpP$gZq78!6*p{ThSO-O}&J{
+zSWr?=FU-e2iJ?3d-)9Z&B$WfBfrTu_A;mOlSd_6eqnit~GXz!y@RaTb*RF$<M1-P$
+FeE^<_IFA4T
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/release b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/release
+new file mode 100644
+index 0000000..8246cf7
+--- /dev/null
++++ b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-21/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/release
+@@ -0,0 +1,9 @@
++IMPLEMENTOR="BellSoft"
++JAVA_RUNTIME_VERSION="21.0.2+14-LTS"
++JAVA_VERSION="21.0.2"
++JAVA_VERSION_DATE="2024-01-16"
++LIBC="gnu"
++MODULES="java.base java.compiler java.datatransfer java.xml java.prefs java.desktop java.instrument java.logging java.management java.security.sasl java.naming java.rmi java.management.rmi java.net.http java.scripting java.security.jgss java.transaction.xa java.sql java.sql.rowset java.xml.crypto java.se java.smartcardio jdk.accessibility jdk.internal.jvmstat jdk.attach jdk.charsets jdk.internal.opt jdk.zipfs jdk.compiler jdk.crypto.ec jdk.crypto.cryptoki jdk.dynalink jdk.internal.ed jdk.editpad jdk.hotspot.agent jdk.httpserver jdk.incubator.vector jdk.internal.le jdk.internal.vm.ci jdk.internal.vm.compiler jdk.internal.vm.compiler.management jdk.jartool jdk.javadoc jdk.jcmd jdk.management jdk.management.agent jdk.jconsole jdk.jdeps jdk.jdwp.agent jdk.jdi jdk.jfr jdk.jlink jdk.jpackage jdk.jshell jdk.jsobject jdk.jstatd jdk.localedata jdk.management.jfr jdk.naming.dns jdk.naming.rmi jdk.net jdk.nio.mapmode jdk.random jdk.sctp jdk.security.auth jdk.security.jgss jdk.unsupported jdk.unsupported.desktop jdk.xml.dom"
++OS_ARCH="x86_64"
++OS_NAME="Linux"
++SOURCE=".:git:0927ebb533cf+"
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/bin/java b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/bin/java
+new file mode 100644
+index 0000000000000000000000000000000000000000..79958bc2d7055dd473f9424f40dc39a68f1140de
+GIT binary patch
+literal 69
+rcmb<-^>Jfh$S+9E%Sy>+$Vx0rWH8jT0AW3YcoPF7-6R8Z20{P;@SF)-
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/bin/javac b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/bin/javac
+new file mode 100644
+index 0000000..e69de29
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/jre/bin/java b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/jre/bin/java
+new file mode 100644
+index 0000000000000000000000000000000000000000..79958bc2d7055dd473f9424f40dc39a68f1140de
+GIT binary patch
+literal 69
+rcmb<-^>Jfh$S+9E%Sy>+$Vx0rWH8jT0AW3YcoPF7-6R8Z20{P;@SF)-
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/jre/lib/amd64/server/libjvm.so b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/jre/lib/amd64/server/libjvm.so
+new file mode 100644
+index 0000000000000000000000000000000000000000..a8d7d1c69633275c329328511a1d03271c3f213e
+GIT binary patch
+literal 264
+zcmbu#!3u&f7y#fs%1@_)HnzDmJW6)3BFN~_C8o|=%q_;WJoW0`gHC<t@11Yg*t&qd
+zlE#b(-Q^(3(2+se#(9MH4`qwh24aCT9iUWxP##V@gfeAJ>Duu7z?6|Cp%+0pu4poY
+z)_E}6_Ae~ECKgZ}^6xW;s@Eofv%o1Am@>@bBac#^q-=49YJ`bb6L{)ygKJ$wLL$P@
+Fzdo`QIIREx
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/jre/lib/ext/nashorn.jar b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/jre/lib/ext/nashorn.jar
+new file mode 100644
+index 0000000..e69de29
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/jre/lib/rt.jar b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/jre/lib/rt.jar
+new file mode 100644
+index 0000000000000000000000000000000000000000..adf6c5d22c3bee770f1a74a12e6106de71f59c19
+GIT binary patch
+literal 479
+zcmWIWW@Zs#0D-c(Ua{(VKDsx7Y!C*C`nrZV>U#RQ>H9kRdAhj<hv@mb`6lLNrll5_
+z=!T^h6=&w>St%Im8Srv><`(3n=BDPAB$faLbwe^sa#F1nyb{Y26@p6hN-}d(6<qVm
+zGK=!_K#DNbBN=9)XAo~<V8qK6T#%ZanU<LhF)=JPFD1XoO2NM<F*zqy!8yOEAioGK
+z#mnVfl$uzQnxgAe333g{0AnK~1r4XvoSfkNv=U7$)<Fz|so>?}<qALv3fXYktt`MG
+z0AVp8&I0;GKPNFSUEe<`D>b=9FF7Z%xcJn+UHbyO8JR?waR(w$GZ-{5f+%c3if#hB
+f-4Oi@3=NFjKr^trB*2@M4Wy0<2-|?PGuSo&m#KV#
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/release b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/release
+new file mode 100644
+index 0000000..e9122bb
+--- /dev/null
++++ b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/jdk-8/opt/jdk8u402/release
+@@ -0,0 +1,5 @@
++JAVA_VERSION="1.8.0_402"
++OS_NAME="Linux"
++OS_VERSION="2.6"
++OS_ARCH="amd64"
++SOURCE=".:git:07178c573f74+"
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/macos-21/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/bin/java b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/macos-21/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/bin/java
+new file mode 100644
+index 0000000000000000000000000000000000000000..407c236fef1536cb30c979d768b63d739afb022c
+GIT binary patch
+literal 69
+tcmb<-^>Jfh$S+9E%Sy>+$Vx0rWH8V(U@$V&Gte{AHZ;-o2?=H(1OV$x2}1w?
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/macos-21/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/bin/javac b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/macos-21/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/bin/javac
+new file mode 100644
+index 0000000..e69de29
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/macos-21/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/lib/server/libjvm.dylib b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/macos-21/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/lib/server/libjvm.dylib
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec27d074d1f25af7d27f806b2f950a16d1b95ac1
+GIT binary patch
+literal 264
+zcmbu#!3u&f7y#fs%8#d_HrzA?kCGkC2vRz9n>uSTw-|HfsaNkFbm}{Q@1ojaZ5+0O
+zD>Wl@=bjTk5-)UbEJDYJ(B*ayNsM#ppcd8(3+DquxlpP$gZq78!6*p{ThSO-O}&J{
+zSWr?=FU-e2iJ?3d-)9Z&B$WfBfrTu_A;mOlSd_6eqnit~GXz!y@RaTb*RF$<M1-P$
+FeE^<_IFA4T
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/macos-21/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/release b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/macos-21/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/release
+new file mode 100644
+index 0000000..8246cf7
+--- /dev/null
++++ b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/macos-21/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/release
+@@ -0,0 +1,9 @@
++IMPLEMENTOR="BellSoft"
++JAVA_RUNTIME_VERSION="21.0.2+14-LTS"
++JAVA_VERSION="21.0.2"
++JAVA_VERSION_DATE="2024-01-16"
++LIBC="gnu"
++MODULES="java.base java.compiler java.datatransfer java.xml java.prefs java.desktop java.instrument java.logging java.management java.security.sasl java.naming java.rmi java.management.rmi java.net.http java.scripting java.security.jgss java.transaction.xa java.sql java.sql.rowset java.xml.crypto java.se java.smartcardio jdk.accessibility jdk.internal.jvmstat jdk.attach jdk.charsets jdk.internal.opt jdk.zipfs jdk.compiler jdk.crypto.ec jdk.crypto.cryptoki jdk.dynalink jdk.internal.ed jdk.editpad jdk.hotspot.agent jdk.httpserver jdk.incubator.vector jdk.internal.le jdk.internal.vm.ci jdk.internal.vm.compiler jdk.internal.vm.compiler.management jdk.jartool jdk.javadoc jdk.jcmd jdk.management jdk.management.agent jdk.jconsole jdk.jdeps jdk.jdwp.agent jdk.jdi jdk.jfr jdk.jlink jdk.jpackage jdk.jshell jdk.jsobject jdk.jstatd jdk.localedata jdk.management.jfr jdk.naming.dns jdk.naming.rmi jdk.net jdk.nio.mapmode jdk.random jdk.sctp jdk.security.auth jdk.security.jgss jdk.unsupported jdk.unsupported.desktop jdk.xml.dom"
++OS_ARCH="x86_64"
++OS_NAME="Linux"
++SOURCE=".:git:0927ebb533cf+"
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/bin/java b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/bin/java
+new file mode 100644
+index 0000000000000000000000000000000000000000..d09a9c40bb5bffada89547e463f166dd1f64a015
+GIT binary patch
+literal 65
+pcmb<-^>Jfh$S+9E%Sy>+$Vx0rWH8V(U@$V&Ha6Gw2?=H(1OTxy2#Npz
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/bin/javac b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/bin/javac
+new file mode 100644
+index 0000000..e69de29
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/bin/native-image b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/bin/native-image
+new file mode 100644
+index 0000000000000000000000000000000000000000..a6ec585d34bd1ecce19405f79f5fa91f3a145a45
+GIT binary patch
+literal 42
+vcmZS3)h$cSOUW++Qbom?`FXZVKAB0WMVZNox_+MCx<<x&hI$6NhDr<oD9H?T
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/lib/graalvm/svm-driver.jar b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/lib/graalvm/svm-driver.jar
+new file mode 100644
+index 0000000..e69de29
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/lib/modules b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/lib/modules
+new file mode 100644
+index 0000000000000000000000000000000000000000..5cd21379c2ba7838367a32b29f3b790b018c5acf
+GIT binary patch
+literal 32
+ncmZQ@O3ld$&QB|0@X1U{Ey_$z)b;c9)-^KLGt@KCHDmw)r6~yW
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/lib/server/libjvm.so b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/lib/server/libjvm.so
+new file mode 100644
+index 0000000000000000000000000000000000000000..451ad41d315da7492caccca50497333183c9ff7a
+GIT binary patch
+literal 256
+zcmbu#u?~VT6hP5_$_tZ5+t7lLFcNV<jEN8jw*p0LN^6=@W%AcuU7Wn@x$mOdVQn0?
+zf-5y6bmyKEKN2r=Z!AK`htTDA4@r!3>7W+Y3k&B1Lb*_?HiP^9z=F|Ll;WzXmoOL$
+zO6uu_`Pe5hl&9j`*U(N<IWQVn$YLB)Op}I18A~&|xj;KZU_}5=>27fCI!H-GDEhY#
+DwL~`^
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/lib/svm/builder/svm.jar b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/lib/svm/builder/svm.jar
+new file mode 100644
+index 0000000..e69de29
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/release b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/release
+new file mode 100644
+index 0000000..58a6351
+--- /dev/null
++++ b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/nik-23/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/release
+@@ -0,0 +1,10 @@
++IMPLEMENTOR="BellSoft"
++JAVA_RUNTIME_VERSION="21+37-LTS"
++JAVA_VERSION="21"
++JAVA_VERSION_DATE="2024-01-16"
++LIBC="gnu"
++MODULES="java.base java.compiler java.datatransfer java.xml java.prefs java.desktop java.instrument java.logging java.management java.security.sasl java.naming java.rmi java.management.rmi java.net.http java.scripting java.security.jgss java.transaction.xa java.sql java.sql.rowset java.xml.crypto java.se java.smartcardio jdk.accessibility jdk.internal.jvmstat jdk.attach jdk.charsets jdk.internal.opt jdk.zipfs jdk.compiler jdk.crypto.ec jdk.crypto.cryptoki jdk.dynalink jdk.internal.ed jdk.editpad jdk.hotspot.agent jdk.httpserver jdk.incubator.vector jdk.internal.le jdk.internal.vm.ci jdk.internal.vm.compiler jdk.internal.vm.compiler.management jdk.jartool jdk.javadoc jdk.jcmd jdk.management jdk.management.agent jdk.jconsole jdk.jdeps jdk.jdwp.agent jdk.jdi jdk.jfr jdk.jlink jdk.jpackage jdk.jshell jdk.jsobject jdk.jstatd jdk.localedata jdk.management.jfr jdk.naming.dns jdk.naming.rmi jdk.net jdk.nio.mapmode jdk.random jdk.sctp jdk.security.auth jdk.security.jgss jdk.unsupported jdk.unsupported.desktop jdk.xml.dom"
++OS_ARCH="x86_64"
++OS_NAME="Linux"
++SOURCE=".:git:0927ebb533cf+"
++GRAALVM_VERSION="23.1.0"
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/windows-21/Program Files/BellSoft/jdk-21.0.2/bin/java.exe b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/windows-21/Program Files/BellSoft/jdk-21.0.2/bin/java.exe
+new file mode 100644
+index 0000000000000000000000000000000000000000..407c236fef1536cb30c979d768b63d739afb022c
+GIT binary patch
+literal 69
+tcmb<-^>Jfh$S+9E%Sy>+$Vx0rWH8V(U@$V&Gte{AHZ;-o2?=H(1OV$x2}1w?
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/windows-21/Program Files/BellSoft/jdk-21.0.2/bin/javac.exe b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/windows-21/Program Files/BellSoft/jdk-21.0.2/bin/javac.exe
+new file mode 100644
+index 0000000..e69de29
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/windows-21/Program Files/BellSoft/jdk-21.0.2/bin/server/jvm.dll b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/windows-21/Program Files/BellSoft/jdk-21.0.2/bin/server/jvm.dll
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec27d074d1f25af7d27f806b2f950a16d1b95ac1
+GIT binary patch
+literal 264
+zcmbu#!3u&f7y#fs%8#d_HrzA?kCGkC2vRz9n>uSTw-|HfsaNkFbm}{Q@1ojaZ5+0O
+zD>Wl@=bjTk5-)UbEJDYJ(B*ayNsM#ppcd8(3+DquxlpP$gZq78!6*p{ThSO-O}&J{
+zSWr?=FU-e2iJ?3d-)9Z&B$WfBfrTu_A;mOlSd_6eqnit~GXz!y@RaTb*RF$<M1-P$
+FeE^<_IFA4T
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/windows-21/Program Files/BellSoft/jdk-21.0.2/release b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/windows-21/Program Files/BellSoft/jdk-21.0.2/release
+new file mode 100644
+index 0000000..8246cf7
+--- /dev/null
++++ b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/windows-21/Program Files/BellSoft/jdk-21.0.2/release	
+@@ -0,0 +1,9 @@
++IMPLEMENTOR="BellSoft"
++JAVA_RUNTIME_VERSION="21.0.2+14-LTS"
++JAVA_VERSION="21.0.2"
++JAVA_VERSION_DATE="2024-01-16"
++LIBC="gnu"
++MODULES="java.base java.compiler java.datatransfer java.xml java.prefs java.desktop java.instrument java.logging java.management java.security.sasl java.naming java.rmi java.management.rmi java.net.http java.scripting java.security.jgss java.transaction.xa java.sql java.sql.rowset java.xml.crypto java.se java.smartcardio jdk.accessibility jdk.internal.jvmstat jdk.attach jdk.charsets jdk.internal.opt jdk.zipfs jdk.compiler jdk.crypto.ec jdk.crypto.cryptoki jdk.dynalink jdk.internal.ed jdk.editpad jdk.hotspot.agent jdk.httpserver jdk.incubator.vector jdk.internal.le jdk.internal.vm.ci jdk.internal.vm.compiler jdk.internal.vm.compiler.management jdk.jartool jdk.javadoc jdk.jcmd jdk.management jdk.management.agent jdk.jconsole jdk.jdeps jdk.jdwp.agent jdk.jdi jdk.jfr jdk.jlink jdk.jpackage jdk.jshell jdk.jsobject jdk.jstatd jdk.localedata jdk.management.jfr jdk.naming.dns jdk.naming.rmi jdk.net jdk.nio.mapmode jdk.random jdk.sctp jdk.security.auth jdk.security.jgss jdk.unsupported jdk.unsupported.desktop jdk.xml.dom"
++OS_ARCH="x86_64"
++OS_NAME="Linux"
++SOURCE=".:git:0927ebb533cf+"
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/zulu-21/usr/lib/jvm/zulu21-ca-amd64/bin/java b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/zulu-21/usr/lib/jvm/zulu21-ca-amd64/bin/java
+new file mode 100644
+index 0000000000000000000000000000000000000000..c8776b38e49b62df963d047ff33036f543ff0755
+GIT binary patch
+literal 69
+tcmb<-^>Jfh$S+9E%Sy>+$Vx0rWH8V(U@$V&Gte{AHZ<1t2?=H(1OV$L2|@q>
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/zulu-21/usr/lib/jvm/zulu21-ca-amd64/bin/javac b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/zulu-21/usr/lib/jvm/zulu21-ca-amd64/bin/javac
+new file mode 100644
+index 0000000..e69de29
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/zulu-21/usr/lib/jvm/zulu21-ca-amd64/lib/server/libjvm.so b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/zulu-21/usr/lib/jvm/zulu21-ca-amd64/lib/server/libjvm.so
+new file mode 100644
+index 0000000000000000000000000000000000000000..c26357eea86ce262cda753dad62089c60356c697
+GIT binary patch
+literal 274
+zcmbu#!3u&f00!Va%8#caH{3J>Z$$-}5u|kJX1dClGuE{1(yMn5I`y5u_aa$R-B@a5
+zu2fIRHScoP)vS}cYz!gWo7C}qjWD3I$|9AflLq?@A=6i@koI>g>${7UF4*slf#A$z
+zV#Ix#Wa$v6#z0lNebT%x!vOJa@qJtz+e%q98p0C+^*H5WCj3ZDB0fIg*uyc>!K1Pl
+NoQnbz<}*(I^#S@yJGuY>
+
+literal 0
+HcmV?d00001
+
+diff --git a/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/zulu-21/usr/lib/jvm/zulu21-ca-amd64/release b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/zulu-21/usr/lib/jvm/zulu21-ca-amd64/release
+new file mode 100644
+index 0000000..341bedf
+--- /dev/null
++++ b/syft/pkg/cataloger/binary/test-fixtures/vendorjdk/zulu-21/usr/lib/jvm/zulu21-ca-amd64/release
+@@ -0,0 +1,10 @@
++IMPLEMENTOR="Azul Systems, Inc."
++IMPLEMENTOR_VERSION="Zulu21.32+17-CA"
++JAVA_RUNTIME_VERSION="21.0.2+13-LTS"
++JAVA_VERSION="21.0.2"
++JAVA_VERSION_DATE="2024-01-16"
++LIBC="gnu"
++MODULES="java.base java.compiler"
++OS_ARCH="x86_64"
++OS_NAME="Linux"
++SOURCE=".:git:a16dad740234"
+diff --git a/syft/pkg/cataloger/internal/jvmvendor/jvmvendor.go b/syft/pkg/cataloger/internal/jvmvendor/jvmvendor.go
+new file mode 100644
+index 0000000..24e38eb
+--- /dev/null
++++ b/syft/pkg/cataloger/internal/jvmvendor/jvmvendor.go
+@@ -0,0 +1,273 @@
++/*
++Package jvmvendor identifies the vendor and product of an installed Java runtime from its own files: the java.vm.vendor
++constant and the HotSpot banner of the JVM library (libjvm.so, libjvm.dylib, jvm.dll), the IMPLEMENTOR of the release
++file, and the GraalVM markers that tell a Native Image Kit from a plain JDK. It lets the JVM catalogers agree on which
++of them owns a runtime.
++*/
++package jvmvendor
++
++import (
++	"bufio"
++	"bytes"
++	"fmt"
++	"io"
++	"path"
++	"regexp"
++	"sort"
++	"strings"
++	"sync"
++
++	"github.com/anchore/syft/internal"
++	"github.com/anchore/syft/internal/log"
++	"github.com/anchore/syft/syft/file"
++)
++
++// Vendor is the vendor string compiled into every runtime of the vendor (java.vm.vendor, IMPLEMENTOR).
++const Vendor = "BellSoft"
++
++// JVMLibraryGlob matches the JVM shared library of a runtime on Linux, macOS and Windows.
++const JVMLibraryGlob = "**/{libjvm.so,libjvm.dylib,jvm.dll}"
++
++const (
++	scanChunkSize   = 1 << 20
++	scanOverlapSize = 4096
++	releaseLimit    = 512 * 1024
++	maxHomeDepth    = 5
++)
++
++var (
++	// knownVendors are the NUL-terminated java.vm.vendor constants looked for in the JVM library, in lookup order.
++	knownVendors = []string{Vendor}
++	// OpenJDK 64-Bit Server VM (21.0.2+14-LTS) for linux-amd64 JRE (21.0.2+14-LTS), built on ...
++	// OpenJDK 64-Bit Server VM (25.402-b07) for linux-amd64 JRE (1.8.0_402-b07), built on ...
++	bannerPattern = regexp.MustCompile(`JRE \((?P<version>[0-9][^)\x00]*)\)`)
++	// java.vendor.version of the vendor's Native Image Kit (lib/modules, bin/native-image): Liberica-NIK-23.1.0-1
++	nikVersionPattern = regexp.MustCompile(`Liberica-NIK-(?P<version>[0-9]+(?:\.[0-9]+)*)-(?P<build>[0-9]+)`)
++)
++
++// Runtime is what the inspection of a runtime home yields.
++type Runtime struct {
++	Home string
++	// Vendor is the known vendor identified ("" for other vendors or no evidence).
++	Vendor string
++	// Version is the version as written in the HotSpot banner ("21.0.2+14-LTS", "1.8.0_402-b07") or, when the JVM
++	// library carried no banner, the release file's JAVA_RUNTIME_VERSION / JAVA_VERSION.
++	Version string
++	// Library is the JVM library the banner/vendor were read from ("" when none was readable).
++	Library string
++	// NIK is set for a GraalVM-based vendor runtime (Native Image Kit): release GRAALVM_VERSION, lib/svm/
++	// or bin/native-image present. NIKVersion is "A.B.C+D" from the Liberica-NIK-A.B.C-D vendor version, falling back
++	// to GRAALVM_VERSION.
++	NIK        bool
++	NIKVersion string
++}
++
++// RuntimeHome returns the root of the runtime a file belongs to: the first ancestor directory (at most five levels
++// up) holding bin/java (or bin/java.exe) or a release file. For the Java 8 JDK layout, where <home>/jre/bin/java is
++// met first, the enclosing JDK directory is returned when it holds bin/java too. "" when no runtime root is found.
++func RuntimeHome(resolver file.Resolver, p string) string {
++	dir := path.Dir(p)
++	for i := 0; i < maxHomeDepth && dir != "" && dir != "/" && dir != "."; i++ {
++		if hasLauncher(resolver, dir) || resolver.HasPath(path.Join(dir, "release")) {
++			if path.Base(dir) == "jre" {
++				parent := path.Dir(dir)
++				if hasLauncher(resolver, parent) {
++					return parent
++				}
++			}
++			return dir
++		}
++		dir = path.Dir(dir)
++	}
++	return ""
++}
++
++func hasLauncher(resolver file.Resolver, dir string) bool {
++	return resolver.HasPath(path.Join(dir, "bin", "java")) || resolver.HasPath(path.Join(dir, "bin", "java.exe"))
++}
++
++// LibraryCandidates lists the JVM library locations of a runtime home: lib/<vm>/ for Java 9+ on Linux and macOS,
++// bin/<vm>/jvm.dll on Windows, jre/lib/<arch>/<vm>/ or lib/<arch>/<vm>/ (Java 8).
++func LibraryCandidates(resolver file.Resolver, home string) []file.Location {
++	locs, err := resolver.FilesByGlob(
++		path.Join(home, "lib", "*", "{libjvm.so,libjvm.dylib}"),
++		path.Join(home, "bin", "*", "jvm.dll"),
++		path.Join(home, "jre", "lib", "*", "*", "{libjvm.so,libjvm.dylib}"),
++		path.Join(home, "jre", "lib", "*", "libjvm.dylib"),
++		path.Join(home, "jre", "bin", "*", "jvm.dll"),
++		path.Join(home, "lib", "*", "*", "{libjvm.so,libjvm.dylib}"),
++	)
++	if err != nil {
++		log.WithFields("home", home, "error", err).Trace("unable to look up the JVM library")
++	}
++	sort.Slice(locs, func(i, j int) bool { return locs[i].RealPath < locs[j].RealPath })
++	return locs
++}
++
++// ScanLibrary reads a JVM library and returns the known vendor whose NUL-terminated constant is present ("" when
++// none) and the version of the HotSpot "JRE (<version>)" banner ("" when absent).
++func ScanLibrary(r io.Reader) (vendor, version string, err error) {
++	br := bufio.NewReaderSize(r, scanChunkSize)
++	buf := make([]byte, scanChunkSize+scanOverlapSize)
++	var tail []byte
++	for {
++		n, rerr := io.ReadFull(br, buf[len(tail):scanChunkSize+len(tail)])
++		chunk := buf[:len(tail)+n]
++		if vendor == "" {
++			for _, v := range knownVendors {
++				if bytes.Contains(chunk, []byte("\x00"+v+"\x00")) {
++					vendor = v
++					break
++				}
++			}
++		}
++		if version == "" {
++			if m := bannerPattern.FindSubmatch(chunk); m != nil {
++				version = string(m[1])
++			}
++		}
++		if rerr != nil {
++			if rerr == io.EOF || rerr == io.ErrUnexpectedEOF {
++				return vendor, version, nil
++			}
++			return vendor, version, rerr
++		}
++		// keep an overlap so that a string crossing the chunk boundary is still found
++		if len(chunk) > scanOverlapSize {
++			tail = chunk[len(chunk)-scanOverlapSize:]
++		} else {
++			tail = chunk
++		}
++		copy(buf, tail)
++		tail = buf[:len(tail)]
++	}
++}
++
++// ReadRelease parses <home>/release (KEY="value" lines) into a map; nil when the file is absent.
++func ReadRelease(resolver file.Resolver, home string) map[string]string {
++	locs, err := resolver.FilesByPath(path.Join(home, "release"))
++	if err != nil || len(locs) == 0 {
++		return nil
++	}
++	rc, err := resolver.FileContentsByLocation(locs[0])
++	if err != nil {
++		return nil
++	}
++	defer internal.CloseAndLogError(rc, locs[0].RealPath)
++	out := map[string]string{}
++	scanner := bufio.NewScanner(io.LimitReader(rc, releaseLimit))
++	scanner.Buffer(make([]byte, 64*1024), releaseLimit)
++	for scanner.Scan() {
++		key, value, ok := strings.Cut(scanner.Text(), "=")
++		if ok {
++			out[strings.TrimSpace(key)] = strings.Trim(strings.TrimSpace(value), `"`)
++		}
++	}
++	return out
++}
++
++type cacheKey struct {
++	resolver string
++	home     string
++}
++
++var (
++	runtimeCache   = map[cacheKey]*Runtime{}
++	runtimeCacheMu sync.Mutex
++)
++
++// Inspect identifies the runtime rooted at home. Vendor is set only for a known vendor: the release file's
++// IMPLEMENTOR when present (another vendor there means "not ours" whatever the library says), else the java.vm.vendor
++// constant of the JVM library. Results are cached per resolver and home.
++func Inspect(resolver file.Resolver, home string) *Runtime {
++	key := cacheKey{resolver: fmt.Sprintf("%p", resolver), home: home}
++	runtimeCacheMu.Lock()
++	rt, ok := runtimeCache[key]
++	runtimeCacheMu.Unlock()
++	if ok {
++		return rt
++	}
++	rt = inspect(resolver, home)
++	runtimeCacheMu.Lock()
++	runtimeCache[key] = rt
++	runtimeCacheMu.Unlock()
++	return rt
++}
++
++func inspect(resolver file.Resolver, home string) *Runtime {
++	rt := &Runtime{Home: home}
++	release := ReadRelease(resolver, home)
++
++	for _, loc := range LibraryCandidates(resolver, home) {
++		rc, err := resolver.FileContentsByLocation(loc)
++		if err != nil {
++			log.WithFields("path", loc.RealPath, "error", err).Debug("unable to read the JVM library")
++			continue
++		}
++		vendor, version, err := ScanLibrary(rc)
++		internal.CloseAndLogError(rc, loc.RealPath)
++		if err != nil {
++			log.WithFields("path", loc.RealPath, "error", err).Debug("unable to scan the JVM library")
++			continue
++		}
++		rt.Library = loc.RealPath
++		rt.Vendor = vendor
++		rt.Version = version
++		break
++	}
++
++	if impl := strings.TrimSpace(release["IMPLEMENTOR"]); impl != "" {
++		rt.Vendor = ""
++		for _, v := range knownVendors {
++			if strings.EqualFold(impl, v) {
++				rt.Vendor = v
++			}
++		}
++	}
++	if rt.Version == "" {
++		rt.Version = release["JAVA_RUNTIME_VERSION"]
++	}
++	if rt.Version == "" {
++		rt.Version = release["JAVA_VERSION"]
++	}
++
++	if rt.Vendor == Vendor {
++		if _, ok := release["GRAALVM_VERSION"]; ok || resolver.HasPath(path.Join(home, "lib", "svm")) ||
++			resolver.HasPath(path.Join(home, "bin", "native-image")) || resolver.HasPath(path.Join(home, "bin", "native-image.cmd")) {
++			rt.NIK = true
++			rt.NIKVersion = nikVersion(resolver, home, release)
++		}
++	}
++	return rt
++}
++
++// nikVersion returns "A.B.C+D" from the Liberica-NIK-A.B.C-D vendor version found in lib/modules or bin/native-image,
++// falling back to the release file's GRAALVM_VERSION.
++func nikVersion(resolver file.Resolver, home string, release map[string]string) string {
++	for _, candidate := range []string{path.Join(home, "lib", "modules"), path.Join(home, "bin", "native-image")} {
++		locs, err := resolver.FilesByPath(candidate)
++		if err != nil || len(locs) == 0 {
++			continue
++		}
++		rc, err := resolver.FileContentsByLocation(locs[0])
++		if err != nil {
++			continue
++		}
++		m, err := internal.MatchNamedCaptureGroupsFromReader(nikVersionPattern, rc)
++		internal.CloseAndLogError(rc, locs[0].RealPath)
++		if err != nil || m == nil || m["version"] == "" {
++			continue
++		}
++		return m["version"] + "+" + strings.TrimLeft(m["build"], "0")
++	}
++	return release["GRAALVM_VERSION"]
++}
++
++// IsVendorRuntime reports whether the runtime a file belongs to is the vendor's JDK/JRE or NIK.
++func IsVendorRuntime(resolver file.Resolver, p string) bool {
++	home := RuntimeHome(resolver, p)
++	if home == "" {
++		return false
++	}
++	return Inspect(resolver, home).Vendor == Vendor
++}
+diff --git a/syft/pkg/cataloger/internal/jvmvendor/jvmvendor_test.go b/syft/pkg/cataloger/internal/jvmvendor/jvmvendor_test.go
+new file mode 100644
+index 0000000..710b2f8
+--- /dev/null
++++ b/syft/pkg/cataloger/internal/jvmvendor/jvmvendor_test.go
+@@ -0,0 +1,98 @@
++package jvmvendor
++
++import (
++	"bytes"
++	"strings"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	"github.com/anchore/syft/syft/file"
++	"github.com/anchore/syft/syft/source"
++	"github.com/anchore/syft/syft/source/directorysource"
++)
++
++const fixtures = "../../binary/test-fixtures/vendorjdk"
++
++func TestScanLibrary(t *testing.T) {
++	vendor, version, err := ScanLibrary(strings.NewReader("abc\x00BellSoft\x00OpenJDK 64-Bit Server VM (21.0.2+14-LTS) for linux-amd64 JRE (21.0.2+14-LTS), built on\x00"))
++	require.NoError(t, err)
++	assert.Equal(t, Vendor, vendor)
++	assert.Equal(t, "21.0.2+14-LTS", version)
++
++	vendor, version, err = ScanLibrary(strings.NewReader("abc\x00Azul Systems, Inc.\x00JRE (21.0.2+13-LTS)\x00"))
++	require.NoError(t, err)
++	assert.Equal(t, "", vendor)
++	assert.Equal(t, "21.0.2+13-LTS", version)
++
++	vendor, _, err = ScanLibrary(strings.NewReader("BellSoft is mentioned without NUL delimiters"))
++	require.NoError(t, err)
++	assert.Equal(t, "", vendor)
++
++	// a constant straddling the chunk boundary is still found
++	big := append(bytes.Repeat([]byte{'x'}, scanChunkSize-4), []byte("\x00BellSoft\x00JRE (1.8.0_402-b07)\x00")...)
++	vendor, version, err = ScanLibrary(bytes.NewReader(big))
++	require.NoError(t, err)
++	assert.Equal(t, Vendor, vendor)
++	assert.Equal(t, "1.8.0_402-b07", version)
++
++	// security-only builds: a CSPU carries a fourth version component, a CPU five (the previous update plus ".0.1");
++	// the banner version is taken whole, never truncated
++	vendor, version, err = ScanLibrary(strings.NewReader("\x00BellSoft\x00OpenJDK 64-Bit Server VM (21.0.12.1+1-LTS) for linux-amd64 JRE (21.0.12.1+1-LTS), built on\x00"))
++	require.NoError(t, err)
++	assert.Equal(t, Vendor, vendor)
++	assert.Equal(t, "21.0.12.1+1-LTS", version)
++
++	_, version, err = ScanLibrary(strings.NewReader("\x00BellSoft\x00OpenJDK 64-Bit Server VM (21.0.9.0.1+1-LTS) for linux-amd64 JRE (21.0.9.0.1+1-LTS), built on\x00"))
++	require.NoError(t, err)
++	assert.Equal(t, "21.0.9.0.1+1-LTS", version)
++
++	vendor, version, err = ScanLibrary(strings.NewReader("\x00BellSoft\x00JRE (1.8.0_504-b01)\x00"))
++	require.NoError(t, err)
++	assert.Equal(t, Vendor, vendor)
++	assert.Equal(t, "1.8.0_504-b01", version)
++}
++
++func resolverFor(t *testing.T, dir string) file.Resolver {
++	t.Helper()
++	src, err := directorysource.NewFromPath(dir)
++	require.NoError(t, err)
++	r, err := src.FileResolver(source.SquashedScope)
++	require.NoError(t, err)
++	return r
++}
++
++func TestInspect(t *testing.T) {
++	tests := []struct {
++		fixture     string
++		file        string
++		wantHome    string
++		wantVendor  string
++		wantVersion string
++		wantNIK     bool
++		wantNIKVer  string
++	}{
++		{"jdk-21", "/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/lib/server/libjvm.so", "/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64", Vendor, "21.0.2+14-LTS", false, ""},
++		{"jdk-21", "/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64/bin/java", "/usr/lib/jvm/jdk-21.0.2-bellsoft-x86_64", Vendor, "21.0.2+14-LTS", false, ""},
++		{"jdk-8", "/opt/jdk8u402/jre/lib/amd64/server/libjvm.so", "/opt/jdk8u402", Vendor, "1.8.0_402-b07", false, ""},
++		{"jdk-8", "/opt/jdk8u402/jre/bin/java", "/opt/jdk8u402", Vendor, "1.8.0_402-b07", false, ""},
++		{"zulu-21", "/usr/lib/jvm/zulu21-ca-amd64/bin/java", "/usr/lib/jvm/zulu21-ca-amd64", "", "21.0.2+13-LTS", false, ""},
++		{"nik-23", "/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0/lib/server/libjvm.so", "/opt/bellsoft-liberica-vm-core-openjdk21-23.1.0", Vendor, "21+37-LTS", true, "23.1.0+1"},
++		{"macos-21", "/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk/lib/server/libjvm.dylib", "/Library/Java/JavaVirtualMachines/jdk-21.0.2.jdk", Vendor, "21.0.2+14-LTS", false, ""},
++		{"windows-21", "/Program Files/BellSoft/jdk-21.0.2/bin/server/jvm.dll", "/Program Files/BellSoft/jdk-21.0.2", Vendor, "21.0.2+14-LTS", false, ""},
++	}
++	for _, tt := range tests {
++		t.Run(tt.fixture+" "+tt.file, func(t *testing.T) {
++			r := resolverFor(t, fixtures+"/"+tt.fixture)
++			home := RuntimeHome(r, tt.file)
++			assert.Equal(t, tt.wantHome, home)
++			rt := Inspect(r, home)
++			assert.Equal(t, tt.wantVendor, rt.Vendor)
++			assert.Equal(t, tt.wantVersion, rt.Version)
++			assert.Equal(t, tt.wantNIK, rt.NIK)
++			assert.Equal(t, tt.wantNIKVer, rt.NIKVersion)
++			assert.Equal(t, tt.wantVendor == Vendor, IsVendorRuntime(r, tt.file))
++		})
++	}
++}
+diff --git a/syft/pkg/cataloger/java/jvm_vendorjdk_test.go b/syft/pkg/cataloger/java/jvm_vendorjdk_test.go
+new file mode 100644
+index 0000000..9e1b379
+--- /dev/null
++++ b/syft/pkg/cataloger/java/jvm_vendorjdk_test.go
+@@ -0,0 +1,41 @@
++package java
++
++import (
++	"context"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	"github.com/anchore/syft/syft/source"
++	"github.com/anchore/syft/syft/source/directorysource"
++)
++
++// The JVM release cataloger leaves the vendor's runtimes to the binary classifier (java-binary-vendor-jdk) so that
++// the runtime is not reported a second time as a generic OpenJDK package; other vendors keep being catalogued.
++func TestJvmDistributionCataloger_LeavesVendorRuntimesToTheClassifier(t *testing.T) {
++	tests := []struct {
++		fixture  string
++		wantPkgs []string
++	}{
++		{fixture: "../binary/test-fixtures/vendorjdk/jdk-21", wantPkgs: nil},
++		{fixture: "../binary/test-fixtures/vendorjdk/jdk-8", wantPkgs: nil},
++		{fixture: "../binary/test-fixtures/vendorjdk/nik-23", wantPkgs: nil},
++		{fixture: "../binary/test-fixtures/vendorjdk/zulu-21", wantPkgs: []string{"zulu@21.0.2+13-LTS"}},
++	}
++	for _, tt := range tests {
++		t.Run(tt.fixture, func(t *testing.T) {
++			src, err := directorysource.NewFromPath(tt.fixture)
++			require.NoError(t, err)
++			resolver, err := src.FileResolver(source.SquashedScope)
++			require.NoError(t, err)
++			pkgs, _, err := NewJvmDistributionCataloger().Catalog(context.Background(), resolver)
++			require.NoError(t, err)
++			var got []string
++			for _, p := range pkgs {
++				got = append(got, p.Name+"@"+p.Version)
++			}
++			assert.Equal(t, tt.wantPkgs, got)
++		})
++	}
++}
+diff --git a/syft/pkg/cataloger/java/parse_jvm_release.go b/syft/pkg/cataloger/java/parse_jvm_release.go
+index c5460ed..2968b1e 100644
+--- a/syft/pkg/cataloger/java/parse_jvm_release.go
++++ b/syft/pkg/cataloger/java/parse_jvm_release.go
+@@ -19,6 +19,7 @@ import (
+ 	"github.com/anchore/syft/syft/file"
+ 	"github.com/anchore/syft/syft/pkg"
+ 	"github.com/anchore/syft/syft/pkg/cataloger/generic"
++	"github.com/anchore/syft/syft/pkg/cataloger/internal/jvmvendor"
+ )
+ 
+ const (
+@@ -82,6 +83,14 @@ func parseJVMRelease(_ context.Context, resolver file.Resolver, _ *generic.Envir
+ 	}
+ 
+ 	installDir := path.Dir(reader.Path())
++
++	// The vendor's runtimes are classified from libjvm.so by the binary cataloger (java-binary-vendor-jdk); the
++	// release file must not turn them into a second, generic OpenJDK package with an oracle:openjdk CPE
++	if jvmvendor.Inspect(resolver, installDir).Vendor == jvmvendor.Vendor {
++		log.WithFields("path", reader.Path()).Trace("JVM release belongs to a vendor runtime; left to the binary classifier")
++		return nil, nil, nil
++	}
++
+ 	files, hasJdk := findJvmFiles(resolver, installDir)
+ 
+ 	// the reason we use the reference to get the real path is in cases where the file cataloger is involved

@@ -1,0 +1,414 @@
+From 0502e0b0bcd77155f1a11f1e7e9048e5dea8fc33 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Mon, 19 Oct 2026 13:33:25 +0000
+Subject: [PATCH] Runtime types from the module's Products table
+
+osv-internal 0.5.5 replaces its PURLNameJDK/PURLNameNIK constants by the
+Products table: a vendor may build the module with several JDK and NIK
+families. Every family gets its own package type, named by the family's purl
+name (pkg.VendorRuntimeType, VendorRuntimeTypes, IsVendorRuntime); the
+cataloger types a runtime by its family, and the purl mapping, the CPE
+exclusion and the ownership-overlap rule follow.
+---
+ ...lude_binaries_by_file_ownership_overlap.go |  7 +--
+ .../internal/cpegenerate/generate.go          |  2 +-
+ .../pkg/cataloger/java/vendorjdk_cataloger.go |  9 +--
+ .../java/vendorjdk_cataloger_test.go          | 56 +++++++++++++----
+ syft/pkg/type.go                              | 62 +++++++++++++------
+ syft/pkg/type_test.go                         | 45 +++++++++++---
+ 6 files changed, 129 insertions(+), 52 deletions(-)
+
+diff --git a/internal/relationship/exclude_binaries_by_file_ownership_overlap.go b/internal/relationship/exclude_binaries_by_file_ownership_overlap.go
+index 9fc3d5a..c4901e5 100644
+--- a/internal/relationship/exclude_binaries_by_file_ownership_overlap.go
++++ b/internal/relationship/exclude_binaries_by_file_ownership_overlap.go
+@@ -19,11 +19,8 @@ var (
+ 		pkg.PortagePkg,
+ 		pkg.RpmPkg,
+ 	}
+-	binaryCatalogerTypes = []pkg.Type{
+-		pkg.BinaryPkg,
+-		pkg.VendorJdkPkg, // a runtime found from its binaries; an OS package owning its files is authoritative
+-		pkg.VendorNikPkg,
+-	}
++	// the vendor runtimes are found from their binaries; an OS package owning their files is authoritative
++	binaryCatalogerTypes = append([]pkg.Type{pkg.BinaryPkg}, pkg.VendorRuntimeTypes()...)
+ 	bitnamiCatalogerTypes = []pkg.Type{
+ 		pkg.BitnamiPkg,
+ 	}
+diff --git a/syft/pkg/cataloger/internal/cpegenerate/generate.go b/syft/pkg/cataloger/internal/cpegenerate/generate.go
+index 1464229..b388cf7 100644
+--- a/syft/pkg/cataloger/internal/cpegenerate/generate.go
++++ b/syft/pkg/cataloger/internal/cpegenerate/generate.go
+@@ -147,7 +147,7 @@ func FromPackageAttributes(p pkg.Package) []cpe.CPE {
+ 
+ 	// no CPE for a standalone vendor runtime: it is matched by purl against the vendor's advisories, and a
+ 	// generic oracle:openjdk CPE would make SBOM consumers report every CVE twice
+-	if p.Type == pkg.VendorJdkPkg || p.Type == pkg.VendorNikPkg {
++	if pkg.IsVendorRuntime(p.Type) {
+ 		return nil
+ 	}
+ 
+diff --git a/syft/pkg/cataloger/java/vendorjdk_cataloger.go b/syft/pkg/cataloger/java/vendorjdk_cataloger.go
+index 3d058c8..4715c2c 100644
+--- a/syft/pkg/cataloger/java/vendorjdk_cataloger.go
++++ b/syft/pkg/cataloger/java/vendorjdk_cataloger.go
+@@ -46,8 +46,8 @@ func runtimeCandidates(ctx context.Context, resolver file.Resolver) (libs, relea
+ }
+ 
+ // NewVendorJDKCataloger returns a cataloger that reports standalone vendor runtimes with the identity of the shared
+-// osv-internal module: JDK/JRE as pkg.VendorJdkPkg (purl pkg:generic/<namespace>/<jdk name>, name = variant,
+-// version in product notation, ecosystem "<JDK family>:<major>") and the Native Image Kit as pkg.VendorNikPkg
++// osv-internal module, with the type of its product family (pkg.VendorRuntimeType, the family's purl name): JDK/JRE (purl pkg:generic/<namespace>/<jdk name>, name = variant,
++// version in product notation, ecosystem "<JDK family>:<major>") and the Native Image Kit
+ // (pkg:generic/<namespace>/<nik name>, name = bundle, ecosystem "<NIK family>:<nik major>-<java major>"); a NIK is
+ // reported once, as NIK. Detection is the module's, anchored on the JVM library with the release file as fallback;
+ // other vendors are left to the JVM release cataloger and the binary classifiers, and runtimes under /usr/lib/jvm on
+@@ -145,10 +145,7 @@ func newRuntimePackage(resolver file.Resolver, rt *vendorjdk.Runtime, libjvm *fi
+ 		locations.Add(libjvm.WithAnnotation(pkg.EvidenceAnnotationKey, pkg.PrimaryEvidenceAnnotation))
+ 	}
+ 
+-	typ := pkg.VendorJdkPkg
+-	if rt.IsNIK {
+-		typ = pkg.VendorNikPkg
+-	}
++	typ := pkg.VendorRuntimeType(rt.Product)
+ 	p := pkg.Package{
+ 		Name:      rt.Variant,
+ 		Version:   rt.Version,
+diff --git a/syft/pkg/cataloger/java/vendorjdk_cataloger_test.go b/syft/pkg/cataloger/java/vendorjdk_cataloger_test.go
+index ee8520d..940122a 100644
+--- a/syft/pkg/cataloger/java/vendorjdk_cataloger_test.go
++++ b/syft/pkg/cataloger/java/vendorjdk_cataloger_test.go
+@@ -83,11 +83,25 @@ func describe(pkgs []pkg.Package) []string {
+ 	return out
+ }
+ 
++// The first JDK and NIK families of the module: the fixtures are theirs.
+ var (
+-	jdkPURLPrefix = "pkg:generic/" + osvjdk.PURLNamespace + "/" + osvjdk.PURLNameJDK + "@"
+-	nikPURLPrefix = "pkg:generic/" + osvjdk.PURLNamespace + "/" + osvjdk.PURLNameNIK + "@"
++	jdkProduct    = testfix.Product(osvinternal.KindJDK)
++	nikProduct    = testfix.Product(osvinternal.KindNIK)
++	jdkType       = pkg.VendorRuntimeType(jdkProduct.Family)
++	nikType       = pkg.VendorRuntimeType(nikProduct.Family)
++	jdkPURLPrefix = "pkg:generic/" + osvjdk.PURLNamespace + "/" + jdkProduct.PURLName + "@"
++	nikPURLPrefix = "pkg:generic/" + osvjdk.PURLNamespace + "/" + nikProduct.PURLName + "@"
+ )
+ 
++// vendorRuntimePackages are the packages of every runtime type of the module.
++func vendorRuntimePackages(s *sbom.SBOM) []pkg.Package {
++	var out []pkg.Package
++	for _, t := range pkg.VendorRuntimeTypes() {
++		out = append(out, packagesOfType(s, t)...)
++	}
++	return out
++}
++
+ // A vendor runtime is reported once, as the vendor's JDK (purl from the shared module, no generic CPE), and the
+ // generic java classifiers / JVM release cataloger do not emit a second package for the same runtime.
+ func TestVendorJDKCataloger_OneRuntimeOnePackage(t *testing.T) {
+@@ -178,10 +192,10 @@ func TestVendorJDKCataloger_OneRuntimeOnePackage(t *testing.T) {
+ 			require.Len(t, all, 1, "exactly one package for one runtime: %v", describe(all))
+ 
+ 			p := all[0]
+-			assert.Equal(t, pkg.VendorJdkPkg, p.Type)
++			assert.Equal(t, jdkType, p.Type)
+ 			assert.Equal(t, tt.wantVariant, p.Name)
+ 			assert.Equal(t, tt.wantVersion, p.Version)
+-			assert.Equal(t, osvjdk.PURL(tt.wantVariant, tt.wantVersion), p.PURL)
++			assert.Equal(t, osvjdk.PURL(jdkProduct.Family, tt.wantVariant, tt.wantVersion), p.PURL)
+ 			assert.True(t, strings.HasPrefix(p.PURL, jdkPURLPrefix), p.PURL)
+ 			assert.Contains(t, p.PURL, "package_type="+tt.wantVariant)
+ 			assert.Empty(t, p.CPEs, "a vendor runtime must not carry a generic (oracle:openjdk) or generated CPE")
+@@ -209,7 +223,7 @@ func TestVendorJDKCataloger_OneRuntimeOnePackage(t *testing.T) {
+ // vendor's JDK.
+ func TestVendorJDKCataloger_OtherVendorsUntouched(t *testing.T) {
+ 	s := catalog(t, nil, testfix.Runtime{Home: "usr/lib/jvm/zulu21-ca-amd64", Version: "21.0.2+13-LTS", JDK: true, Vendor: "Azul Systems, Inc."})
+-	assert.Empty(t, packagesOfType(s, pkg.VendorJdkPkg), "a Zulu runtime must never be reported as the vendor's JDK")
++	assert.Empty(t, packagesOfType(s, jdkType), "a Zulu runtime must never be reported as the vendor's JDK")
+ 
+ 	binaries := packagesOfType(s, pkg.BinaryPkg)
+ 	require.NotEmpty(t, binaries, "the generic java catalogers must still report the Zulu runtime")
+@@ -261,15 +275,15 @@ func TestVendorJDKCataloger_NIK(t *testing.T) {
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			s := catalog(t, nil, tt.runtime)
+-			assert.Empty(t, describe(packagesOfType(s, pkg.VendorJdkPkg)), "a NIK must never be reported as a JDK")
++			assert.Empty(t, describe(packagesOfType(s, jdkType)), "a NIK must never be reported as a JDK")
+ 			all := runtimePackages(s)
+ 			require.Len(t, all, 1, "exactly one package for one runtime: %v", describe(all))
+ 
+ 			p := all[0]
+-			assert.Equal(t, pkg.VendorNikPkg, p.Type)
++			assert.Equal(t, nikType, p.Type)
+ 			assert.Equal(t, tt.wantBundle, p.Name)
+ 			assert.Equal(t, tt.wantVersion, p.Version)
+-			assert.Equal(t, osvjdk.PURLNIK(tt.wantBundle, tt.wantVersion), p.PURL)
++			assert.Equal(t, osvjdk.PURL(nikProduct.Family, tt.wantBundle, tt.wantVersion), p.PURL)
+ 			assert.True(t, strings.HasPrefix(p.PURL, nikPURLPrefix), p.PURL)
+ 			assert.Empty(t, p.CPEs)
+ 			assert.Equal(t, "java-vendor-jdk-cataloger", p.FoundBy)
+@@ -285,6 +299,25 @@ func TestVendorJDKCataloger_NIK(t *testing.T) {
+ 	}
+ }
+ 
++// A runtime of any product family of the module is reported with the family's own package type and purl.
++func TestVendorJDKCataloger_EveryFamily(t *testing.T) {
++	for _, product := range osvinternal.Products {
++		t.Run(product.Family, func(t *testing.T) {
++			rt := testfix.Runtime{Product: product.Family, Home: "opt/runtime", Version: "21.0.2+14-LTS", JDK: true}
++			if product.Kind == osvinternal.KindNIK {
++				rt.NIK = "23.1.0+1"
++			}
++			s := catalog(t, nil, rt)
++			all := runtimePackages(s)
++			require.Len(t, all, 1, "exactly one package for one runtime: %v", describe(all))
++			p := all[0]
++			assert.Equal(t, pkg.VendorRuntimeType(product.Family), p.Type)
++			assert.Equal(t, osvjdk.PURL(product.Family, p.Name, p.Version), p.PURL)
++			assert.Empty(t, p.CPEs)
++		})
++	}
++}
++
+ // Runtimes that are not the vendor's produce no vendor package: vendor mismatches between the JVM library and the
+ // structured sources, a stripped release file without binary evidence.
+ func TestVendorJDKCataloger_NegativeCases(t *testing.T) {
+@@ -298,8 +331,7 @@ func TestVendorJDKCataloger_NegativeCases(t *testing.T) {
+ 	} {
+ 		t.Run(tc.name, func(t *testing.T) {
+ 			s := catalog(t, nil, tc.runtime)
+-			assert.Empty(t, describe(packagesOfType(s, pkg.VendorJdkPkg)))
+-			assert.Empty(t, describe(packagesOfType(s, pkg.VendorNikPkg)))
++			assert.Empty(t, describe(vendorRuntimePackages(s)))
+ 		})
+ 	}
+ }
+@@ -313,14 +345,14 @@ func TestVendorJDKCataloger_ApkManagedRuntimeSkipped(t *testing.T) {
+ 	)
+ 	require.NotNil(t, s.Artifacts.LinuxDistribution)
+ 	assert.Equal(t, osvinternal.OSReleaseIDLinux, s.Artifacts.LinuxDistribution.ID)
+-	assert.Empty(t, describe(packagesOfType(s, pkg.VendorJdkPkg)))
++	assert.Empty(t, describe(vendorRuntimePackages(s)))
+ 	assert.Empty(t, describe(packagesOfType(s, pkg.BinaryPkg)), "no generic java package for a vendor runtime")
+ }
+ 
+ // File names are matched case-insensitively: the JVM library of the upper-case Windows layout anchors the package.
+ func TestVendorJDKCataloger_CaseInsensitiveNames(t *testing.T) {
+ 	s := catalog(t, upperCaseWindows(testfix.Runtime{Home: "Program Files/Java/JDK-21.0.2", Version: "21.0.2+14-LTS", JDK: true, OS: "windows"}))
+-	libs := packagesOfType(s, pkg.VendorJdkPkg)
++	libs := packagesOfType(s, jdkType)
+ 	require.Len(t, libs, 1)
+ 	var paths []string
+ 	for _, loc := range libs[0].Locations.ToSlice() {
+diff --git a/syft/pkg/type.go b/syft/pkg/type.go
+index 8944d39..6d90b64 100644
+--- a/syft/pkg/type.go
++++ b/syft/pkg/type.go
+@@ -1,6 +1,7 @@
+ package pkg
+ 
+ import (
++	osvinternal "github.com/bell-sw/osv-internal"
+ 	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
+ 
+ 	"github.com/anchore/packageurl-go"
+@@ -39,8 +40,6 @@ const (
+ 	KbPkg                   Type = "msrc-kb"
+ 	LinuxKernelPkg          Type = "linux-kernel"
+ 	LinuxKernelModulePkg    Type = "linux-kernel-module"
+-	VendorJdkPkg            Type = osvjdk.PURLNameJDK // a standalone vendor JDK/JRE runtime (not an OS package)
+-	VendorNikPkg            Type = osvjdk.PURLNameNIK // a standalone vendor Native Image Kit runtime
+ 	NixPkg                  Type = "nix"
+ 	NpmPkg                  Type = "npm"
+ 	OpamPkg                 Type = "opam"
+@@ -62,7 +61,7 @@ const (
+ )
+ 
+ // AllPkgs represents all supported package types
+-var AllPkgs = []Type{
++var AllPkgs = append([]Type{
+ 	AlpmPkg,
+ 	ApkPkg,
+ 	BinaryPkg,
+@@ -86,8 +85,6 @@ var AllPkgs = []Type{
+ 	KbPkg,
+ 	LinuxKernelPkg,
+ 	LinuxKernelModulePkg,
+-	VendorJdkPkg,
+-	VendorNikPkg,
+ 	NixPkg,
+ 	NpmPkg,
+ 	OpamPkg,
+@@ -106,12 +103,15 @@ var AllPkgs = []Type{
+ 	WordpressPluginPkg,
+ 	HomebrewPkg,
+ 	ModelPkg,
+-}
++}, VendorRuntimeTypes()...)
+ 
+ // PackageURLType returns the PURL package type for the current package.
+ //
+ //nolint:funlen, gocyclo
+ func (t Type) PackageURLType() string {
++	if IsVendorRuntime(t) {
++		return packageurl.TypeGeneric
++	}
+ 	switch t {
+ 	case AlpmPkg:
+ 		return "alpm"
+@@ -150,8 +150,6 @@ func (t Type) PackageURLType() string {
+ 		return "generic/linux-kernel"
+ 	case LinuxKernelModulePkg:
+ 		return packageurl.TypeGeneric
+-	case VendorJdkPkg, VendorNikPkg:
+-		return packageurl.TypeGeneric
+ 	case PhpComposerPkg:
+ 		return packageurl.TypeComposer
+ 	case PhpPearPkg, PhpPeclPkg:
+@@ -197,12 +195,9 @@ func TypeFromPURL(p string) Type {
+ 	}
+ 
+ 	if purl.Type == packageurl.TypeGeneric && purl.Namespace == osvjdk.PURLNamespace {
+-		// the vendor's standalone runtimes: pkg:generic/<namespace>/<name>, both from the osv-internal module
+-		switch purl.Name {
+-		case osvjdk.PURLNameJDK:
+-			return VendorJdkPkg
+-		case osvjdk.PURLNameNIK:
+-			return VendorNikPkg
++		// the vendor's standalone runtimes: pkg:generic/<namespace>/<purl name of the family>, both from the osv-internal module
++		if t := Type(purl.Name); IsVendorRuntime(t) {
++			return t
+ 		}
+ 	}
+ 	ptype := purl.Type
+@@ -214,6 +209,9 @@ func TypeFromPURL(p string) Type {
+ 
+ //nolint:funlen,gocyclo
+ func TypeByName(name string) Type {
++	if t := Type(name); IsVendorRuntime(t) {
++		return t
++	}
+ 	switch name {
+ 	case "alpm":
+ 		return AlpmPkg
+@@ -263,10 +261,6 @@ func TypeByName(name string) Type {
+ 		return LinuxKernelPkg
+ 	case "linux-kernel-module":
+ 		return LinuxKernelModulePkg
+-	case osvjdk.PURLNameJDK:
+-		return VendorJdkPkg
+-	case osvjdk.PURLNameNIK:
+-		return VendorNikPkg
+ 	case "nix":
+ 		return NixPkg
+ 	case "opam":
+@@ -289,3 +283,35 @@ func TypeByName(name string) Type {
+ 		return UnknownPkg
+ 	}
+ }
++
++// The standalone runtimes of the vendor have one package type per product
++// family of the osv-internal module (osvinternal.Products), named by the
++// family's purl name, so that pkg:generic/<namespace>/<name> maps back to it.
++
++// VendorRuntimeType returns the type of a runtime of a product family; "" for
++// an unknown family.
++func VendorRuntimeType(family string) Type {
++	if p := osvinternal.ProductOf(family); p != nil {
++		return Type(p.PURLName)
++	}
++	return ""
++}
++
++// VendorRuntimeTypes returns the types of every product family, in table order.
++func VendorRuntimeTypes() []Type {
++	var types []Type
++	for _, p := range osvinternal.Products {
++		types = append(types, Type(p.PURLName))
++	}
++	return types
++}
++
++// IsVendorRuntime reports whether t is the type of a vendor runtime.
++func IsVendorRuntime(t Type) bool {
++	for _, p := range osvinternal.Products {
++		if Type(p.PURLName) == t {
++			return true
++		}
++	}
++	return false
++}
+diff --git a/syft/pkg/type_test.go b/syft/pkg/type_test.go
+index 5897dda..9fe37bc 100644
+--- a/syft/pkg/type_test.go
++++ b/syft/pkg/type_test.go
+@@ -3,8 +3,10 @@ package pkg
+ import (
+ 	"testing"
+ 
++	osvinternal "github.com/bell-sw/osv-internal"
+ 	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
+ 
++	"github.com/anchore/packageurl-go"
+ 	"github.com/scylladb/go-set/strset"
+ 	"github.com/stretchr/testify/assert"
+ )
+@@ -142,16 +144,22 @@ func TestTypeFromPURL(t *testing.T) {
+ 			purl:     "pkg:generic/conda@1.2.3",
+ 			expected: CondaPkg,
+ 		},
+-		{
+-			name:     osvjdk.PURLNameJDK,
+-			purl:     osvjdk.PURL(osvjdk.VariantJDK, "21.0.2+14"),
+-			expected: VendorJdkPkg,
+-		},
+-		{
+-			name:     osvjdk.PURLNameNIK,
+-			purl:     osvjdk.PURLNIK(osvjdk.BundleCore, "23.1.0+1"),
+-			expected: VendorNikPkg,
+-		},
++	}
++	// the vendor's standalone runtimes: one type per product family of the module
++	for _, p := range osvinternal.Products {
++		qualifier, version := osvjdk.VariantJDK, "21.0.2+14"
++		if p.Kind == osvinternal.KindNIK {
++			qualifier, version = osvjdk.BundleCore, "23.1.0+1"
++		}
++		tests = append(tests, struct {
++			name     string
++			purl     string
++			expected Type
++		}{
++			name:     p.PURLName,
++			purl:     osvjdk.PURL(p.Family, qualifier, version),
++			expected: VendorRuntimeType(p.Family),
++		})
+ 	}
+ 
+ 	var pkgTypes = strset.New()
+@@ -189,3 +197,20 @@ func TestTypeFromPURL(t *testing.T) {
+ 
+ 	assert.ElementsMatch(t, expectedTypes.List(), pkgTypes.List(), "missing one or more package types to test against (maybe a package type was added?)")
+ }
++
++// One package type per product family of the module, named by the family's purl name.
++func TestVendorRuntimeTypes(t *testing.T) {
++	assert.Len(t, VendorRuntimeTypes(), len(osvinternal.Products))
++	for i, p := range osvinternal.Products {
++		typ := VendorRuntimeType(p.Family)
++		assert.Equal(t, Type(p.PURLName), typ)
++		assert.Equal(t, typ, VendorRuntimeTypes()[i])
++		assert.True(t, IsVendorRuntime(typ))
++		assert.Contains(t, AllPkgs, typ)
++		assert.Equal(t, packageurl.TypeGeneric, typ.PackageURLType())
++		assert.Equal(t, typ, TypeByName(p.PURLName))
++	}
++	assert.Equal(t, Type(""), VendorRuntimeType("Acme JDK"))
++	assert.False(t, IsVendorRuntime(JavaPkg))
++	assert.False(t, IsVendorRuntime(BinaryPkg))
++}
+-- 
+2.55.0
+

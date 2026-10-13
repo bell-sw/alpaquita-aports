@@ -1,0 +1,1477 @@
+From 6599adf3c7341eaa2a36af6600136324bd732ef8 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 19:02:38 +0000
+Subject: [PATCH] feat(db): transform the vendor OSV records into distro-keyed
+ affected packages
+
+Add the vendor OSV strategy for BELL-* records: every affected entry
+becomes an apk affected package carrying the OperatingSystem derived from
+the ecosystem string ("<family>:23" -> <os-release id> 23,
+"<family>:stream" -> <os-release id>, label "stream"), so the apk matcher
+reaches it through its distro search. Ranges keep the apk notation and the
+apk comparator; multi-window constraints are emitted comma-separated, which
+the generic constraint parser requires. The rewrite is local to the
+strategy (vendorRanges); the shared helpers and the output of every other
+strategy are unchanged. The CVE is taken from the record id
+(BELL-CVE-2025-59375 -> CVE-2025-59375) and from aliases/related; the OSV
+model vendored here has no upstream[] field.
+
+The apk matcher tests drive real vendor records
+(grype/matcher/apk/testdata/vendor-apk): per-release ranges, origin
+indirection, fixed-version ignores, and isolation in both directions
+between BELL-* records and Alpine / Wolfi packages.
+
+Ported from the database part of #3264.
+---
+ .../osv/testdata/BELL-CVE-2025-59375.json     | 147 +++++++++
+ .../db/v6/build/transformers/osv/transform.go |   1 +
+ .../transformers/osv/transform_vendor.go      | 200 +++++++++++++
+ .../transformers/osv/transform_vendor_test.go | 174 +++++++++++
+ .../vendor-apk/bellsoft/metadata.json         |  19 ++
+ .../bellsoft/results/bell-cve-2025-59375.json | 151 ++++++++++
+ .../bellsoft/results/bell-cve-2026-21637.json | 147 +++++++++
+ .../bellsoft/results/bell-cve-2026-3219.json  |  61 ++++
+ .../bellsoft/results/bell-cve-2026-34180.json | 147 +++++++++
+ .../apk/testdata/vendor-apk/db-lock.json      |  10 +
+ grype/matcher/apk/testdata/vendor-apk/db.yaml |   7 +
+ grype/matcher/apk/vendor_db_test.go           | 283 ++++++++++++++++++
+ 12 files changed, 1347 insertions(+)
+ create mode 100644 grype/db/v6/build/transformers/osv/testdata/BELL-CVE-2025-59375.json
+ create mode 100644 grype/db/v6/build/transformers/osv/transform_vendor.go
+ create mode 100644 grype/db/v6/build/transformers/osv/transform_vendor_test.go
+ create mode 100644 grype/matcher/apk/testdata/vendor-apk/bellsoft/metadata.json
+ create mode 100644 grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2025-59375.json
+ create mode 100644 grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2026-21637.json
+ create mode 100644 grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2026-3219.json
+ create mode 100644 grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2026-34180.json
+ create mode 100644 grype/matcher/apk/testdata/vendor-apk/db-lock.json
+ create mode 100644 grype/matcher/apk/testdata/vendor-apk/db.yaml
+ create mode 100644 grype/matcher/apk/vendor_db_test.go
+
+diff --git a/grype/db/v6/build/transformers/osv/testdata/BELL-CVE-2025-59375.json b/grype/db/v6/build/transformers/osv/testdata/BELL-CVE-2025-59375.json
+new file mode 100644
+index 0000000..a48d392
+--- /dev/null
++++ b/grype/db/v6/build/transformers/osv/testdata/BELL-CVE-2025-59375.json
+@@ -0,0 +1,147 @@
++{
++    "affected": [
++        {
++            "package": {
++                "ecosystem": "Alpaquita:23",
++                "name": "expat",
++                "purl": "pkg:apk/alpaquita/expat?arch=source&distro=23"
++            },
++            "ranges": [
++                {
++                    "events": [
++                        {
++                            "introduced": "2.5.0-r0"
++                        },
++                        {
++                            "fixed": "2.7.2-r0"
++                        }
++                    ],
++                    "type": "ECOSYSTEM"
++                }
++            ]
++        },
++        {
++            "package": {
++                "ecosystem": "Alpaquita:25",
++                "name": "expat",
++                "purl": "pkg:apk/alpaquita/expat?arch=source&distro=25"
++            },
++            "ranges": [
++                {
++                    "events": [
++                        {
++                            "introduced": "2.7.1-r0"
++                        },
++                        {
++                            "fixed": "2.7.2-r0"
++                        }
++                    ],
++                    "type": "ECOSYSTEM"
++                }
++            ]
++        },
++        {
++            "package": {
++                "ecosystem": "Alpaquita:stream",
++                "name": "expat",
++                "purl": "pkg:apk/alpaquita/expat?arch=source&distro=stream"
++            },
++            "ranges": [
++                {
++                    "events": [
++                        {
++                            "introduced": "2.4.9-r0"
++                        },
++                        {
++                            "fixed": "2.7.2-r0"
++                        }
++                    ],
++                    "type": "ECOSYSTEM"
++                }
++            ]
++        },
++        {
++            "package": {
++                "ecosystem": "BellSoft Hardened Containers:23",
++                "name": "expat",
++                "purl": "pkg:apk/bellsoft-hardened-containers/expat?arch=source&distro=23"
++            },
++            "ranges": [
++                {
++                    "events": [
++                        {
++                            "introduced": "2.5.0-r0"
++                        },
++                        {
++                            "fixed": "2.7.2-r0"
++                        }
++                    ],
++                    "type": "ECOSYSTEM"
++                }
++            ]
++        },
++        {
++            "package": {
++                "ecosystem": "BellSoft Hardened Containers:25",
++                "name": "expat",
++                "purl": "pkg:apk/bellsoft-hardened-containers/expat?arch=source&distro=25"
++            },
++            "ranges": [
++                {
++                    "events": [
++                        {
++                            "introduced": "2.7.1-r0"
++                        },
++                        {
++                            "fixed": "2.7.2-r0"
++                        }
++                    ],
++                    "type": "ECOSYSTEM"
++                }
++            ]
++        },
++        {
++            "package": {
++                "ecosystem": "BellSoft Hardened Containers:stream",
++                "name": "expat",
++                "purl": "pkg:apk/bellsoft-hardened-containers/expat?arch=source&distro=stream"
++            },
++            "ranges": [
++                {
++                    "events": [
++                        {
++                            "introduced": "2.4.9-r0"
++                        },
++                        {
++                            "fixed": "2.7.2-r0"
++                        }
++                    ],
++                    "type": "ECOSYSTEM"
++                }
++            ]
++        }
++    ],
++    "id": "BELL-CVE-2025-59375",
++    "modified": "2025-12-23T13:05:51.859654Z",
++    "published": "2025-09-15T11:56:23.866967Z",
++    "references": [
++        {
++            "type": "ADVISORY",
++            "url": "https://docs.bell-sw.com/security/cves/CVE-2025-59375"
++        },
++        {
++            "type": "ADVISORY",
++            "url": "https://docs.bell-sw.com/security/advisories/BELL-SA-2025-13"
++        }
++    ],
++    "schema_version": "1.7.4",
++    "severity": [
++        {
++            "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
++            "type": "CVSS_V3"
++        }
++    ],
++    "upstream": [
++        "CVE-2025-59375"
++    ]
++}
+diff --git a/grype/db/v6/build/transformers/osv/transform.go b/grype/db/v6/build/transformers/osv/transform.go
+index 7327664..c9b2a76 100644
+--- a/grype/db/v6/build/transformers/osv/transform.go
++++ b/grype/db/v6/build/transformers/osv/transform.go
+@@ -46,6 +46,7 @@ type Strategy interface {
+ // true handles the record. Add new providers by appending here.
+ var strategies = []Strategy{
+ 	almaStrategy{},
++	vendorStrategy{},
+ 	bitnamiStrategy{},
+ 	govulndbStrategy{},
+ 	rootioStrategy{},
+diff --git a/grype/db/v6/build/transformers/osv/transform_vendor.go b/grype/db/v6/build/transformers/osv/transform_vendor.go
+new file mode 100644
+index 0000000..a298d92
+--- /dev/null
++++ b/grype/db/v6/build/transformers/osv/transform_vendor.go
+@@ -0,0 +1,200 @@
++package osv
++
++import (
++	"fmt"
++	"sort"
++	"strconv"
++	"strings"
++
++	"github.com/anchore/grype/grype/db/data"
++	"github.com/anchore/grype/grype/db/internal/provider/unmarshal"
++	"github.com/anchore/grype/grype/db/internal/versionutil"
++	"github.com/anchore/grype/grype/db/provider"
++	db "github.com/anchore/grype/grype/db/v6"
++	"github.com/anchore/grype/grype/db/v6/build/transformers"
++	"github.com/anchore/grype/grype/db/v6/build/transformers/internal"
++	"github.com/anchore/grype/grype/db/v6/name"
++	"github.com/anchore/grype/internal/log"
++	"github.com/anchore/syft/syft/pkg"
++	"github.com/google/osv-scanner/pkg/models"
++)
++
++// vendorStrategy handles the BELL-* records of the vendor's vulnerability
++// database: affected apk version ranges of packages shipped in its apk-based
++// distributions.
++//
++//   - The CVE is derived from the record id (BELL-CVE-YYYY-NNNNN names the
++//     CVE it assesses) plus any CVE in aliases/related; the OSV model
++//     vendored here has no `upstream` field.
++//   - These are distro packages (like alpine secdb): every affected entry
++//     carries an OperatingSystem derived from the ecosystem string
++//     ("<family>:23", "<family>:stream") so the apk
++//     matcher's distro search finds them.
++//   - Versions are apk-flavored (2.7.2-r0) and use the apk comparator.
++//   - No qualifiers or CPEs: the records are found by distro + package name.
++type vendorStrategy struct{}
++
++func (vendorStrategy) Matches(id string) bool {
++	return strings.HasPrefix(id, "BELL-")
++}
++
++func (vendorStrategy) Transform(vuln unmarshal.OSVVulnerability, state provider.State) ([]data.Entry, error) {
++	severities, err := getSeverities(vuln)
++	if err != nil {
++		return nil, fmt.Errorf("unable to obtain severities: %w", err)
++	}
++
++	in := []any{
++		db.VulnerabilityHandle{
++			Name:          vuln.ID,
++			ProviderID:    state.Provider,
++			Provider:      provider.Model(state),
++			Status:        db.VulnerabilityActive,
++			ModifiedDate:  &vuln.Modified,
++			PublishedDate: &vuln.Published,
++			BlobValue: &db.VulnerabilityBlob{
++				ID:          vuln.ID,
++				Description: vuln.Details,
++				References:  vendorReferences(vuln),
++				Aliases:     vendorCVEs(vuln),
++				Severities:  severities,
++			},
++		},
++	}
++
++	for _, aph := range vendorAffectedPackages(vuln) {
++		in = append(in, aph)
++	}
++	return transformers.NewEntries(in...), nil
++}
++
++// vendorCVEs returns the CVE ids a vendor record assesses: the id embedded in
++// the record name (BELL-CVE-2025-59375 -> CVE-2025-59375) and any CVE listed in
++// aliases/related (grype main reads the OSV `upstream` field instead).
++func vendorCVEs(vuln unmarshal.OSVVulnerability) []string {
++	var cves []string
++	seen := map[string]bool{}
++	add := func(id string) {
++		if strings.HasPrefix(id, "CVE-") && !seen[id] {
++			seen[id] = true
++			cves = append(cves, id)
++		}
++	}
++	add(strings.TrimPrefix(vuln.ID, "BELL-"))
++	for _, id := range vuln.Aliases {
++		add(id)
++	}
++	for _, id := range vuln.Related {
++		add(id)
++	}
++	return cves
++}
++
++func vendorReferences(vuln unmarshal.OSVVulnerability) []db.Reference {
++	var refs []db.Reference
++	for _, ref := range vuln.References {
++		refs = append(refs, db.Reference{
++			URL:  ref.URL,
++			Tags: []string{string(ref.Type)},
++		})
++	}
++	return refs
++}
++
++func vendorAffectedPackages(vuln unmarshal.OSVVulnerability) []db.AffectedPackageHandle {
++	if len(vuln.Affected) == 0 {
++		return nil
++	}
++	var aphs []db.AffectedPackageHandle
++	for _, affected := range vuln.Affected {
++		os := vendorOSFromEcosystem(string(affected.Package.Ecosystem))
++		if os == nil {
++			// an unrecognized ecosystem would yield an entry without OS, unreachable
++			// by the distro search: skip it loudly
++			log.WithFields("id", vuln.ID, "ecosystem", affected.Package.Ecosystem, "package", affected.Package.Name).
++				Warn("vendor record uses an unrecognized ecosystem; skipping (add a case to vendorOSFromEcosystem to enable)")
++			continue
++		}
++
++		var ranges []db.Range
++		for _, r := range affected.Ranges {
++			ranges = append(ranges, vendorRanges(r)...)
++		}
++		aphs = append(aphs, db.AffectedPackageHandle{
++			Package:         vendorPackage(affected.Package),
++			OperatingSystem: os,
++			BlobValue: &db.PackageBlob{
++				CVEs:   vendorCVEs(vuln),
++				Ranges: ranges,
++			},
++		})
++	}
++	// stable: entries for the same package+constraint on different distros
++	// (Linux vs hardened containers) compare equal, so keep the record's affected order
++	sort.Stable(internal.ByAffectedPackage(aphs))
++	return aphs
++}
++
++// vendorRanges converts one OSV range of a vendor record. Multi-window
++// constraints come out of the shared helper space-separated, which the apk
++// constraint parser rejects, so they are rewritten comma-separated here
++// rather than in the helper, which other strategies share.
++func vendorRanges(r models.Range) []db.Range {
++	rangeType := vendorRangeType(r.Type)
++	ranges := getGrypeRangesFromRange(r, rangeType)
++	if rangeType != "apk" {
++		return ranges
++	}
++	for i := range ranges {
++		ranges[i].Version.Constraint = versionutil.EnforceSemVerConstraint(ranges[i].Version.Constraint)
++	}
++	return ranges
++}
++
++func vendorPackage(p models.Package) *db.Package {
++	pkgType := pkg.TypeFromPURL(p.Purl)
++	return &db.Package{
++		Ecosystem: pkgType.String(),
++		Name:      name.Normalize(p.Name, pkgType),
++	}
++}
++
++// vendorOSFromEcosystem derives the OperatingSystem from a vendor ecosystem
++// string "<distro>:<version>":
++//
++//   - "<family>:23"     → <os-release id>, major version 23
++//   - "<family>:stream" → <os-release id>, label "stream"
++//
++// Unrecognized ecosystems return nil.
++func vendorOSFromEcosystem(ecosystem string) *db.OperatingSystem {
++	base, ver, ok := strings.Cut(ecosystem, ":")
++	if !ok || ver == "" {
++		return nil
++	}
++
++	var osName string
++	switch base {
++	case "Alpaquita":
++		osName = "alpaquita"
++	case "BellSoft Hardened Containers":
++		osName = "bellsoft-hardened-containers"
++	default:
++		return nil
++	}
++
++	if _, err := strconv.Atoi(ver); err == nil {
++		return &db.OperatingSystem{Name: osName, MajorVersion: ver}
++	}
++	return &db.OperatingSystem{Name: osName, LabelVersion: ver}
++}
++
++// vendorRangeType maps an OSV range type to the grype version format: both
++// SEMVER and ECOSYSTEM ranges of vendor records carry apk versions.
++func vendorRangeType(t models.RangeType) string {
++	switch t {
++	case models.RangeSemVer, models.RangeEcosystem:
++		return "apk"
++	default:
++		return defaultRangeType(t)
++	}
++}
+diff --git a/grype/db/v6/build/transformers/osv/transform_vendor_test.go b/grype/db/v6/build/transformers/osv/transform_vendor_test.go
+new file mode 100644
+index 0000000..a3d35d7
+--- /dev/null
++++ b/grype/db/v6/build/transformers/osv/transform_vendor_test.go
+@@ -0,0 +1,174 @@
++package osv
++
++import (
++	"reflect"
++	"strings"
++	"testing"
++	"time"
++
++	db "github.com/anchore/grype/grype/db/v6"
++	"github.com/anchore/grype/grype/db/v6/build/transformers"
++	"github.com/anchore/grype/grype/distro"
++	"github.com/google/osv-scanner/pkg/models"
++)
++
++// TestVendorTransform runs the vendor strategy over a real BELL-* fixture:
++// the CVE comes from the record id, constraints are emitted in apk format and
++// every affected entry carries the OperatingSystem of its ecosystem (numeric
++// release → MajorVersion, "stream" → LabelVersion).
++func TestVendorTransform(t *testing.T) {
++	tests := []transformCase{
++		{
++			name:        "expat CVE-2025-59375",
++			fixturePath: "testdata/BELL-CVE-2025-59375.json",
++			want: []transformers.RelatedEntries{{
++				VulnerabilityHandle: &db.VulnerabilityHandle{
++					Name:          "BELL-CVE-2025-59375",
++					Status:        db.VulnerabilityActive,
++					ProviderID:    "osv",
++					Provider:      expectedProvider(),
++					ModifiedDate:  timeRef(time.Date(2025, time.December, 23, 13, 5, 51, 859654000, time.UTC)),
++					PublishedDate: timeRef(time.Date(2025, time.September, 15, 11, 56, 23, 866967000, time.UTC)),
++					BlobValue: &db.VulnerabilityBlob{
++						ID: "BELL-CVE-2025-59375",
++						References: []db.Reference{{
++							URL:  "https://docs.bell-sw.com/security/cves/CVE-2025-59375",
++							Tags: []string{"ADVISORY"},
++						}, {
++							URL:  "https://docs.bell-sw.com/security/advisories/BELL-SA-2025-13",
++							Tags: []string{"ADVISORY"},
++						}},
++						Aliases: []string{"CVE-2025-59375"},
++						Severities: []db.Severity{{
++							Scheme: db.SeveritySchemeCVSS,
++							Value: db.CVSSSeverity{
++								Vector:  "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
++								Version: "3.1",
++							},
++						}},
++					},
++				},
++				// ByAffectedPackage sorts on package + ranges (not OS), so the six
++				// entries group by constraint: stream (2.4.9), 23 (2.5.0), 25 (2.7.1).
++				Related: affectedPkgSlice(
++					vendorAffected(vendorOS(string(distro.VendorLinux), "", "stream"), ">=2.4.9-r0,<2.7.2-r0"),
++					vendorAffected(vendorOS(string(distro.VendorHardened), "", "stream"), ">=2.4.9-r0,<2.7.2-r0"),
++					vendorAffected(vendorOS(string(distro.VendorLinux), "23", ""), ">=2.5.0-r0,<2.7.2-r0"),
++					vendorAffected(vendorOS(string(distro.VendorHardened), "23", ""), ">=2.5.0-r0,<2.7.2-r0"),
++					vendorAffected(vendorOS(string(distro.VendorLinux), "25", ""), ">=2.7.1-r0,<2.7.2-r0"),
++					vendorAffected(vendorOS(string(distro.VendorHardened), "25", ""), ">=2.7.1-r0,<2.7.2-r0"),
++				),
++			}},
++		},
++	}
++	runTransformCases(t, tests)
++}
++
++func vendorOS(name, major, label string) *db.OperatingSystem {
++	return &db.OperatingSystem{Name: name, MajorVersion: major, LabelVersion: label}
++}
++
++func vendorAffected(os *db.OperatingSystem, constraint string) db.AffectedPackageHandle {
++	return db.AffectedPackageHandle{
++		Package: &db.Package{
++			Name:      "expat",
++			Ecosystem: "apk",
++		},
++		OperatingSystem: os,
++		BlobValue: &db.PackageBlob{
++			CVEs: []string{"CVE-2025-59375"},
++			Ranges: []db.Range{{
++				Version: db.Version{
++					Type:       "apk",
++					Constraint: constraint,
++				},
++				Fix: &db.Fix{
++					Version: "2.7.2-r0",
++					State:   db.FixedStatus,
++				},
++			}},
++		},
++	}
++}
++
++// TestVendorRangeConversion: ECOSYSTEM/SEMVER map to "apk" and multi-window
++// ranges are comma-delimited, as the apk constraint parser requires.
++func TestVendorRangeConversion(t *testing.T) {
++	tests := []struct {
++		name string
++		rnge models.Range
++		want []db.Range
++	}{
++		{
++			name: "ecosystem introduced -> fixed apk range is comma-delimited",
++			rnge: models.Range{
++				Type: models.RangeEcosystem,
++				Events: []models.Event{
++					{Introduced: "2.5.0-r0"},
++					{Fixed: "2.7.2-r0"},
++				},
++			},
++			want: []db.Range{{
++				Version: db.Version{Type: "apk", Constraint: ">=2.5.0-r0,<2.7.2-r0"},
++				Fix:     &db.Fix{Version: "2.7.2-r0", State: db.FixedStatus},
++			}},
++		},
++		{
++			name: "semver introduced -> fixed apk range",
++			rnge: models.Range{
++				Type: models.RangeSemVer,
++				Events: []models.Event{
++					{Introduced: "1.0.0"},
++					{Fixed: "1.2.0"},
++				},
++			},
++			want: []db.Range{{
++				Version: db.Version{Type: "apk", Constraint: ">=1.0.0,<1.2.0"},
++				Fix:     &db.Fix{Version: "1.2.0", State: db.FixedStatus},
++			}},
++		},
++		{
++			name: "introduced with no upper bound stays open-ended",
++			rnge: models.Range{
++				Type: models.RangeEcosystem,
++				Events: []models.Event{
++					{Introduced: "2.4.9-r0"},
++				},
++			},
++			want: []db.Range{{
++				Version: db.Version{Type: "apk", Constraint: ">=2.4.9-r0"},
++			}},
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got := vendorRanges(tt.rnge)
++			if !reflect.DeepEqual(got, tt.want) {
++				t.Errorf("got %v, want %v", got, tt.want)
++			}
++		})
++	}
++}
++
++// The comma normalization is local to the vendor strategy; the shared
++// helper's "apk" ranges are unchanged.
++func TestVendorNormalizationIsLocal(t *testing.T) {
++	rnge := models.Range{
++		Type: models.RangeEcosystem,
++		Events: []models.Event{
++			{Introduced: "2.5.0-r0"},
++			{Fixed: "2.7.2-r0"},
++		},
++	}
++	shared := getGrypeRangesFromRange(rnge, "apk")
++	if len(shared) != 1 || strings.Contains(shared[0].Version.Constraint, ",") {
++		t.Fatalf("shared helper output for apk ranges changed: %v", shared)
++	}
++	if got := normalizeConstraint(shared[0].Version.Constraint, "apk"); got != shared[0].Version.Constraint {
++		t.Errorf("normalizeConstraint must leave apk constraints untouched, got %q", got)
++	}
++	own := vendorRanges(rnge)
++	if len(own) != 1 || own[0].Version.Constraint != ">=2.5.0-r0,<2.7.2-r0" {
++		t.Errorf("vendor ranges must be comma-delimited: %v", own)
++	}
++}
+diff --git a/grype/matcher/apk/testdata/vendor-apk/bellsoft/metadata.json b/grype/matcher/apk/testdata/vendor-apk/bellsoft/metadata.json
+new file mode 100644
+index 0000000..cae7d68
+--- /dev/null
++++ b/grype/matcher/apk/testdata/vendor-apk/bellsoft/metadata.json
+@@ -0,0 +1,19 @@
++{
++  "provider": "bellsoft",
++  "version": 1,
++  "processor": "vunnel@0.62.1.post8+17b61ae",
++  "schema": {
++    "version": "1.0.3",
++    "url": "https://raw.githubusercontent.com/anchore/vunnel/main/schema/provider-workspace-state/schema-1.0.3.json"
++  },
++  "urls": [
++    "https://github.com/bell-sw/osv-database.git"
++  ],
++  "timestamp": "2026-07-08T14:25:03Z",
++  "listing": {
++    "path": "results/listing.xxh64",
++    "digest": "b08ee6f818c3aadd",
++    "algorithm": "xxh64"
++  },
++  "store": "flat-file"
++}
+diff --git a/grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2025-59375.json b/grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2025-59375.json
+new file mode 100644
+index 0000000..0514b46
+--- /dev/null
++++ b/grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2025-59375.json
+@@ -0,0 +1,151 @@
++{
++  "identifier": "bell-cve-2025-59375",
++  "item": {
++    "affected": [
++      {
++        "package": {
++          "ecosystem": "Alpaquita:23",
++          "name": "expat",
++          "purl": "pkg:apk/alpaquita/expat?arch=source\u0026distro=23"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "2.5.0-r0"
++              },
++              {
++                "fixed": "2.7.2-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "Alpaquita:25",
++          "name": "expat",
++          "purl": "pkg:apk/alpaquita/expat?arch=source\u0026distro=25"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "2.7.1-r0"
++              },
++              {
++                "fixed": "2.7.2-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "Alpaquita:stream",
++          "name": "expat",
++          "purl": "pkg:apk/alpaquita/expat?arch=source\u0026distro=stream"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "2.4.9-r0"
++              },
++              {
++                "fixed": "2.7.2-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "BellSoft Hardened Containers:23",
++          "name": "expat",
++          "purl": "pkg:apk/bellsoft-hardened-containers/expat?arch=source\u0026distro=23"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "2.5.0-r0"
++              },
++              {
++                "fixed": "2.7.2-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "BellSoft Hardened Containers:25",
++          "name": "expat",
++          "purl": "pkg:apk/bellsoft-hardened-containers/expat?arch=source\u0026distro=25"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "2.7.1-r0"
++              },
++              {
++                "fixed": "2.7.2-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "BellSoft Hardened Containers:stream",
++          "name": "expat",
++          "purl": "pkg:apk/bellsoft-hardened-containers/expat?arch=source\u0026distro=stream"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "2.4.9-r0"
++              },
++              {
++                "fixed": "2.7.2-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      }
++    ],
++    "id": "BELL-CVE-2025-59375",
++    "modified": "2025-12-23T13:05:51.859654Z",
++    "published": "2025-09-15T11:56:23.866967Z",
++    "references": [
++      {
++        "type": "ADVISORY",
++        "url": "https://docs.bell-sw.com/security/cves/CVE-2025-59375"
++      },
++      {
++        "type": "ADVISORY",
++        "url": "https://docs.bell-sw.com/security/advisories/BELL-SA-2025-13"
++      }
++    ],
++    "schema_version": "1.7.4",
++    "severity": [
++      {
++        "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
++        "type": "CVSS_V3"
++      }
++    ],
++    "upstream": [
++      "CVE-2025-59375"
++    ]
++  },
++  "schema": "https://raw.githubusercontent.com/anchore/vunnel/main/schema/vulnerability/osv/schema-1.7.5.json"
++}
+diff --git a/grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2026-21637.json b/grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2026-21637.json
+new file mode 100644
+index 0000000..b95b783
+--- /dev/null
++++ b/grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2026-21637.json
+@@ -0,0 +1,147 @@
++{
++  "identifier": "bell-cve-2026-21637",
++  "item": {
++    "affected": [
++      {
++        "package": {
++          "ecosystem": "Alpaquita:23",
++          "name": "nodejs",
++          "purl": "pkg:apk/alpaquita/nodejs?arch=source\u0026distro=23"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "18.16.0-r0"
++              },
++              {
++                "fixed": "20.20.0-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "Alpaquita:25",
++          "name": "nodejs",
++          "purl": "pkg:apk/alpaquita/nodejs?arch=source\u0026distro=25"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "22.16.0-r1"
++              },
++              {
++                "fixed": "22.22.2-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "Alpaquita:stream",
++          "name": "nodejs",
++          "purl": "pkg:apk/alpaquita/nodejs?arch=source\u0026distro=stream"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "18.16.1-r0"
++              },
++              {
++                "fixed": "24.14.1-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "BellSoft Hardened Containers:23",
++          "name": "nodejs",
++          "purl": "pkg:apk/bellsoft-hardened-containers/nodejs?arch=source\u0026distro=23"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "18.16.0-r0"
++              },
++              {
++                "fixed": "20.20.0-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "BellSoft Hardened Containers:25",
++          "name": "nodejs",
++          "purl": "pkg:apk/bellsoft-hardened-containers/nodejs?arch=source\u0026distro=25"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "22.16.0-r1"
++              },
++              {
++                "fixed": "22.22.2-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "BellSoft Hardened Containers:stream",
++          "name": "nodejs",
++          "purl": "pkg:apk/bellsoft-hardened-containers/nodejs?arch=source\u0026distro=stream"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "18.16.1-r0"
++              },
++              {
++                "fixed": "24.14.1-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      }
++    ],
++    "id": "BELL-CVE-2026-21637",
++    "modified": "2026-03-28T06:07:45.624573Z",
++    "published": "2026-01-17T01:31:36.304852Z",
++    "references": [
++      {
++        "type": "ADVISORY",
++        "url": "https://docs.bell-sw.com/security/cves/CVE-2026-21637"
++      }
++    ],
++    "schema_version": "1.7.4",
++    "severity": [
++      {
++        "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
++        "type": "CVSS_V3"
++      }
++    ],
++    "upstream": [
++      "CVE-2026-21637"
++    ]
++  },
++  "schema": "https://raw.githubusercontent.com/anchore/vunnel/main/schema/vulnerability/osv/schema-1.7.5.json"
++}
+diff --git a/grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2026-3219.json b/grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2026-3219.json
+new file mode 100644
+index 0000000..ec4c0d0
+--- /dev/null
++++ b/grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2026-3219.json
+@@ -0,0 +1,61 @@
++{
++  "identifier": "bell-cve-2026-3219",
++  "item": {
++    "affected": [
++      {
++        "package": {
++          "ecosystem": "Alpaquita:stream",
++          "name": "py3-pip",
++          "purl": "pkg:apk/alpaquita/py3-pip?arch=source\u0026distro=stream"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "22.3.1-r2"
++              },
++              {
++                "fixed": "26.1-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "BellSoft Hardened Containers:stream",
++          "name": "py3-pip",
++          "purl": "pkg:apk/bellsoft-hardened-containers/py3-pip?arch=source\u0026distro=stream"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "22.3.1-r2"
++              },
++              {
++                "fixed": "26.1-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      }
++    ],
++    "id": "BELL-CVE-2026-3219",
++    "modified": "2026-05-13T06:08:21.708221Z",
++    "published": "2026-04-23T06:10:51.473861Z",
++    "references": [
++      {
++        "type": "ADVISORY",
++        "url": "https://docs.bell-sw.com/security/cves/CVE-2026-3219"
++      }
++    ],
++    "schema_version": "1.7.4",
++    "upstream": [
++      "CVE-2026-3219"
++    ]
++  },
++  "schema": "https://raw.githubusercontent.com/anchore/vunnel/main/schema/vulnerability/osv/schema-1.7.5.json"
++}
+diff --git a/grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2026-34180.json b/grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2026-34180.json
+new file mode 100644
+index 0000000..57155ec
+--- /dev/null
++++ b/grype/matcher/apk/testdata/vendor-apk/bellsoft/results/bell-cve-2026-34180.json
+@@ -0,0 +1,147 @@
++{
++  "identifier": "bell-cve-2026-34180",
++  "item": {
++    "affected": [
++      {
++        "package": {
++          "ecosystem": "Alpaquita:23",
++          "name": "openssl",
++          "purl": "pkg:apk/alpaquita/openssl?arch=source\u0026distro=23"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "3.0.8-r4"
++              },
++              {
++                "fixed": "3.0.21-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "Alpaquita:25",
++          "name": "openssl",
++          "purl": "pkg:apk/alpaquita/openssl?arch=source\u0026distro=25"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "3.5.0-r0"
++              },
++              {
++                "fixed": "3.5.7-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "Alpaquita:stream",
++          "name": "openssl",
++          "purl": "pkg:apk/alpaquita/openssl?arch=source\u0026distro=stream"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "3.1.1-r1"
++              },
++              {
++                "fixed": "3.5.7-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "BellSoft Hardened Containers:23",
++          "name": "openssl",
++          "purl": "pkg:apk/bellsoft-hardened-containers/openssl?arch=source\u0026distro=23"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "3.0.8-r4"
++              },
++              {
++                "fixed": "3.0.21-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "BellSoft Hardened Containers:25",
++          "name": "openssl",
++          "purl": "pkg:apk/bellsoft-hardened-containers/openssl?arch=source\u0026distro=25"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "3.5.0-r0"
++              },
++              {
++                "fixed": "3.5.7-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      },
++      {
++        "package": {
++          "ecosystem": "BellSoft Hardened Containers:stream",
++          "name": "openssl",
++          "purl": "pkg:apk/bellsoft-hardened-containers/openssl?arch=source\u0026distro=stream"
++        },
++        "ranges": [
++          {
++            "events": [
++              {
++                "introduced": "3.1.1-r1"
++              },
++              {
++                "fixed": "3.5.7-r0"
++              }
++            ],
++            "type": "ECOSYSTEM"
++          }
++        ]
++      }
++    ],
++    "id": "BELL-CVE-2026-34180",
++    "modified": "2026-06-11T06:09:00.457396Z",
++    "published": "2026-06-10T13:01:29.973567Z",
++    "references": [
++      {
++        "type": "ADVISORY",
++        "url": "https://docs.bell-sw.com/security/cves/CVE-2026-34180"
++      }
++    ],
++    "schema_version": "1.7.4",
++    "severity": [
++      {
++        "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
++        "type": "CVSS_V3"
++      }
++    ],
++    "upstream": [
++      "CVE-2026-34180"
++    ]
++  },
++  "schema": "https://raw.githubusercontent.com/anchore/vunnel/main/schema/vulnerability/osv/schema-1.7.5.json"
++}
+diff --git a/grype/matcher/apk/testdata/vendor-apk/db-lock.json b/grype/matcher/apk/testdata/vendor-apk/db-lock.json
+new file mode 100644
+index 0000000..47b0c37
+--- /dev/null
++++ b/grype/matcher/apk/testdata/vendor-apk/db-lock.json
+@@ -0,0 +1,10 @@
++{
++  "content_hash": "4ec1fa3bbd321e6f",
++  "created_at": "2026-07-08T14:57:37.537822984Z",
++  "providers": {
++    "bellsoft": {
++      "vunnel_version": "vunnel@0.62.1.post8+17b61ae",
++      "timestamp": "2026-07-08T14:25:03.896001Z"
++    }
++  }
++}
+diff --git a/grype/matcher/apk/testdata/vendor-apk/db.yaml b/grype/matcher/apk/testdata/vendor-apk/db.yaml
+new file mode 100644
+index 0000000..74dd0c2
+--- /dev/null
++++ b/grype/matcher/apk/testdata/vendor-apk/db.yaml
+@@ -0,0 +1,7 @@
++auto-generate: true
++extractions:
++    bellsoft:
++        - bell-cve-2025-59375
++        - bell-cve-2026-34180
++        - bell-cve-2026-21637
++        - bell-cve-2026-3219
+diff --git a/grype/matcher/apk/vendor_db_test.go b/grype/matcher/apk/vendor_db_test.go
+new file mode 100644
+index 0000000..c016772
+--- /dev/null
++++ b/grype/matcher/apk/vendor_db_test.go
+@@ -0,0 +1,283 @@
++package apk
++
++import (
++	"testing"
++
++	"github.com/anchore/grype/grype/distro"
++	"github.com/anchore/grype/grype/match"
++	"github.com/anchore/grype/grype/pkg"
++	"github.com/anchore/grype/internal/dbtest"
++	"github.com/anchore/syft/syft/artifact"
++	syftPkg "github.com/anchore/syft/syft/pkg"
++)
++
++// TestMatcherApk_Vendor drives the apk matcher against a DB built from a real
++// vendor record. BELL-CVE-2025-59375 fixes expat 2.7.2-r0 on three release
++// lines, each with its own affected floor:
++//
++//	Linux / hardened containers : stream  → [2.4.9-r0, 2.7.2-r0)
++//	Linux / hardened containers : 23      → [2.5.0-r0, 2.7.2-r0)
++//	Linux / hardened containers : 25      → [2.7.1-r0, 2.7.2-r0)
++func TestMatcherApk_Vendor(t *testing.T) {
++	dbtest.DBs(t, "vendor-apk").Run(func(t *testing.T, db *dbtest.DB) {
++		matcher := Matcher{}
++
++		linuxStream := distro.New(distro.VendorLinux, "stream", "")
++		linux23 := distro.New(distro.VendorLinux, "23", "")
++		linux25 := distro.New(distro.VendorLinux, "25", "")
++		hardenedStream := distro.New(distro.VendorHardened, "stream", "")
++
++		// vulnerable expat on the rolling release (stream floor 2.4.9-r0).
++		t.Run("vendor Linux stream: vulnerable expat matches", func(t *testing.T) {
++			p := dbtest.NewPackage("expat", "2.6.0-r0", syftPkg.ApkPkg).
++				WithDistro(linuxStream).
++				Build()
++
++			db.Match(t, &matcher, p).
++				SelectMatch("BELL-CVE-2025-59375").
++				SelectDetailByType(match.ExactDirectMatch).
++				AsDistroSearch()
++		})
++
++		// same version, numbered release 23 (floor 2.5.0-r0): still vulnerable.
++		t.Run("vendor Linux 23: vulnerable expat matches", func(t *testing.T) {
++			p := dbtest.NewPackage("expat", "2.6.0-r0", syftPkg.ApkPkg).
++				WithDistro(linux23).
++				Build()
++
++			db.Match(t, &matcher, p).
++				SelectMatch("BELL-CVE-2025-59375").
++				SelectDetailByType(match.ExactDirectMatch).
++				AsDistroSearch()
++		})
++
++		// release 25 has a higher floor (2.7.1-r0), so 2.6.0-r0 is outside the
++		// range: no match, but the DistroPackageFixed ignores are still emitted
++		t.Run("vendor Linux 25: version outside the release range does not match", func(t *testing.T) {
++			pkgID := pkg.ID("expat-linux25-below-floor")
++			p := dbtest.NewPackage("expat", "2.6.0-r0", syftPkg.ApkPkg).
++				WithID(pkgID).
++				WithDistro(linux25).
++				Build()
++
++			db.Match(t, &matcher, p).
++				DoesNotHaveAnyVulnerabilities("BELL-CVE-2025-59375", "CVE-2025-59375").
++				Ignores().
++				SelectRelatedPackageIgnores("DistroPackageFixed", "BELL-CVE-2025-59375", "CVE-2025-59375").
++				ForPackage(pkgID).
++				WithRelationshipType(artifact.OwnershipByFileOverlapRelationship)
++		})
++
++		// release 25 at its floor (2.7.1-r0) is vulnerable.
++		t.Run("vendor Linux 25: at the release floor matches", func(t *testing.T) {
++			p := dbtest.NewPackage("expat", "2.7.1-r0", syftPkg.ApkPkg).
++				WithDistro(linux25).
++				Build()
++
++			db.Match(t, &matcher, p).
++				SelectMatch("BELL-CVE-2025-59375").
++				SelectDetailByType(match.ExactDirectMatch).
++				AsDistroSearch()
++		})
++
++		// the fix (2.7.2-r0): no match, DistroPackageFixed ignores for the record
++		// ID and the CVE
++		t.Run("vendor Linux stream: fixed version does not match", func(t *testing.T) {
++			pkgID := pkg.ID("expat-linux-stream-fixed")
++			p := dbtest.NewPackage("expat", "2.7.2-r0", syftPkg.ApkPkg).
++				WithID(pkgID).
++				WithDistro(linuxStream).
++				Build()
++
++			db.Match(t, &matcher, p).
++				DoesNotHaveAnyVulnerabilities("BELL-CVE-2025-59375", "CVE-2025-59375").
++				Ignores().
++				SelectRelatedPackageIgnores("DistroPackageFixed", "BELL-CVE-2025-59375", "CVE-2025-59375").
++				ForPackage(pkgID).
++				WithRelationshipType(artifact.OwnershipByFileOverlapRelationship)
++		})
++
++		// the subpackage libexpat resolves through its origin expat
++		t.Run("vendor Linux stream: libexpat matches via origin package expat", func(t *testing.T) {
++			p := dbtest.NewPackage("libexpat", "2.6.0-r0", syftPkg.ApkPkg).
++				WithDistro(linuxStream).
++				WithUpstream("expat", "").
++				Build()
++
++			db.Match(t, &matcher, p).
++				SelectMatch("BELL-CVE-2025-59375").
++				SelectDetailByType(match.ExactIndirectMatch).
++				AsDistroSearch()
++		})
++
++		// the same record covers the hardened containers
++		t.Run("vendor hardened containers stream: vulnerable expat matches", func(t *testing.T) {
++			p := dbtest.NewPackage("expat", "2.6.0-r0", syftPkg.ApkPkg).
++				WithDistro(hardenedStream).
++				Build()
++
++			db.Match(t, &matcher, p).
++				SelectMatch("BELL-CVE-2025-59375").
++				SelectDetailByType(match.ExactDirectMatch).
++				AsDistroSearch()
++		})
++	})
++}
++
++// TestMatcherApk_Vendor_SBOMImages drives name/version/origin tuples taken
++// from real vendor image SBOMs against real records whose release lines
++// diverge for the same CVE:
++//
++//	BELL-CVE-2026-34180 (openssl): 23 → [3.0.8-r4, 3.0.21-r0), 25 → [3.5.0-r0, 3.5.7-r0), stream → [3.1.1-r1, 3.5.7-r0)
++//	BELL-CVE-2026-21637 (nodejs):  23 → fixed 20.20.0-r0, 25 → fixed 22.22.2-r0, stream → fixed 24.14.1-r0
++//	BELL-CVE-2026-3219  (py3-pip): stream only → [22.3.1-r2, 26.1-r0)
++func TestMatcherApk_Vendor_SBOMImages(t *testing.T) {
++	dbtest.DBs(t, "vendor-apk").Run(func(t *testing.T, db *dbtest.DB) {
++		matcher := Matcher{}
++
++		linuxStream := distro.New(distro.VendorLinux, "stream", "")
++		linux25 := distro.New(distro.VendorLinux, "25", "")
++		hardenedStream := distro.New(distro.VendorHardened, "stream", "")
++
++		// the Linux base image: libcrypto3 3.5.6-r0 (origin openssl) is
++		// one release behind the stream fix 3.5.7-r0.
++		t.Run("vendor Linux base image: libcrypto3 matches openssl record via origin", func(t *testing.T) {
++			p := dbtest.NewPackage("libcrypto3", "3.5.6-r0", syftPkg.ApkPkg).
++				WithDistro(linuxStream).
++				WithUpstream("openssl", "").
++				Build()
++
++			db.Match(t, &matcher, p).
++				SelectMatch("BELL-CVE-2026-34180").
++				SelectDetailByType(match.ExactIndirectMatch).
++				AsDistroSearch()
++		})
++
++		// libssl3 3.5.7-r0 is exactly the stream fix: no match, DistroPackageFixed
++		// ignores for the record ID and the CVE
++		t.Run("vendor Linux nodejs image: libssl3 at the fix boundary does not match", func(t *testing.T) {
++			pkgID := pkg.ID("libssl3-at-fix-boundary")
++			p := dbtest.NewPackage("libssl3", "3.5.7-r0", syftPkg.ApkPkg).
++				WithID(pkgID).
++				WithDistro(linuxStream).
++				WithUpstream("openssl", "").
++				Build()
++
++			db.Match(t, &matcher, p).
++				DoesNotHaveAnyVulnerabilities("BELL-CVE-2026-34180", "CVE-2026-34180").
++				Ignores().
++				SelectRelatedPackageIgnores("DistroPackageFixed", "BELL-CVE-2026-34180", "CVE-2026-34180").
++				ForPackage(pkgID).
++				WithRelationshipType(artifact.OwnershipByFileOverlapRelationship)
++		})
++
++		// an older nodejs 24 image: nodejs 24.14.0-r0 is below the
++		// stream fix 24.14.1-r0.
++		t.Run("nodejs 24 image: vulnerable nodejs matches", func(t *testing.T) {
++			p := dbtest.NewPackage("nodejs", "24.14.0-r0", syftPkg.ApkPkg).
++				WithDistro(linuxStream).
++				Build()
++
++			db.Match(t, &matcher, p).
++				SelectMatch("BELL-CVE-2026-21637").
++				SelectDetailByType(match.ExactDirectMatch).
++				AsDistroSearch()
++		})
++
++		// the same nodejs on release 25, which tracks the 22.x line (fixed
++		// 22.22.2-r0): outside its window
++		t.Run("nodejs 24 on vendor Linux 25: different release line does not match", func(t *testing.T) {
++			pkgID := pkg.ID("nodejs-linux25-different-line")
++			p := dbtest.NewPackage("nodejs", "24.14.0-r0", syftPkg.ApkPkg).
++				WithID(pkgID).
++				WithDistro(linux25).
++				Build()
++
++			db.Match(t, &matcher, p).
++				DoesNotHaveAnyVulnerabilities("BELL-CVE-2026-21637", "CVE-2026-21637").
++				Ignores().
++				SelectRelatedPackageIgnores("DistroPackageFixed", "BELL-CVE-2026-21637", "CVE-2026-21637").
++				ForPackage(pkgID).
++				WithRelationshipType(artifact.OwnershipByFileOverlapRelationship)
++		})
++
++		// py3-pip 26.1.2-r0 is above the fix 26.1-r0
++		t.Run("hardened python image: patched py3-pip does not match", func(t *testing.T) {
++			pkgID := pkg.ID("py3-pip-hardened-patched")
++			p := dbtest.NewPackage("py3-pip", "26.1.2-r0", syftPkg.ApkPkg).
++				WithID(pkgID).
++				WithDistro(hardenedStream).
++				Build()
++
++			db.Match(t, &matcher, p).
++				DoesNotHaveAnyVulnerabilities("BELL-CVE-2026-3219", "CVE-2026-3219").
++				Ignores().
++				SelectRelatedPackageIgnores("DistroPackageFixed", "BELL-CVE-2026-3219", "CVE-2026-3219").
++				ForPackage(pkgID).
++				WithRelationshipType(artifact.OwnershipByFileOverlapRelationship)
++		})
++
++		// py3-pip-pyc 25.2-r0 resolves through its origin py3-pip
++		t.Run("hardened: earlier py3-pip-pyc matches via origin py3-pip", func(t *testing.T) {
++			p := dbtest.NewPackage("py3-pip-pyc", "25.2-r0", syftPkg.ApkPkg).
++				WithDistro(hardenedStream).
++				WithUpstream("py3-pip", "").
++				Build()
++
++			db.Match(t, &matcher, p).
++				SelectMatch("BELL-CVE-2026-3219").
++				SelectDetailByType(match.ExactIndirectMatch).
++				AsDistroSearch()
++		})
++	})
++}
++
++// The same package name and version on Alpine or Wolfi never matches a
++// BELL-* record (and gets no ignore rule from one).
++func TestMatcherApk_Vendor_OtherDistrosUntouched(t *testing.T) {
++	dbtest.DBs(t, "vendor-apk").Run(func(t *testing.T, db *dbtest.DB) {
++		matcher := Matcher{}
++		for name, d := range map[string]*distro.Distro{
++			"alpine 3.18":   dbtest.Alpine318,
++			"alpine 3.23":   distro.New(distro.Alpine, "3.23.0", ""),
++			"wolfi rolling": distro.New(distro.Wolfi, "", ""),
++		} {
++			t.Run(name, func(t *testing.T) {
++				// vulnerable on every vendor release line (see TestMatcherApk_Vendor)
++				p := dbtest.NewPackage("expat", "2.7.1-r0", syftPkg.ApkPkg).
++					WithDistro(d).
++					Build()
++
++				findings := db.Match(t, &matcher, p)
++				findings.IsEmpty()
++				findings.Ignores().IsEmpty()
++			})
++		}
++	})
++}
++
++// ...and the reverse: Alpine secdb records never reach a package installed on
++// the vendor distributions.
++func TestMatcherApk_Vendor_AlpineRecordsDoNotApply(t *testing.T) {
++	dbtest.DBs(t, "alpine318").
++		SelectOnly("3.18/CVE-2024-0727").
++		Run(func(t *testing.T, db *dbtest.DB) {
++			matcher := Matcher{}
++			for name, d := range map[string]*distro.Distro{
++				"vendor Linux stream":               distro.New(distro.VendorLinux, "stream", ""),
++				"vendor Linux 23":                   distro.New(distro.VendorLinux, "23", ""),
++				"vendor hardened containers stream": distro.New(distro.VendorHardened, "stream", ""),
++			} {
++				t.Run(name, func(t *testing.T) {
++					// vulnerable on alpine 3.18 (see TestMatcherApk_DirectMatch_Alpine)
++					p := dbtest.NewPackage("openssl", "3.1.4-r0", syftPkg.ApkPkg).
++						WithDistro(d).
++						Build()
++
++					findings := db.Match(t, &matcher, p)
++					findings.IsEmpty()
++					findings.Ignores().IsEmpty()
++				})
++			}
++		})
++}
+-- 
+2.43.0
+
