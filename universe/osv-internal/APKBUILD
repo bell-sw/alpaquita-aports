@@ -1,0 +1,34 @@
+pkgname=osv-internal
+pkgver=0.5.7
+pkgrel=0
+pkgdesc="Go module with the distro OSV logic shared by the vulnerability scanners (source only)"
+url="$VENDOR_URL"
+arch="noarch"
+license="Apache-2.0"
+makedepends="go"
+options="net"
+source="${VENDOR_REPO_BASE_URL}${VENDOR_DISTRO}/distfiles/osv-internal-$pkgver.tar.gz"
+
+_modpath=github.com/bell-sw/osv-internal
+_moddir=/usr/share/go-modules/$_modpath
+
+build() {
+	go build ./...
+}
+
+check() {
+	go vet ./...
+	go test ./...
+}
+
+package() {
+	local f
+	install -Dm644 -t "$pkgdir$_moddir" go.mod go.sum LICENSE README.md
+	find . -name '*.go' ! -name '*_test.go' ! -path '*/testdata/*' ! -path './internal/fixture/*' | while read -r f; do
+		install -Dm644 "$f" "$pkgdir$_moddir/$f"
+	done
+}
+
+sha512sums="
+86969dea28629202913db81782120b8f08064ae61087031667933b02f62c8182e81d6414376b9c2d49961b42c72dc92bb105829c520cd8e487cb9d9d170eb2fa  osv-internal-0.5.7.tar.gz
+"
