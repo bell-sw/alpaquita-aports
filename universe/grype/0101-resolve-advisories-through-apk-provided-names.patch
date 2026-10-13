@@ -1,0 +1,427 @@
+From 3138e9a5ab8b31082b542fad520dfd20da8e6dba Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 19:43:51 +0000
+Subject: [PATCH] feat(apk): resolve advisories through apk provided names on
+ the vendor distros
+
+The vendor keys its JDK advisories on openjdk<major>[-lite|-crac|...]
+while the apk origin of the installed package is liberica<major>[-lite|...];
+the two are connected only through the package's provides list
+(openjdk21-lite-jdk-no-deps). Record the provided names in the apk metadata
+(capabilities such as so:/cmd:/pc: and version constraints dropped) and, for
+distros that use this convention (VendorLinux, VendorHardened), search the
+distro feed under the first provided name it knows when neither the package
+name nor its origin is known: every provided name, then every provided name
+with the sub-package suffix stripped (the package name minus the origin).
+The alias is searched like an origin package and reported as an indirect
+match of the installed package. Other distros are untouched.
+---
+ grype/matcher/apk/matcher.go             | 139 +++++++++++++++++++++++
+ grype/matcher/apk/provided_names_test.go | 133 ++++++++++++++++++++++
+ grype/pkg/apk_metadata.go                |   3 +
+ grype/pkg/package.go                     |  20 ++++
+ grype/pkg/package_test.go                |  30 +++++
+ 5 files changed, 325 insertions(+)
+ create mode 100644 grype/matcher/apk/provided_names_test.go
+
+diff --git a/grype/matcher/apk/matcher.go b/grype/matcher/apk/matcher.go
+index 2699180..91519df 100644
+--- a/grype/matcher/apk/matcher.go
++++ b/grype/matcher/apk/matcher.go
+@@ -3,7 +3,9 @@ package apk
+ import (
+ 	"errors"
+ 	"fmt"
++	"strings"
+ 
++	"github.com/anchore/grype/grype/distro"
+ 	"github.com/anchore/grype/grype/match"
+ 	"github.com/anchore/grype/grype/matcher/internal"
+ 	"github.com/anchore/grype/grype/pkg"
+@@ -61,6 +63,16 @@ func (m *Matcher) Match(store vulnerability.Provider, p pkg.Package) ([]match.Ma
+ 	}
+ 	ignoreFilters = append(ignoreFilters, naks...)
+ 
++	// some distributions key advisories on a name the package only carries in its apk "provides" list
++	if usesProvidedNameAliases(p.Distro) {
++		aliasMatches, aliasIgnores, err := m.findMatchesForProvidedNames(store, p)
++		if err != nil {
++			return nil, nil, err
++		}
++		matches = append(matches, aliasMatches...)
++		ignoreFilters = append(ignoreFilters, aliasIgnores...)
++	}
++
+ 	return matches, ignoreFilters, nil
+ }
+ 
+@@ -259,3 +271,130 @@ func (m *Matcher) findNaksForPackage(provider vulnerability.Provider, p pkg.Pack
+ 
+ 	return internal.OwnershipIgnores(p, "Explicit APK NAK", naks...), nil
+ }
++
++// providedNameAliasDistros are the distributions whose feeds key some advisories on a name the installed package
++// only carries in its apk "provides" list: the vendor publishes its JDK advisories as openjdk<major>[-lite]
++// while the apk origin is liberica<major>[-lite] and the binary package provides openjdk21-lite-jdk-no-deps.
++// Resolution order: see findMatchesForProvidedNames.
++var providedNameAliasDistros = []distro.Type{distro.VendorLinux, distro.VendorHardened}
++
++func usesProvidedNameAliases(d *distro.Distro) bool {
++	if d == nil {
++		return false
++	}
++	for _, t := range providedNameAliasDistros {
++		if d.Type == t {
++			return true
++		}
++	}
++	return false
++}
++
++// providedNameCandidates lists the alias names to try for p, in order: the provided names, then the provided names
++// with the sub-package suffix stripped. Capability-style entries (so:, cmd:, pc:, file paths) are ignored.
++func providedNameCandidates(p pkg.Package) []string {
++	md, ok := p.Metadata.(pkg.ApkMetadata)
++	if !ok || len(md.Provides) == 0 {
++		return nil
++	}
++	origin := p.Name
++	for _, u := range p.Upstreams {
++		if u.Name != "" {
++			origin = u.Name
++			break
++		}
++	}
++	suffix := ""
++	if origin != p.Name && strings.HasPrefix(p.Name, origin) {
++		suffix = strings.TrimPrefix(p.Name, origin)
++	}
++	seen := map[string]bool{p.Name: true, origin: true}
++	var names, stripped []string
++	add := func(dst *[]string, name string) {
++		if name == "" || seen[name] {
++			return
++		}
++		seen[name] = true
++		*dst = append(*dst, name)
++	}
++	for _, provided := range md.Provides {
++		add(&names, provided)
++		if suffix != "" && strings.HasSuffix(provided, suffix) {
++			add(&stripped, strings.TrimSuffix(provided, suffix))
++		}
++	}
++	return append(names, stripped...)
++}
++
++// knownToFeed reports whether the distro feed carries any record for the given package name.
++func knownToFeed(store vulnerability.Provider, d distro.Distro, name string) (bool, error) {
++	vulns, err := store.FindVulnerabilities(search.ByPackageName(name), search.ByDistro(d))
++	if err != nil {
++		return false, err
++	}
++	return len(vulns) > 0, nil
++}
++
++// findMatchesForProvidedNames searches the distro feed under the first provided-name alias it knows, when neither
++// the package name nor its origin is known to the feed (those are covered by the direct and origin searches). The
++// alias is searched like an origin package and the matches are reported as indirect matches of the installed package.
++func (m *Matcher) findMatchesForProvidedNames(store vulnerability.Provider, p pkg.Package) ([]match.Match, []match.IgnoreFilter, error) {
++	if p.Distro == nil || isUnknownVersion(p.Version) {
++		return nil, nil, nil
++	}
++	candidates := providedNameCandidates(p)
++	if len(candidates) == 0 {
++		return nil, nil, nil
++	}
++
++	// the feed knows the package (or its origin) under its own name: nothing to resolve
++	for _, name := range append([]string{p.Name}, upstreamNames(p)...) {
++		known, err := knownToFeed(store, *p.Distro, name)
++		if err != nil {
++			return nil, nil, fmt.Errorf("failed to look up distro=%q pkg=%q: %w", p.Distro, name, err)
++		}
++		if known {
++			return nil, nil, nil
++		}
++	}
++
++	for _, name := range candidates {
++		known, err := knownToFeed(store, *p.Distro, name)
++		if err != nil {
++			return nil, nil, fmt.Errorf("failed to look up distro=%q alias=%q: %w", p.Distro, name, err)
++		}
++		if !known {
++			continue
++		}
++		log.WithFields("package", p.Name, "alias", name).Trace("apk package resolved through a provided name")
++		aliasPkg := p
++		aliasPkg.Upstreams = []pkg.UpstreamPackage{{Name: name}}
++		var matches []match.Match
++		var ignores []match.IgnoreFilter
++		for _, indirectPackage := range pkg.UpstreamPackages(aliasPkg) {
++			indirectMatches, indirectIgnores, err := m.findMatchesForPackage(store, indirectPackage, &p)
++			if err != nil {
++				return nil, nil, fmt.Errorf("failed to find vulnerabilities for apk provided name %q: %w", name, err)
++			}
++			matches = append(matches, indirectMatches...)
++			ignores = append(ignores, indirectIgnores...)
++		}
++		match.ConvertToIndirectMatches(matches, p)
++		return matches, ignores, nil
++	}
++	return nil, nil, nil
++}
++
++func upstreamNames(p pkg.Package) []string {
++	var names []string
++	for _, u := range p.Upstreams {
++		if u.Name != "" {
++			names = append(names, u.Name)
++		}
++	}
++	return names
++}
++
++func isUnknownVersion(v string) bool {
++	return v == "" || strings.EqualFold(v, "unknown")
++}
+diff --git a/grype/matcher/apk/provided_names_test.go b/grype/matcher/apk/provided_names_test.go
+new file mode 100644
+index 0000000..e98704e
+--- /dev/null
++++ b/grype/matcher/apk/provided_names_test.go
+@@ -0,0 +1,133 @@
++package apk
++
++import (
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	"github.com/anchore/grype/grype/distro"
++	"github.com/anchore/grype/grype/match"
++	"github.com/anchore/grype/grype/pkg"
++	"github.com/anchore/grype/grype/version"
++	"github.com/anchore/grype/grype/vulnerability"
++	"github.com/anchore/grype/grype/vulnerability/mock"
++	"github.com/anchore/grype/grype/vulnerability/vendordb"
++	syftPkg "github.com/anchore/syft/syft/pkg"
++)
++
++// the feed keys the JDK advisory on openjdk21-lite, reached through the provided names
++func providedNameStore() vulnerability.Provider {
++	return mock.VulnerabilityProvider(
++		vulnerability.Vulnerability{
++			Reference:   vulnerability.Reference{ID: "CVE-2025-30754", Namespace: vendordb.Provider + ":distro:" + string(distro.VendorLinux) + ":23"},
++			PackageName: "openjdk21-lite",
++			Constraint:  version.MustGetConstraint("< 21.0.8_p12-r0", version.ApkFormat),
++			Fix:         vulnerability.Fix{Versions: []string{"21.0.8_p12-r0"}, State: vulnerability.FixStateFixed},
++		},
++		vulnerability.Vulnerability{
++			Reference:   vulnerability.Reference{ID: "CVE-2025-24855", Namespace: vendordb.Provider + ":distro:" + string(distro.VendorLinux) + ":23"},
++			PackageName: "openjdk21-lite",
++			Constraint:  version.MustGetConstraint(">= 21_p37-r0, < 21.0.8_p12-r0", version.ApkFormat),
++			Fix:         vulnerability.Fix{Versions: []string{"21.0.8_p12-r0"}, State: vulnerability.FixStateFixed},
++		},
++		vulnerability.Vulnerability{
++			Reference:   vulnerability.Reference{ID: "CVE-2025-59375", Namespace: vendordb.Provider + ":distro:" + string(distro.VendorLinux) + ":23"},
++			PackageName: "expat",
++			Constraint:  version.MustGetConstraint(">= 2.5.0-r0, < 2.7.2-r0", version.ApkFormat),
++			Fix:         vulnerability.Fix{Versions: []string{"2.7.2-r0"}, State: vulnerability.FixStateFixed},
++		},
++		// a record keyed on a name that is both an origin and a provided name of another package
++		vulnerability.Vulnerability{
++			Reference:   vulnerability.Reference{ID: "CVE-2026-0001", Namespace: vendordb.Provider + ":distro:" + string(distro.VendorLinux) + ":23"},
++			PackageName: "java-common",
++			Constraint:  version.MustGetConstraint("< 2.0-r0", version.ApkFormat),
++			Fix:         vulnerability.Fix{Versions: []string{"2.0-r0"}, State: vulnerability.FixStateFixed},
++		},
++	)
++}
++
++func runtimePackage(name, version, origin string, provides ...string) pkg.Package {
++	return pkg.Package{
++		ID:        pkg.ID(name),
++		Name:      name,
++		Version:   version,
++		Type:      syftPkg.ApkPkg,
++		Distro:    distro.New(distro.VendorLinux, "23", ""),
++		Upstreams: []pkg.UpstreamPackage{{Name: origin}},
++		Metadata:  pkg.ApkMetadata{Provides: provides},
++	}
++}
++
++func TestProvidedNameCandidates(t *testing.T) {
++	p := runtimePackage("jdk21-lite-jdk-no-deps", "21.0.2_p14-r1", "jdk21-lite",
++		"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps")
++	// every provided name, then every provided name minus the sub-package suffix ("-jdk-no-deps")
++	assert.Equal(t, []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps", "java", "java21", "openjdk21-lite"}, providedNameCandidates(p))
++
++	// no suffix to strip when the package is its own origin
++	p = runtimePackage("jdk21-lite", "21.0.2_p14-r1", "jdk21-lite", "openjdk21-lite")
++	assert.Equal(t, []string{"openjdk21-lite"}, providedNameCandidates(p))
++
++	// no apk metadata (SBOM re-scan without provides): nothing to try
++	p.Metadata = nil
++	assert.Nil(t, providedNameCandidates(p))
++}
++
++func TestMatcherApk_ProvidedNameAlias(t *testing.T) {
++	store := providedNameStore()
++	matcher := Matcher{}
++
++	t.Run("advisory keyed on the suffix-stripped provided name", func(t *testing.T) {
++		p := runtimePackage("jdk21-lite-jdk-no-deps", "21.0.2_p14-r1", "jdk21-lite",
++			"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps=21.0.2_p14-r1")
++		// grype's apk metadata strips the =version suffix; mimic it
++		p.Metadata = pkg.ApkMetadata{Provides: []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"}}
++		matches, _, err := matcher.Match(store, p)
++		require.NoError(t, err)
++		var ids []string
++		for _, m := range matches {
++			ids = append(ids, m.Vulnerability.ID)
++			assert.Equal(t, "jdk21-lite-jdk-no-deps", m.Package.Name, "reported against the installed package")
++			assert.Equal(t, "openjdk21-lite", m.Vulnerability.PackageName)
++			require.NotEmpty(t, m.Details)
++			assert.Equal(t, match.ExactIndirectMatch, m.Details[0].Type)
++			dp, ok := m.Details[0].SearchedBy.(match.DistroParameters)
++			require.True(t, ok)
++			assert.Equal(t, "openjdk21-lite", dp.Package.Name)
++		}
++		assert.ElementsMatch(t, []string{"CVE-2025-30754", "CVE-2025-24855"}, ids)
++	})
++
++	t.Run("fixed version through the alias does not match", func(t *testing.T) {
++		p := runtimePackage("jdk21-lite-jdk-no-deps", "21.0.8_p12-r0", "jdk21-lite", "openjdk21-lite-jdk-no-deps")
++		matches, _, err := matcher.Match(store, p)
++		require.NoError(t, err)
++		assert.Empty(t, matches)
++	})
++
++	t.Run("the origin wins over provided names", func(t *testing.T) {
++		// expat is known under its origin; its provided names are never consulted
++		p := runtimePackage("libexpat", "2.6.0-r0", "expat", "java-common")
++		matches, _, err := matcher.Match(store, p)
++		require.NoError(t, err)
++		require.Len(t, matches, 1)
++		assert.Equal(t, "CVE-2025-59375", matches[0].Vulnerability.ID)
++	})
++
++	t.Run("only the first known alias is used", func(t *testing.T) {
++		p := runtimePackage("jdk21-lite-jdk-no-deps", "1.0-r0", "jdk21-lite", "java-common", "openjdk21-lite-jdk-no-deps")
++		matches, _, err := matcher.Match(store, p)
++		require.NoError(t, err)
++		require.Len(t, matches, 1, "java-common is known first; openjdk21-lite is not consulted")
++		assert.Equal(t, "CVE-2026-0001", matches[0].Vulnerability.ID)
++	})
++
++	t.Run("distros without the convention are untouched", func(t *testing.T) {
++		p := runtimePackage("jdk21-lite-jdk-no-deps", "21.0.2_p14-r1", "jdk21-lite", "openjdk21-lite-jdk-no-deps")
++		p.Distro = distro.New(distro.Alpine, "3.18", "")
++		matches, _, err := matcher.Match(store, p)
++		require.NoError(t, err)
++		assert.Empty(t, matches)
++	})
++}
+diff --git a/grype/pkg/apk_metadata.go b/grype/pkg/apk_metadata.go
+index 94b4569..1d154d4 100644
+--- a/grype/pkg/apk_metadata.go
++++ b/grype/pkg/apk_metadata.go
+@@ -10,6 +10,9 @@ var _ FileOwner = (*ApkMetadata)(nil)
+ 
+ type ApkMetadata struct {
+ 	Files []ApkFileRecord `json:"files"`
++	// Provides are the package names this apk provides (the "p:" field, without so:/cmd:/pc: capabilities and version
++	// suffixes); some distributions key advisories on a provided name, see matcher/apk.
++	Provides []string `json:"provides,omitempty"`
+ }
+ 
+ // ApkFileRecord represents a single file listing and metadata from a APK DB entry (which may have many of these file records).
+diff --git a/grype/pkg/package.go b/grype/pkg/package.go
+index eb78f2d..c4c05e7 100644
+--- a/grype/pkg/package.go
++++ b/grype/pkg/package.go
+@@ -388,6 +388,7 @@ func apkMetadataFromPkg(p syftPkg.Package) any {
+ 		}
+ 
+ 		metadata.Files = fileRecords
++		metadata.Provides = apkProvidedNames(m.Provides)
+ 
+ 		return metadata
+ 	}
+@@ -395,6 +396,25 @@ func apkMetadataFromPkg(p syftPkg.Package) any {
+ 	return nil
+ }
+ 
++// apkProvidedNames keeps the package names from an apk "provides" list, dropping so:/cmd:/pc: style capabilities,
++// file paths and the "=version" suffixes.
++func apkProvidedNames(provides []string) []string {
++	var out []string
++	for _, p := range provides {
++		p = strings.TrimSpace(p)
++		if p == "" || strings.Contains(p, ":") || strings.HasPrefix(p, "/") {
++			continue
++		}
++		if idx := strings.IndexAny(p, "=<>~"); idx > 0 {
++			p = p[:idx]
++		}
++		if p != "" {
++			out = append(out, p)
++		}
++	}
++	return out
++}
++
+ func golangMetadataFromPkg(p syftPkg.Package) any {
+ 	switch value := p.Metadata.(type) {
+ 	case syftPkg.GolangBinaryBuildinfoEntry:
+diff --git a/grype/pkg/package_test.go b/grype/pkg/package_test.go
+index 032a6b1..5e1d0c3 100644
+--- a/grype/pkg/package_test.go
++++ b/grype/pkg/package_test.go
+@@ -6,6 +6,7 @@ import (
+ 	"testing"
+ 
+ 	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
+ 
+ 	"github.com/anchore/grype/grype/distro"
+ 	"github.com/anchore/packageurl-go"
+@@ -1653,3 +1654,32 @@ func withLinuxRelease(s *sbom.SBOM, id string) *sbom.SBOM {
+ func strRef(s string) *string {
+ 	return &s
+ }
++
++func Test_apkProvidedNames(t *testing.T) {
++	got := apkProvidedNames([]string{
++		"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps=21.0.2_p14-r1",
++		"so:libz.so.1=1.3.2", "cmd:ldconfig=2.43.0-r10", "pc:zlib=1.3.2", "/bin/sh", "", " distro-baselayout=3.7.2-r1 ",
++	})
++	assert.Equal(t, []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps", "distro-baselayout"}, got)
++}
++
++func Test_apkMetadataFromPkg_Provides(t *testing.T) {
++	p := syftPkg.Package{
++		Name:    "jdk21-lite-jdk-no-deps",
++		Version: "21.0.2_p14-r1",
++		Type:    syftPkg.ApkPkg,
++		Metadata: syftPkg.ApkDBEntry{
++			Package:       "jdk21-lite-jdk-no-deps",
++			OriginPackage: "jdk21-lite",
++			Provides:      []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps=21.0.2_p14-r1"},
++			Files:         []syftPkg.ApkFileRecord{{Path: "/usr/lib/jvm/jdk21-lite/release"}},
++		},
++	}
++	gp := New(p)
++	md, ok := gp.Metadata.(ApkMetadata)
++	require.True(t, ok)
++	assert.Equal(t, []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"}, md.Provides)
++	assert.Equal(t, []string{"/usr/lib/jvm/jdk21-lite/release"}, md.OwnedFiles())
++	require.Len(t, gp.Upstreams, 1)
++	assert.Equal(t, "jdk21-lite", gp.Upstreams[0].Name)
++}
+-- 
+2.55.0
+

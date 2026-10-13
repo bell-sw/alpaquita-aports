@@ -1,0 +1,378 @@
+From 722e45da5782249ae96a541bc753abc54b78168a Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 19:17:49 +0000
+Subject: [PATCH] feat(distro): recognize the vendor's apk-based distributions
+
+Add the distro types VendorLinux and VendorHardened (for BellSoft: alpaquita
+and bellsoft-hardened-containers), mapped from their /etc/os-release IDs.
+Both carry ID_LIKE=alpine, so without the mapping they were treated as
+Alpine and matched against the wrong feed. VERSION_ID is passed through
+untouched (stream, 23, 25): "stream" is a rolling label that never reaches
+end of life, the numbers are the LTS releases.
+
+ParseDistroString handled only opensuse-leap as a hyphenated distro ID; it now
+matches every hyphenated ID known to IDMapping (longest first), so that
+--distro <hyphenated id>:stream and purl distro qualifiers parse.
+
+Ported from the distro part of #3264.
+---
+ grype/distro/distro.go      |  40 +++++++++----
+ grype/distro/distro_test.go |  12 ++++
+ grype/distro/type.go        | 116 +++++++++++++++++++-----------------
+ grype/distro/vendor_test.go | 110 ++++++++++++++++++++++++++++++++++
+ 4 files changed, 213 insertions(+), 65 deletions(-)
+ create mode 100644 grype/distro/vendor_test.go
+
+diff --git a/grype/distro/distro.go b/grype/distro/distro.go
+index d60a610..1c52da5 100644
+--- a/grype/distro/distro.go
++++ b/grype/distro/distro.go
+@@ -2,6 +2,7 @@ package distro
+ 
+ import (
+ 	"fmt"
++	"sort"
+ 	"strings"
+ 
+ 	"github.com/anchore/grype/grype/version"
+@@ -83,9 +84,27 @@ func parseVersion(version string) (major, minor, remaining, versionWithoutSuffix
+ 	return major, minor, remaining, versionWithoutSuffix, stringutil.SplitOnAny(strings.TrimSpace(channelStr), ",", "+")
+ }
+ 
++// hyphenatedDistroIDs are the known distro IDs that themselves contain a hyphen (e.g. "opensuse-leap" or the
++// vendor's hardened containers), longest first, so ParseDistroString can match them before splitting on "-".
++var hyphenatedDistroIDs = func() []string {
++	var ids []string
++	for id := range IDMapping {
++		if strings.Contains(id, "-") {
++			ids = append(ids, id)
++		}
++	}
++	sort.Slice(ids, func(i, j int) bool {
++		if len(ids[i]) != len(ids[j]) {
++			return len(ids[i]) > len(ids[j])
++		}
++		return ids[i] < ids[j]
++	})
++	return ids
++}()
++
+ // ParseDistroString parses a user-provided distro string in the format "name<separator>version"
+-// where separator can be "-", ":", or "@". It handles the special case of opensuse-leap
+-// which contains a hyphen in its distro ID. Returns the distro name and version parts.
++// where separator can be "-", ":", or "@". It handles the special case of distro IDs that themselves
++// contain a hyphen (e.g. opensuse-leap). Returns the distro name and version parts.
+ func ParseDistroString(s string) (name, version string) {
+ 	if s == "" {
+ 		return "", ""
+@@ -93,18 +112,19 @@ func ParseDistroString(s string) (name, version string) {
+ 
+ 	s = strings.TrimSpace(s)
+ 
+-	// Special handling for opensuse-leap which has a hyphen in its ID
+-	// Check if it starts with "opensuse-leap" and handle accordingly
+-	const opensuseLeap = "opensuse-leap"
+-	if strings.HasPrefix(strings.ToLower(s), opensuseLeap) {
+-		// Check if there's a separator after "opensuse-leap"
+-		remaining := s[len(opensuseLeap):]
++	// match the longest known hyphenated ID before splitting on separators
++	for _, id := range hyphenatedDistroIDs {
++		if !strings.HasPrefix(strings.ToLower(s), id) {
++			continue
++		}
++		// Check if there's a separator after the ID
++		remaining := s[len(id):]
+ 		if len(remaining) == 0 {
+-			return opensuseLeap, ""
++			return id, ""
+ 		}
+ 		// If the next character is a separator, split there
+ 		if remaining[0] == '-' || remaining[0] == ':' || remaining[0] == '@' {
+-			return opensuseLeap, strings.TrimSpace(remaining[1:])
++			return id, strings.TrimSpace(remaining[1:])
+ 		}
+ 		// Otherwise, treat the whole thing as the name
+ 		return s, ""
+diff --git a/grype/distro/distro_test.go b/grype/distro/distro_test.go
+index 5ed0227..b20c7b7 100644
+--- a/grype/distro/distro_test.go
++++ b/grype/distro/distro_test.go
+@@ -347,6 +347,18 @@ func Test_NewDistroFromRelease_Coverage(t *testing.T) {
+ 			Type:    Alpine,
+ 			Version: "3.22.0_alpha20250108",
+ 		},
++		{
++			Name:         vendorOSRelease(t, VendorLinux, "stream"),
++			Type:         VendorLinux,
++			Version:      "stream",
++			LabelVersion: "stream",
++		},
++		{
++			Name:         vendorOSRelease(t, VendorHardened, "stream"),
++			Type:         VendorHardened,
++			Version:      "stream",
++			LabelVersion: "stream",
++		},
+ 		{
+ 			Name:    "testdata/os/amazon",
+ 			Type:    AmazonLinux,
+diff --git a/grype/distro/type.go b/grype/distro/type.go
+index efac2c7..98844a4 100644
+--- a/grype/distro/type.go
++++ b/grype/distro/type.go
+@@ -10,34 +10,36 @@ type Type string
+ const (
+ 	// represents the set of supported Linux Distributions
+ 
+-	Debian       Type = "debian"
+-	Ubuntu       Type = "ubuntu"
+-	RedHat       Type = "redhat"
+-	CentOS       Type = "centos"
+-	Fedora       Type = "fedora"
+-	Alpine       Type = "alpine"
+-	Busybox      Type = "busybox"
+-	AmazonLinux  Type = "amazonlinux"
+-	OracleLinux  Type = "oraclelinux"
+-	ArchLinux    Type = "archlinux"
+-	OpenSuseLeap Type = "opensuseleap"
+-	SLES         Type = "sles"
+-	Photon       Type = "photon"
+-	Echo         Type = "echo"
+-	Windows      Type = "windows"
+-	Mariner      Type = "mariner"
+-	Azure        Type = "azurelinux"
+-	RockyLinux   Type = "rockylinux"
+-	AlmaLinux    Type = "almalinux"
+-	Gentoo       Type = "gentoo"
+-	Wolfi        Type = "wolfi"
+-	Chainguard   Type = "chainguard"
+-	MinimOS      Type = "minimos"
+-	Raspbian     Type = "raspbian"
+-	Scientific   Type = "scientific"
+-	SecureOS     Type = "secureos"
+-	PostmarketOS Type = "postmarketos"
+-	Hummingbird  Type = "hummingbird"
++	Debian         Type = "debian"
++	Ubuntu         Type = "ubuntu"
++	RedHat         Type = "redhat"
++	CentOS         Type = "centos"
++	Fedora         Type = "fedora"
++	Alpine         Type = "alpine"
++	VendorLinux    Type = "alpaquita"                    // the vendor's Linux distribution (VERSION_ID stream|23|25)
++	VendorHardened Type = "bellsoft-hardened-containers" // the vendor's hardened container images
++	Busybox        Type = "busybox"
++	AmazonLinux    Type = "amazonlinux"
++	OracleLinux    Type = "oraclelinux"
++	ArchLinux      Type = "archlinux"
++	OpenSuseLeap   Type = "opensuseleap"
++	SLES           Type = "sles"
++	Photon         Type = "photon"
++	Echo           Type = "echo"
++	Windows        Type = "windows"
++	Mariner        Type = "mariner"
++	Azure          Type = "azurelinux"
++	RockyLinux     Type = "rockylinux"
++	AlmaLinux      Type = "almalinux"
++	Gentoo         Type = "gentoo"
++	Wolfi          Type = "wolfi"
++	Chainguard     Type = "chainguard"
++	MinimOS        Type = "minimos"
++	Raspbian       Type = "raspbian"
++	Scientific     Type = "scientific"
++	SecureOS       Type = "secureos"
++	PostmarketOS   Type = "postmarketos"
++	Hummingbird    Type = "hummingbird"
+ )
+ 
+ // All contains all Linux distribution options
+@@ -48,6 +50,8 @@ var All = []Type{
+ 	CentOS,
+ 	Fedora,
+ 	Alpine,
++	VendorLinux,
++	VendorHardened,
+ 	Busybox,
+ 	AmazonLinux,
+ 	OracleLinux,
+@@ -74,33 +78,35 @@ var All = []Type{
+ 
+ // IDMapping maps a distro ID from the /etc/os-release (e.g. like "ubuntu") to a Distro type.
+ var IDMapping = map[string]Type{
+-	"debian":        Debian,
+-	"ubuntu":        Ubuntu,
+-	"rhel":          RedHat,
+-	"centos":        CentOS,
+-	"fedora":        Fedora,
+-	"alpine":        Alpine,
+-	"busybox":       Busybox,
+-	"amzn":          AmazonLinux,
+-	"ol":            OracleLinux,
+-	"arch":          ArchLinux,
+-	"opensuse-leap": OpenSuseLeap,
+-	"sles":          SLES,
+-	"photon":        Photon,
+-	"echo":          Echo,
+-	"mariner":       Mariner,
+-	"azurelinux":    Azure,
+-	"rocky":         RockyLinux,
+-	"almalinux":     AlmaLinux,
+-	"gentoo":        Gentoo,
+-	"wolfi":         Wolfi,
+-	"chainguard":    Chainguard,
+-	"minimos":       MinimOS,
+-	"raspbian":      Raspbian,
+-	"scientific":    Scientific,
+-	"secureos":      SecureOS,
+-	"postmarketos":  PostmarketOS,
+-	"hummingbird":   Hummingbird,
++	"debian":                       Debian,
++	"ubuntu":                       Ubuntu,
++	"rhel":                         RedHat,
++	"centos":                       CentOS,
++	"fedora":                       Fedora,
++	"alpine":                       Alpine,
++	"alpaquita":                    VendorLinux,
++	"bellsoft-hardened-containers": VendorHardened,
++	"busybox":                      Busybox,
++	"amzn":                         AmazonLinux,
++	"ol":                           OracleLinux,
++	"arch":                         ArchLinux,
++	"opensuse-leap":                OpenSuseLeap,
++	"sles":                         SLES,
++	"photon":                       Photon,
++	"echo":                         Echo,
++	"mariner":                      Mariner,
++	"azurelinux":                   Azure,
++	"rocky":                        RockyLinux,
++	"almalinux":                    AlmaLinux,
++	"gentoo":                       Gentoo,
++	"wolfi":                        Wolfi,
++	"chainguard":                   Chainguard,
++	"minimos":                      MinimOS,
++	"raspbian":                     Raspbian,
++	"scientific":                   Scientific,
++	"secureos":                     SecureOS,
++	"postmarketos":                 PostmarketOS,
++	"hummingbird":                  Hummingbird,
+ }
+ 
+ // aliasTypes maps common aliases to their corresponding Type.
+diff --git a/grype/distro/vendor_test.go b/grype/distro/vendor_test.go
+new file mode 100644
+index 0000000..78c0412
+--- /dev/null
++++ b/grype/distro/vendor_test.go
+@@ -0,0 +1,110 @@
++package distro
++
++import (
++	"os"
++	"path/filepath"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	"github.com/anchore/syft/syft/linux"
++)
++
++// vendorOSRelease writes an os-release with the given ID (the distro type's value) and VERSION_ID, ID_LIKE=alpine,
++// below a temporary directory and returns that directory.
++func vendorOSRelease(t *testing.T, typ Type, versionID string) string {
++	t.Helper()
++	dir := t.TempDir()
++	require.NoError(t, os.MkdirAll(filepath.Join(dir, "etc"), 0o755))
++	content := "NAME=\"" + string(typ) + "\"\nID=" + string(typ) + "\nID_LIKE=alpine\nVERSION_ID=" + versionID +
++		"\nPRETTY_NAME=\"" + string(typ) + " " + versionID + "\"\n"
++	require.NoError(t, os.WriteFile(filepath.Join(dir, "etc", "os-release"), []byte(content), 0o644))
++	return dir
++}
++
++// The hyphenated vendor IDs parse in every string-form entry point (--distro, db search --os, purl qualifiers).
++func TestParseDistroString_Vendor(t *testing.T) {
++	tests := []struct {
++		input       string
++		wantName    string
++		wantVersion string
++		wantType    Type
++	}{
++		{input: string(VendorLinux) + ":stream", wantName: string(VendorLinux), wantVersion: "stream", wantType: VendorLinux},
++		{input: string(VendorLinux) + ":23", wantName: string(VendorLinux), wantVersion: "23", wantType: VendorLinux},
++		{input: string(VendorLinux) + "-25", wantName: string(VendorLinux), wantVersion: "25", wantType: VendorLinux},
++		{input: string(VendorHardened) + ":stream", wantName: string(VendorHardened), wantVersion: "stream", wantType: VendorHardened},
++		{input: string(VendorHardened) + "-23", wantName: string(VendorHardened), wantVersion: "23", wantType: VendorHardened},
++		{input: string(VendorHardened) + "@25", wantName: string(VendorHardened), wantVersion: "25", wantType: VendorHardened},
++		{input: "opensuse-leap:15.4", wantName: "opensuse-leap", wantVersion: "15.4", wantType: OpenSuseLeap},
++	}
++	for _, tt := range tests {
++		t.Run(tt.input, func(t *testing.T) {
++			name, version := ParseDistroString(tt.input)
++			assert.Equal(t, tt.wantName, name)
++			assert.Equal(t, tt.wantVersion, version)
++			d := NewFromNameVersion(name, version)
++			assert.Equal(t, tt.wantType, d.Type, "distro type should resolve to a known type")
++		})
++	}
++}
++
++// VERSION_ID is passed through untouched (stream, 23, 25); ID_LIKE=alpine must not make them Alpine.
++func TestNewFromRelease_Vendor(t *testing.T) {
++	tests := []struct {
++		name        string
++		release     linux.Release
++		wantType    Type
++		wantVersion string
++		wantLabel   string
++		wantMajor   string
++	}{
++		{
++			name:        "vendor Linux stream",
++			release:     linux.Release{ID: string(VendorLinux), IDLike: []string{"alpine"}, VersionID: "stream", Version: "Stream"},
++			wantType:    VendorLinux,
++			wantVersion: "stream",
++			wantLabel:   "stream",
++		},
++		{
++			name:        "vendor Linux 23 (old image labelled 23)",
++			release:     linux.Release{ID: string(VendorLinux), IDLike: []string{"alpine"}, VersionID: "23", Version: "23"},
++			wantType:    VendorLinux,
++			wantVersion: "23",
++			wantMajor:   "23",
++		},
++		{
++			name:        "vendor Linux 25",
++			release:     linux.Release{ID: string(VendorLinux), IDLike: []string{"alpine"}, VersionID: "25"},
++			wantType:    VendorLinux,
++			wantVersion: "25",
++			wantMajor:   "25",
++		},
++		{
++			name:        "vendor hardened containers stream",
++			release:     linux.Release{ID: string(VendorHardened), IDLike: []string{"alpine"}, VersionID: "stream"},
++			wantType:    VendorHardened,
++			wantVersion: "stream",
++			wantLabel:   "stream",
++		},
++		{
++			name:        "vendor hardened containers 25",
++			release:     linux.Release{ID: string(VendorHardened), IDLike: []string{"alpine"}, VersionID: "25"},
++			wantType:    VendorHardened,
++			wantVersion: "25",
++			wantMajor:   "25",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			d, err := NewFromRelease(tt.release, nil)
++			require.NoError(t, err)
++			assert.Equal(t, tt.wantType, d.Type)
++			assert.Equal(t, tt.wantVersion, d.VersionString())
++			assert.Equal(t, tt.wantLabel, d.LabelVersion())
++			assert.Equal(t, tt.wantMajor, d.MajorVersion())
++			assert.Equal(t, string(tt.wantType), d.ID())
++		})
++	}
++}
+-- 
+2.43.0
+
