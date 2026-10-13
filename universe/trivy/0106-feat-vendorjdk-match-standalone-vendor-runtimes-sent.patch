@@ -1,0 +1,295 @@
+From 20ec066d5f11ae0e23a390df09a50c65a357dad0 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Mon, 12 Oct 2026 10:18:10 +0000
+Subject: [PATCH] feat(vendorjdk): match standalone vendor runtimes sent as OS
+ packages
+
+A client of the server mode that builds the package list itself from purls
+(an SBOM platform, for example) sends the purls of the vendor's standalone
+JDK and NIK (pkg:generic/<namespace>/<jdk or nik name>) in the OS package
+list, usually without an operating system. They were reported as packages
+of an unsupported OS and never matched, because the advisories of
+standalone vendor runtimes are served by the vendorjdk detector of the
+language packages.
+
+Move such packages into applications of their product type before the
+scan: the name becomes the distribution variant from the package_type
+qualifier, and a source name that is not a JDK or NIK ecosystem is dropped
+(the families are the module's EcosystemJDK / EcosystemNIK).
+
+Such a package has no ecosystem. A JDK was already placed by its feature
+version; a NIK is now placed on the Java line whose advisories are bounded
+by versions of its minor (23.0.x is the Java 17 line, 23.1.x the Java 21
+line) instead of being skipped.
+---
+ pkg/detector/library/vendorjdk/vendorjdk.go   | 45 +++++++++++-
+ .../library/vendorjdk/vendorjdk_test.go       | 18 ++++-
+ pkg/scan/local/service.go                     |  6 ++
+ pkg/scan/local/vendorjdk.go                   | 56 +++++++++++++++
+ pkg/scan/local/vendorjdk_test.go              | 71 +++++++++++++++++++
+ 5 files changed, 192 insertions(+), 4 deletions(-)
+ create mode 100644 pkg/scan/local/vendorjdk.go
+ create mode 100644 pkg/scan/local/vendorjdk_test.go
+
+diff --git a/pkg/detector/library/vendorjdk/vendorjdk.go b/pkg/detector/library/vendorjdk/vendorjdk.go
+index 842b96a..4d47677 100644
+--- a/pkg/detector/library/vendorjdk/vendorjdk.go
++++ b/pkg/detector/library/vendorjdk/vendorjdk.go
+@@ -6,9 +6,11 @@ package vendorjdk
+ 
+ import (
+ 	"context"
++	"strings"
+ 
+ 	"golang.org/x/xerrors"
+ 
++	osvinternal "github.com/bell-sw/osv-internal"
+ 	"github.com/bell-sw/osv-internal/match"
+ 	"github.com/bell-sw/osv-internal/osvdata"
+ 
+@@ -99,8 +101,8 @@ func (s *Scanner) Detect(ctx context.Context, libType ftypes.LangType, pkgs []ft
+ 
+ // matchRuntime evaluates one runtime against the index of its product family.
+ // The ecosystem ("<family>:21", "<family>:23-21") is in SrcName; a
+-// JDK without it (re-scanned from an SBOM purl) is placed by its version, a
+-// NIK without it cannot be placed on a Java line and is skipped.
++// package without it (re-scanned from an SBOM purl) is placed by its version:
++// a JDK by its feature version, a NIK by nikRelease.
+ func matchRuntime(idx *osvdata.Index, libType ftypes.LangType, pkg ftypes.Package) ([]match.Finding, error) {
+ 	if pkg.SrcName != "" {
+ 		return match.MatchProduct(idx, pkg.SrcName, pkg.Name, pkg.Version)
+@@ -108,5 +110,42 @@ func matchRuntime(idx *osvdata.Index, libType ftypes.LangType, pkg ftypes.Packag
+ 	if libType == ftypes.VendorJDK {
+ 		return match.MatchJDK(idx, pkg.Name, pkg.Version)
+ 	}
+-	return nil, xerrors.Errorf("%s %s@%s: the Java line of the runtime is unknown", libType, pkg.Name, pkg.Version)
++	release, ok := nikRelease(idx, pkg.Name, pkg.Version)
++	if !ok {
++		return nil, xerrors.Errorf("%s %s@%s: the Java line of the runtime is unknown", libType, pkg.Name, pkg.Version)
++	}
++	return match.MatchProduct(idx, osvinternal.Ecosystem(idx.Family, release), pkg.Name, pkg.Version)
++}
++
++// nikRelease finds the release ("23-21") of a NIK bundle from its version
++// alone. A NIK major can be built for several Java lines, each with its own
++// minor ("23.0.x" for Java 17, "23.1.x" for Java 21), and the version bounds
++// of a line's advisories are on that minor.
++func nikRelease(idx *osvdata.Index, bundle, version string) (string, bool) {
++	parts := strings.SplitN(version, ".", 3)
++	if len(parts) < 2 {
++		return "", false
++	}
++	major, line := parts[0], parts[0]+"."+parts[1]+"."
++	var candidates, sameLine []string
++	for _, release := range idx.Releases() {
++		if !strings.HasPrefix(release, major+"-") {
++			continue
++		}
++		candidates = append(candidates, release)
++		for _, adv := range idx.Advisories(bundle, release) {
++			if strings.HasPrefix(adv.Introduced, line) || strings.HasPrefix(adv.Fixed, line) ||
++				strings.HasPrefix(adv.LastAffected, line) {
++				sameLine = append(sameLine, release)
++				break
++			}
++		}
++	}
++	switch {
++	case len(sameLine) == 1:
++		return sameLine[0], true
++	case len(sameLine) == 0 && len(candidates) == 1:
++		return candidates[0], true
++	}
++	return "", false
+ }
+diff --git a/pkg/detector/library/vendorjdk/vendorjdk_test.go b/pkg/detector/library/vendorjdk/vendorjdk_test.go
+index 71a6792..faf6536 100644
+--- a/pkg/detector/library/vendorjdk/vendorjdk_test.go
++++ b/pkg/detector/library/vendorjdk/vendorjdk_test.go
+@@ -126,10 +126,26 @@ func TestScanner_Detect(t *testing.T) {
+ 			want:    nil,
+ 		},
+ 		{
+-			name:    "NIK without its Java line is skipped",
++			name:    "NIK without its Java line is placed by its version",
+ 			libType: ftypes.VendorNIK,
+ 			src:     src,
+ 			pkgs:    []ftypes.Package{{Name: "core", Version: "23.1.0+1"}},
++			want: []types.DetectedVulnerability{{
++				VulnerabilityID:  "CVE-2025-23165",
++				VendorIDs:        []string{"BELL-CVE-2025-23165"},
++				PkgName:          "core",
++				InstalledVersion: "23.1.0+1",
++				FixedVersion:     "23.1.8",
++				DataSource:       nikSource,
++				SeveritySource:   vendordb.SourceNIK,
++				Vulnerability:    nikVuln(),
++			}},
++		},
++		{
++			name:    "NIK of a line the feed does not know is skipped",
++			libType: ftypes.VendorNIK,
++			src:     src,
++			pkgs:    []ftypes.Package{{Name: "core", Version: "99.0.0+1"}},
+ 			want:    nil,
+ 		},
+ 		{
+diff --git a/pkg/scan/local/service.go b/pkg/scan/local/service.go
+index 9f3c36c..d9086c8 100644
+--- a/pkg/scan/local/service.go
++++ b/pkg/scan/local/service.go
+@@ -86,6 +86,12 @@ func (s Service) Scan(ctx context.Context, targetName, artifactKey string, blobK
+ 		return types.ScanResponse{}, xerrors.Errorf("failed to apply layers: %w", err)
+ 	}
+ 
++	// Standalone vendor runtimes sent as OS packages are language packages.
++	liftVendorRuntimes(&detail)
++	if len(detail.Packages) == 0 && detail.OS.Family == "none" {
++		detail.OS = ftypes.OS{}
++	}
++
+ 	if !lo.IsEmpty(options.Distro) && !lo.IsEmpty(detail.OS) {
+ 		log.Info("Overriding detected OS with provided distro", log.String("detected", detail.OS.String()),
+ 			log.String("provided", options.Distro.String()))
+diff --git a/pkg/scan/local/vendorjdk.go b/pkg/scan/local/vendorjdk.go
+new file mode 100644
+index 0000000..553d6d9
+--- /dev/null
++++ b/pkg/scan/local/vendorjdk.go
+@@ -0,0 +1,56 @@
++package local
++
++import (
++	"github.com/package-url/packageurl-go"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
++	"github.com/aquasecurity/trivy/pkg/dependency"
++	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
++)
++
++// liftVendorRuntimes moves standalone vendor runtimes sent as OS packages
++// (a server-mode client building the package list from purls sends
++// pkg:generic/<namespace>/<jdk or nik name> that way) into applications
++// of their product type, where the vendorjdk detector matches them.
++func liftVendorRuntimes(detail *ftypes.ArtifactDetail) {
++	runtimes := make(map[ftypes.LangType][]ftypes.Package)
++	var rest ftypes.Packages
++	for _, pkg := range detail.Packages {
++		p := pkg.Identifier.PURL
++		if p == nil || p.Type != packageurl.TypeGeneric || !vendordb.IsVendorRuntimePURL(p.Namespace, p.Name) {
++			rest = append(rest, pkg)
++			continue
++		}
++		t, _ := vendordb.LangTypeForPURLName(p.Name)
++		// The package name is the distribution variant, a purl qualifier.
++		if variant := p.Qualifiers.Map()[osvjdk.PURLQualifier]; variant != "" {
++			pkg.Name = variant
++		}
++		if p.Version != "" {
++			pkg.Version = p.Version
++		}
++		pkg.ID = dependency.ID(t, pkg.Name, pkg.Version)
++		// The source name of a runtime is its ecosystem ("<family>:21");
++		// anything else is a placeholder of the client.
++		if f := osvinternal.Family(pkg.SrcName); f != osvinternal.EcosystemJDK && f != osvinternal.EcosystemNIK {
++			pkg.SrcName = ""
++		}
++		pkg.SrcVersion, pkg.SrcRelease, pkg.SrcEpoch, pkg.Arch = "", "", 0, ""
++		runtimes[t] = append(runtimes[t], pkg)
++	}
++	if len(runtimes) == 0 {
++		return
++	}
++	detail.Packages = rest
++	for _, t := range []ftypes.LangType{ftypes.VendorJDK, ftypes.VendorNIK} {
++		if pkgs := runtimes[t]; len(pkgs) > 0 {
++			detail.Applications = append(detail.Applications, ftypes.Application{
++				Type:     t,
++				Packages: pkgs,
++			})
++		}
++	}
++}
+diff --git a/pkg/scan/local/vendorjdk_test.go b/pkg/scan/local/vendorjdk_test.go
+new file mode 100644
+index 0000000..ec52500
+--- /dev/null
++++ b/pkg/scan/local/vendorjdk_test.go
+@@ -0,0 +1,71 @@
++package local
++
++import (
++	"testing"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
++	"github.com/package-url/packageurl-go"
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
++)
++
++func purlOf(t *testing.T, s string) *packageurl.PackageURL {
++	t.Helper()
++	p, err := packageurl.FromString(s)
++	require.NoError(t, err)
++	return &p
++}
++
++func Test_liftVendorRuntimes(t *testing.T) {
++	nik2321 := osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21")
++	jdk := purlOf(t, osvjdk.PURL("jdk-lite", "21.0.2+14"))
++	nik := purlOf(t, osvjdk.PURLNIK("core", "23.1.0+1"))
++	other := purlOf(t, "pkg:generic/acme/" + osvjdk.PURLNameJDK + "@1.0")
++	deb := purlOf(t, "pkg:deb/debian/zlib1g@1.2.13?distro=debian-12")
++	detail := ftypes.ArtifactDetail{
++		Packages: ftypes.Packages{
++			// as a purl-forwarding client sends them: purl name, source = binary
++			{Name: osvjdk.PURLNameJDK, Version: "21.0.2+14", SrcName: osvjdk.PURLNameJDK, SrcVersion: "21.0.2+14", Arch: "x86_64",
++				Identifier: ftypes.PkgIdentifier{PURL: jdk}},
++			// with the ecosystem the analyzer recorded as source name
++			{Name: osvjdk.PURLNameNIK, Version: "23.1.0+1", SrcName: nik2321, SrcVersion: "23.1.0+1",
++				Identifier: ftypes.PkgIdentifier{PURL: nik}},
++			{Name: osvjdk.PURLNameJDK, Version: "1.0", Identifier: ftypes.PkgIdentifier{PURL: other}},
++			{Name: "zlib1g", Version: "1.2.13", Identifier: ftypes.PkgIdentifier{PURL: deb}},
++			{Name: "nopurl", Version: "1"},
++		},
++	}
++	liftVendorRuntimes(&detail)
++
++	var left []string
++	for _, p := range detail.Packages {
++		left = append(left, p.Name)
++	}
++	assert.Equal(t, []string{osvjdk.PURLNameJDK, "zlib1g", "nopurl"}, left)
++
++	require.Len(t, detail.Applications, 2)
++	assert.Equal(t, ftypes.Application{
++		Type: ftypes.VendorJDK,
++		Packages: ftypes.Packages{{
++			ID: "jdk-lite@21.0.2+14", Name: "jdk-lite", Version: "21.0.2+14",
++			Identifier: ftypes.PkgIdentifier{PURL: jdk},
++		}},
++	}, detail.Applications[0])
++	assert.Equal(t, ftypes.Application{
++		Type: ftypes.VendorNIK,
++		Packages: ftypes.Packages{{
++			ID: "core@23.1.0+1", Name: "core", Version: "23.1.0+1", SrcName: nik2321,
++			Identifier: ftypes.PkgIdentifier{PURL: nik},
++		}},
++	}, detail.Applications[1])
++
++	// Nothing to lift: untouched.
++	plain := ftypes.ArtifactDetail{Packages: ftypes.Packages{{Name: "zlib1g", Version: "1.2.13"}}}
++	liftVendorRuntimes(&plain)
++	assert.Len(t, plain.Packages, 1)
++	assert.Empty(t, plain.Applications)
++}
+-- 
+2.43.0
+

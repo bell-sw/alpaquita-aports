@@ -1,0 +1,1182 @@
+From ef5d8df8f96e72a5138783799bcc3a6146980d1f Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Mon, 19 Oct 2026 13:33:25 +0000
+Subject: [PATCH] feat(vendorjdk): one package type per product family of the
+ module
+
+osv-internal 0.5.5 replaces its EcosystemJDK/EcosystemNIK constants by the
+Products table: a vendor may build the module with several JDK and NIK
+families. vendordb maps every family to a package type and a severity source
+named by the family's purl name (LangTypeOf, LangTypes, ProductForLangType,
+SourceOf, ProductSources); the analyzer, the detector, the purl mapping and
+the SBOM lifting of runtimes follow, and the fixed VendorJDK/VendorNIK types
+are gone.
+---
+ pkg/detector/library/vendorjdk/vendorjdk.go   |   2 +-
+ .../library/vendorjdk/vendorjdk_test.go       | 113 ++++++++++++------
+ .../language/java/vendorjdk/vendorjdk.go      |   2 +-
+ .../language/java/vendorjdk/vendorjdk_test.go |  94 +++++++++++----
+ pkg/fanal/types/const.go                      |   5 +-
+ pkg/flag/db_flags_test.go                     |   3 +-
+ pkg/flag/vulnerability_flags.go               |   5 +-
+ pkg/purl/purl.go                              |   5 +-
+ pkg/purl/purl_test.go                         |  38 +++++-
+ pkg/sbom/io/decode_test.go                    |  12 +-
+ pkg/scan/langpkg/scan_test.go                 |   7 +-
+ pkg/scan/local/vendorjdk.go                   |   4 +-
+ pkg/scan/local/vendorjdk_test.go              |  56 +++++----
+ pkg/vendordb/vendordb.go                      | 100 +++++++++-------
+ pkg/vendordb/vendordb_test.go                 |  79 ++++++++++--
+ 15 files changed, 365 insertions(+), 160 deletions(-)
+
+diff --git a/pkg/detector/library/vendorjdk/vendorjdk.go b/pkg/detector/library/vendorjdk/vendorjdk.go
+index 4d47677..b56d934 100644
+--- a/pkg/detector/library/vendorjdk/vendorjdk.go
++++ b/pkg/detector/library/vendorjdk/vendorjdk.go
+@@ -107,7 +107,7 @@ func matchRuntime(idx *osvdata.Index, libType ftypes.LangType, pkg ftypes.Packag
+ 	if pkg.SrcName != "" {
+ 		return match.MatchProduct(idx, pkg.SrcName, pkg.Name, pkg.Version)
+ 	}
+-	if libType == ftypes.VendorJDK {
++	if p, _ := vendordb.ProductForLangType(libType); p.Kind == osvinternal.KindJDK {
+ 		return match.MatchJDK(idx, pkg.Name, pkg.Version)
+ 	}
+ 	release, ok := nikRelease(idx, pkg.Name, pkg.Version)
+diff --git a/pkg/detector/library/vendorjdk/vendorjdk_test.go b/pkg/detector/library/vendorjdk/vendorjdk_test.go
+index faf6536..6cd36e4 100644
+--- a/pkg/detector/library/vendorjdk/vendorjdk_test.go
++++ b/pkg/detector/library/vendorjdk/vendorjdk_test.go
+@@ -24,6 +24,16 @@ import (
+ 	"github.com/aquasecurity/trivy/pkg/vendordb"
+ )
+ 
++// The first JDK and NIK families of the module: the fixtures are theirs.
++var (
++	jdkProduct = testfix.Product(osvinternal.KindJDK)
++	nikProduct = testfix.Product(osvinternal.KindNIK)
++	jdkType    = vendordb.LangTypeOf(jdkProduct)
++	nikType    = vendordb.LangTypeOf(nikProduct)
++	jdkSource  = vendordb.SourceOf(jdkProduct)
++	nikSource  = vendordb.SourceOf(nikProduct)
++)
++
+ type indexSource struct {
+ 	idx map[string]*osvdata.Index
+ 	err error
+@@ -41,20 +51,18 @@ func (s indexSource) Ecosystem(_ context.Context, family string) (*osvdata.Index
+ }
+ 
+ // loadIndexes zips testdata/*.json into an archive and builds the index of
+-// each product family from it (the prototype archives carry the same records).
++// every product family from it (the prototype archives carry the same records).
+ func loadIndexes(t *testing.T) map[string]*osvdata.Index {
+ 	t.Helper()
+-	return map[string]*osvdata.Index{
+-		osvinternal.EcosystemJDK: loadIndex(t, osvinternal.EcosystemJDK),
+-		osvinternal.EcosystemNIK: loadIndex(t, osvinternal.EcosystemNIK),
++	idx := make(map[string]*osvdata.Index)
++	for _, p := range osvinternal.Products {
++		idx[p.Family] = loadIndexFrom(t, "testdata/*.json", p.Family)
+ 	}
++	return idx
+ }
+ 
+-func loadIndex(t *testing.T, family string) *osvdata.Index {
+-	t.Helper()
+-	return loadIndexFrom(t, "testdata/*.json", family)
+-}
+-
++// loadIndexFrom builds the index of a family from the records matching
++// pattern, renamed to the family.
+ func loadIndexFrom(t *testing.T, pattern, family string) *osvdata.Index {
+ 	t.Helper()
+ 	zipPath := filepath.Join(t.TempDir(), "all.zip")
+@@ -68,7 +76,7 @@ func loadIndexFrom(t *testing.T, pattern, family string) *osvdata.Index {
+ 		require.NoError(t, err)
+ 		w, err := zw.Create(filepath.Base(name))
+ 		require.NoError(t, err)
+-		_, err = w.Write(testfix.RewriteOSV(b))
++		_, err = w.Write(testfix.RewriteOSVFor(b, family))
+ 		require.NoError(t, err)
+ 	}
+ 	require.NoError(t, zw.Close())
+@@ -84,13 +92,13 @@ func TestScanner_Detect(t *testing.T) {
+ 		ID:       "jdk@21.0.2+14",
+ 		Name:     "jdk",
+ 		Version:  "21.0.2+14",
+-		SrcName:  osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"),
++		SrcName:  jdkProduct.Ecosystem("21"),
+ 		FilePath: "opt/jdk-21.0.2",
+ 		Layer:    ftypes.Layer{DiffID: "sha256:aaaa"},
+ 	}
+-	nikSource := &dbTypes.DataSource{
+-		ID:   vendordb.SourceNIK,
+-		Name: osvinternal.EcosystemNIK + " OSV database",
++	nikDataSource := &dbTypes.DataSource{
++		ID:   nikSource,
++		Name: nikProduct.Family + " OSV database",
+ 		URL:  "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-23165.json",
+ 	}
+ 	tests := []struct {
+@@ -103,9 +111,9 @@ func TestScanner_Detect(t *testing.T) {
+ 	}{
+ 		{
+ 			name:    "NIK core 23.1.0+1 on the 21 line",
+-			libType: ftypes.VendorNIK,
++			libType: nikType,
+ 			src:     src,
+-			pkgs:    []ftypes.Package{{Name: "core", Version: "23.1.0+1", SrcName: osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21"), FilePath: "opt/nik"}},
++			pkgs:    []ftypes.Package{{Name: "core", Version: "23.1.0+1", SrcName: nikProduct.Ecosystem("23-21"), FilePath: "opt/nik"}},
+ 			want: []types.DetectedVulnerability{{
+ 				VulnerabilityID:  "CVE-2025-23165",
+ 				VendorIDs:        []string{"BELL-CVE-2025-23165"},
+@@ -113,21 +121,21 @@ func TestScanner_Detect(t *testing.T) {
+ 				PkgPath:          "opt/nik",
+ 				InstalledVersion: "23.1.0+1",
+ 				FixedVersion:     "23.1.8",
+-				DataSource:       nikSource,
+-				SeveritySource:   vendordb.SourceNIK,
++				DataSource:       nikDataSource,
++				SeveritySource:   nikSource,
+ 				Vulnerability:    nikVuln(),
+ 			}},
+ 		},
+ 		{
+ 			name:    "NIK fixed version",
+-			libType: ftypes.VendorNIK,
++			libType: nikType,
+ 			src:     src,
+-			pkgs:    []ftypes.Package{{Name: "core", Version: "23.1.8+1", SrcName: osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21")}},
++			pkgs:    []ftypes.Package{{Name: "core", Version: "23.1.8+1", SrcName: nikProduct.Ecosystem("23-21")}},
+ 			want:    nil,
+ 		},
+ 		{
+ 			name:    "NIK without its Java line is placed by its version",
+-			libType: ftypes.VendorNIK,
++			libType: nikType,
+ 			src:     src,
+ 			pkgs:    []ftypes.Package{{Name: "core", Version: "23.1.0+1"}},
+ 			want: []types.DetectedVulnerability{{
+@@ -136,14 +144,14 @@ func TestScanner_Detect(t *testing.T) {
+ 				PkgName:          "core",
+ 				InstalledVersion: "23.1.0+1",
+ 				FixedVersion:     "23.1.8",
+-				DataSource:       nikSource,
+-				SeveritySource:   vendordb.SourceNIK,
++				DataSource:       nikDataSource,
++				SeveritySource:   nikSource,
+ 				Vulnerability:    nikVuln(),
+ 			}},
+ 		},
+ 		{
+ 			name:    "NIK of a line the feed does not know is skipped",
+-			libType: ftypes.VendorNIK,
++			libType: nikType,
+ 			src:     src,
+ 			pkgs:    []ftypes.Package{{Name: "core", Version: "99.0.0+1"}},
+ 			want:    nil,
+@@ -163,18 +171,18 @@ func TestScanner_Detect(t *testing.T) {
+ 					FixedVersion:     "21.0.8+12",
+ 					Layer:            ftypes.Layer{DiffID: "sha256:aaaa"},
+ 					DataSource: &dbTypes.DataSource{
+-						ID:   vendordb.SourceJDK,
+-						Name: osvinternal.EcosystemJDK + " OSV database",
++						ID:   jdkSource,
++						Name: jdkProduct.Family + " OSV database",
+ 						URL:  "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
+ 					},
+-					SeveritySource: vendordb.SourceJDK,
++					SeveritySource: jdkSource,
+ 					Vulnerability: dbTypes.Vulnerability{
+ 						Severity:         "HIGH",
+ 						References:       []string{"https://docs.bell-sw.com/security/cves/CVE-2025-24855"},
+ 						PublishedDate:    timePtr("2025-03-14T17:42:18.239166Z"),
+ 						LastModifiedDate: timePtr("2026-09-05T10:49:10.119410Z"),
+ 						CVSS: dbTypes.VendorCVSS{
+-							vendordb.SourceJDK: {
++							jdkSource: {
+ 								V3Vector: "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+ 								V3Score:  7.8,
+ 							},
+@@ -200,18 +208,18 @@ func TestScanner_Detect(t *testing.T) {
+ 				InstalledVersion: "8u402+7",
+ 				FixedVersion:     "8u462+11",
+ 				DataSource: &dbTypes.DataSource{
+-					ID:   vendordb.SourceJDK,
+-					Name: osvinternal.EcosystemJDK + " OSV database",
++					ID:   jdkSource,
++					Name: jdkProduct.Family + " OSV database",
+ 					URL:  "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
+ 				},
+-				SeveritySource: vendordb.SourceJDK,
++				SeveritySource: jdkSource,
+ 				Vulnerability: dbTypes.Vulnerability{
+ 					Severity:         "HIGH",
+ 					References:       []string{"https://docs.bell-sw.com/security/cves/CVE-2025-24855"},
+ 					PublishedDate:    timePtr("2025-03-14T17:42:18.239166Z"),
+ 					LastModifiedDate: timePtr("2026-09-05T10:49:10.119410Z"),
+ 					CVSS: dbTypes.VendorCVSS{
+-						vendordb.SourceJDK: {
++						jdkSource: {
+ 							V3Vector: "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+ 							V3Score:  7.8,
+ 						},
+@@ -246,12 +254,19 @@ func TestScanner_Detect(t *testing.T) {
+ 		{
+ 			name: "unavailable archive: a warning, the runtime stays without findings",
+ 			src: indexSource{err: &osvdata.UnavailableError{
+-				Family: osvinternal.EcosystemJDK, Reason: "HTTP 404",
+-				URL: (&osvdata.Source{}).ArchiveURL(osvinternal.EcosystemJDK),
++				Family: jdkProduct.Family, Reason: "HTTP 404",
++				URL: (&osvdata.Source{}).ArchiveURL(jdkProduct.Family),
+ 			}},
+ 			pkgs: []ftypes.Package{jdk21},
+ 			want: nil,
+ 		},
++		{
++			name:    "not a runtime type",
++			libType: ftypes.Jar,
++			src:     src,
++			pkgs:    []ftypes.Package{jdk21},
++			wantErr: "is not a vendor runtime type",
++		},
+ 		{
+ 			name: "no packages, no source access",
+ 			src:  indexSource{err: xerrors.New("must not be called")},
+@@ -263,7 +278,7 @@ func TestScanner_Detect(t *testing.T) {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			libType := tt.libType
+ 			if libType == "" {
+-				libType = ftypes.VendorJDK
++				libType = jdkType
+ 			}
+ 			got, err := vendorjdk.NewScanner(vendorjdk.WithSource(tt.src)).Detect(context.Background(), libType, tt.pkgs)
+ 			if tt.wantErr != "" {
+@@ -276,12 +291,32 @@ func TestScanner_Detect(t *testing.T) {
+ 	}
+ }
+ 
++// Every family of the module is matched with the grammar of its kind against
++// its own archive and reports its own source.
++func TestScanner_Detect_EveryFamily(t *testing.T) {
++	src := indexSource{idx: loadIndexes(t)}
++	for _, p := range osvinternal.Products {
++		t.Run(p.Family, func(t *testing.T) {
++			pkg := ftypes.Package{Name: "jdk", Version: "21.0.2+14"}
++			if p.Kind == osvinternal.KindNIK {
++				pkg = ftypes.Package{Name: "core", Version: "23.1.0+1"}
++			}
++			got, err := vendorjdk.NewScanner(vendorjdk.WithSource(src)).Detect(context.Background(), vendordb.LangTypeOf(p), []ftypes.Package{pkg})
++			require.NoError(t, err)
++			require.Len(t, got, 1)
++			assert.Equal(t, vendordb.SourceOf(p), got[0].SeveritySource)
++			assert.Equal(t, vendordb.SourceOf(p), got[0].DataSource.ID)
++			assert.Equal(t, p.Family+" OSV database", got[0].DataSource.Name)
++		})
++	}
++}
++
+ // Version strings reach the matcher untouched, whatever the release type: a
+ // CPU build (the previous PSU plus ".0.1", five components) counts as the PSU
+ // of its cycle, and a CSPU build (fourth component) is newer than its PSU.
+ func TestScanner_Detect_ReleaseTypes(t *testing.T) {
+ 	src := indexSource{idx: map[string]*osvdata.Index{
+-		osvinternal.EcosystemJDK: loadIndexFrom(t, "testdata/release-types/*.json", osvinternal.EcosystemJDK),
++		jdkProduct.Family: loadIndexFrom(t, "testdata/release-types/*.json", jdkProduct.Family),
+ 	}}
+ 	tests := []struct {
+ 		name    string
+@@ -311,8 +346,8 @@ func TestScanner_Detect_ReleaseTypes(t *testing.T) {
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+-			pkgs := []ftypes.Package{{Name: "jdk", Version: tt.version, SrcName: osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21")}}
+-			vulns, err := vendorjdk.NewScanner(vendorjdk.WithSource(src)).Detect(context.Background(), ftypes.VendorJDK, pkgs)
++			pkgs := []ftypes.Package{{Name: "jdk", Version: tt.version, SrcName: jdkProduct.Ecosystem("21")}}
++			vulns, err := vendorjdk.NewScanner(vendorjdk.WithSource(src)).Detect(context.Background(), jdkType, pkgs)
+ 			require.NoError(t, err)
+ 			got := make(map[string]string)
+ 			for _, v := range vulns {
+@@ -349,7 +384,7 @@ func nikVuln() dbTypes.Vulnerability {
+ 		PublishedDate:    &r.Published,
+ 		LastModifiedDate: &r.Modified,
+ 		CVSS: dbTypes.VendorCVSS{
+-			vendordb.SourceNIK: {V3Vector: r.Severity[0].Score, V3Score: 3.7},
++			nikSource: {V3Vector: r.Severity[0].Score, V3Score: 3.7},
+ 		},
+ 	}
+ }
+diff --git a/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk.go b/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk.go
+index c1a2858..5800675 100644
+--- a/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk.go
++++ b/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk.go
+@@ -116,7 +116,7 @@ func (a *vendorJDKAnalyzer) Required(filePath string, info os.FileInfo) bool {
+ 		return true
+ 	case dir == "bin" && (base == "native-image" || base == "native-image.exe" || base == "native-image.cmd"):
+ 		// The NIK launcher is itself a native image (about 25 MB) and holds the
+-		// product version with its build number (NIKVendorVersionPrefix + "23.1.0-1").
++		// product version with its build number (the family's vendor-version prefix + "23.1.0-1").
+ 		return info == nil || info.Size() <= maxNativeImageSize
+ 	case dir == "bin" && (base == "java" || base == "javac" || base == "java.exe" || base == "javac.exe"):
+ 		return info == nil || info.Size() <= maxLauncherSize
+diff --git a/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk_test.go b/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk_test.go
+index a0728dc..c77760f 100644
+--- a/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk_test.go
++++ b/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk_test.go
+@@ -20,17 +20,36 @@ import (
+ 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
+ 	"github.com/aquasecurity/trivy/pkg/fanal/types"
+ 	"github.com/aquasecurity/trivy/pkg/mapfs"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
++)
++
++// The first JDK and NIK families of the module: the fixtures are theirs.
++var (
++	jdkProduct = testfix.Product(osvinternal.KindJDK)
++	nikProduct = testfix.Product(osvinternal.KindNIK)
++	jdkType    = vendordb.LangTypeOf(jdkProduct)
++	nikType    = vendordb.LangTypeOf(nikProduct)
+ )
+ 
+ // testFS assembles the named runtimes under the given virtual roots, the
+ // way the analyzer group hands a layer to a post-analyzer.
+ func testFS(t *testing.T, dirs map[string]string) *mapfs.FS {
+ 	t.Helper()
+-	mfs := mapfs.New()
++	specs := make(map[string]testfix.Runtime, len(dirs))
+ 	for virtual, name := range dirs {
+ 		spec, ok := runtimes[name]
+ 		require.True(t, ok, name)
+-		real := filepath.Join(t.TempDir(), name)
++		specs[virtual] = spec
++	}
++	return specFS(t, specs)
++}
++
++// specFS writes the runtimes under the given virtual roots.
++func specFS(t *testing.T, specs map[string]testfix.Runtime) *mapfs.FS {
++	t.Helper()
++	mfs := mapfs.New()
++	for virtual, spec := range specs {
++		real := filepath.Join(t.TempDir(), path.Base(virtual))
+ 		testfix.Write(t, real, spec)
+ 		err := filepath.WalkDir(real, func(p string, d fs.DirEntry, err error) error {
+ 			if err != nil {
+@@ -62,16 +81,16 @@ func TestVendorJDKAnalyzer_PostAnalyze(t *testing.T) {
+ 			dirs: map[string]string{"opt/jdk-21.0.2": "jdk-21.0.2"},
+ 			want: []types.Application{
+ 				{
+-					Type:     types.VendorJDK,
++					Type:     jdkType,
+ 					FilePath: "opt/jdk-21.0.2/release",
+ 					Packages: []types.Package{
+ 						{
+ 							ID:         "jdk@21.0.2+14",
+ 							Name:       "jdk",
+ 							Version:    "21.0.2+14",
+-							SrcName:    osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"),
++							SrcName:    jdkProduct.Ecosystem("21"),
+ 							FilePath:   "opt/jdk-21.0.2",
+-							Identifier: types.PkgIdentifier{PURL: purlOf("jdk", "21.0.2+14")},
++							Identifier: types.PkgIdentifier{PURL: purlOf(jdkProduct, "jdk", "21.0.2+14")},
+ 						},
+ 					},
+ 				},
+@@ -82,16 +101,16 @@ func TestVendorJDKAnalyzer_PostAnalyze(t *testing.T) {
+ 			dirs: map[string]string{"opt/jdk8u402": "jdk8u402"},
+ 			want: []types.Application{
+ 				{
+-					Type:     types.VendorJDK,
++					Type:     jdkType,
+ 					FilePath: "opt/jdk8u402/release",
+ 					Packages: []types.Package{
+ 						{
+ 							ID:         "jdk@8u402+7",
+ 							Name:       "jdk",
+ 							Version:    "8u402+7",
+-							SrcName:    osvinternal.Ecosystem(osvinternal.EcosystemJDK, "8"),
++							SrcName:    jdkProduct.Ecosystem("8"),
+ 							FilePath:   "opt/jdk8u402",
+-							Identifier: types.PkgIdentifier{PURL: purlOf("jdk", "8u402+7")},
++							Identifier: types.PkgIdentifier{PURL: purlOf(jdkProduct, "jdk", "8u402+7")},
+ 						},
+ 					},
+ 				},
+@@ -102,16 +121,16 @@ func TestVendorJDKAnalyzer_PostAnalyze(t *testing.T) {
+ 			dirs: map[string]string{"usr/lib/jvm/jre-21.0.2-lite": "jre-21.0.2-lite"},
+ 			want: []types.Application{
+ 				{
+-					Type:     types.VendorJDK,
++					Type:     jdkType,
+ 					FilePath: "usr/lib/jvm/jre-21.0.2-lite/release",
+ 					Packages: []types.Package{
+ 						{
+ 							ID:         "jre-lite@21.0.2+14",
+ 							Name:       "jre-lite",
+ 							Version:    "21.0.2+14",
+-							SrcName:    osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"),
++							SrcName:    jdkProduct.Ecosystem("21"),
+ 							FilePath:   "usr/lib/jvm/jre-21.0.2-lite",
+-							Identifier: types.PkgIdentifier{PURL: purlOf("jre-lite", "21.0.2+14")},
++							Identifier: types.PkgIdentifier{PURL: purlOf(jdkProduct, "jre-lite", "21.0.2+14")},
+ 						},
+ 					},
+ 				},
+@@ -129,16 +148,16 @@ func TestVendorJDKAnalyzer_PostAnalyze(t *testing.T) {
+ 			dirs: map[string]string{"opt/nik-23": "nik-23"},
+ 			want: []types.Application{
+ 				{
+-					Type:     types.VendorNIK,
++					Type:     nikType,
+ 					FilePath: "opt/nik-23/release",
+ 					Packages: []types.Package{
+ 						{
+ 							ID:         "core@23.1.2",
+ 							Name:       "core",
+ 							Version:    "23.1.2",
+-							SrcName:    osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21"),
++							SrcName:    nikProduct.Ecosystem("23-21"),
+ 							FilePath:   "opt/nik-23",
+-							Identifier: types.PkgIdentifier{PURL: purlFrom(osvjdk.PURLNIK("core", "23.1.2"))},
++							Identifier: types.PkgIdentifier{PURL: purlOf(nikProduct, "core", "23.1.2")},
+ 						},
+ 					},
+ 				},
+@@ -149,16 +168,16 @@ func TestVendorJDKAnalyzer_PostAnalyze(t *testing.T) {
+ 			dirs: map[string]string{"usr/lib/jvm/jdk21-lite": "apk-jdk21-lite"},
+ 			want: []types.Application{
+ 				{
+-					Type:     types.VendorJDK,
++					Type:     jdkType,
+ 					FilePath: "usr/lib/jvm/jdk21-lite/release",
+ 					Packages: []types.Package{
+ 						{
+ 							ID:         "jre-lite@21.0.2+14",
+ 							Name:       "jre-lite",
+ 							Version:    "21.0.2+14",
+-							SrcName:    osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"),
++							SrcName:    jdkProduct.Ecosystem("21"),
+ 							FilePath:   "usr/lib/jvm/jdk21-lite",
+-							Identifier: types.PkgIdentifier{PURL: purlOf("jre-lite", "21.0.2+14")},
++							Identifier: types.PkgIdentifier{PURL: purlOf(jdkProduct, "jre-lite", "21.0.2+14")},
+ 						},
+ 					},
+ 				},
+@@ -172,14 +191,14 @@ func TestVendorJDKAnalyzer_PostAnalyze(t *testing.T) {
+ 			},
+ 			want: []types.Application{
+ 				{
+-					Type:     types.VendorJDK,
++					Type:     jdkType,
+ 					FilePath: "opt/jdk-21.0.2/release",
+-					Packages: []types.Package{{ID: "jdk@21.0.2+14", Name: "jdk", Version: "21.0.2+14", SrcName: osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"), FilePath: "opt/jdk-21.0.2", Identifier: types.PkgIdentifier{PURL: purlOf("jdk", "21.0.2+14")}}},
++					Packages: []types.Package{{ID: "jdk@21.0.2+14", Name: "jdk", Version: "21.0.2+14", SrcName: jdkProduct.Ecosystem("21"), FilePath: "opt/jdk-21.0.2", Identifier: types.PkgIdentifier{PURL: purlOf(jdkProduct, "jdk", "21.0.2+14")}}},
+ 				},
+ 				{
+-					Type:     types.VendorJDK,
++					Type:     jdkType,
+ 					FilePath: "opt/jdk8u402/release",
+-					Packages: []types.Package{{ID: "jdk@8u402+7", Name: "jdk", Version: "8u402+7", SrcName: osvinternal.Ecosystem(osvinternal.EcosystemJDK, "8"), FilePath: "opt/jdk8u402", Identifier: types.PkgIdentifier{PURL: purlOf("jdk", "8u402+7")}}},
++					Packages: []types.Package{{ID: "jdk@8u402+7", Name: "jdk", Version: "8u402+7", SrcName: jdkProduct.Ecosystem("8"), FilePath: "opt/jdk8u402", Identifier: types.PkgIdentifier{PURL: purlOf(jdkProduct, "jdk", "8u402+7")}}},
+ 				},
+ 			},
+ 		},
+@@ -198,6 +217,33 @@ func TestVendorJDKAnalyzer_PostAnalyze(t *testing.T) {
+ 	}
+ }
+ 
++// A runtime of any family of the module is reported with the family's own
++// package type and purl.
++func TestVendorJDKAnalyzer_PostAnalyze_EveryFamily(t *testing.T) {
++	for _, p := range osvinternal.Products {
++		t.Run(p.Family, func(t *testing.T) {
++			spec := testfix.Runtime{Product: p.Family, Version: "21.0.2+14-LTS", JDK: true}
++			variant := "jdk"
++			if p.Kind == osvinternal.KindNIK {
++				spec.NIK = "23.1.2+1"
++				variant = "core"
++			}
++			a, err := newVendorJDKAnalyzer(analyzer.AnalyzerOptions{})
++			require.NoError(t, err)
++			got, err := a.PostAnalyze(context.Background(), analyzer.PostAnalysisInput{FS: specFS(t, map[string]testfix.Runtime{"opt/runtime": spec})})
++			require.NoError(t, err)
++			require.Len(t, got.Applications, 1)
++			assert.Equal(t, vendordb.LangTypeOf(p), got.Applications[0].Type)
++			require.Len(t, got.Applications[0].Packages, 1)
++			pkg := got.Applications[0].Packages[0]
++			assert.Equal(t, variant, pkg.Name)
++			assert.NotEmpty(t, pkg.Version)
++			assert.Equal(t, p.Family, osvinternal.Family(pkg.SrcName))
++			assert.Equal(t, purlOf(p, variant, pkg.Version), pkg.Identifier.PURL)
++		})
++	}
++}
++
+ func TestVendorJDKAnalyzer_Required(t *testing.T) {
+ 	a := &vendorJDKAnalyzer{}
+ 	tests := []struct {
+@@ -230,9 +276,9 @@ func TestVendorJDKAnalyzer_Required(t *testing.T) {
+ 	}
+ }
+ 
+-// purlOf is the purl the shared module assigns to a vendor JDK runtime.
+-func purlOf(variant, version string) *packageurl.PackageURL {
+-	return purlFrom(osvjdk.PURL(variant, version))
++// purlOf is the purl the shared module assigns to a runtime of a family.
++func purlOf(p osvinternal.Product, variant, version string) *packageurl.PackageURL {
++	return purlFrom(osvjdk.PURL(p.Family, variant, version))
+ }
+ 
+ func purlFrom(s string) *packageurl.PackageURL {
+diff --git a/pkg/fanal/types/const.go b/pkg/fanal/types/const.go
+index 3283229..760f963 100644
+--- a/pkg/fanal/types/const.go
++++ b/pkg/fanal/types/const.go
+@@ -2,7 +2,6 @@ package types
+ 
+ import (
+ 	osvdistro "github.com/bell-sw/osv-internal/distro"
+-	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
+ )
+ 
+ type (
+@@ -143,8 +142,8 @@ const (
+ 	Hex            LangType = "hex"
+ 	Bitnami        LangType = "bitnami"
+ 	Julia          LangType = "julia"
+-	VendorJDK      LangType = osvjdk.PURLNameJDK // standalone vendor JDK runtime
+-	VendorNIK      LangType = osvjdk.PURLNameNIK // standalone vendor Native Image Kit runtime
++	// The standalone vendor runtimes have one LangType per product family of the osv-internal module, named by the
++	// family's purl name: see vendordb.LangTypeOf.
+ 
+ 	K8sUpstream LangType = "kubernetes"
+ 	EKS         LangType = "eks" // Amazon Elastic Kubernetes Service
+diff --git a/pkg/flag/db_flags_test.go b/pkg/flag/db_flags_test.go
+index 2286091..da93f36 100644
+--- a/pkg/flag/db_flags_test.go
++++ b/pkg/flag/db_flags_test.go
+@@ -1,6 +1,7 @@
+ package flag_test
+ 
+ import (
++	"github.com/bell-sw/osv-internal/testfix"
+ 	"strings"
+ 	"fmt"
+ 	"testing"
+@@ -122,7 +123,7 @@ func TestDBFlagGroup_ToOptions(t *testing.T) {
+ }
+ 
+ func TestDBFlagGroup_Vendor(t *testing.T) {
+-	linux, hardened, jdk, nik := osvinternal.EcosystemLinux, osvinternal.EcosystemHardened, osvinternal.EcosystemJDK, osvinternal.EcosystemNIK
++	linux, hardened, jdk, nik := osvinternal.EcosystemLinux, osvinternal.EcosystemHardened, testfix.Product(osvinternal.KindJDK).Family, testfix.Product(osvinternal.KindNIK).Family
+ 	tests := []struct {
+ 		name    string
+ 		url     string
+diff --git a/pkg/flag/vulnerability_flags.go b/pkg/flag/vulnerability_flags.go
+index 6e6f24c..3318423 100644
+--- a/pkg/flag/vulnerability_flags.go
++++ b/pkg/flag/vulnerability_flags.go
+@@ -134,5 +134,8 @@ func severitySources() []string {
+ 		at = len(ids)
+ 	}
+ 	ids = slices.Insert(ids, at, distros...)
+-	return append(ids, string(vendordb.SourceJDK), string(vendordb.SourceNIK), "auto")
++	for _, id := range vendordb.ProductSources() {
++		ids = append(ids, string(id))
++	}
++	return append(ids, "auto")
+ }
+diff --git a/pkg/purl/purl.go b/pkg/purl/purl.go
+index 472b3a0..160238e 100644
+--- a/pkg/purl/purl.go
++++ b/pkg/purl/purl.go
+@@ -488,6 +488,9 @@ func parseJulia(pkgName, pkgUUID string) (string, string, packageurl.Qualifiers)
+ 
+ // nolint: gocyclo
+ func purlType(t ftypes.TargetType) string {
++	if vendordb.IsVendorRuntime(t) {
++		return packageurl.TypeGeneric
++	}
+ 	switch t {
+ 	case ftypes.Jar, ftypes.Pom, ftypes.Gradle, ftypes.Sbt:
+ 		return packageurl.TypeMaven
+@@ -533,8 +536,6 @@ func purlType(t ftypes.TargetType) string {
+ 		return packageurl.TypeOCI
+ 	case ftypes.Julia:
+ 		return packageurl.TypeJulia
+-	case ftypes.VendorJDK, ftypes.VendorNIK:
+-		return packageurl.TypeGeneric
+ 	}
+ 	return string(t)
+ }
+diff --git a/pkg/purl/purl_test.go b/pkg/purl/purl_test.go
+index 0abc457..f8c41d1 100644
+--- a/pkg/purl/purl_test.go
++++ b/pkg/purl/purl_test.go
+@@ -3,6 +3,8 @@ package purl_test
+ import (
+ 	"testing"
+ 
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/testfix"
+ 	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
+ 
+ 	v1 "github.com/google/go-containerregistry/pkg/v1"
+@@ -14,8 +16,12 @@ import (
+ 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+ 	"github.com/aquasecurity/trivy/pkg/purl"
+ 	"github.com/aquasecurity/trivy/pkg/types"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
+ )
+ 
++// The first JDK family of the module: the fixtures are its own.
++var jdkProduct = testfix.Product(osvinternal.KindJDK)
++
+ func TestNewPackageURL(t *testing.T) {
+ 	testCases := []struct {
+ 		name     string
+@@ -1102,19 +1108,20 @@ func TestPackageURL_Match(t *testing.T) {
+ }
+ 
+ func TestNewPackageURL_VendorJDK(t *testing.T) {
++	jdkType := vendordb.LangTypeOf(jdkProduct)
+ 	pkg := ftypes.Package{
+ 		Name:    "jdk-lite",
+ 		Version: "21.0.2+14",
+ 	}
+-	p, err := purl.New(ftypes.VendorJDK, types.Metadata{}, pkg)
++	p, err := purl.New(jdkType, types.Metadata{}, pkg)
+ 	require.NoError(t, err)
+-	assert.Equal(t, osvjdk.PURL("jdk-lite", "21.0.2+14"), p.String())
+-	assert.Equal(t, ftypes.VendorJDK, p.LangType())
++	assert.Equal(t, osvjdk.PURL(jdkProduct.Family, "jdk-lite", "21.0.2+14"), p.String())
++	assert.Equal(t, jdkType, p.LangType())
+ 	assert.Equal(t, types.ClassLangPkg, p.Class())
+ 
+-	back, err := purl.FromString(osvjdk.PURL("jre-full", "8u402+7"))
++	back, err := purl.FromString(osvjdk.PURL(jdkProduct.Family, "jre-full", "8u402+7"))
+ 	require.NoError(t, err)
+-	assert.Equal(t, ftypes.VendorJDK, back.LangType())
++	assert.Equal(t, jdkType, back.LangType())
+ 	got := back.Package()
+ 	assert.Equal(t, "jre-full", got.Name)
+ 	assert.Equal(t, "8u402+7", got.Version)
+@@ -1123,3 +1130,24 @@ func TestNewPackageURL_VendorJDK(t *testing.T) {
+ 	require.NoError(t, err)
+ 	assert.Equal(t, ftypes.LangType(purl.TypeUnknown), other.LangType())
+ }
++
++// Every product family of the module round-trips through its own purl.
++func TestNewPackageURL_VendorRuntimeFamilies(t *testing.T) {
++	for _, product := range osvinternal.Products {
++		t.Run(product.Family, func(t *testing.T) {
++			typ := vendordb.LangTypeOf(product)
++			p, err := purl.New(typ, types.Metadata{}, ftypes.Package{Name: "core", Version: "1.2.3+4"})
++			require.NoError(t, err)
++			assert.Equal(t, osvjdk.PURL(product.Family, "core", "1.2.3+4"), p.String())
++			assert.Equal(t, packageurl.TypeGeneric, p.Type)
++			assert.Equal(t, osvjdk.PURLNamespace, p.Namespace)
++			assert.Equal(t, product.PURLName, p.Name)
++
++			back, err := purl.FromString(p.String())
++			require.NoError(t, err)
++			assert.Equal(t, typ, back.LangType())
++			assert.Equal(t, "core", back.Package().Name)
++			assert.Equal(t, "1.2.3+4", back.Package().Version)
++		})
++	}
++}
+diff --git a/pkg/sbom/io/decode_test.go b/pkg/sbom/io/decode_test.go
+index 06fb78b..c04688d 100644
+--- a/pkg/sbom/io/decode_test.go
++++ b/pkg/sbom/io/decode_test.go
+@@ -3,6 +3,8 @@ package io_test
+ import (
+ 	"testing"
+ 
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/testfix"
+ 	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
+ 
+ 	"github.com/package-url/packageurl-go"
+@@ -13,8 +15,12 @@ import (
+ 	"github.com/aquasecurity/trivy/pkg/sbom/core"
+ 	sbomio "github.com/aquasecurity/trivy/pkg/sbom/io"
+ 	"github.com/aquasecurity/trivy/pkg/types"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
+ )
+ 
++// The first JDK family of the module: the fixtures are its own.
++var jdkProduct = testfix.Product(osvinternal.KindJDK)
++
+ var (
+ 	apkToolsComponent = &core.Component{
+ 		Type:    core.TypeLibrary,
+@@ -416,13 +422,13 @@ func TestDecoder_Decode_VendorRuntimePURL(t *testing.T) {
+ 	bom.AddComponent(&core.Component{
+ 		Type:    core.TypeLibrary,
+ 		Group:   osvjdk.PURLNamespace,
+-		Name:    osvjdk.PURLNameJDK,
++		Name:    jdkProduct.PURLName,
+ 		Version: "21.0.11.0.1+1",
+ 		PkgIdentifier: ftypes.PkgIdentifier{
+ 			PURL: &packageurl.PackageURL{
+ 				Type:      packageurl.TypeGeneric,
+ 				Namespace: osvjdk.PURLNamespace,
+-				Name:      osvjdk.PURLNameJDK,
++				Name:      jdkProduct.PURLName,
+ 				Version:   "21.0.11.0.1+1",
+ 				Qualifiers: packageurl.Qualifiers{
+ 					{Key: "package_type", Value: "jdk"},
+@@ -434,7 +440,7 @@ func TestDecoder_Decode_VendorRuntimePURL(t *testing.T) {
+ 	var got types.SBOM
+ 	require.NoError(t, sbomio.NewDecoder(bom).Decode(t.Context(), &got))
+ 	require.Len(t, got.Applications, 1)
+-	assert.Equal(t, ftypes.VendorJDK, got.Applications[0].Type)
++	assert.Equal(t, vendordb.LangTypeOf(jdkProduct), got.Applications[0].Type)
+ 	require.Len(t, got.Applications[0].Packages, 1)
+ 	assert.Equal(t, "jdk", got.Applications[0].Packages[0].Name)
+ 	assert.Equal(t, "21.0.11.0.1+1", got.Applications[0].Packages[0].Version)
+diff --git a/pkg/scan/langpkg/scan_test.go b/pkg/scan/langpkg/scan_test.go
+index d7ef24d..392013f 100644
+--- a/pkg/scan/langpkg/scan_test.go
++++ b/pkg/scan/langpkg/scan_test.go
+@@ -1,6 +1,9 @@
+ package langpkg
+ 
+ import (
++	"github.com/aquasecurity/trivy/pkg/vendordb"
++	"github.com/bell-sw/osv-internal/testfix"
++	osvinternal "github.com/bell-sw/osv-internal"
+ 	"context"
+ 	"testing"
+ 
+@@ -12,12 +15,12 @@ import (
+ 
+ func TestDropOSManagedRuntimes(t *testing.T) {
+ 	apkRuntime := ftypes.Application{
+-		Type:     ftypes.VendorJDK,
++		Type:     vendordb.LangTypeOf(testfix.Product(osvinternal.KindJDK)),
+ 		FilePath: "usr/lib/jvm/jdk21-lite/release",
+ 		Packages: []ftypes.Package{{Name: "jdk-lite", Version: "21.0.2+14", FilePath: "usr/lib/jvm/jdk21-lite"}},
+ 	}
+ 	optRuntime := ftypes.Application{
+-		Type:     ftypes.VendorJDK,
++		Type:     vendordb.LangTypeOf(testfix.Product(osvinternal.KindJDK)),
+ 		FilePath: "opt/jdk-21.0.2/release",
+ 		Packages: []ftypes.Package{{Name: "jdk", Version: "21.0.2+14", FilePath: "opt/jdk-21.0.2"}},
+ 	}
+diff --git a/pkg/scan/local/vendorjdk.go b/pkg/scan/local/vendorjdk.go
+index 553d6d9..b13c608 100644
+--- a/pkg/scan/local/vendorjdk.go
++++ b/pkg/scan/local/vendorjdk.go
+@@ -35,7 +35,7 @@ func liftVendorRuntimes(detail *ftypes.ArtifactDetail) {
+ 		pkg.ID = dependency.ID(t, pkg.Name, pkg.Version)
+ 		// The source name of a runtime is its ecosystem ("<family>:21");
+ 		// anything else is a placeholder of the client.
+-		if f := osvinternal.Family(pkg.SrcName); f != osvinternal.EcosystemJDK && f != osvinternal.EcosystemNIK {
++		if osvinternal.ProductOf(pkg.SrcName) == nil {
+ 			pkg.SrcName = ""
+ 		}
+ 		pkg.SrcVersion, pkg.SrcRelease, pkg.SrcEpoch, pkg.Arch = "", "", 0, ""
+@@ -45,7 +45,7 @@ func liftVendorRuntimes(detail *ftypes.ArtifactDetail) {
+ 		return
+ 	}
+ 	detail.Packages = rest
+-	for _, t := range []ftypes.LangType{ftypes.VendorJDK, ftypes.VendorNIK} {
++	for _, t := range vendordb.LangTypes() {
+ 		if pkgs := runtimes[t]; len(pkgs) > 0 {
+ 			detail.Applications = append(detail.Applications, ftypes.Application{
+ 				Type:     t,
+diff --git a/pkg/scan/local/vendorjdk_test.go b/pkg/scan/local/vendorjdk_test.go
+index ec52500..b01faff 100644
+--- a/pkg/scan/local/vendorjdk_test.go
++++ b/pkg/scan/local/vendorjdk_test.go
+@@ -4,6 +4,7 @@ import (
+ 	"testing"
+ 
+ 	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/testfix"
+ 	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
+ 
+ 	"github.com/package-url/packageurl-go"
+@@ -11,6 +12,13 @@ import (
+ 	"github.com/stretchr/testify/require"
+ 
+ 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
++)
++
++// The first JDK and NIK families of the module: the fixtures are theirs.
++var (
++	jdkProduct = testfix.Product(osvinternal.KindJDK)
++	nikProduct = testfix.Product(osvinternal.KindNIK)
+ )
+ 
+ func purlOf(t *testing.T, s string) *packageurl.PackageURL {
+@@ -21,20 +29,20 @@ func purlOf(t *testing.T, s string) *packageurl.PackageURL {
+ }
+ 
+ func Test_liftVendorRuntimes(t *testing.T) {
+-	nik2321 := osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21")
+-	jdk := purlOf(t, osvjdk.PURL("jdk-lite", "21.0.2+14"))
+-	nik := purlOf(t, osvjdk.PURLNIK("core", "23.1.0+1"))
+-	other := purlOf(t, "pkg:generic/acme/" + osvjdk.PURLNameJDK + "@1.0")
++	nik2321 := nikProduct.Ecosystem("23-21")
++	jdk := purlOf(t, osvjdk.PURL(jdkProduct.Family, "jdk-lite", "21.0.2+14"))
++	nik := purlOf(t, osvjdk.PURL(nikProduct.Family, "core", "23.1.0+1"))
++	other := purlOf(t, "pkg:generic/acme/"+jdkProduct.PURLName+"@1.0")
+ 	deb := purlOf(t, "pkg:deb/debian/zlib1g@1.2.13?distro=debian-12")
+ 	detail := ftypes.ArtifactDetail{
+ 		Packages: ftypes.Packages{
+ 			// as a purl-forwarding client sends them: purl name, source = binary
+-			{Name: osvjdk.PURLNameJDK, Version: "21.0.2+14", SrcName: osvjdk.PURLNameJDK, SrcVersion: "21.0.2+14", Arch: "x86_64",
++			{Name: jdkProduct.PURLName, Version: "21.0.2+14", SrcName: jdkProduct.PURLName, SrcVersion: "21.0.2+14", Arch: "x86_64",
+ 				Identifier: ftypes.PkgIdentifier{PURL: jdk}},
+ 			// with the ecosystem the analyzer recorded as source name
+-			{Name: osvjdk.PURLNameNIK, Version: "23.1.0+1", SrcName: nik2321, SrcVersion: "23.1.0+1",
++			{Name: nikProduct.PURLName, Version: "23.1.0+1", SrcName: nik2321, SrcVersion: "23.1.0+1",
+ 				Identifier: ftypes.PkgIdentifier{PURL: nik}},
+-			{Name: osvjdk.PURLNameJDK, Version: "1.0", Identifier: ftypes.PkgIdentifier{PURL: other}},
++			{Name: jdkProduct.PURLName, Version: "1.0", Identifier: ftypes.PkgIdentifier{PURL: other}},
+ 			{Name: "zlib1g", Version: "1.2.13", Identifier: ftypes.PkgIdentifier{PURL: deb}},
+ 			{Name: "nopurl", Version: "1"},
+ 		},
+@@ -45,23 +53,25 @@ func Test_liftVendorRuntimes(t *testing.T) {
+ 	for _, p := range detail.Packages {
+ 		left = append(left, p.Name)
+ 	}
+-	assert.Equal(t, []string{osvjdk.PURLNameJDK, "zlib1g", "nopurl"}, left)
++	assert.Equal(t, []string{jdkProduct.PURLName, "zlib1g", "nopurl"}, left)
+ 
+-	require.Len(t, detail.Applications, 2)
+-	assert.Equal(t, ftypes.Application{
+-		Type: ftypes.VendorJDK,
+-		Packages: ftypes.Packages{{
+-			ID: "jdk-lite@21.0.2+14", Name: "jdk-lite", Version: "21.0.2+14",
+-			Identifier: ftypes.PkgIdentifier{PURL: jdk},
+-		}},
+-	}, detail.Applications[0])
+-	assert.Equal(t, ftypes.Application{
+-		Type: ftypes.VendorNIK,
+-		Packages: ftypes.Packages{{
+-			ID: "core@23.1.0+1", Name: "core", Version: "23.1.0+1", SrcName: nik2321,
+-			Identifier: ftypes.PkgIdentifier{PURL: nik},
+-		}},
+-	}, detail.Applications[1])
++	// One application per family.
++	assert.ElementsMatch(t, []ftypes.Application{
++		{
++			Type: vendordb.LangTypeOf(jdkProduct),
++			Packages: ftypes.Packages{{
++				ID: "jdk-lite@21.0.2+14", Name: "jdk-lite", Version: "21.0.2+14",
++				Identifier: ftypes.PkgIdentifier{PURL: jdk},
++			}},
++		},
++		{
++			Type: vendordb.LangTypeOf(nikProduct),
++			Packages: ftypes.Packages{{
++				ID: "core@23.1.0+1", Name: "core", Version: "23.1.0+1", SrcName: nik2321,
++				Identifier: ftypes.PkgIdentifier{PURL: nik},
++			}},
++		},
++	}, detail.Applications)
+ 
+ 	// Nothing to lift: untouched.
+ 	plain := ftypes.ArtifactDetail{Packages: ftypes.Packages{{Name: "zlib1g", Version: "1.2.13"}}}
+diff --git a/pkg/vendordb/vendordb.go b/pkg/vendordb/vendordb.go
+index b76d5a0..4290b38 100644
+--- a/pkg/vendordb/vendordb.go
++++ b/pkg/vendordb/vendordb.go
+@@ -30,63 +30,66 @@ import (
+ 	xhttp "github.com/aquasecurity/trivy/pkg/x/http"
+ )
+ 
+-// Standalone runtime families (the module's names); Trivy maps a family to a
+-// package type and back for SBOMs.
+-const (
+-	// EcosystemNIK is the family of the Native Image Kit, "<family>:<nik major>-<java major>".
+-	EcosystemNIK = osvinternal.EcosystemNIK
+-	// PURLNameJDK and PURLNameNIK are the purl names under the module's namespace.
+-	PURLNameJDK = osvjdk.PURLNameJDK
+-	PURLNameNIK = osvjdk.PURLNameNIK
+-)
++// Standalone runtime families: one Trivy package type per family of the
++// module's Products table, named by the family's purl name, so that an SBOM
++// purl (pkg:generic/<namespace>/<name>) maps back to it.
++
++// LangTypeOf returns the package type of a product family.
++func LangTypeOf(p osvinternal.Product) ftypes.LangType {
++	return ftypes.LangType(p.PURLName)
++}
++
++// LangTypes returns the package types of every product family, in table order.
++func LangTypes() []ftypes.LangType {
++	var types []ftypes.LangType
++	for _, p := range osvinternal.Products {
++		types = append(types, LangTypeOf(p))
++	}
++	return types
++}
++
++// ProductForLangType returns the product family of a runtime package type;
++// ok is false for any other type.
++func ProductForLangType(t ftypes.LangType) (osvinternal.Product, bool) {
++	for _, p := range osvinternal.Products {
++		if LangTypeOf(p) == t {
++			return p, true
++		}
++	}
++	return osvinternal.Product{}, false
++}
+ 
+ // LangTypeForFamily maps the ecosystem family of a detected runtime to the
+ // Trivy package type; ok is false for a family Trivy does not scan.
+ func LangTypeForFamily(family string) (ftypes.LangType, bool) {
+-	switch family {
+-	case osvinternal.EcosystemJDK:
+-		return ftypes.VendorJDK, true
+-	case EcosystemNIK:
+-		return ftypes.VendorNIK, true
++	if p := osvinternal.ProductOf(family); p != nil {
++		return LangTypeOf(*p), true
+ 	}
+ 	return "", false
+ }
+ 
+ // FamilyForLangType is the inverse of LangTypeForFamily.
+ func FamilyForLangType(t ftypes.LangType) (string, bool) {
+-	switch t {
+-	case ftypes.VendorJDK:
+-		return osvinternal.EcosystemJDK, true
+-	case ftypes.VendorNIK:
+-		return EcosystemNIK, true
+-	}
+-	return "", false
++	p, ok := ProductForLangType(t)
++	return p.Family, ok
+ }
+ 
+ // PURLName returns the purl name of a standalone runtime type ("" for others).
+ func PURLName(t ftypes.LangType) string {
+-	switch t {
+-	case ftypes.VendorJDK:
+-		return PURLNameJDK
+-	case ftypes.VendorNIK:
+-		return PURLNameNIK
++	if p, ok := ProductForLangType(t); ok {
++		return p.PURLName
+ 	}
+ 	return ""
+ }
+ 
+ // LangTypeForPURLName is the inverse of PURLName.
+ func LangTypeForPURLName(name string) (ftypes.LangType, bool) {
+-	switch name {
+-	case PURLNameJDK:
+-		return ftypes.VendorJDK, true
+-	case PURLNameNIK:
+-		return ftypes.VendorNIK, true
+-	}
+-	return "", false
++	p, ok := ProductForLangType(ftypes.LangType(name))
++	return LangTypeOf(p), ok
+ }
+ 
+ // IsVendorRuntimePURL reports whether the purl namespace and name are those of
+-// a standalone vendor runtime (pkg:generic/<namespace>/<jdk or nik name>).
++// a standalone vendor runtime (pkg:generic/<namespace>/<purl name of a family>).
+ func IsVendorRuntimePURL(namespace, name string) bool {
+ 	_, ok := LangTypeForPURLName(name)
+ 	return ok && namespace == osvjdk.PURLNamespace
+@@ -94,18 +97,31 @@ func IsVendorRuntimePURL(namespace, name string) bool {
+ 
+ // IsVendorRuntime reports whether t is one of the standalone vendor runtimes.
+ func IsVendorRuntime(t ftypes.LangType) bool {
+-	_, ok := FamilyForLangType(t)
++	_, ok := ProductForLangType(t)
+ 	return ok
+ }
+ 
+-// Source IDs, one per ecosystem family.
++// Source IDs, one per ecosystem family: the distributions by os-release id,
++// the products by purl name (SourceOf).
+ const (
+ 	SourceLinux    dbTypes.SourceID = osvdistro.IDLinux
+ 	SourceHardened dbTypes.SourceID = osvdistro.IDHardened
+-	SourceJDK      dbTypes.SourceID = osvjdk.PURLNameJDK
+-	SourceNIK      dbTypes.SourceID = osvjdk.PURLNameNIK
+ )
+ 
++// SourceOf returns the source id of a product family: its purl name.
++func SourceOf(p osvinternal.Product) dbTypes.SourceID {
++	return dbTypes.SourceID(p.PURLName)
++}
++
++// ProductSources returns the source ids of every product family, in table order.
++func ProductSources() []dbTypes.SourceID {
++	var ids []dbTypes.SourceID
++	for _, p := range osvinternal.Products {
++		ids = append(ids, SourceOf(p))
++	}
++	return ids
++}
++
+ // Options are the user-facing settings of the OSV source.
+ type Options struct {
+ 	// CacheDir is the Trivy cache directory.
+@@ -282,10 +298,10 @@ func DataSource(ecosystem, recordURL string) *dbTypes.DataSource {
+ 		ds.ID = SourceLinux
+ 	case osvinternal.EcosystemHardened:
+ 		ds.ID = SourceHardened
+-	case osvinternal.EcosystemJDK:
+-		ds.ID = SourceJDK
+-	case EcosystemNIK:
+-		ds.ID = SourceNIK
++	default:
++		if p := osvinternal.ProductOf(family); p != nil {
++			ds.ID = SourceOf(*p)
++		}
+ 	}
+ 	if ds.ID != "" {
+ 		ds.Name = family + " OSV database"
+diff --git a/pkg/vendordb/vendordb_test.go b/pkg/vendordb/vendordb_test.go
+index 7193999..c3c8c1e 100644
+--- a/pkg/vendordb/vendordb_test.go
++++ b/pkg/vendordb/vendordb_test.go
+@@ -14,10 +14,19 @@ import (
+ 
+ 	osvinternal "github.com/bell-sw/osv-internal"
+ 	"github.com/bell-sw/osv-internal/osvdata"
++	"github.com/bell-sw/osv-internal/testfix"
+ 
++	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
++	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+ 	"github.com/aquasecurity/trivy/pkg/vendordb"
+ )
+ 
++// The first JDK and NIK families of the module: the fixtures are theirs.
++var (
++	jdkProduct = testfix.Product(osvinternal.KindJDK)
++	nikProduct = testfix.Product(osvinternal.KindNIK)
++)
++
+ // archiveURL is where the module fetches the archive of a family below a base URL (<base>/<family>/all.zip).
+ func archiveURL(base, family string) string {
+ 	return base + "/" + url.PathEscape(family) + "/" + osvdata.ArchiveName
+@@ -42,6 +51,53 @@ func (r *recorder) RoundTrip(req *http.Request) (*http.Response, error) {
+ 	}, nil
+ }
+ 
++// Every product family of the module has its own package type and source id,
++// the family's purl name, and each maps back to the family.
++func TestProductTypes(t *testing.T) {
++	require.NotEmpty(t, osvinternal.Products)
++	require.Len(t, vendordb.LangTypes(), len(osvinternal.Products))
++	require.Len(t, vendordb.ProductSources(), len(osvinternal.Products))
++	for i, p := range osvinternal.Products {
++		typ := vendordb.LangTypeOf(p)
++		assert.Equal(t, ftypes.LangType(p.PURLName), typ)
++		assert.Equal(t, typ, vendordb.LangTypes()[i])
++		assert.Equal(t, dbTypes.SourceID(p.PURLName), vendordb.SourceOf(p))
++		assert.Equal(t, vendordb.SourceOf(p), vendordb.ProductSources()[i])
++
++		got, ok := vendordb.ProductForLangType(typ)
++		assert.True(t, ok)
++		assert.Equal(t, p, got)
++		family, ok := vendordb.FamilyForLangType(typ)
++		assert.True(t, ok)
++		assert.Equal(t, p.Family, family)
++		back, ok := vendordb.LangTypeForFamily(p.Family)
++		assert.True(t, ok)
++		assert.Equal(t, typ, back)
++		assert.Equal(t, p.PURLName, vendordb.PURLName(typ))
++		back, ok = vendordb.LangTypeForPURLName(p.PURLName)
++		assert.True(t, ok)
++		assert.Equal(t, typ, back)
++		assert.True(t, vendordb.IsVendorRuntime(typ))
++		assert.True(t, vendordb.IsVendorRuntimePURL(osvinternal.PURLNamespace, p.PURLName))
++		assert.False(t, vendordb.IsVendorRuntimePURL("acme", p.PURLName))
++
++		ds := vendordb.DataSource(p.Ecosystem("21"), "https://example.com/record.json")
++		assert.Equal(t, vendordb.SourceOf(p), ds.ID)
++		assert.Equal(t, p.Family+" OSV database", ds.Name)
++		assert.Equal(t, "https://example.com/record.json", ds.URL)
++	}
++
++	_, ok := vendordb.ProductForLangType(ftypes.Jar)
++	assert.False(t, ok)
++	assert.False(t, vendordb.IsVendorRuntime(ftypes.Jar))
++	assert.Equal(t, "", vendordb.PURLName(ftypes.Jar))
++	_, ok = vendordb.LangTypeForFamily(osvinternal.EcosystemLinux)
++	assert.False(t, ok)
++	_, ok = vendordb.LangTypeForPURLName("openssl")
++	assert.False(t, ok)
++	assert.False(t, vendordb.IsVendorRuntimePURL(osvinternal.PURLNamespace, "openssl"))
++}
++
+ // With no configuration every family is requested from its own default: the
+ // osv.dev bucket for the distributions, the product base URL for the runtimes.
+ func TestDefaultSources(t *testing.T) {
+@@ -53,8 +109,9 @@ func TestDefaultSources(t *testing.T) {
+ 	want := map[string]string{
+ 		osvinternal.EcosystemLinux:    archiveURL(osvdata.DefaultBaseURL, osvinternal.EcosystemLinux),
+ 		osvinternal.EcosystemHardened: archiveURL(osvdata.DefaultBaseURL, osvinternal.EcosystemHardened),
+-		osvinternal.EcosystemJDK:      archiveURL(osvdata.DefaultProductBaseURL, osvinternal.EcosystemJDK),
+-		osvinternal.EcosystemNIK:      archiveURL(osvdata.DefaultProductBaseURL, osvinternal.EcosystemNIK),
++	}
++	for _, p := range osvinternal.Products {
++		want[p.Family] = archiveURL(osvdata.DefaultProductBaseURL, p.Family)
+ 	}
+ 	for family, url := range want {
+ 		rec.urls = nil
+@@ -70,13 +127,13 @@ func TestConfiguredSources(t *testing.T) {
+ 	vendordb.Init(vendordb.Options{
+ 		CacheDir: t.TempDir(),
+ 		BaseURL:  "https://mirror.example/osv",
+-		URLs:     map[string]string{osvinternal.EcosystemNIK: "https://nik.example/data"},
++		URLs:     map[string]string{nikProduct.Family: "https://nik.example/data"},
+ 		Quiet:    true,
+ 	})
+ 	src := vendordb.Source()
+ 	assert.Equal(t, archiveURL("https://mirror.example/osv", osvinternal.EcosystemLinux), src.ArchiveURL(osvinternal.EcosystemLinux))
+-	assert.Equal(t, archiveURL("https://mirror.example/osv", osvinternal.EcosystemJDK), src.ArchiveURL(osvinternal.EcosystemJDK))
+-	assert.Equal(t, archiveURL("https://nik.example/data", osvinternal.EcosystemNIK), src.ArchiveURL(osvinternal.EcosystemNIK))
++	assert.Equal(t, archiveURL("https://mirror.example/osv", jdkProduct.Family), src.ArchiveURL(jdkProduct.Family))
++	assert.Equal(t, archiveURL("https://nik.example/data", nikProduct.Family), src.ArchiveURL(nikProduct.Family))
+ }
+ 
+ type failingSource struct{ err error }
+@@ -87,23 +144,23 @@ func (s failingSource) Ecosystem(context.Context, string) (*osvdata.Index, error
+ 
+ func TestIndex_Unavailable(t *testing.T) {
+ 	unavailable := &osvdata.UnavailableError{
+-		Family: osvinternal.EcosystemJDK,
+-		URL:    archiveURL(osvdata.DefaultProductBaseURL, osvinternal.EcosystemJDK),
++		Family: jdkProduct.Family,
++		URL:    archiveURL(osvdata.DefaultProductBaseURL, jdkProduct.Family),
+ 		Reason: "HTTP 404",
+ 	}
+ 	assert.Equal(t, fmt.Sprintf("%s OSV data for %q is unavailable (HTTP 404); packages of this product were NOT checked against %s advisories. Source: %s",
+-		osvinternal.Vendor, osvinternal.EcosystemJDK, osvinternal.Vendor, unavailable.URL), osvdata.UnavailableWarning(unavailable))
++		osvinternal.Vendor, jdkProduct.Family, osvinternal.Vendor, unavailable.URL), osvdata.UnavailableWarning(unavailable))
+ 
+ 	t.Run("default: warn and continue", func(t *testing.T) {
+ 		vendordb.Init(vendordb.Options{CacheDir: t.TempDir()})
+-		idx, err := vendordb.Index(context.Background(), failingSource{err: unavailable}, osvinternal.EcosystemJDK)
++		idx, err := vendordb.Index(context.Background(), failingSource{err: unavailable}, jdkProduct.Family)
+ 		require.NoError(t, err)
+ 		assert.Nil(t, idx)
+ 	})
+ 	t.Run("strict: fail", func(t *testing.T) {
+ 		vendordb.Init(vendordb.Options{CacheDir: t.TempDir(), Strict: true})
+-		_, err := vendordb.Index(context.Background(), failingSource{err: unavailable}, osvinternal.EcosystemJDK)
+-		require.ErrorContains(t, err, "failed to load the "+osvinternal.Vendor+" advisories for "+osvinternal.EcosystemJDK)
++		_, err := vendordb.Index(context.Background(), failingSource{err: unavailable}, jdkProduct.Family)
++		require.ErrorContains(t, err, "failed to load the "+osvinternal.Vendor+" advisories for "+jdkProduct.Family)
+ 		var ue *osvdata.UnavailableError
+ 		assert.ErrorAs(t, err, &ue)
+ 	})
+-- 
+2.55.0
+

@@ -1,0 +1,138 @@
+From 6e598f2c9aae3711cbe9604e8461905a1b2ae101 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Mon, 12 Oct 2026 10:09:38 +0000
+Subject: [PATCH] fix(vendorapk): resolve the source package from the purl
+ upstream qualifier
+
+A package can reach the vendor apk detector without its apk source package:
+an SBOM written by another tool states it only in the "upstream" qualifier
+of the purl, and a client of the server mode that forwards purls sets the
+source name to the binary name. The feed is keyed on the source package, so
+sub-packages (libssl3, libcrypto3, musl-utils, ...) were not matched.
+
+When the source name is empty or equal to the binary name, take it from the
+"upstream" qualifier ("name" or "name@version").
+---
+ pkg/detector/ospkg/vendorapk/vendorapk.go     | 21 +++++++-
+ .../ospkg/vendorapk/vendorapk_test.go         | 52 +++++++++++++++++++
+ 2 files changed, 72 insertions(+), 1 deletion(-)
+
+diff --git a/pkg/detector/ospkg/vendorapk/vendorapk.go b/pkg/detector/ospkg/vendorapk/vendorapk.go
+index aa80736..885f3a5 100644
+--- a/pkg/detector/ospkg/vendorapk/vendorapk.go
++++ b/pkg/detector/ospkg/vendorapk/vendorapk.go
+@@ -7,6 +7,7 @@ package vendorapk
+ 
+ import (
+ 	"context"
++	"strings"
+ 	"time"
+ 
+ 	osvinternal "github.com/bell-sw/osv-internal"
+@@ -95,7 +96,7 @@ func (s *Scanner) Detect(ctx context.Context, osVer string, _ *ftypes.Repository
+ 		findings, err := match.MatchAPK(idx, match.Package{
+ 			Name:     pkg.Name,
+ 			Version:  utils.FormatSrcVersion(pkg),
+-			Origin:   pkg.SrcName,
++			Origin:   origin(pkg),
+ 			Provides: pkg.Provides,
+ 		}, osVer)
+ 		if err != nil {
+@@ -116,6 +117,24 @@ func (s *Scanner) Detect(ctx context.Context, osVer string, _ *ftypes.Repository
+ 	return vulns, nil
+ }
+ 
++// origin returns the apk source package of pkg. A package that arrives
++// without one (an SBOM written by another tool, or a client that forwards
++// only the purl) names it in the "upstream" qualifier of its purl.
++func origin(pkg ftypes.Package) string {
++	if pkg.SrcName != "" && pkg.SrcName != pkg.Name {
++		return pkg.SrcName
++	}
++	if p := pkg.Identifier.PURL; p != nil {
++		if up := p.Qualifiers.Map()["upstream"]; up != "" {
++			// "name" or "name@version"
++			if name, _, _ := strings.Cut(up, "@"); name != "" {
++				return name
++			}
++		}
++	}
++	return pkg.SrcName
++}
++
+ // IsSupportedVersion checks if the version is supported.
+ // The rolling "stream" release is always supported; LTS releases are checked
+ // against their end of support date.
+diff --git a/pkg/detector/ospkg/vendorapk/vendorapk_test.go b/pkg/detector/ospkg/vendorapk/vendorapk_test.go
+index a455adb..8d14f68 100644
+--- a/pkg/detector/ospkg/vendorapk/vendorapk_test.go
++++ b/pkg/detector/ospkg/vendorapk/vendorapk_test.go
+@@ -9,6 +9,7 @@ import (
+ 	"testing"
+ 	"time"
+ 
++	"github.com/package-url/packageurl-go"
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/require"
+ 	"golang.org/x/xerrors"
+@@ -425,6 +426,57 @@ func TestScanner_Detect(t *testing.T) {
+ 	}
+ }
+ 
++// A package forwarded without its source package (an SBOM written by another
++// tool, or a client that sends only the purl) is resolved through the
++// "upstream" qualifier of its purl.
++func TestScanner_Detect_UpstreamQualifier(t *testing.T) {
++	bucket := loadBucket(t)
++	tests := []struct {
++		name string
++		purl string
++		want []string
++	}{
++		{
++			name: "upstream qualifier",
++			purl: "pkg:apk/" + osvinternal.OSReleaseIDLinux + "/libssl3@3.1.1-r1?arch=x86_64&distro=stream&upstream=openssl",
++			want: []string{"CVE-2024-41996"},
++		},
++		{
++			name: "upstream qualifier with a version",
++			purl: "pkg:apk/" + osvinternal.OSReleaseIDLinux + "/libssl3@3.1.1-r1?upstream=openssl%403.1.1-r1",
++			want: []string{"CVE-2024-41996"},
++		},
++		{
++			name: "no qualifier",
++			purl: "pkg:apk/" + osvinternal.OSReleaseIDLinux + "/libssl3@3.1.1-r1?arch=x86_64",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			p, err := packageurl.FromString(tt.purl)
++			require.NoError(t, err)
++			pkgs := []ftypes.Package{{
++				ID:         "libssl3@3.1.1-r1",
++				Name:       "libssl3",
++				Version:    "3.1.1-r1",
++				SrcName:    "libssl3",
++				SrcVersion: "3.1.1-r1",
++				Identifier: ftypes.PkgIdentifier{PURL: &p},
++			}}
++			s := vendorapk.NewScanner(ftypes.VendorLinux, vendorapk.WithSource(bucket))
++			got, err := s.Detect(context.Background(), "stream", nil, pkgs)
++			require.NoError(t, err)
++			var ids []string
++			for _, v := range got {
++				assert.Equal(t, "libssl3", v.PkgName)
++				ids = append(ids, v.VulnerabilityID)
++			}
++			sort.Strings(ids)
++			assert.Equal(t, tt.want, ids)
++		})
++	}
++}
++
+ func timePtr(t time.Time) *time.Time {
+ 	return &t
+ }
+-- 
+2.55.0
+

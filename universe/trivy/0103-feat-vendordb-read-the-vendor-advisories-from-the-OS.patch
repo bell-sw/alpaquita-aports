@@ -1,0 +1,5179 @@
+From 322a9f87a60894c3cdfa996797edecb638ef9bb7 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 20:00:47 +0000
+Subject: [PATCH] feat(vendordb): read the vendor advisories from the OSV
+ archives
+
+The advisories of the vendor distributions are no longer looked up in Trivy
+DB. They are served from the OSV bulk archives (<base-url>/<ecosystem>/all.zip)
+by the shared github.com/bell-sw/osv-internal module: the archive of an
+ecosystem is downloaded on first use, cached under <cache-dir>/<ecosystem>/
+with a compact index, refreshed after 24 hours and evaluated locally. Aqua's
+database remains the default for every other distribution, so no trivy-db
+change is needed.
+
+pkg/vendordb holds the process-wide source configured from the flags (like
+db.Init for Trivy DB) and the Trivy presentation of a finding: the CVE as
+vulnerability id, the OSV record id as vendor id, the severity and CVSS
+vector the vendor publishes and the record as data source URL.
+
+New flags, available on every command that takes the DB flags:
+
+  --vendor-url         base URL (http(s), file:// or a directory) for
+                         every product; unset, each product has its own
+                         default: the OSV bucket for the distributions,
+                         the module's product base URL for the standalone
+                         runtimes
+  --vendor-feed        "<product>=<url>", the archive of one product
+                         (repeatable; wins over the base)
+  --vendor-strict      fail when an archive is unavailable
+
+--skip-db-update and --offline-scan use the cached archives as they are;
+--download-db-only fetches the archives with the database; trivy clean
+--vuln-db removes them. The vendor source ids are accepted by
+--vuln-severity-source.
+
+The OS types, their os-release recognition and the severity source ids take
+their values from osv-internal (distro.IDLinux / IDHardened), as do the
+tests; the data source of a finding is named after its ecosystem family.
+
+When the archive of a product cannot be obtained (download failure, HTTP
+error, updates skipped with nothing cached) one warning per product says
+that its packages were NOT checked against the vendor's advisories; the
+packages stay in the report without such findings and the scan completes
+with the usual exit code. --vendor-strict makes it a failure.
+---
+ .github/workflows/semantic-pr.yaml            |    1 +
+ docs/guide/configuration/db.md                |   29 +-
+ docs/guide/coverage/os/alpaquita.md           |   21 +
+ .../configuration/cli/trivy_filesystem.md     |    4 +
+ .../configuration/cli/trivy_image.md          |    4 +
+ .../configuration/cli/trivy_kubernetes.md     |    4 +
+ .../configuration/cli/trivy_repository.md     |    4 +
+ .../configuration/cli/trivy_rootfs.md         |    4 +
+ .../configuration/cli/trivy_sbom.md           |    4 +
+ .../configuration/cli/trivy_server.md         |    3 +
+ .../references/configuration/cli/trivy_vm.md  |    4 +
+ .../references/configuration/config-file.md   |    9 +
+ go.mod                                        |    4 +-
+ go.sum                                        |    4 +-
+ pkg/commands/artifact/run.go                  |   14 +
+ pkg/commands/clean/run.go                     |    4 +
+ pkg/commands/server/run.go                    |   13 +-
+ .../bucket/Alpaquita/BELL-CVE-2024-41996.json |   26 +
+ .../bucket/Alpaquita/BELL-CVE-2025-24855.json | 2001 +++++++++++++++++
+ .../bucket/Alpaquita/BELL-CVE-2026-10001.json |   17 +
+ .../bucket/Alpaquita/BELL-CVE-2026-10002.json |   14 +
+ .../bucket/Alpaquita/BELL-CVE-2026-10003.json |   16 +
+ .../BELL-CVE-2024-41996.json                  |   26 +
+ .../BELL-CVE-2026-10004.json                  |   15 +
+ .../Liberica JDK/BELL-CVE-2025-24855.json     |  747 ++++++
+ .../testdata/fixtures/data-source.yaml        |   17 -
+ .../vendorapk/testdata/fixtures/invalid.yaml  |    8 -
+ pkg/detector/ospkg/vendorapk/vendorapk.go     |  189 +-
+ .../ospkg/vendorapk/vendorapk_test.go         |  384 +++-
+ pkg/fanal/analyzer/os/release/release.go      |    6 +-
+ pkg/fanal/types/const.go                      |    6 +-
+ pkg/flag/db_flags.go                          |   78 +
+ pkg/flag/db_flags_test.go                     |   88 +
+ pkg/flag/vulnerability_flags.go               |   21 +-
+ pkg/vendordb/vendordb.go                      |  282 +++
+ pkg/vendordb/vendordb_test.go                 |  126 ++
+ pkg/vulnerability/vulnerability.go            |   33 +
+ pkg/vulnerability/vulnerability_test.go       |   28 +
+ schema/trivy-config.json                      |   16 +
+ 39 files changed, 3993 insertions(+), 281 deletions(-)
+ create mode 100644 pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2024-41996.json
+ create mode 100644 pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2025-24855.json
+ create mode 100644 pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2026-10001.json
+ create mode 100644 pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2026-10002.json
+ create mode 100644 pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2026-10003.json
+ create mode 100644 pkg/detector/ospkg/vendorapk/testdata/bucket/BellSoft Hardened Containers/BELL-CVE-2024-41996.json
+ create mode 100644 pkg/detector/ospkg/vendorapk/testdata/bucket/BellSoft Hardened Containers/BELL-CVE-2026-10004.json
+ create mode 100644 pkg/detector/ospkg/vendorapk/testdata/bucket/Liberica JDK/BELL-CVE-2025-24855.json
+ delete mode 100644 pkg/detector/ospkg/vendorapk/testdata/fixtures/data-source.yaml
+ delete mode 100644 pkg/detector/ospkg/vendorapk/testdata/fixtures/invalid.yaml
+ create mode 100644 pkg/vendordb/vendordb.go
+ create mode 100644 pkg/vendordb/vendordb_test.go
+
+diff --git a/.github/workflows/semantic-pr.yaml b/.github/workflows/semantic-pr.yaml
+index bf2efe2..4f103c9 100644
+--- a/.github/workflows/semantic-pr.yaml
++++ b/.github/workflows/semantic-pr.yaml
+@@ -53,6 +53,7 @@ jobs:
+             activestate
+             alpine
+             vendorapk
++            vendordb
+             bottlerocket
+             wolfi
+             chainguard
+diff --git a/docs/guide/configuration/db.md b/docs/guide/configuration/db.md
+index cfca2bc..698ea3c 100644
+--- a/docs/guide/configuration/db.md
++++ b/docs/guide/configuration/db.md
+@@ -106,7 +106,34 @@ trivy image --download-db-only
+ 
+ Note that currently there is no option to download only the Checks Bundle.
+ 
+-### Remove Databases
++### BellSoft OSV archives
++Advisories for BellSoft products (Alpaquita Linux, BellSoft Hardened Containers,
++standalone Liberica JDK and Liberica NIK) are not part of the vulnerability
++database. They are read from OSV bulk archives, fetched on demand into
++`<cache-dir>/<ecosystem>/` and refreshed after 24 hours. By default
++the archives of the two distributions come from
++`https://osv-vulnerabilities.storage.googleapis.com` and those of Liberica JDK
++and Liberica NIK from `https://packages.bell-sw.com/osv`.
++
++```
++$ trivy image --vendor-url https://mirror.example.com/osv bellsoft/alpaquita-linux-base:stream-musl
++```
++
++`--vendor-url` (`TRIVY_VENDOR_URL`) replaces both defaults with one
++`http(s)://` base URL, `file://` URL or directory containing
++`<ecosystem>/all.zip`; `--vendor-feed "<ecosystem>=<url>"` sets the
++location of a single ecosystem. `--skip-db-update` and `--offline-scan` use the
++cached archives without contacting the network; `--download-db-only` downloads
++the archives together with the vulnerability database, and
++`trivy clean --vuln-db` removes them.
++
++When the archive of a product cannot be obtained (download failure, HTTP
++error, or updates skipped with nothing cached), Trivy prints a warning naming
++the product and the source, reports its packages without BellSoft findings
++and completes the rest of the scan. `--vendor-strict`
++(`TRIVY_VENDOR_STRICT`) makes this an error instead.
++
++## Remove Databases
+ 
+ `trivy clean` command removes caches and databases.
+ You can select which cache component to remove:
+diff --git a/docs/guide/coverage/os/alpaquita.md b/docs/guide/coverage/os/alpaquita.md
+index d6f2deb..3618c63 100644
+--- a/docs/guide/coverage/os/alpaquita.md
++++ b/docs/guide/coverage/os/alpaquita.md
+@@ -25,6 +25,27 @@ rather than `/lib/apk/db/installed`. Trivy looks in both locations.
+ BellSoft publishes its own security advisories in OSV format, and these are used
+ when scanning Alpaquita for vulnerabilities.
+ 
++The advisories are not part of the Trivy database. Trivy downloads the OSV bulk
++archive of the ecosystem it needs (`<base-url>/Alpaquita/all.zip`,
++`<base-url>/BellSoft%20Hardened%20Containers/all.zip`) from the OSV bucket on
++first use, keeps it for 24 hours under `<cache-dir>/<ecosystem>/`
++together with a compact index, and evaluates the ranges locally. The source
++location can be changed with `--vendor-url` (`TRIVY_VENDOR_URL`,
++`db.vendor-url`); it accepts an `http(s)://` base URL, a `file://` URL or
++a directory, so an internal mirror or an air-gapped copy of the archives works
++too. `--vendor-feed "<ecosystem>=<url>"` overrides one
++ecosystem only. `--skip-db-update` and `--offline-scan` use the cached archive
++as is; `--download-db-only` fetches the archives along with the Trivy database.
++If the archive cannot be obtained, Trivy warns that the packages were not
++checked against BellSoft advisories and completes the scan without them;
++`--vendor-strict` turns the warning into an error.
++
++The vulnerability id is the CVE (BellSoft records keep it in `upstream`); the
++BellSoft advisory id (`BELL-CVE-...`) is reported as the vendor id, and the
++severity is derived from the CVSS vector BellSoft publishes. Details known to
++the Trivy database for the same CVE (NVD severity, description, CWE ids) are
++added as usual.
++
+ Advisories are scoped to a release, taken from `VERSION_ID` in `/etc/os-release`:
+ `stream` for the rolling release and `23` or `25` for the LTS branches. The libc
+ flavor (`musl` or `glibc`) does not affect advisory matching.
+diff --git a/docs/guide/references/configuration/cli/trivy_filesystem.md b/docs/guide/references/configuration/cli/trivy_filesystem.md
+index 9f663bb..ebdab5c 100644
+--- a/docs/guide/references/configuration/cli/trivy_filesystem.md
++++ b/docs/guide/references/configuration/cli/trivy_filesystem.md
+@@ -141,6 +141,9 @@ trivy filesystem [flags] PATH
+       --token-header string               specify a header name for token in client/server mode (default "Trivy-Token")
+       --trace-rego                        enable more verbose trace output for custom queries
+       --username strings                  username. Comma-separated usernames allowed.
++      --vendor-feed strings               location of the vendor OSV archive of one product, as "<product>=<url>"; repeatable; products: Alpaquita, BellSoft Hardened Containers, Liberica JDK, Liberica NIK
++      --vendor-strict                     fail when vendor OSV data is unavailable instead of warning and continuing
++      --vendor-url string                 base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory
+       --vex strings                       [EXPERIMENTAL] VEX sources ("repo", "oci" or file path)
+       --vuln-severity-source strings      order of data sources for selecting vulnerability severity level
+                                           Allowed values:
+@@ -179,6 +182,7 @@ trivy filesystem [flags] PATH
+                                             - minimos
+                                             - rootio
+                                             - rapidfort
++                                            - liberica-jdk
+                                             - auto
+                                            (default [auto])
+ ```
+diff --git a/docs/guide/references/configuration/cli/trivy_image.md b/docs/guide/references/configuration/cli/trivy_image.md
+index 306f16b..c3edd05 100644
+--- a/docs/guide/references/configuration/cli/trivy_image.md
++++ b/docs/guide/references/configuration/cli/trivy_image.md
+@@ -162,6 +162,9 @@ trivy image [flags] IMAGE_NAME
+       --token-header string               specify a header name for token in client/server mode (default "Trivy-Token")
+       --trace-rego                        enable more verbose trace output for custom queries
+       --username strings                  username. Comma-separated usernames allowed.
++      --vendor-feed strings               location of the vendor OSV archive of one product, as "<product>=<url>"; repeatable; products: Alpaquita, BellSoft Hardened Containers, Liberica JDK, Liberica NIK
++      --vendor-strict                     fail when vendor OSV data is unavailable instead of warning and continuing
++      --vendor-url string                 base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory
+       --vex strings                       [EXPERIMENTAL] VEX sources ("repo", "oci" or file path)
+       --vuln-severity-source strings      order of data sources for selecting vulnerability severity level
+                                           Allowed values:
+@@ -200,6 +203,7 @@ trivy image [flags] IMAGE_NAME
+                                             - minimos
+                                             - rootio
+                                             - rapidfort
++                                            - liberica-jdk
+                                             - auto
+                                            (default [auto])
+ ```
+diff --git a/docs/guide/references/configuration/cli/trivy_kubernetes.md b/docs/guide/references/configuration/cli/trivy_kubernetes.md
+index f8870d9..c593e0d 100644
+--- a/docs/guide/references/configuration/cli/trivy_kubernetes.md
++++ b/docs/guide/references/configuration/cli/trivy_kubernetes.md
+@@ -150,6 +150,9 @@ trivy kubernetes [flags] [CONTEXT]
+       --tolerations strings               specify node-collector job tolerations (example: key1=value1:NoExecute,key2=value2:NoSchedule)
+       --trace-rego                        enable more verbose trace output for custom queries
+       --username strings                  username. Comma-separated usernames allowed.
++      --vendor-feed strings               location of the vendor OSV archive of one product, as "<product>=<url>"; repeatable; products: Alpaquita, BellSoft Hardened Containers, Liberica JDK, Liberica NIK
++      --vendor-strict                     fail when vendor OSV data is unavailable instead of warning and continuing
++      --vendor-url string                 base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory
+       --vex strings                       [EXPERIMENTAL] VEX sources ("repo", "oci" or file path)
+       --vuln-severity-source strings      order of data sources for selecting vulnerability severity level
+                                           Allowed values:
+@@ -188,6 +191,7 @@ trivy kubernetes [flags] [CONTEXT]
+                                             - minimos
+                                             - rootio
+                                             - rapidfort
++                                            - liberica-jdk
+                                             - auto
+                                            (default [auto])
+ ```
+diff --git a/docs/guide/references/configuration/cli/trivy_repository.md b/docs/guide/references/configuration/cli/trivy_repository.md
+index 71814be..415229c 100644
+--- a/docs/guide/references/configuration/cli/trivy_repository.md
++++ b/docs/guide/references/configuration/cli/trivy_repository.md
+@@ -140,6 +140,9 @@ trivy repository [flags] (REPO_PATH | REPO_URL)
+       --token-header string               specify a header name for token in client/server mode (default "Trivy-Token")
+       --trace-rego                        enable more verbose trace output for custom queries
+       --username strings                  username. Comma-separated usernames allowed.
++      --vendor-feed strings               location of the vendor OSV archive of one product, as "<product>=<url>"; repeatable; products: Alpaquita, BellSoft Hardened Containers, Liberica JDK, Liberica NIK
++      --vendor-strict                     fail when vendor OSV data is unavailable instead of warning and continuing
++      --vendor-url string                 base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory
+       --vex strings                       [EXPERIMENTAL] VEX sources ("repo", "oci" or file path)
+       --vuln-severity-source strings      order of data sources for selecting vulnerability severity level
+                                           Allowed values:
+@@ -178,6 +181,7 @@ trivy repository [flags] (REPO_PATH | REPO_URL)
+                                             - minimos
+                                             - rootio
+                                             - rapidfort
++                                            - liberica-jdk
+                                             - auto
+                                            (default [auto])
+ ```
+diff --git a/docs/guide/references/configuration/cli/trivy_rootfs.md b/docs/guide/references/configuration/cli/trivy_rootfs.md
+index 8cc5be9..1624ffe 100644
+--- a/docs/guide/references/configuration/cli/trivy_rootfs.md
++++ b/docs/guide/references/configuration/cli/trivy_rootfs.md
+@@ -142,6 +142,9 @@ trivy rootfs [flags] ROOTDIR
+       --token-header string               specify a header name for token in client/server mode (default "Trivy-Token")
+       --trace-rego                        enable more verbose trace output for custom queries
+       --username strings                  username. Comma-separated usernames allowed.
++      --vendor-feed strings               location of the vendor OSV archive of one product, as "<product>=<url>"; repeatable; products: Alpaquita, BellSoft Hardened Containers, Liberica JDK, Liberica NIK
++      --vendor-strict                     fail when vendor OSV data is unavailable instead of warning and continuing
++      --vendor-url string                 base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory
+       --vex strings                       [EXPERIMENTAL] VEX sources ("repo", "oci" or file path)
+       --vuln-severity-source strings      order of data sources for selecting vulnerability severity level
+                                           Allowed values:
+@@ -180,6 +183,7 @@ trivy rootfs [flags] ROOTDIR
+                                             - minimos
+                                             - rootio
+                                             - rapidfort
++                                            - liberica-jdk
+                                             - auto
+                                            (default [auto])
+ ```
+diff --git a/docs/guide/references/configuration/cli/trivy_sbom.md b/docs/guide/references/configuration/cli/trivy_sbom.md
+index 6857b21..035279c 100644
+--- a/docs/guide/references/configuration/cli/trivy_sbom.md
++++ b/docs/guide/references/configuration/cli/trivy_sbom.md
+@@ -107,6 +107,9 @@ trivy sbom [flags] SBOM_PATH
+       --token string                   for authentication in client/server mode
+       --token-header string            specify a header name for token in client/server mode (default "Trivy-Token")
+       --username strings               username. Comma-separated usernames allowed.
++      --vendor-feed strings            location of the vendor OSV archive of one product, as "<product>=<url>"; repeatable; products: Alpaquita, BellSoft Hardened Containers, Liberica JDK, Liberica NIK
++      --vendor-strict                  fail when vendor OSV data is unavailable instead of warning and continuing
++      --vendor-url string              base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory
+       --vex strings                    [EXPERIMENTAL] VEX sources ("repo", "oci" or file path)
+       --vuln-severity-source strings   order of data sources for selecting vulnerability severity level
+                                        Allowed values:
+@@ -145,6 +148,7 @@ trivy sbom [flags] SBOM_PATH
+                                          - minimos
+                                          - rootio
+                                          - rapidfort
++                                         - liberica-jdk
+                                          - auto
+                                         (default [auto])
+ ```
+diff --git a/docs/guide/references/configuration/cli/trivy_server.md b/docs/guide/references/configuration/cli/trivy_server.md
+index ed4e132..0e16c47 100644
+--- a/docs/guide/references/configuration/cli/trivy_server.md
++++ b/docs/guide/references/configuration/cli/trivy_server.md
+@@ -40,6 +40,9 @@ trivy server [flags]
+       --token string             for authentication in client/server mode
+       --token-header string      specify a header name for token in client/server mode (default "Trivy-Token")
+       --username strings         username. Comma-separated usernames allowed.
++      --vendor-feed strings      location of the vendor OSV archive of one product, as "<product>=<url>"; repeatable; products: Alpaquita, BellSoft Hardened Containers, Liberica JDK, Liberica NIK
++      --vendor-strict            fail when vendor OSV data is unavailable instead of warning and continuing
++      --vendor-url string        base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory
+ ```
+ 
+ ### Options inherited from parent commands
+diff --git a/docs/guide/references/configuration/cli/trivy_vm.md b/docs/guide/references/configuration/cli/trivy_vm.md
+index 1b3c4ce..c0a5f7c 100644
+--- a/docs/guide/references/configuration/cli/trivy_vm.md
++++ b/docs/guide/references/configuration/cli/trivy_vm.md
+@@ -126,6 +126,9 @@ trivy vm [flags] VM_IMAGE
+       --tf-exclude-downloaded-modules     exclude misconfigurations for downloaded terraform modules
+       --token string                      for authentication in client/server mode
+       --token-header string               specify a header name for token in client/server mode (default "Trivy-Token")
++      --vendor-feed strings               location of the vendor OSV archive of one product, as "<product>=<url>"; repeatable; products: Alpaquita, BellSoft Hardened Containers, Liberica JDK, Liberica NIK
++      --vendor-strict                     fail when vendor OSV data is unavailable instead of warning and continuing
++      --vendor-url string                 base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory
+       --vex strings                       [EXPERIMENTAL] VEX sources ("repo", "oci" or file path)
+       --vuln-severity-source strings      order of data sources for selecting vulnerability severity level
+                                           Allowed values:
+@@ -164,6 +167,7 @@ trivy vm [flags] VM_IMAGE
+                                             - minimos
+                                             - rootio
+                                             - rapidfort
++                                            - liberica-jdk
+                                             - auto
+                                            (default [auto])
+ ```
+diff --git a/docs/guide/references/configuration/config-file.md b/docs/guide/references/configuration/config-file.md
+index 6111ea2..2626c96 100644
+--- a/docs/guide/references/configuration/config-file.md
++++ b/docs/guide/references/configuration/config-file.md
+@@ -125,6 +125,15 @@ db:
+   # Same as '--skip-db-update'
+   skip-update: false
+ 
++  # Same as '--vendor-feed'
++  vendor-feed: []
++
++  # Same as '--vendor-strict'
++  vendor-strict: false
++
++  # Same as '--vendor-url'
++  vendor-url: ""
++
+ ```
+ ## Image options
+ 
+diff --git a/go.mod b/go.mod
+index cf4a437..a082eb2 100644
+--- a/go.mod
++++ b/go.mod
+@@ -198,6 +198,7 @@ require (
+ 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.4 // indirect
+ 	github.com/aws/aws-sdk-go-v2/service/sts v1.45.4 // indirect
+ 	github.com/aws/smithy-go v1.27.6 // indirect
++	github.com/bell-sw/osv-internal v0.5.0
+ 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
+ 	github.com/blang/semver/v4 v4.0.0 // indirect
+ 	github.com/briandowns/spinner v1.23.0 // indirect
+@@ -358,7 +359,7 @@ require (
+ 	github.com/oklog/ulid/v2 v2.1.1 // indirect
+ 	github.com/opencontainers/runtime-spec v1.3.0 // indirect
+ 	github.com/owenrumney/squealer v1.2.12 // indirect
+-	github.com/pandatix/go-cvss v0.6.2 // indirect
++	github.com/pandatix/go-cvss v0.6.4 // indirect
+ 	github.com/pelletier/go-toml v1.9.5 // indirect
+ 	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
+ 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
+@@ -489,3 +490,4 @@ tool (
+ 	golang.org/x/tools/cmd/goyacc
+ 	sigs.k8s.io/kind
+ )
++
+diff --git a/go.sum b/go.sum
+index 2dddd63..b8b8c6f 100644
+--- a/go.sum
++++ b/go.sum
+@@ -822,8 +822,8 @@ github.com/owenrumney/squealer v1.2.12 h1:6VQxQ323q7q0eKNP5p7MX4nbTW1z8wK44YvyHL
+ github.com/owenrumney/squealer v1.2.12/go.mod h1:yBdddxW+31mPHXgjOAYiqCtK1/f1S3o5Jq6S6vZGtxc=
+ github.com/package-url/packageurl-go v0.1.6 h1:YO3p6u1XmCUliivUg/qWphaY8vI6hxSnnPv7Bfg3m5M=
+ github.com/package-url/packageurl-go v0.1.6/go.mod h1:nKAWB8E6uk1MHqiS/lQb9pYBGH2+mdJ2PJc2s50dQY0=
+-github.com/pandatix/go-cvss v0.6.2 h1:TFiHlzUkT67s6UkelHmK6s1INKVUG7nlKYiWWDTITGI=
+-github.com/pandatix/go-cvss v0.6.2/go.mod h1:jDXYlQBZrc8nvrMUVVvTG8PhmuShOnKrxP53nOFkt8Q=
++github.com/pandatix/go-cvss v0.6.4 h1:9w2RCO/Q4UTiJyEgpCHRiVc6CfrsFEnkoX+OtATqKio=
++github.com/pandatix/go-cvss v0.6.4/go.mod h1:/ukvQnYlrKl3o/DVp7/GO2UZyZheuo/maOK0U1nBEhQ=
+ github.com/pborman/getopt v0.0.0-20170112200414-7148bc3a4c30/go.mod h1:85jBQOZwpVEaDAr341tbn15RS4fCAsIst0qp7i8ex1o=
+ github.com/pelletier/go-toml v1.9.4/go.mod h1:u1nR/EPcESfeI/szUZKdtJ0xRNbUoANCkoOuaOx1Y+c=
+ github.com/pelletier/go-toml v1.9.5 h1:4yBQzkHv+7BHq2PQUZF3Mx0IYxG7LsP222s7Agd3ve8=
+diff --git a/pkg/commands/artifact/run.go b/pkg/commands/artifact/run.go
+index abd2d1c..dca4bf4 100644
+--- a/pkg/commands/artifact/run.go
++++ b/pkg/commands/artifact/run.go
+@@ -38,6 +38,7 @@ import (
+ 	"github.com/aquasecurity/trivy/pkg/rpc/client"
+ 	"github.com/aquasecurity/trivy/pkg/scan"
+ 	"github.com/aquasecurity/trivy/pkg/types"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
+ 	"github.com/aquasecurity/trivy/pkg/version/doc"
+ 	xhttp "github.com/aquasecurity/trivy/pkg/x/http"
+ 	xstrings "github.com/aquasecurity/trivy/pkg/x/strings"
+@@ -338,7 +339,20 @@ func (r *runner) initDB(ctx context.Context, opts flag.Options) error {
+ 		return err
+ 	}
+ 
++	// Vendor products are served from OSV archives cached next to Trivy DB.
++	vendordb.Init(vendordb.Options{
++		CacheDir:   opts.CacheDir,
++		BaseURL:    opts.VendorURL,
++		Strict:     opts.VendorStrict,
++		URLs:       opts.VendorFeeds,
++		SkipUpdate: opts.SkipDBUpdate || opts.OfflineScan,
++		Quiet:      opts.Quiet,
++	})
++
+ 	if opts.DownloadDBOnly {
++		if err := vendordb.Download(ctx); err != nil {
++			return err
++		}
+ 		return SkipScan
+ 	}
+ 
+diff --git a/pkg/commands/clean/run.go b/pkg/commands/clean/run.go
+index 5fc5b8e..bdff0bd 100644
+--- a/pkg/commands/clean/run.go
++++ b/pkg/commands/clean/run.go
+@@ -11,6 +11,7 @@ import (
+ 	"github.com/aquasecurity/trivy/pkg/javadb"
+ 	"github.com/aquasecurity/trivy/pkg/log"
+ 	"github.com/aquasecurity/trivy/pkg/policy"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
+ 	"github.com/aquasecurity/trivy/pkg/vex/repo"
+ )
+ 
+@@ -83,6 +84,9 @@ func cleanVulnerabilityDB(ctx context.Context, opts flag.Options) error {
+ 		return xerrors.Errorf("clear vulnerability database: %w", err)
+ 
+ 	}
++	if err := vendordb.Clear(ctx, opts.CacheDir); err != nil {
++		return xerrors.Errorf("clear the vendor OSV cache: %w", err)
++	}
+ 	return nil
+ }
+ 
+diff --git a/pkg/commands/server/run.go b/pkg/commands/server/run.go
+index 0f29c5f..2dd5d0f 100644
+--- a/pkg/commands/server/run.go
++++ b/pkg/commands/server/run.go
+@@ -12,6 +12,7 @@ import (
+ 	"github.com/aquasecurity/trivy/pkg/log"
+ 	"github.com/aquasecurity/trivy/pkg/module"
+ 	rpcServer "github.com/aquasecurity/trivy/pkg/rpc/server"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
+ 	xhttp "github.com/aquasecurity/trivy/pkg/x/http"
+ )
+ 
+@@ -39,8 +40,18 @@ func Run(ctx context.Context, opts flag.Options) (err error) {
+ 		return err
+ 	}
+ 
++	// Vendor products are served from OSV archives cached next to Trivy DB.
++	vendordb.Init(vendordb.Options{
++		CacheDir:   opts.CacheDir,
++		BaseURL:    opts.VendorURL,
++		Strict:     opts.VendorStrict,
++		URLs:       opts.VendorFeeds,
++		SkipUpdate: opts.SkipDBUpdate,
++		Quiet:      true,
++	})
++
+ 	if opts.DownloadDBOnly {
+-		return nil
++		return vendordb.Download(ctx)
+ 	}
+ 
+ 	if err = db.Init(db.Dir(opts.CacheDir)); err != nil {
+diff --git a/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2024-41996.json b/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2024-41996.json
+new file mode 100644
+index 0000000..336d544
+--- /dev/null
++++ b/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2024-41996.json
+@@ -0,0 +1,26 @@
++{
++  "schema_version": "1.9.0",
++  "id": "BELL-CVE-2024-41996",
++  "modified": "2026-09-06T07:15:18Z",
++  "published": "2024-08-26T06:15:04Z",
++  "upstream": ["CVE-2024-41996"],
++  "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"}],
++  "affected": [
++    {
++      "package": {"ecosystem": "Alpaquita:stream", "name": "openssl", "purl": "pkg:apk/alpaquita/openssl?arch=source&distro=stream"},
++      "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "3.0.8-r4"}, {"fixed": "3.5.0-r0"}]}],
++      "database_specific": {"source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2024-41996.json"}
++    },
++    {
++      "package": {"ecosystem": "Alpaquita:25", "name": "openssl", "purl": "pkg:apk/alpaquita/openssl?arch=source&distro=25"},
++      "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "3.0.8-r4"}, {"fixed": "3.4.1-r2"}]}],
++      "database_specific": {"source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2024-41996.json"}
++    },
++    {
++      "package": {"ecosystem": "BellSoft Hardened Containers:stream", "name": "openssl", "purl": "pkg:apk/bellsoft-hardened-containers/openssl?arch=source&distro=stream"},
++      "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "3.0.8-r4"}, {"fixed": "3.5.0-r1"}]}],
++      "database_specific": {"source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2024-41996.json"}
++    }
++  ],
++  "references": [{"type": "ADVISORY", "url": "https://docs.bell-sw.com/security/cves/CVE-2024-41996"}]
++}
+diff --git a/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2025-24855.json b/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2025-24855.json
+new file mode 100644
+index 0000000..c66a2f6
+--- /dev/null
++++ b/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2025-24855.json
+@@ -0,0 +1,2001 @@
++{
++  "schema_version": "1.9.0",
++  "id": "BELL-CVE-2025-24855",
++  "modified": "2026-09-06T07:15:18.783153691Z",
++  "published": "2025-03-14T17:42:18.239166Z",
++  "upstream": [
++    "CVE-2025-24855"
++  ],
++  "severity": [
++    {
++      "type": "CVSS_V3",
++      "score": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"
++    }
++  ],
++  "affected": [
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "libxslt",
++        "purl": "pkg:apk/alpaquita/libxslt?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "1.1.37-r0"
++            },
++            {
++              "fixed": "1.1.37-r2"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk11",
++        "purl": "pkg:apk/alpaquita/openjdk11?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19_p7-r0"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk11-container-jre",
++        "purl": "pkg:apk/alpaquita/openjdk11-container-jre?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19_p7-r0"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk11-lite",
++        "purl": "pkg:apk/alpaquita/openjdk11-lite?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19_p7-r1"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk11-perf",
++        "purl": "pkg:apk/alpaquita/openjdk11-perf?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.20.1_p1-r0"
++            },
++            {
++              "fixed": "11.0.28_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk17",
++        "purl": "pkg:apk/alpaquita/openjdk17?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7_p7-r1"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk17-container-jre",
++        "purl": "pkg:apk/alpaquita/openjdk17-container-jre?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7_p7-r0"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk17-crac",
++        "purl": "pkg:apk/alpaquita/openjdk17-crac?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.13_p13-r0"
++            },
++            {
++              "fixed": "17.0.16_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk17-lite",
++        "purl": "pkg:apk/alpaquita/openjdk17-lite?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7_p7-r1"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk21",
++        "purl": "pkg:apk/alpaquita/openjdk21?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21_p37-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk21-container-jre",
++        "purl": "pkg:apk/alpaquita/openjdk21-container-jre?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21_p37-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk21-crac",
++        "purl": "pkg:apk/alpaquita/openjdk21-crac?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21.0.5_p12-r0"
++            },
++            {
++              "fixed": "21.0.8_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk21-lite",
++        "purl": "pkg:apk/alpaquita/openjdk21-lite?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21_p37-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk24",
++        "purl": "pkg:apk/alpaquita/openjdk24?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24_p37-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk24-container-jre",
++        "purl": "pkg:apk/alpaquita/openjdk24-container-jre?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24_p37-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk24-lite",
++        "purl": "pkg:apk/alpaquita/openjdk24-lite?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24_p37-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk8",
++        "purl": "pkg:apk/alpaquita/openjdk8?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u372_p7-r0"
++            },
++            {
++              "fixed": "8.462_p11-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:23",
++        "name": "openjdk8-perf",
++        "purl": "pkg:apk/alpaquita/openjdk8-perf?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u392_p9-r1"
++            },
++            {
++              "fixed": "8.462_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk11",
++        "purl": "pkg:apk/alpaquita/openjdk11?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.27_p9-r0"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk11-container-jre",
++        "purl": "pkg:apk/alpaquita/openjdk11-container-jre?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.27_p9-r0"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk11-lite",
++        "purl": "pkg:apk/alpaquita/openjdk11-lite?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.27_p9-r0"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk17",
++        "purl": "pkg:apk/alpaquita/openjdk17?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.15_p10-r1"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk17-container-jre",
++        "purl": "pkg:apk/alpaquita/openjdk17-container-jre?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.15_p10-r0"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk17-crac",
++        "purl": "pkg:apk/alpaquita/openjdk17-crac?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.15_p13-r1"
++            },
++            {
++              "fixed": "17.0.16_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk17-lite",
++        "purl": "pkg:apk/alpaquita/openjdk17-lite?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.15_p10-r0"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk21",
++        "purl": "pkg:apk/alpaquita/openjdk21?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21.0.7_p9-r1"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk21-container-jre",
++        "purl": "pkg:apk/alpaquita/openjdk21-container-jre?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21.0.7_p9-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk21-crac",
++        "purl": "pkg:apk/alpaquita/openjdk21-crac?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21.0.7_p12-r1"
++            },
++            {
++              "fixed": "21.0.8_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk21-lite",
++        "purl": "pkg:apk/alpaquita/openjdk21-lite?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21.0.7_p9-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk24",
++        "purl": "pkg:apk/alpaquita/openjdk24?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24.0.1_p11-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk24-container-jre",
++        "purl": "pkg:apk/alpaquita/openjdk24-container-jre?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24.0.1_p11-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk24-lite",
++        "purl": "pkg:apk/alpaquita/openjdk24-lite?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24.0.1_p11-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:25",
++        "name": "openjdk8",
++        "purl": "pkg:apk/alpaquita/openjdk8?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8.452_p11-r0"
++            },
++            {
++              "fixed": "8.462_p11-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "libxslt",
++        "purl": "pkg:apk/alpaquita/libxslt?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "1.1.37-r0"
++            },
++            {
++              "fixed": "1.1.43-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk11",
++        "purl": "pkg:apk/alpaquita/openjdk11?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19_p7-r0"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk11-container-jre",
++        "purl": "pkg:apk/alpaquita/openjdk11-container-jre?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19_p7-r0"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk11-lite",
++        "purl": "pkg:apk/alpaquita/openjdk11-lite?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19_p7-r1"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk17",
++        "purl": "pkg:apk/alpaquita/openjdk17?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7_p7-r1"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk17-container-jre",
++        "purl": "pkg:apk/alpaquita/openjdk17-container-jre?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7_p7-r0"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk17-crac",
++        "purl": "pkg:apk/alpaquita/openjdk17-crac?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.10_p13-r0"
++            },
++            {
++              "fixed": "17.0.16_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk17-lite",
++        "purl": "pkg:apk/alpaquita/openjdk17-lite?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7_p7-r1"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk21",
++        "purl": "pkg:apk/alpaquita/openjdk21?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21_p37-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk21-container-jre",
++        "purl": "pkg:apk/alpaquita/openjdk21-container-jre?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21_p37-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk21-crac",
++        "purl": "pkg:apk/alpaquita/openjdk21-crac?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21.0.2_p15-r0"
++            },
++            {
++              "fixed": "21.0.8_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk21-lite",
++        "purl": "pkg:apk/alpaquita/openjdk21-lite?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21_p37-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk24",
++        "purl": "pkg:apk/alpaquita/openjdk24?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24_p37-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk24-container-jre",
++        "purl": "pkg:apk/alpaquita/openjdk24-container-jre?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24_p37-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk24-lite",
++        "purl": "pkg:apk/alpaquita/openjdk24-lite?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24_p37-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Alpaquita:stream",
++        "name": "openjdk8",
++        "purl": "pkg:apk/alpaquita/openjdk8?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u372_p7-r1"
++            },
++            {
++              "fixed": "8.462_p11-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "libxslt",
++        "purl": "pkg:apk/bellsoft-hardened-containers/libxslt?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "1.1.37-r0"
++            },
++            {
++              "fixed": "1.1.37-r2"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "openjdk11-container-jre",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk11-container-jre?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19_p7-r0"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "openjdk11-lite",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk11-lite?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19_p7-r1"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "openjdk11-perf",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk11-perf?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.20.1_p1-r0"
++            },
++            {
++              "fixed": "11.0.28_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "openjdk17-container-jre",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk17-container-jre?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7_p7-r0"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "openjdk17-crac",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk17-crac?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.13_p13-r0"
++            },
++            {
++              "fixed": "17.0.16_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "openjdk17-lite",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk17-lite?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7_p7-r1"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "openjdk21-container-jre",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk21-container-jre?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21_p37-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "openjdk21-crac",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk21-crac?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21.0.5_p12-r0"
++            },
++            {
++              "fixed": "21.0.8_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "openjdk21-lite",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk21-lite?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21_p37-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "openjdk24-container-jre",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk24-container-jre?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24_p37-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "openjdk24-lite",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk24-lite?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24_p37-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "openjdk8",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk8?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u372_p7-r0"
++            },
++            {
++              "fixed": "8.462_p11-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:23",
++        "name": "openjdk8-perf",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk8-perf?arch=source\u0026distro=23"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u392_p9-r1"
++            },
++            {
++              "fixed": "8.462_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:25",
++        "name": "openjdk11-container-jre",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk11-container-jre?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.27_p9-r0"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:25",
++        "name": "openjdk11-lite",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk11-lite?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.27_p9-r0"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:25",
++        "name": "openjdk17-container-jre",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk17-container-jre?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.15_p10-r0"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:25",
++        "name": "openjdk17-crac",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk17-crac?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.15_p13-r1"
++            },
++            {
++              "fixed": "17.0.16_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:25",
++        "name": "openjdk17-lite",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk17-lite?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.15_p10-r0"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:25",
++        "name": "openjdk21-container-jre",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk21-container-jre?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21.0.7_p9-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:25",
++        "name": "openjdk21-crac",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk21-crac?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21.0.7_p12-r1"
++            },
++            {
++              "fixed": "21.0.8_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:25",
++        "name": "openjdk21-lite",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk21-lite?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21.0.7_p9-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:25",
++        "name": "openjdk24-container-jre",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk24-container-jre?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24.0.1_p11-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:25",
++        "name": "openjdk24-lite",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk24-lite?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24.0.1_p11-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:25",
++        "name": "openjdk8",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk8?arch=source\u0026distro=25"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8.452_p11-r0"
++            },
++            {
++              "fixed": "8.462_p11-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:stream",
++        "name": "libxslt",
++        "purl": "pkg:apk/bellsoft-hardened-containers/libxslt?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "1.1.37-r0"
++            },
++            {
++              "fixed": "1.1.43-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:stream",
++        "name": "openjdk11-container-jre",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk11-container-jre?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19_p7-r0"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:stream",
++        "name": "openjdk11-lite",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk11-lite?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19_p7-r1"
++            },
++            {
++              "fixed": "11.0.28_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:stream",
++        "name": "openjdk17-container-jre",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk17-container-jre?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7_p7-r0"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:stream",
++        "name": "openjdk17-crac",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk17-crac?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.10_p13-r0"
++            },
++            {
++              "fixed": "17.0.16_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:stream",
++        "name": "openjdk17-lite",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk17-lite?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7_p7-r1"
++            },
++            {
++              "fixed": "17.0.16_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:stream",
++        "name": "openjdk21-container-jre",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk21-container-jre?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21_p37-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:stream",
++        "name": "openjdk21-crac",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk21-crac?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21.0.2_p15-r0"
++            },
++            {
++              "fixed": "21.0.8_p13-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:stream",
++        "name": "openjdk21-lite",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk21-lite?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21_p37-r0"
++            },
++            {
++              "fixed": "21.0.8_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:stream",
++        "name": "openjdk24-container-jre",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk24-container-jre?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24_p37-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:stream",
++        "name": "openjdk24-lite",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk24-lite?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24_p37-r0"
++            },
++            {
++              "fixed": "24.0.2_p12-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "BellSoft Hardened Containers:stream",
++        "name": "openjdk8",
++        "purl": "pkg:apk/bellsoft-hardened-containers/openjdk8?arch=source\u0026distro=stream"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u372_p7-r1"
++            },
++            {
++              "fixed": "8.462_p11-r0"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json"
++      }
++    }
++  ],
++  "references": [
++    {
++      "type": "ADVISORY",
++      "url": "https://docs.bell-sw.com/security/cves/CVE-2025-24855"
++    }
++  ]
++}
+\ No newline at end of file
+diff --git a/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2026-10001.json b/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2026-10001.json
+new file mode 100644
+index 0000000..cb883b2
+--- /dev/null
++++ b/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2026-10001.json
+@@ -0,0 +1,17 @@
++{
++  "schema_version": "1.9.0",
++  "id": "BELL-CVE-2026-10001",
++  "modified": "2026-09-06T07:15:18Z",
++  "published": "2026-01-10T00:00:00Z",
++  "upstream": ["CVE-2026-10001"],
++  "summary": "unfixed test advisory",
++  "severity": [{"type": "CVSS_V4", "score": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"}],
++  "affected": [
++    {
++      "package": {"ecosystem": "Alpaquita:stream", "name": "libfoo"},
++      "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "1.0.0-r0"}]}],
++      "database_specific": {"source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2026-10001.json"}
++    }
++  ],
++  "references": [{"type": "ADVISORY", "url": "https://docs.bell-sw.com/security/cves/CVE-2026-10001"}]
++}
+diff --git a/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2026-10002.json b/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2026-10002.json
+new file mode 100644
+index 0000000..7df0cbd
+--- /dev/null
++++ b/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2026-10002.json
+@@ -0,0 +1,14 @@
++{
++  "schema_version": "1.9.0",
++  "id": "BELL-CVE-2026-10002",
++  "modified": "2026-09-06T07:15:18Z",
++  "published": "2026-01-10T00:00:00Z",
++  "withdrawn": "2026-02-01T00:00:00Z",
++  "upstream": ["CVE-2026-10002"],
++  "affected": [
++    {
++      "package": {"ecosystem": "Alpaquita:stream", "name": "openssl"},
++      "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "9.9.9-r0"}]}]
++    }
++  ]
++}
+diff --git a/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2026-10003.json b/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2026-10003.json
+new file mode 100644
+index 0000000..14c40a3
+--- /dev/null
++++ b/pkg/detector/ospkg/vendorapk/testdata/bucket/Alpaquita/BELL-CVE-2026-10003.json
+@@ -0,0 +1,16 @@
++{
++  "schema_version": "1.9.0",
++  "id": "BELL-CVE-2026-10003",
++  "modified": "2026-09-06T07:15:18Z",
++  "published": "2026-01-10T00:00:00Z",
++  "aliases": ["GHSA-xxxx-yyyy-zzzz"],
++  "upstream": ["CVE-2026-10003"],
++  "severity": [{"type": "CVSS_V3", "score": "CVSS:3.0/AV:L/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N"}],
++  "affected": [
++    {
++      "package": {"ecosystem": "Alpaquita:stream", "name": "zlib"},
++      "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "1.2.0-r0"}, {"fixed": "1.2.5-r0"}, {"introduced": "1.3.0-r0"}, {"fixed": "1.3.1-r2"}]}],
++      "database_specific": {"source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2026-10003.json"}
++    }
++  ]
++}
+diff --git a/pkg/detector/ospkg/vendorapk/testdata/bucket/BellSoft Hardened Containers/BELL-CVE-2024-41996.json b/pkg/detector/ospkg/vendorapk/testdata/bucket/BellSoft Hardened Containers/BELL-CVE-2024-41996.json
+new file mode 100644
+index 0000000..336d544
+--- /dev/null
++++ b/pkg/detector/ospkg/vendorapk/testdata/bucket/BellSoft Hardened Containers/BELL-CVE-2024-41996.json	
+@@ -0,0 +1,26 @@
++{
++  "schema_version": "1.9.0",
++  "id": "BELL-CVE-2024-41996",
++  "modified": "2026-09-06T07:15:18Z",
++  "published": "2024-08-26T06:15:04Z",
++  "upstream": ["CVE-2024-41996"],
++  "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"}],
++  "affected": [
++    {
++      "package": {"ecosystem": "Alpaquita:stream", "name": "openssl", "purl": "pkg:apk/alpaquita/openssl?arch=source&distro=stream"},
++      "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "3.0.8-r4"}, {"fixed": "3.5.0-r0"}]}],
++      "database_specific": {"source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2024-41996.json"}
++    },
++    {
++      "package": {"ecosystem": "Alpaquita:25", "name": "openssl", "purl": "pkg:apk/alpaquita/openssl?arch=source&distro=25"},
++      "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "3.0.8-r4"}, {"fixed": "3.4.1-r2"}]}],
++      "database_specific": {"source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2024-41996.json"}
++    },
++    {
++      "package": {"ecosystem": "BellSoft Hardened Containers:stream", "name": "openssl", "purl": "pkg:apk/bellsoft-hardened-containers/openssl?arch=source&distro=stream"},
++      "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "3.0.8-r4"}, {"fixed": "3.5.0-r1"}]}],
++      "database_specific": {"source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2024-41996.json"}
++    }
++  ],
++  "references": [{"type": "ADVISORY", "url": "https://docs.bell-sw.com/security/cves/CVE-2024-41996"}]
++}
+diff --git a/pkg/detector/ospkg/vendorapk/testdata/bucket/BellSoft Hardened Containers/BELL-CVE-2026-10004.json b/pkg/detector/ospkg/vendorapk/testdata/bucket/BellSoft Hardened Containers/BELL-CVE-2026-10004.json
+new file mode 100644
+index 0000000..2064fa9
+--- /dev/null
++++ b/pkg/detector/ospkg/vendorapk/testdata/bucket/BellSoft Hardened Containers/BELL-CVE-2026-10004.json	
+@@ -0,0 +1,15 @@
++{
++  "schema_version": "1.9.0",
++  "id": "BELL-CVE-2026-10004",
++  "modified": "2026-09-06T07:15:18Z",
++  "published": "2026-01-10T00:00:00Z",
++  "upstream": ["CVE-2026-10004"],
++  "severity": [{"type": "CVSS_V2", "score": "AV:N/AC:L/Au:N/C:P/I:P/A:P"}],
++  "affected": [
++    {
++      "package": {"ecosystem": "BellSoft Hardened Containers:23", "name": "glibc"},
++      "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "2.37.0-r3"}]}],
++      "database_specific": {"source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2026-10004.json"}
++    }
++  ]
++}
+diff --git a/pkg/detector/ospkg/vendorapk/testdata/bucket/Liberica JDK/BELL-CVE-2025-24855.json b/pkg/detector/ospkg/vendorapk/testdata/bucket/Liberica JDK/BELL-CVE-2025-24855.json
+new file mode 100644
+index 0000000..0d957e2
+--- /dev/null
++++ b/pkg/detector/ospkg/vendorapk/testdata/bucket/Liberica JDK/BELL-CVE-2025-24855.json	
+@@ -0,0 +1,747 @@
++{
++  "schema_version": "1.7.4",
++  "id": "BELL-CVE-2025-24855",
++  "modified": "2026-09-05T10:49:10.119410Z",
++  "published": "2025-03-14T17:42:18.239166Z",
++  "upstream": [
++    "CVE-2025-24855"
++  ],
++  "severity": [
++    {
++      "score": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
++      "type": "CVSS_V3"
++    }
++  ],
++  "references": [
++    {
++      "type": "ADVISORY",
++      "url": "https://docs.bell-sw.com/security/cves/CVE-2025-24855"
++    }
++  ],
++  "affected": [
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:11",
++        "name": "jdk",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19+7"
++            },
++            {
++              "fixed": "11.0.28+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk11"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:11",
++        "name": "jre",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19+7"
++            },
++            {
++              "fixed": "11.0.28+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk11"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:11",
++        "name": "jdk-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19+7"
++            },
++            {
++              "fixed": "11.0.28+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk11"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:11",
++        "name": "jre-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19+7"
++            },
++            {
++              "fixed": "11.0.28+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk11"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:11",
++        "name": "jdk-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19+7"
++            },
++            {
++              "fixed": "11.0.28+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk11-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:11",
++        "name": "jre-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19+7"
++            },
++            {
++              "fixed": "11.0.28+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk11-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jdk",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7+7"
++            },
++            {
++              "fixed": "17.0.16+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jre",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7+7"
++            },
++            {
++              "fixed": "17.0.16+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jdk-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7+7"
++            },
++            {
++              "fixed": "17.0.16+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jre-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7+7"
++            },
++            {
++              "fixed": "17.0.16+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jdk-crac",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-crac"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.10+13"
++            },
++            {
++              "fixed": "17.0.16+13"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17-crac"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jdk-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7+7"
++            },
++            {
++              "fixed": "17.0.16+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jre-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7+7"
++            },
++            {
++              "fixed": "17.0.16+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jdk",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21+37"
++            },
++            {
++              "fixed": "21.0.8+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jre",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21+37"
++            },
++            {
++              "fixed": "21.0.8+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jdk-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21+37"
++            },
++            {
++              "fixed": "21.0.8+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jre-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21+37"
++            },
++            {
++              "fixed": "21.0.8+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jdk-crac",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-crac"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21.0.2+15"
++            },
++            {
++              "fixed": "21.0.8+13"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21-crac"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jdk-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21+37"
++            },
++            {
++              "fixed": "21.0.8+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jre-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21+37"
++            },
++            {
++              "fixed": "21.0.8+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:24",
++        "name": "jdk",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24+37"
++            },
++            {
++              "fixed": "24.0.2+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk24"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:24",
++        "name": "jre",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24+37"
++            },
++            {
++              "fixed": "24.0.2+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk24"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:24",
++        "name": "jdk-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24+37"
++            },
++            {
++              "fixed": "24.0.2+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk24"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:24",
++        "name": "jre-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24+37"
++            },
++            {
++              "fixed": "24.0.2+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk24"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:24",
++        "name": "jdk-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24+37"
++            },
++            {
++              "fixed": "24.0.2+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk24-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:24",
++        "name": "jre-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24+37"
++            },
++            {
++              "fixed": "24.0.2+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk24-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:8",
++        "name": "jdk",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u372+7"
++            },
++            {
++              "fixed": "8u462+11"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk8"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:8",
++        "name": "jre",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u372+7"
++            },
++            {
++              "fixed": "8u462+11"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk8"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:8",
++        "name": "jdk-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u372+7"
++            },
++            {
++              "fixed": "8u462+11"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk8"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:8",
++        "name": "jre-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u372+7"
++            },
++            {
++              "fixed": "8u462+11"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk8"
++      }
++    }
++  ],
++  "database_specific": {
++    "prototype": "Liberica JDK ecosystem generated from Alpaquita advisories",
++    "generator": "liberica-osv/generate.py"
++  }
++}
+\ No newline at end of file
+diff --git a/pkg/detector/ospkg/vendorapk/testdata/fixtures/data-source.yaml b/pkg/detector/ospkg/vendorapk/testdata/fixtures/data-source.yaml
+deleted file mode 100644
+index 0cc9f7a..0000000
+--- a/pkg/detector/ospkg/vendorapk/testdata/fixtures/data-source.yaml
++++ /dev/null
+@@ -1,17 +0,0 @@
+-- bucket: data-source
+-  pairs:
+-    - key: alpaquita stream
+-      value:
+-        ID: "alpaquita"
+-        Name: "BellSoft Alpaquita Linux OSV database"
+-        URL: "https://github.com/bell-sw/osv-database"
+-    - key: alpaquita 25
+-      value:
+-        ID: "alpaquita"
+-        Name: "BellSoft Alpaquita Linux OSV database"
+-        URL: "https://github.com/bell-sw/osv-database"
+-    - key: bellsoft-hardened-containers stream
+-      value:
+-        ID: "bellsoft-hardened-containers"
+-        Name: "BellSoft Hardened Containers OSV database"
+-        URL: "https://github.com/bell-sw/osv-database"
+diff --git a/pkg/detector/ospkg/vendorapk/testdata/fixtures/invalid.yaml b/pkg/detector/ospkg/vendorapk/testdata/fixtures/invalid.yaml
+deleted file mode 100644
+index 7864b1d..0000000
+--- a/pkg/detector/ospkg/vendorapk/testdata/fixtures/invalid.yaml
++++ /dev/null
+@@ -1,8 +0,0 @@
+-- bucket: alpaquita stream
+-  pairs:
+-    - bucket: openssl
+-      pairs:
+-        - key: CVE-2024-41996
+-          value:
+-            VulnerableVersions:
+-              - invalid: format
+diff --git a/pkg/detector/ospkg/vendorapk/vendorapk.go b/pkg/detector/ospkg/vendorapk/vendorapk.go
+index dadb947..aa80736 100644
+--- a/pkg/detector/ospkg/vendorapk/vendorapk.go
++++ b/pkg/detector/ospkg/vendorapk/vendorapk.go
+@@ -1,23 +1,23 @@
+ // Package vendorapk is the vulnerability scanner of the vendor's apk-based
+ // distributions (the Linux distribution and the hardened containers): a rolling
+-// "stream" plus numbered LTS branches, one OSV advisory feed.
++// "stream" plus numbered LTS branches. The advisories are read from the OSV
++// archives and matched by the shared github.com/bell-sw/osv-internal module;
++// this driver maps Trivy packages in and findings out.
+ package vendorapk
+ 
+ import (
+ 	"context"
+-	"strings"
+ 	"time"
+ 
+-	"golang.org/x/xerrors"
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/match"
+ 
+-	"github.com/aquasecurity/trivy-db/pkg/db"
+-	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
+-	"github.com/aquasecurity/trivy-db/pkg/vulnsrc/bellsoft"
+ 	"github.com/aquasecurity/trivy/pkg/detector/ospkg/version"
+ 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+ 	"github.com/aquasecurity/trivy/pkg/log"
+ 	"github.com/aquasecurity/trivy/pkg/scan/utils"
+ 	"github.com/aquasecurity/trivy/pkg/types"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
+ )
+ 
+ // streamRelease is the rolling release of both distributions. It never reaches
+@@ -32,25 +32,47 @@ var eolDates = map[string]time.Time{
+ 	"25": time.Date(2031, 12, 31, 23, 59, 59, 0, time.UTC),
+ }
+ 
++// Option configures a Scanner.
++type Option func(*Scanner)
++
++// WithSource replaces the advisory source (for tests).
++func WithSource(src vendordb.AdvisorySource) Option {
++	return func(s *Scanner) {
++		s.src = src
++	}
++}
++
+ // Scanner implements the vendor apk scanner
+ type Scanner struct {
+-	vs       bellsoft.VulnSrc
+-	comparer version.Comparer
+-	logger   *log.Logger
++	family string
++	src    vendordb.AdvisorySource
++	logger *log.Logger
+ }
+ 
+ // NewScanner is the factory method for Scanner.
+ // osFamily selects which of the two vendor distributions to scan.
+-func NewScanner(osFamily ftypes.OSType) *Scanner {
+-	variant := bellsoft.Alpaquita
++func NewScanner(osFamily ftypes.OSType, opts ...Option) *Scanner {
++	family := osvinternal.EcosystemLinux
+ 	if osFamily == ftypes.VendorHardened {
+-		variant = bellsoft.HardenedContainers
++		family = osvinternal.EcosystemHardened
++	}
++	s := &Scanner{
++		family: family,
++		logger: log.WithPrefix(string(osFamily)),
+ 	}
+-	return &Scanner{
+-		vs:       bellsoft.NewVulnSrc(variant),
+-		comparer: version.NewAPKComparer(),
+-		logger:   log.WithPrefix(string(osFamily)),
++	for _, opt := range opts {
++		opt(s)
+ 	}
++	return s
++}
++
++// source resolves the advisory source lazily: the drivers are built at
++// package initialization, before the flags configure the process-wide source.
++func (s *Scanner) source() vendordb.AdvisorySource {
++	if s.src != nil {
++		return s.src
++	}
++	return vendordb.Source()
+ }
+ 
+ // Detect vulnerabilities in packages using the vendor advisory database
+@@ -58,123 +80,40 @@ func (s *Scanner) Detect(ctx context.Context, osVer string, _ *ftypes.Repository
+ 	log.InfoContext(ctx, "Detecting vulnerabilities...", log.String("os_version", osVer),
+ 		log.Int("pkg_num", len(pkgs)))
+ 
+-	var vulns []types.DetectedVulnerability
+-	for _, pkg := range pkgs {
+-		installed := utils.FormatSrcVersion(pkg)
+-
+-		for _, name := range sourceNames(pkg) {
+-			advisories, err := s.vs.Get(db.GetParams{
+-				Release: osVer,
+-				PkgName: name,
+-			})
+-			if err != nil {
+-				return nil, xerrors.Errorf("failed to get vendor advisories: %w", err)
+-			}
+-			if len(advisories) == 0 {
+-				continue
+-			}
+-
+-			for _, adv := range advisories {
+-				if !s.isVulnerable(ctx, installed, adv) {
+-					continue
+-				}
+-				vulns = append(vulns, types.DetectedVulnerability{
+-					VulnerabilityID:  adv.VulnerabilityID,
+-					PkgID:            pkg.ID,
+-					PkgName:          pkg.Name,
+-					InstalledVersion: utils.FormatVersion(pkg),
+-					FixedVersion:     strings.Join(adv.PatchedVersions, ", "),
+-					Layer:            pkg.Layer,
+-					PkgIdentifier:    pkg.Identifier,
+-					Custom:           adv.Custom,
+-					DataSource:       adv.DataSource,
+-				})
+-			}
+-
+-			// the first name the feed knows wins: a package is not reported
+-			// twice through two aliases
+-			break
+-		}
+-	}
+-	return vulns, nil
+-}
+-
+-// sourceNames returns the candidate source package names of pkg in the order
+-// to try them: the apk origin, then every provided name with the subpackage
+-// suffix stripped. Advisories are keyed on the source package, and a package
+-// published under another name (the vendor's JDK: origin "liberica21-lite",
+-// feed "openjdk21-lite") carries the alias only in its provides field:
+-//
+-//	package name  liberica21-lite-jdk-no-deps
+-//	origin        liberica21-lite
+-//	suffix        -jdk-no-deps
+-//	provides      openjdk21-lite-jdk-no-deps -> openjdk21-lite
+-func sourceNames(pkg ftypes.Package) []string {
+-	srcName := pkg.SrcName
+-	if srcName == "" {
+-		srcName = pkg.Name
+-	}
+-
+-	names := []string{srcName}
+-	seen := map[string]struct{}{srcName: {}}
+-
+-	// the subpackage suffix ("-jdk-no-deps" above)
+-	suffix := strings.TrimPrefix(pkg.Name, srcName)
+-
+-	add := func(name string) {
+-		if name == "" {
+-			return
+-		}
+-		// "so:", "cmd:", ... are capabilities, not package names
+-		if strings.Contains(name, ":") {
+-			return
+-		}
+-		if _, ok := seen[name]; ok {
+-			return
+-		}
+-		seen[name] = struct{}{}
+-		names = append(names, name)
+-	}
+-
+-	for _, provide := range pkg.Provides {
+-		if suffix != "" && suffix != pkg.Name {
+-			add(strings.TrimSuffix(provide, suffix))
+-		}
+-		add(provide)
+-	}
+-
+-	return names
+-}
+-
+-func (s *Scanner) isVulnerable(ctx context.Context, installedVersion string, adv dbTypes.Advisory) bool {
+-	// no vulnerable range: not fixed yet, every version is vulnerable
+-	if len(adv.VulnerableVersions) == 0 {
+-		return true
++	idx, err := vendordb.Index(ctx, s.source(), s.family)
++	if err != nil {
++		return nil, err
+ 	}
+-	if installedVersion == "" {
+-		return false
++	if idx == nil {
++		// unavailable archive (warned): no vendor findings for these packages
++		return nil, nil
+ 	}
+ 
+-	for _, constraintStr := range adv.VulnerableVersions {
+-		constraints, err := version.NewConstraints(constraintStr, s.comparer)
+-		if err != nil {
+-			s.logger.DebugContext(ctx, "Failed to parse the vulnerable version range",
+-				log.String("range", constraintStr), log.Err(err))
+-			continue
+-		}
+-
+-		satisfied, err := constraints.Check(installedVersion)
++	var vulns []types.DetectedVulnerability
++	for _, pkg := range pkgs {
++		// the shared matcher resolves the feed name (origin or provided-name alias)
++		findings, err := match.MatchAPK(idx, match.Package{
++			Name:     pkg.Name,
++			Version:  utils.FormatSrcVersion(pkg),
++			Origin:   pkg.SrcName,
++			Provides: pkg.Provides,
++		}, osVer)
+ 		if err != nil {
+-			s.logger.DebugContext(ctx, "Failed to check the version constraints",
+-				log.String("version", installedVersion),
+-				log.String("range", constraintStr), log.Err(err))
++			s.logger.DebugContext(ctx, "Skipping a package the feed cannot evaluate",
++				log.String("name", pkg.Name), log.String("version", pkg.Version), log.Err(err))
+ 			continue
+ 		}
+-		if satisfied {
+-			return true
++		for _, f := range findings {
++			v := vendordb.Vulnerability(f)
++			v.PkgID = pkg.ID
++			v.PkgName = pkg.Name
++			v.InstalledVersion = utils.FormatVersion(pkg)
++			v.Layer = pkg.Layer
++			v.PkgIdentifier = pkg.Identifier
++			vulns = append(vulns, v)
+ 		}
+ 	}
+-	return false
++	return vulns, nil
+ }
+ 
+ // IsSupportedVersion checks if the version is supported.
+diff --git a/pkg/detector/ospkg/vendorapk/vendorapk_test.go b/pkg/detector/ospkg/vendorapk/vendorapk_test.go
+index a235935..a455adb 100644
+--- a/pkg/detector/ospkg/vendorapk/vendorapk_test.go
++++ b/pkg/detector/ospkg/vendorapk/vendorapk_test.go
+@@ -1,41 +1,101 @@
+ package vendorapk_test
+ 
+ import (
++	"archive/zip"
++	"context"
++	"os"
++	"path/filepath"
+ 	"sort"
+ 	"testing"
+ 	"time"
+ 
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/require"
++	"golang.org/x/xerrors"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/osvdata"
++	"github.com/bell-sw/osv-internal/testfix"
+ 
+ 	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
+-	"github.com/aquasecurity/trivy-db/pkg/vulnsrc/vulnerability"
+-	"github.com/aquasecurity/trivy/internal/dbtest"
+ 	"github.com/aquasecurity/trivy/pkg/clock"
+ 	"github.com/aquasecurity/trivy/pkg/detector/ospkg/vendorapk"
+ 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+ 	"github.com/aquasecurity/trivy/pkg/types"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
+ )
+ 
++// indexSource serves pre-built indexes, one per ecosystem family.
++type indexSource struct {
++	indexes map[string]*osvdata.Index
++	err     error
++}
++
++func (s indexSource) Ecosystem(_ context.Context, family string) (*osvdata.Index, error) {
++	if s.err != nil {
++		return nil, s.err
++	}
++	idx, ok := s.indexes[family]
++	if !ok {
++		return nil, xerrors.Errorf("no index for %s", family)
++	}
++	return idx, nil
++}
++
++// loadBucket zips testdata/bucket/<family>/*.json like the OSV bucket and
++// builds the index of every family (records renamed to the module's current
++// values by testfix.RewriteOSV).
++func loadBucket(t *testing.T) indexSource {
++	t.Helper()
++	src := indexSource{indexes: make(map[string]*osvdata.Index)}
++	for _, family := range osvinternal.Ecosystems {
++		dir := filepath.Join("testdata/bucket", testfix.UpstreamFamily(family))
++		files, err := os.ReadDir(dir)
++		if os.IsNotExist(err) {
++			continue
++		}
++		require.NoError(t, err)
++		zipPath := filepath.Join(t.TempDir(), "all.zip")
++		f, err := os.Create(zipPath)
++		require.NoError(t, err)
++		zw := zip.NewWriter(f)
++		for _, rec := range files {
++			b, err := os.ReadFile(filepath.Join(dir, rec.Name()))
++			require.NoError(t, err)
++			w, err := zw.Create(rec.Name())
++			require.NoError(t, err)
++			_, err = w.Write(testfix.RewriteOSV(b))
++			require.NoError(t, err)
++		}
++		require.NoError(t, zw.Close())
++		require.NoError(t, f.Close())
++		idx, err := osvdata.LoadArchive(zipPath, family)
++		require.NoError(t, err)
++		src.indexes[family] = idx
++	}
++	return src
++}
++
++const recordURL = "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2024-41996.json"
++
+ var (
++	published = time.Date(2024, 8, 26, 6, 15, 4, 0, time.UTC)
++	modified  = time.Date(2026, 9, 6, 7, 15, 18, 0, time.UTC)
++
+ 	linuxSource = &dbTypes.DataSource{
+-		ID:   vulnerability.Alpaquita,
+-		Name: "BellSoft Alpaquita Linux OSV database",
+-		URL:  "https://github.com/bell-sw/osv-database",
+-	}
+-	hardenedSource = &dbTypes.DataSource{
+-		ID:   vulnerability.BellSoftHardened,
+-		Name: "BellSoft Hardened Containers OSV database",
+-		URL:  "https://github.com/bell-sw/osv-database",
++		ID:   vendordb.SourceLinux,
++		Name: osvinternal.EcosystemLinux + " OSV database",
++		URL:  recordURL,
+ 	}
+ )
+ 
+ func TestScanner_Detect(t *testing.T) {
++	bucket := loadBucket(t)
+ 	tests := []struct {
+ 		name     string
+ 		osFamily ftypes.OSType
+ 		osVer    string
+-		fixtures []string
++		src      vendordb.AdvisorySource
+ 		pkgs     []ftypes.Package
+ 		want     []types.DetectedVulnerability
+ 		wantErr  string
+@@ -44,10 +104,7 @@ func TestScanner_Detect(t *testing.T) {
+ 			name:     "happy path",
+ 			osFamily: ftypes.VendorLinux,
+ 			osVer:    "stream",
+-			fixtures: []string{
+-				"testdata/fixtures/vendorapk.yaml",
+-				"testdata/fixtures/data-source.yaml",
+-			},
++			src:      bucket,
+ 			pkgs: []ftypes.Package{
+ 				{
+ 					ID:         "openssl@3.1.1-r1",
+@@ -63,6 +120,7 @@ func TestScanner_Detect(t *testing.T) {
+ 			want: []types.DetectedVulnerability{
+ 				{
+ 					VulnerabilityID:  "CVE-2024-41996",
++					VendorIDs:        []string{"BELL-CVE-2024-41996"},
+ 					PkgID:            "openssl@3.1.1-r1",
+ 					PkgName:          "openssl",
+ 					InstalledVersion: "3.1.1-r1",
+@@ -70,7 +128,20 @@ func TestScanner_Detect(t *testing.T) {
+ 					Layer: ftypes.Layer{
+ 						DiffID: "sha256:932da51564135c98a49a34a193d6cd363d8fa4184d957fde16c9d8527b3f3b02",
+ 					},
+-					DataSource: linuxSource,
++					DataSource:     linuxSource,
++					SeveritySource: vendordb.SourceLinux,
++					Vulnerability: dbTypes.Vulnerability{
++						Severity:         "HIGH",
++						References:       []string{"https://docs.bell-sw.com/security/cves/CVE-2024-41996"},
++						PublishedDate:    &published,
++						LastModifiedDate: &modified,
++						CVSS: dbTypes.VendorCVSS{
++							vendordb.SourceLinux: {
++								V3Vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
++								V3Score:  7.5,
++							},
++						},
++					},
+ 				},
+ 			},
+ 		},
+@@ -78,10 +149,7 @@ func TestScanner_Detect(t *testing.T) {
+ 			name:     "already fixed",
+ 			osFamily: ftypes.VendorLinux,
+ 			osVer:    "stream",
+-			fixtures: []string{
+-				"testdata/fixtures/vendorapk.yaml",
+-				"testdata/fixtures/data-source.yaml",
+-			},
++			src:      bucket,
+ 			pkgs: []ftypes.Package{
+ 				{
+ 					Name:       "openssl",
+@@ -96,16 +164,13 @@ func TestScanner_Detect(t *testing.T) {
+ 			name:     "not yet introduced",
+ 			osFamily: ftypes.VendorLinux,
+ 			osVer:    "stream",
+-			fixtures: []string{
+-				"testdata/fixtures/vendorapk.yaml",
+-				"testdata/fixtures/data-source.yaml",
+-			},
++			src:      bucket,
+ 			pkgs: []ftypes.Package{
+ 				{
+ 					Name:       "openssl",
+-					Version:    "3.0.8-r4",
++					Version:    "3.0.8-r3",
+ 					SrcName:    "openssl",
+-					SrcVersion: "3.0.8-r4",
++					SrcVersion: "3.0.8-r3",
+ 				},
+ 			},
+ 			want: nil,
+@@ -114,121 +179,182 @@ func TestScanner_Detect(t *testing.T) {
+ 			name:     "unfixed vulnerability",
+ 			osFamily: ftypes.VendorLinux,
+ 			osVer:    "stream",
+-			fixtures: []string{
+-				"testdata/fixtures/vendorapk.yaml",
+-				"testdata/fixtures/data-source.yaml",
+-			},
++			src:      bucket,
+ 			pkgs: []ftypes.Package{
+ 				{
+-					Name:       "linux-lts",
+-					Version:    "6.18.35-r1",
+-					SrcName:    "linux-lts",
+-					SrcVersion: "6.18.35-r1",
++					Name:       "libfoo",
++					Version:    "1.2.0-r0",
++					SrcName:    "libfoo",
++					SrcVersion: "1.2.0-r0",
+ 				},
+ 			},
+ 			want: []types.DetectedVulnerability{
+ 				{
+-					VulnerabilityID:  "CVE-2026-53237",
+-					PkgName:          "linux-lts",
+-					InstalledVersion: "6.18.35-r1",
+-					DataSource:       linuxSource,
++					VulnerabilityID:  "CVE-2026-10001",
++					VendorIDs:        []string{"BELL-CVE-2026-10001"},
++					PkgName:          "libfoo",
++					InstalledVersion: "1.2.0-r0",
++					FixedVersion:     "",
++					DataSource: &dbTypes.DataSource{
++						ID:   vendordb.SourceLinux,
++						Name: osvinternal.EcosystemLinux + " OSV database",
++						URL:  "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2026-10001.json",
++					},
++					SeveritySource: vendordb.SourceLinux,
++					Vulnerability: dbTypes.Vulnerability{
++						Title:            "unfixed test advisory",
++						Severity:         "CRITICAL",
++						References:       []string{"https://docs.bell-sw.com/security/cves/CVE-2026-10001"},
++						PublishedDate:    timePtr(time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC)),
++						LastModifiedDate: &modified,
++						CVSS: dbTypes.VendorCVSS{
++							vendordb.SourceLinux: {
++								V40Vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",
++								V40Score:  9.3,
++							},
++						},
++					},
+ 				},
+ 			},
+ 		},
+ 		{
+-			// origin "jdk21-lite", feed "openjdk21-lite": resolved through
+-			// the provided name
+-			name:     "source name resolved through apk provides",
++			name:     "several ranges, only the matching one is reported",
+ 			osFamily: ftypes.VendorLinux,
+ 			osVer:    "stream",
+-			fixtures: []string{
+-				"testdata/fixtures/vendorapk.yaml",
+-				"testdata/fixtures/data-source.yaml",
+-			},
++			src:      bucket,
+ 			pkgs: []ftypes.Package{
+ 				{
+-					ID:         "jdk21-lite-jdk-no-deps@21.0.10.1_p1-r0",
+-					Name:       "jdk21-lite-jdk-no-deps",
+-					Version:    "21.0.10.1_p1-r0",
+-					SrcName:    "jdk21-lite",
+-					SrcVersion: "21.0.10.1_p1-r0",
+-					Provides: []string{
+-						"java-jdk-no-deps",
+-						"java21-jdk-no-deps",
+-						"openjdk21-lite-jdk-no-deps",
+-					},
++					Name:       "zlib",
++					Version:    "1.3.0-r5",
++					SrcName:    "zlib",
++					SrcVersion: "1.3.0-r5",
+ 				},
+ 			},
+ 			want: []types.DetectedVulnerability{
+ 				{
+-					VulnerabilityID:  "CVE-2026-60589",
+-					PkgID:            "jdk21-lite-jdk-no-deps@21.0.10.1_p1-r0",
+-					PkgName:          "jdk21-lite-jdk-no-deps",
+-					InstalledVersion: "21.0.10.1_p1-r0",
+-					FixedVersion:     "21.0.12.1_p1-r0",
+-					DataSource:       linuxSource,
++					VulnerabilityID:  "CVE-2026-10003",
++					VendorIDs:        []string{"BELL-CVE-2026-10003", "GHSA-xxxx-yyyy-zzzz"},
++					PkgName:          "zlib",
++					InstalledVersion: "1.3.0-r5",
++					FixedVersion:     "1.3.1-r2",
++					DataSource: &dbTypes.DataSource{
++						ID:   vendordb.SourceLinux,
++						Name: osvinternal.EcosystemLinux + " OSV database",
++						URL:  "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2026-10003.json",
++					},
++					SeveritySource: vendordb.SourceLinux,
++					Vulnerability: dbTypes.Vulnerability{
++						Severity:         "LOW",
++						PublishedDate:    timePtr(time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC)),
++						LastModifiedDate: &modified,
++						CVSS: dbTypes.VendorCVSS{
++							vendordb.SourceLinux: {
++								V3Vector: "CVSS:3.0/AV:L/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N",
++								V3Score:  3.3,
++							},
++						},
++					},
+ 				},
+ 			},
+ 		},
+ 		{
+-			name:     "no advisories without provides",
++			name:     "source name resolved through apk provides",
+ 			osFamily: ftypes.VendorLinux,
+-			osVer:    "stream",
+-			fixtures: []string{
+-				"testdata/fixtures/vendorapk.yaml",
+-				"testdata/fixtures/data-source.yaml",
+-			},
++			osVer:    "23",
++			src:      bucket,
+ 			pkgs: []ftypes.Package{
+ 				{
++					ID:         "jdk21-lite-jdk-no-deps@21.0.2_p14-r1",
+ 					Name:       "jdk21-lite-jdk-no-deps",
+-					Version:    "21.0.10.1_p1-r0",
++					Version:    "21.0.2_p14-r1",
+ 					SrcName:    "jdk21-lite",
+-					SrcVersion: "21.0.10.1_p1-r0",
++					SrcVersion: "21.0.2_p14-r1",
++					Provides:   []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"},
++				},
++			},
++			want: []types.DetectedVulnerability{
++				{
++					VulnerabilityID:  "CVE-2025-24855",
++					VendorIDs:        []string{"BELL-CVE-2025-24855"},
++					PkgID:            "jdk21-lite-jdk-no-deps@21.0.2_p14-r1",
++					PkgName:          "jdk21-lite-jdk-no-deps",
++					InstalledVersion: "21.0.2_p14-r1",
++					FixedVersion:     "21.0.8_p12-r0",
++					DataSource: &dbTypes.DataSource{
++						ID:   vendordb.SourceLinux,
++						Name: osvinternal.EcosystemLinux + " OSV database",
++						URL:  "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++					},
++					SeveritySource: vendordb.SourceLinux,
++					Vulnerability: dbTypes.Vulnerability{
++						Severity:         "HIGH",
++						References:       []string{"https://docs.bell-sw.com/security/cves/CVE-2025-24855"},
++						PublishedDate:    timePtr(time.Date(2025, 3, 14, 17, 42, 18, 239166000, time.UTC)),
++						LastModifiedDate: timePtr(time.Date(2026, 9, 6, 7, 15, 18, 783153691, time.UTC)),
++						CVSS: dbTypes.VendorCVSS{
++							vendordb.SourceLinux: {
++								V3Vector: "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
++								V3Score:  7.8,
++							},
++						},
++					},
+ 				},
+ 			},
+-			want: nil,
+ 		},
+ 		{
+ 			name:     "hardened containers use their own advisories",
+ 			osFamily: ftypes.VendorHardened,
+ 			osVer:    "stream",
+-			fixtures: []string{
+-				"testdata/fixtures/vendorapk.yaml",
+-				"testdata/fixtures/data-source.yaml",
+-			},
++			src:      bucket,
+ 			pkgs: []ftypes.Package{
+ 				{
+-					Name:       "zlib",
+-					Version:    "1.3.1-r0",
+-					SrcName:    "zlib",
+-					SrcVersion: "1.3.1-r0",
++					Name:       "openssl",
++					Version:    "3.5.0-r0",
++					SrcName:    "openssl",
++					SrcVersion: "3.5.0-r0",
+ 				},
+ 			},
+ 			want: []types.DetectedVulnerability{
+ 				{
+-					VulnerabilityID:  "CVE-2026-99999",
+-					PkgName:          "zlib",
+-					InstalledVersion: "1.3.1-r0",
+-					FixedVersion:     "1.3.1-r9",
+-					DataSource:       hardenedSource,
++					// fixed in 3.5.0-r0 on the Linux distribution but only in 3.5.0-r1 on the hardened containers
++					VulnerabilityID:  "CVE-2024-41996",
++					VendorIDs:        []string{"BELL-CVE-2024-41996"},
++					PkgName:          "openssl",
++					InstalledVersion: "3.5.0-r0",
++					FixedVersion:     "3.5.0-r1",
++					DataSource: &dbTypes.DataSource{
++						ID:   vendordb.SourceHardened,
++						Name: osvinternal.EcosystemHardened + " OSV database",
++						URL:  recordURL,
++					},
++					SeveritySource: vendordb.SourceHardened,
++					Vulnerability: dbTypes.Vulnerability{
++						Severity:         "HIGH",
++						References:       []string{"https://docs.bell-sw.com/security/cves/CVE-2024-41996"},
++						PublishedDate:    &published,
++						LastModifiedDate: &modified,
++						CVSS: dbTypes.VendorCVSS{
++							vendordb.SourceHardened: {
++								V3Vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
++								V3Score:  7.5,
++							},
++						},
++					},
+ 				},
+ 			},
+ 		},
+ 		{
+-			// Linux advisories must not be reported for the hardened containers.
+ 			name:     "no cross-family detection",
+-			osFamily: ftypes.VendorHardened,
+-			osVer:    "stream",
+-			fixtures: []string{
+-				"testdata/fixtures/vendorapk.yaml",
+-				"testdata/fixtures/data-source.yaml",
+-			},
++			osFamily: ftypes.VendorLinux,
++			osVer:    "23",
++			src:      bucket,
+ 			pkgs: []ftypes.Package{
+ 				{
+-					Name:       "openssl",
+-					Version:    "3.1.1-r1",
+-					SrcName:    "openssl",
+-					SrcVersion: "3.1.1-r1",
++					// BELL-CVE-2026-10004 affects glibc on Hardened Containers 23 only
++					Name:       "glibc",
++					Version:    "2.37.0-r0",
++					SrcName:    "glibc",
++					SrcVersion: "2.37.0-r0",
+ 				},
+ 			},
+ 			want: nil,
+@@ -236,11 +362,26 @@ func TestScanner_Detect(t *testing.T) {
+ 		{
+ 			name:     "no advisories for another release",
+ 			osFamily: ftypes.VendorLinux,
+-			osVer:    "25",
+-			fixtures: []string{
+-				"testdata/fixtures/vendorapk.yaml",
+-				"testdata/fixtures/data-source.yaml",
++			osVer:    "23",
++			src:      bucket,
++			pkgs: []ftypes.Package{
++				{
++					Name:       "libfoo",
++					Version:    "1.2.0-r0",
++					SrcName:    "libfoo",
++					SrcVersion: "1.2.0-r0",
++				},
+ 			},
++			want: nil,
++		},
++		{
++			name:     "unavailable archive: a warning, the packages stay without findings",
++			osFamily: ftypes.VendorLinux,
++			osVer:    "stream",
++			src: indexSource{err: &osvdata.UnavailableError{
++				Family: osvinternal.EcosystemLinux, Reason: "offline and not cached",
++				URL: osvdata.DefaultBaseURL + "/" + osvinternal.EcosystemLinux + "/all.zip", Err: osvdata.ErrNotCached,
++			}},
+ 			pkgs: []ftypes.Package{
+ 				{
+ 					Name:       "openssl",
+@@ -252,13 +393,10 @@ func TestScanner_Detect(t *testing.T) {
+ 			want: nil,
+ 		},
+ 		{
+-			name:     "broken bucket",
++			name:     "source error",
+ 			osFamily: ftypes.VendorLinux,
+ 			osVer:    "stream",
+-			fixtures: []string{
+-				"testdata/fixtures/invalid.yaml",
+-				"testdata/fixtures/data-source.yaml",
+-			},
++			src:      indexSource{err: xerrors.New("cache directory is not writable")},
+ 			pkgs: []ftypes.Package{
+ 				{
+ 					Name:       "openssl",
+@@ -267,31 +405,30 @@ func TestScanner_Detect(t *testing.T) {
+ 					SrcVersion: "3.1.1-r1",
+ 				},
+ 			},
+-			wantErr: "failed to get vendor advisories",
++			wantErr: "failed to load the " + osvinternal.Vendor + " advisories",
+ 		},
+ 	}
+-
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+-			_ = dbtest.InitDB(t, tt.fixtures)
+-			defer dbtest.Close()
+-
+-			s := vendorapk.NewScanner(tt.osFamily)
+-			got, err := s.Detect(t.Context(), tt.osVer, nil, tt.pkgs)
++			s := vendorapk.NewScanner(tt.osFamily, vendorapk.WithSource(tt.src))
++			got, err := s.Detect(context.Background(), tt.osVer, nil, tt.pkgs)
+ 			if tt.wantErr != "" {
+ 				require.ErrorContains(t, err, tt.wantErr)
+ 				return
+ 			}
+-			require.NoError(t, err)
+-
+ 			sort.Slice(got, func(i, j int) bool {
+ 				return got[i].VulnerabilityID < got[j].VulnerabilityID
+ 			})
++			require.NoError(t, err)
+ 			assert.Equal(t, tt.want, got)
+ 		})
+ 	}
+ }
+ 
++func timePtr(t time.Time) *time.Time {
++	return &t
++}
++
+ func TestScanner_IsSupportedVersion(t *testing.T) {
+ 	tests := []struct {
+ 		name     string
+@@ -302,22 +439,22 @@ func TestScanner_IsSupportedVersion(t *testing.T) {
+ 	}{
+ 		{
+ 			name:     "stream is always supported",
+-			now:      time.Date(2040, 1, 1, 0, 0, 0, 0, time.UTC),
++			now:      time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC),
+ 			osFamily: ftypes.VendorLinux,
+ 			osVer:    "stream",
+ 			want:     true,
+ 		},
+ 		{
+ 			name:     "25 LTS is supported",
+-			now:      time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC),
++			now:      time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC),
+ 			osFamily: ftypes.VendorLinux,
+ 			osVer:    "25",
+ 			want:     true,
+ 		},
+ 		{
+ 			name:     "23 LTS is supported before end of support",
+-			now:      time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC),
+-			osFamily: ftypes.VendorLinux,
++			now:      time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
++			osFamily: ftypes.VendorHardened,
+ 			osVer:    "23",
+ 			want:     true,
+ 		},
+@@ -330,18 +467,23 @@ func TestScanner_IsSupportedVersion(t *testing.T) {
+ 		},
+ 		{
+ 			name:     "unknown release is assumed supported",
+-			now:      time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC),
+-			osFamily: ftypes.VendorHardened,
++			now:      time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC),
++			osFamily: ftypes.VendorLinux,
+ 			osVer:    "27",
+ 			want:     true,
+ 		},
+ 	}
+-
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+-			ctx := clock.With(t.Context(), tt.now)
+-			s := vendorapk.NewScanner(tt.osFamily)
++			ctx := clock.With(context.Background(), tt.now)
++			s := vendorapk.NewScanner(tt.osFamily, vendorapk.WithSource(indexSource{}))
+ 			assert.Equal(t, tt.want, s.IsSupportedVersion(ctx, tt.osFamily, tt.osVer))
+ 		})
+ 	}
+ }
++
++func TestFamilies(t *testing.T) {
++	// the two families the driver is registered for exist in the module
++	assert.Contains(t, osvinternal.Ecosystems, osvinternal.EcosystemLinux)
++	assert.Contains(t, osvinternal.Ecosystems, osvinternal.EcosystemHardened)
++}
+diff --git a/pkg/fanal/analyzer/os/release/release.go b/pkg/fanal/analyzer/os/release/release.go
+index fa1689f..1f3b9e4 100644
+--- a/pkg/fanal/analyzer/os/release/release.go
++++ b/pkg/fanal/analyzer/os/release/release.go
+@@ -7,6 +7,8 @@ import (
+ 	"slices"
+ 	"strings"
+ 
++	osvdistro "github.com/bell-sw/osv-internal/distro"
++
+ 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
+ 	"github.com/aquasecurity/trivy/pkg/fanal/types"
+ )
+@@ -85,9 +87,9 @@ func idToOSFamily(id string) types.OSType {
+ 		return types.Fedora
+ 	case "alpine":
+ 		return types.Alpine
+-	case "alpaquita":
++	case osvdistro.IDLinux:
+ 		return types.VendorLinux
+-	case "bellsoft-hardened-containers":
++	case osvdistro.IDHardened:
+ 		return types.VendorHardened
+ 	case "bottlerocket":
+ 		return types.Bottlerocket
+diff --git a/pkg/fanal/types/const.go b/pkg/fanal/types/const.go
+index c37f8b4..aa03475 100644
+--- a/pkg/fanal/types/const.go
++++ b/pkg/fanal/types/const.go
+@@ -1,5 +1,7 @@
+ package types
+ 
++import osvdistro "github.com/bell-sw/osv-internal/distro"
++
+ type (
+ 	// TargetType represents the type of target
+ 	TargetType string
+@@ -32,11 +34,11 @@ const (
+ const (
+ 	ActiveState        OSType = "activestate"
+ 	Alma               OSType = "alma"
+-	VendorLinux        OSType = "alpaquita" // the vendor's Linux distribution
++	VendorLinux        OSType = osvdistro.IDLinux // the os-release ID of the osv-internal module
+ 	Alpine             OSType = "alpine"
+ 	Amazon             OSType = "amazon"
+ 	Azure              OSType = "azurelinux"
+-	VendorHardened     OSType = "bellsoft-hardened-containers" // the vendor's hardened container images
++	VendorHardened     OSType = osvdistro.IDHardened // the os-release ID of the osv-internal module
+ 	Bottlerocket       OSType = "bottlerocket"
+ 	CBLMariner         OSType = "cbl-mariner"
+ 	CentOS             OSType = "centos"
+diff --git a/pkg/flag/db_flags.go b/pkg/flag/db_flags.go
+index 3b00f8a..f82a314 100644
+--- a/pkg/flag/db_flags.go
++++ b/pkg/flag/db_flags.go
+@@ -1,11 +1,16 @@
+ package flag
+ 
+ import (
++	"slices"
+ 	"strconv"
++	"strings"
+ 
+ 	"github.com/google/go-containerregistry/pkg/name"
++	"github.com/spf13/viper"
+ 	"golang.org/x/xerrors"
+ 
++	osvinternal "github.com/bell-sw/osv-internal"
++
+ 	"github.com/aquasecurity/trivy/pkg/db"
+ 	"github.com/aquasecurity/trivy/pkg/javadb"
+ 	"github.com/aquasecurity/trivy/pkg/log"
+@@ -62,6 +67,22 @@ var (
+ 		Default:    []string{javadb.DefaultGCRRepository, javadb.DefaultGHCRRepository},
+ 		Usage:      "OCI repository(ies) to retrieve trivy-java-db in order of priority",
+ 	}
++	// shared with the other scanners (same names and help texts)
++	VendorURLFlag = Flag[string]{
++		Name:       "vendor-url",
++		ConfigName: "db.vendor-url",
++		Usage:      "base location of the vendor OSV archives for all products (<url>/<product>/all.zip); http(s), file:// or a directory",
++	}
++	VendorFeedFlag = Flag[[]string]{
++		Name:       "vendor-feed",
++		ConfigName: "db.vendor-feed",
++		Usage:      "location of the vendor OSV archive of one product, as \"<product>=<url>\"; repeatable; products: " + strings.Join(osvinternal.Ecosystems, ", "),
++	}
++	VendorStrictFlag = Flag[bool]{
++		Name:       "vendor-strict",
++		ConfigName: "db.vendor-strict",
++		Usage:      "fail when vendor OSV data is unavailable instead of warning and continuing",
++	}
+ 	LightFlag = Flag[bool]{
+ 		Name:       "light",
+ 		ConfigName: "db.light",
+@@ -80,6 +101,9 @@ type DBFlagGroup struct {
+ 	NoProgress         *Flag[bool]
+ 	DBRepositories     *Flag[[]string]
+ 	JavaDBRepositories *Flag[[]string]
++	VendorURL          *Flag[string]
++	VendorStrict       *Flag[bool]
++	VendorFeeds        *Flag[[]string]
+ 	Light              *Flag[bool] // deprecated
+ }
+ 
+@@ -92,6 +116,11 @@ type DBOptions struct {
+ 	NoProgress         bool
+ 	DBRepositories     []name.Reference
+ 	JavaDBRepositories []name.Reference
++
++	// vendor OSV archives
++	VendorURL    string
++	VendorStrict bool
++	VendorFeeds  map[string]string
+ }
+ 
+ // NewDBFlagGroup returns a default DBFlagGroup
+@@ -106,6 +135,9 @@ func NewDBFlagGroup() *DBFlagGroup {
+ 		NoProgress:         NoProgressFlag.Clone(),
+ 		DBRepositories:     DBRepositoryFlag.Clone(),
+ 		JavaDBRepositories: JavaDBRepositoryFlag.Clone(),
++		VendorURL:          VendorURLFlag.Clone(),
++		VendorStrict:       VendorStrictFlag.Clone(),
++		VendorFeeds:        VendorFeedFlag.Clone(),
+ 	}
+ }
+ 
+@@ -123,6 +155,9 @@ func (f *DBFlagGroup) Flags() []Flagger {
+ 		f.NoProgress,
+ 		f.DBRepositories,
+ 		f.JavaDBRepositories,
++		f.VendorURL,
++		f.VendorStrict,
++		f.VendorFeeds,
+ 		f.Light,
+ 	}
+ }
+@@ -160,6 +195,25 @@ func (f *DBFlagGroup) ToOptions(opts *Options) error {
+ 		javaDBRepositories = append(javaDBRepositories, ref)
+ 	}
+ 
++	var feeds map[string]string
++	for _, kv := range vendorFeedPairs(f.VendorFeeds) {
++		product, u, ok := strings.Cut(kv, "=")
++		product, u = strings.TrimSpace(product), strings.TrimSpace(u)
++		if !ok || product == "" || u == "" {
++			return xerrors.Errorf("invalid --%s value %q: want <product>=<url>", f.VendorFeeds.Name, kv)
++		}
++		// Product names are matched case-insensitively and stored as the feed spells them.
++		i := slices.IndexFunc(osvinternal.Ecosystems, func(name string) bool { return strings.EqualFold(name, product) })
++		if i < 0 {
++			return xerrors.Errorf("invalid --%s value %q: unknown product %q (products: %s)", f.VendorFeeds.Name, kv,
++				product, strings.Join(osvinternal.Ecosystems, ", "))
++		}
++		if feeds == nil {
++			feeds = make(map[string]string)
++		}
++		feeds[osvinternal.Ecosystems[i]] = u
++	}
++
+ 	opts.DBOptions = DBOptions{
+ 		Reset:              f.Reset.Value(),
+ 		DownloadDBOnly:     downloadDBOnly,
+@@ -169,6 +223,9 @@ func (f *DBFlagGroup) ToOptions(opts *Options) error {
+ 		NoProgress:         f.NoProgress.Value(),
+ 		DBRepositories:     dbRepositories,
+ 		JavaDBRepositories: javaDBRepositories,
++		VendorURL:          f.VendorURL.Value(),
++		VendorStrict:       f.VendorStrict.Value(),
++		VendorFeeds:        feeds,
+ 	}
+ 	return nil
+ }
+@@ -191,3 +248,24 @@ func parseRepository(repo string, dbSchemaVersion int) (name.Reference, error) {
+ 
+ 	return dbRepository, nil
+ }
++
++// vendorFeedPairs returns the "<product>=<url>" pairs of --vendor-feed.
++// The environment variable holds comma-separated pairs; the generic slice
++// conversion would split a single pair at the space of a product name
++// ("<product with a space>=..."), so the raw string is split on commas here.
++func vendorFeedPairs(f *Flag[[]string]) []string {
++	if f == nil {
++		return nil
++	}
++	raw, ok := viper.Get(f.ConfigName).(string)
++	if !ok {
++		return f.Value()
++	}
++	var pairs []string
++	for pair := range strings.SplitSeq(raw, ",") {
++		if pair = strings.TrimSpace(pair); pair != "" {
++			pairs = append(pairs, pair)
++		}
++	}
++	return pairs
++}
+diff --git a/pkg/flag/db_flags_test.go b/pkg/flag/db_flags_test.go
+index 2b8fae9..2286091 100644
+--- a/pkg/flag/db_flags_test.go
++++ b/pkg/flag/db_flags_test.go
+@@ -1,8 +1,12 @@
+ package flag_test
+ 
+ import (
++	"strings"
++	"fmt"
+ 	"testing"
+ 
++	osvinternal "github.com/bell-sw/osv-internal"
++
+ 	"github.com/google/go-containerregistry/pkg/name"
+ 	"github.com/spf13/viper"
+ 	"github.com/stretchr/testify/assert"
+@@ -116,3 +120,87 @@ func TestDBFlagGroup_ToOptions(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func TestDBFlagGroup_Vendor(t *testing.T) {
++	linux, hardened, jdk, nik := osvinternal.EcosystemLinux, osvinternal.EcosystemHardened, osvinternal.EcosystemJDK, osvinternal.EcosystemNIK
++	tests := []struct {
++		name    string
++		url     string
++		feeds   []string
++		env     string // TRIVY_VENDOR_FEED
++		strict  bool
++		want    flag.DBOptions
++		wantErr string
++	}{
++		{
++			name: "nothing set: no base, the per-product defaults apply",
++			want: flag.DBOptions{},
++		},
++		{
++			name:   "base, feeds and strict",
++			url:    "https://mirror.example/osv",
++			feeds:  []string{jdk + "=file:///srv/osv", strings.ToLower(nik) + " = /srv/nik/all.zip", strings.ToUpper(linux) + "=https://a.example"},
++			strict: true,
++			want: flag.DBOptions{
++				VendorURL: "https://mirror.example/osv",
++				VendorFeeds: map[string]string{
++					jdk:   "file:///srv/osv",
++					nik:   "/srv/nik/all.zip",
++					linux: "https://a.example",
++				},
++				VendorStrict: true,
++			},
++		},
++		{
++			name: "environment variable: comma-separated pairs, one pair with a space in the product name",
++			env:  strings.ToLower(jdk) + "=file:///srv/osv/" + jdk + "/all.zip",
++			want: flag.DBOptions{
++				VendorFeeds: map[string]string{jdk: "file:///srv/osv/" + jdk + "/all.zip"},
++			},
++		},
++		{
++			name: "environment variable: two pairs",
++			env:  jdk + "=/srv/jdk, " + hardened + "=/srv/bhc",
++			want: flag.DBOptions{
++				VendorFeeds: map[string]string{jdk: "/srv/jdk", hardened: "/srv/bhc"},
++			},
++		},
++		{
++			name:    "unknown product",
++			feeds:   []string{"Zulu=https://x.example"},
++			wantErr: fmt.Sprintf("unknown product %q (products: %s)", "Zulu", strings.Join(osvinternal.Ecosystems, ", ")),
++		},
++		{
++			name:    "not a pair",
++			feeds:   []string{"https://x.example"},
++			wantErr: "want <product>=<url>",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			t.Cleanup(viper.Reset)
++			viper.Set(flag.VendorURLFlag.ConfigName, tt.url)
++			if tt.env != "" {
++				t.Setenv("TRIVY_VENDOR_FEED", tt.env)
++			} else {
++				viper.Set(flag.VendorFeedFlag.ConfigName, tt.feeds)
++			}
++			viper.Set(flag.VendorStrictFlag.ConfigName, tt.strict)
++
++			f := &flag.DBFlagGroup{
++				VendorURL:    flag.VendorURLFlag.Clone(),
++				VendorFeeds:  flag.VendorFeedFlag.Clone(),
++				VendorStrict: flag.VendorStrictFlag.Clone(),
++			}
++			require.NoError(t, f.VendorFeeds.BindEnv())
++			flags := flag.Flags{f}
++			got, err := flags.ToOptions(nil)
++			if tt.wantErr != "" {
++				require.ErrorContains(t, err, tt.wantErr)
++				return
++			}
++			require.NoError(t, err)
++			assert.EqualExportedValues(t, tt.want, got.DBOptions)
++		})
++	}
++}
+diff --git a/pkg/flag/vulnerability_flags.go b/pkg/flag/vulnerability_flags.go
+index f5ed895..b910372 100644
+--- a/pkg/flag/vulnerability_flags.go
++++ b/pkg/flag/vulnerability_flags.go
+@@ -1,11 +1,14 @@
+ package flag
+ 
+ import (
++	"slices"
++
+ 	"github.com/samber/lo"
+ 
+ 	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
+ 	"github.com/aquasecurity/trivy-db/pkg/vulnsrc/vulnerability"
+ 	"github.com/aquasecurity/trivy/pkg/log"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
+ 	"github.com/aquasecurity/trivy/pkg/vex"
+ 	xslices "github.com/aquasecurity/trivy/pkg/x/slices"
+ 	xstrings "github.com/aquasecurity/trivy/pkg/x/strings"
+@@ -42,7 +45,7 @@ var (
+ 		Default: []string{
+ 			"auto",
+ 		},
+-		Values:        append(xstrings.ToStringSlice(vulnerability.AllSourceIDs), "auto"),
++		Values:        severitySources(),
+ 		Usage:         "order of data sources for selecting vulnerability severity level",
+ 		TelemetrySafe: true,
+ 	}
+@@ -117,3 +120,19 @@ func (f *VulnerabilityFlagGroup) ToOptions(opts *Options) error {
+ 	}
+ 	return nil
+ }
++
++// severitySources lists the accepted --vuln-severity-source values: the source
++// ids of Trivy DB plus the vendor OSV sources, which are not part of it. The
++// two distributions follow "alpine", where Trivy DB would list them; the
++// standalone runtime products come last.
++func severitySources() []string {
++	ids := xstrings.ToStringSlice(vulnerability.AllSourceIDs)
++	distros := []string{string(vendordb.SourceLinux), string(vendordb.SourceHardened)}
++	distros = slices.DeleteFunc(distros, func(id string) bool { return slices.Contains(ids, id) })
++	at := slices.Index(ids, string(vulnerability.Alpine)) + 1
++	if at == 0 {
++		at = len(ids)
++	}
++	ids = slices.Insert(ids, at, distros...)
++	return append(ids, string(vendordb.SourceJDK), "auto")
++}
+diff --git a/pkg/vendordb/vendordb.go b/pkg/vendordb/vendordb.go
+new file mode 100644
+index 0000000..7454e44
+--- /dev/null
++++ b/pkg/vendordb/vendordb.go
+@@ -0,0 +1,282 @@
++// Package vendordb wires the vendor OSV advisory source into Trivy. The
++// advisories are not in Trivy DB; the shared github.com/bell-sw/osv-internal
++// module downloads the OSV bulk archives on demand and caches them under
++// <cache-dir>/<ecosystem>/. This package holds the process-wide source
++// configured from the flags (like db.Init for Trivy DB) and the Trivy
++// presentation of an advisory.
++package vendordb
++
++import (
++	"context"
++	"fmt"
++	"os"
++	"path/filepath"
++	"strings"
++	"sync"
++	"time"
++
++	"golang.org/x/xerrors"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	osvdistro "github.com/bell-sw/osv-internal/distro"
++	"github.com/bell-sw/osv-internal/match"
++	"github.com/bell-sw/osv-internal/osvdata"
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
++	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
++	"github.com/aquasecurity/trivy/pkg/log"
++	"github.com/aquasecurity/trivy/pkg/types"
++	xhttp "github.com/aquasecurity/trivy/pkg/x/http"
++)
++
++// Source IDs, one per ecosystem family.
++const (
++	SourceLinux    dbTypes.SourceID = osvdistro.IDLinux
++	SourceHardened dbTypes.SourceID = osvdistro.IDHardened
++	SourceJDK      dbTypes.SourceID = osvjdk.PURLNameJDK
++)
++
++// Options are the user-facing settings of the OSV source.
++type Options struct {
++	// CacheDir is the Trivy cache directory.
++	CacheDir string
++	// BaseURL is the base of "<ecosystem>/all.zip" for every family
++	// (--vendor-url); empty means the module's default of each family.
++	BaseURL string
++	// Strict makes an unavailable archive an error instead of a warning
++	// (--vendor-strict).
++	Strict bool
++	// URLs overrides the archive location per ecosystem (--vendor-feed).
++	URLs map[string]string
++	// SkipUpdate is true with --skip-db-update or --offline-scan.
++	SkipUpdate bool
++	// Quiet suppresses progress logging.
++	Quiet bool
++}
++
++// AdvisorySource serves the advisory index of an ecosystem family.
++// *osvdata.Source implements it; tests inject an index built from a file.
++type AdvisorySource interface {
++	Ecosystem(ctx context.Context, family string) (*osvdata.Index, error)
++}
++
++var (
++	mu     sync.Mutex
++	source *osvdata.Source
++	strict bool
++	// warned holds the families whose "unavailable" warning was printed, so
++	// that it appears once per family and not once per scanned layer.
++	warned = make(map[string]struct{})
++)
++
++// Init configures the process-wide source. It is called by the command layer
++// once the flags are parsed; drivers resolve the source lazily at scan time
++// because they are constructed at package initialization.
++func Init(opts Options) {
++	mu.Lock()
++	defer mu.Unlock()
++	source = newSource(opts)
++	strict = opts.Strict
++	warned = make(map[string]struct{})
++}
++
++func newSource(opts Options) *osvdata.Source {
++	if opts.CacheDir == "" {
++		opts.CacheDir = defaultCacheDir()
++	}
++	src := &osvdata.Source{
++		BaseURL:    opts.BaseURL,
++		URLs:       opts.URLs,
++		CacheDir:   opts.CacheDir,
++		Offline:    opts.SkipUpdate,
++		HTTPClient: xhttp.Client(),
++		UserAgent:  "trivy osv-internal/" + osvinternal.Version,
++	}
++	// the module's own prefix is redundant in Trivy's log
++	msg := func(format string, args ...any) string {
++		return strings.TrimPrefix(fmt.Sprintf(format, args...), "osv-internal: ")
++	}
++	if opts.Quiet {
++		src.Logf = func(format string, args ...any) { log.Debug(msg(format, args...)) }
++	} else {
++		src.Logf = func(format string, args ...any) { log.Info(msg(format, args...)) }
++	}
++	return src
++}
++
++// defaultCacheDir mirrors cache.DefaultDir without importing the cache package.
++func defaultCacheDir() string {
++	dir, err := os.UserCacheDir()
++	if err != nil {
++		dir = os.TempDir()
++	}
++	return filepath.Join(dir, "trivy")
++}
++
++// Source returns the process-wide source, created with defaults when Init
++// was never called (library use, unit tests).
++func Source() *osvdata.Source {
++	mu.Lock()
++	defer mu.Unlock()
++	if source == nil {
++		source = newSource(Options{})
++	}
++	return source
++}
++
++// Download fetches every vendor archive into the cache (--download-db-only).
++// An unavailable family is warned about as during a scan and the others are
++// still downloaded, unless strict mode is on.
++func Download(ctx context.Context) error {
++	src := Source()
++	for _, family := range osvinternal.Ecosystems {
++		err := src.Update(ctx, family)
++		if err == nil {
++			continue
++		}
++		if w := osvdata.UnavailableWarning(err); w != "" && !isStrict() {
++			warnOnce(ctx, family, w)
++			continue
++		}
++		return xerrors.Errorf("%s OSV download error: %w", osvinternal.Vendor, err)
++	}
++	return nil
++}
++
++// Index returns the advisory index of a family from src. An unavailable
++// archive is logged once per family with the module's canonical warning and
++// yields a nil index and nil error (no findings for that family); in strict
++// mode, and for any other failure, the error is returned.
++func Index(ctx context.Context, src AdvisorySource, family string) (*osvdata.Index, error) {
++	idx, err := src.Ecosystem(ctx, family)
++	if err == nil {
++		WarnIfStale(ctx, idx)
++		return idx, nil
++	}
++	if w := osvdata.UnavailableWarning(err); w != "" && !isStrict() {
++		warnOnce(ctx, family, w)
++		return nil, nil
++	}
++	return nil, xerrors.Errorf("failed to load the %s advisories for %s: %w", osvinternal.Vendor, family, err)
++}
++
++func isStrict() bool {
++	mu.Lock()
++	defer mu.Unlock()
++	return strict
++}
++
++func warnOnce(ctx context.Context, family, warning string) {
++	mu.Lock()
++	_, done := warned[family]
++	warned[family] = struct{}{}
++	mu.Unlock()
++	if !done {
++		log.WarnContext(ctx, warning)
++	}
++}
++
++// WarnIfStale logs when the module served an expired cache because the
++// download failed, so that stale results are never silent.
++func WarnIfStale(ctx context.Context, idx *osvdata.Index) {
++	if idx != nil && idx.Stale {
++		log.WarnContext(ctx, "The vendor OSV archive could not be refreshed; using the cached copy",
++			log.String("ecosystem", idx.Family), log.String("downloaded_at", idx.DownloadedAt.Format(time.RFC3339)))
++	}
++}
++
++// Clear removes the cached archives and indexes (trivy clean --vuln-db); the
++// families live directly in the Trivy cache directory, so only they go.
++func Clear(ctx context.Context, cacheDir string) error {
++	src := &osvdata.Source{CacheDir: cacheDir}
++	for _, family := range osvinternal.Ecosystems {
++		dir := src.CachePath(family)
++		log.DebugContext(ctx, "Removing the vendor OSV cache", log.String("dir", dir))
++		if err := os.RemoveAll(dir); err != nil {
++			return xerrors.Errorf("unable to remove %s: %w", dir, err)
++		}
++	}
++	return nil
++}
++
++// DataSource describes where an advisory of the given ecosystem comes from.
++// recordURL is the canonical record (database_specific.source) when known.
++func DataSource(ecosystem, recordURL string) *dbTypes.DataSource {
++	ds := &dbTypes.DataSource{
++		Name: osvinternal.Vendor + " OSV database",
++		URL:  "https://github.com/bell-sw/osv-database",
++	}
++	family := osvinternal.Family(ecosystem)
++	switch family {
++	case osvinternal.EcosystemLinux:
++		ds.ID = SourceLinux
++	case osvinternal.EcosystemHardened:
++		ds.ID = SourceHardened
++	case osvinternal.EcosystemJDK:
++		ds.ID = SourceJDK
++	}
++	if ds.ID != "" {
++		ds.Name = family + " OSV database"
++	}
++	if recordURL != "" {
++		ds.URL = recordURL
++	}
++	return ds
++}
++
++// Vulnerability converts a finding of the shared matcher into the Trivy
++// finding: the CVE as vulnerability id, the OSV record id as vendor id, plus
++// the severity, CVSS and references the vendor publishes.
++func Vulnerability(f match.Finding) types.DetectedVulnerability {
++	adv := f.Advisory
++	ds := DataSource(f.Ecosystem, adv.SourceURL)
++	v := types.DetectedVulnerability{
++		VulnerabilityID:  adv.CVE,
++		VendorIDs:        []string{adv.ID},
++		InstalledVersion: f.InstalledVersion,
++		FixedVersion:     f.FixedVersion,
++		DataSource:       ds,
++		Vulnerability: dbTypes.Vulnerability{
++			Title:       adv.Summary,
++			Description: adv.Details,
++		},
++	}
++	if adv.CVE == adv.ID {
++		v.VendorIDs = nil
++	}
++	for _, alias := range adv.Aliases {
++		if alias != adv.CVE && alias != adv.ID {
++			v.VendorIDs = append(v.VendorIDs, alias)
++		}
++	}
++	for _, ref := range adv.References {
++		if ref.URL != "" {
++			v.References = append(v.References, ref.URL)
++		}
++	}
++	if !adv.Published.IsZero() {
++		t := adv.Published
++		v.PublishedDate = &t
++	}
++	if !adv.Modified.IsZero() {
++		t := adv.Modified
++		v.LastModifiedDate = &t
++	}
++	if adv.Severity != "" && adv.Severity != dbTypes.SeverityUnknown.String() {
++		v.Severity = adv.Severity
++		v.SeveritySource = ds.ID
++	}
++	if adv.CVSSVector != "" {
++		cvss := dbTypes.CVSS{}
++		switch adv.CVSSVersion {
++		case "2.0", "2":
++			cvss.V2Vector, cvss.V2Score = adv.CVSSVector, adv.CVSSScore
++		case "4.0", "4":
++			cvss.V40Vector, cvss.V40Score = adv.CVSSVector, adv.CVSSScore
++		default:
++			cvss.V3Vector, cvss.V3Score = adv.CVSSVector, adv.CVSSScore
++		}
++		v.CVSS = dbTypes.VendorCVSS{ds.ID: cvss}
++	}
++	return v
++}
+diff --git a/pkg/vendordb/vendordb_test.go b/pkg/vendordb/vendordb_test.go
+new file mode 100644
+index 0000000..7193999
+--- /dev/null
++++ b/pkg/vendordb/vendordb_test.go
+@@ -0,0 +1,126 @@
++package vendordb_test
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"net/http"
++	"net/url"
++	"sync"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/osvdata"
++
++	"github.com/aquasecurity/trivy/pkg/vendordb"
++)
++
++// archiveURL is where the module fetches the archive of a family below a base URL (<base>/<family>/all.zip).
++func archiveURL(base, family string) string {
++	return base + "/" + url.PathEscape(family) + "/" + osvdata.ArchiveName
++}
++
++// recorder answers every request with 404 and remembers the URLs.
++type recorder struct {
++	mu   sync.Mutex
++	urls []string
++}
++
++func (r *recorder) RoundTrip(req *http.Request) (*http.Response, error) {
++	r.mu.Lock()
++	r.urls = append(r.urls, req.URL.String())
++	r.mu.Unlock()
++	return &http.Response{
++		StatusCode: http.StatusNotFound,
++		Status:     "404 Not Found",
++		Body:       http.NoBody,
++		Header:     make(http.Header),
++		Request:    req,
++	}, nil
++}
++
++// With no configuration every family is requested from its own default: the
++// osv.dev bucket for the distributions, the product base URL for the runtimes.
++func TestDefaultSources(t *testing.T) {
++	vendordb.Init(vendordb.Options{CacheDir: t.TempDir(), Quiet: true})
++	src := vendordb.Source()
++	rec := &recorder{}
++	src.HTTPClient = &http.Client{Transport: rec}
++
++	want := map[string]string{
++		osvinternal.EcosystemLinux:    archiveURL(osvdata.DefaultBaseURL, osvinternal.EcosystemLinux),
++		osvinternal.EcosystemHardened: archiveURL(osvdata.DefaultBaseURL, osvinternal.EcosystemHardened),
++		osvinternal.EcosystemJDK:      archiveURL(osvdata.DefaultProductBaseURL, osvinternal.EcosystemJDK),
++		osvinternal.EcosystemNIK:      archiveURL(osvdata.DefaultProductBaseURL, osvinternal.EcosystemNIK),
++	}
++	for family, url := range want {
++		rec.urls = nil
++		idx, err := vendordb.Index(context.Background(), src, family)
++		require.NoError(t, err, family) // unavailable: a warning, not an error
++		assert.Nil(t, idx, family)
++		assert.Equal(t, []string{url}, rec.urls, family)
++	}
++}
++
++// An explicit base URL applies to every family; a per-family source wins.
++func TestConfiguredSources(t *testing.T) {
++	vendordb.Init(vendordb.Options{
++		CacheDir: t.TempDir(),
++		BaseURL:  "https://mirror.example/osv",
++		URLs:     map[string]string{osvinternal.EcosystemNIK: "https://nik.example/data"},
++		Quiet:    true,
++	})
++	src := vendordb.Source()
++	assert.Equal(t, archiveURL("https://mirror.example/osv", osvinternal.EcosystemLinux), src.ArchiveURL(osvinternal.EcosystemLinux))
++	assert.Equal(t, archiveURL("https://mirror.example/osv", osvinternal.EcosystemJDK), src.ArchiveURL(osvinternal.EcosystemJDK))
++	assert.Equal(t, archiveURL("https://nik.example/data", osvinternal.EcosystemNIK), src.ArchiveURL(osvinternal.EcosystemNIK))
++}
++
++type failingSource struct{ err error }
++
++func (s failingSource) Ecosystem(context.Context, string) (*osvdata.Index, error) {
++	return nil, s.err
++}
++
++func TestIndex_Unavailable(t *testing.T) {
++	unavailable := &osvdata.UnavailableError{
++		Family: osvinternal.EcosystemJDK,
++		URL:    archiveURL(osvdata.DefaultProductBaseURL, osvinternal.EcosystemJDK),
++		Reason: "HTTP 404",
++	}
++	assert.Equal(t, fmt.Sprintf("%s OSV data for %q is unavailable (HTTP 404); packages of this product were NOT checked against %s advisories. Source: %s",
++		osvinternal.Vendor, osvinternal.EcosystemJDK, osvinternal.Vendor, unavailable.URL), osvdata.UnavailableWarning(unavailable))
++
++	t.Run("default: warn and continue", func(t *testing.T) {
++		vendordb.Init(vendordb.Options{CacheDir: t.TempDir()})
++		idx, err := vendordb.Index(context.Background(), failingSource{err: unavailable}, osvinternal.EcosystemJDK)
++		require.NoError(t, err)
++		assert.Nil(t, idx)
++	})
++	t.Run("strict: fail", func(t *testing.T) {
++		vendordb.Init(vendordb.Options{CacheDir: t.TempDir(), Strict: true})
++		_, err := vendordb.Index(context.Background(), failingSource{err: unavailable}, osvinternal.EcosystemJDK)
++		require.ErrorContains(t, err, "failed to load the "+osvinternal.Vendor+" advisories for "+osvinternal.EcosystemJDK)
++		var ue *osvdata.UnavailableError
++		assert.ErrorAs(t, err, &ue)
++	})
++	t.Run("skip update with nothing cached: warn and continue", func(t *testing.T) {
++		vendordb.Init(vendordb.Options{CacheDir: t.TempDir(), SkipUpdate: true})
++		idx, err := vendordb.Index(context.Background(), vendordb.Source(), osvinternal.EcosystemLinux)
++		require.NoError(t, err)
++		assert.Nil(t, idx)
++	})
++	t.Run("skip update with nothing cached, strict: fail", func(t *testing.T) {
++		vendordb.Init(vendordb.Options{CacheDir: t.TempDir(), SkipUpdate: true, Strict: true})
++		_, err := vendordb.Index(context.Background(), vendordb.Source(), osvinternal.EcosystemLinux)
++		require.ErrorIs(t, err, osvdata.ErrNotCached)
++	})
++	t.Run("another failure is always an error", func(t *testing.T) {
++		vendordb.Init(vendordb.Options{CacheDir: t.TempDir()})
++		_, err := vendordb.Index(context.Background(), failingSource{err: errors.New("cache directory is not writable")}, osvinternal.EcosystemLinux)
++		require.ErrorContains(t, err, "cache directory is not writable")
++	})
++}
+diff --git a/pkg/vulnerability/vulnerability.go b/pkg/vulnerability/vulnerability.go
+index dd5d6e0..14ae9a8 100644
+--- a/pkg/vulnerability/vulnerability.go
++++ b/pkg/vulnerability/vulnerability.go
+@@ -81,6 +81,15 @@ func (c Client) FillInfo(vulns []types.DetectedVulnerability, severitySources []
+ 			// Fall back to UNKNOWN so the severity is never left empty.
+ 			// An empty string is not a valid severity and would be rejected when parsed (e.g. during RPC conversion).
+ 			vulns[i].Severity = cmp.Or(vulns[i].Severity, dbTypes.SeverityUnknown.String())
++			// a detector that rates the vulnerability itself (the vendor OSV
++			// source) keeps its rating as the vendor severity
++			if src := vulns[i].SeveritySource; src != "" {
++				if vulns[i].VendorSeverity == nil {
++					vulns[i].VendorSeverity = make(dbTypes.VendorSeverity)
++				}
++				sev, _ := dbTypes.NewSeverity(vulns[i].Severity) // SeverityUnknown on error
++				vulns[i].VendorSeverity[src] = sev
++			}
+ 			continue
+ 		}
+ 
+@@ -112,6 +121,30 @@ func (c Client) FillInfo(vulns []types.DetectedVulnerability, severitySources []
+ 			vuln.VendorSeverity[severitySource] = s
+ 		}
+ 
++		// keep what the detector attached (vendor CVSS, references and, when
++		// the DB has none, the dates) next to the data from the DB
++		if len(vulns[i].CVSS) > 0 {
++			if vuln.CVSS == nil {
++				vuln.CVSS = make(dbTypes.VendorCVSS)
++			}
++			for src, cvss := range vulns[i].CVSS {
++				if _, ok := vuln.CVSS[src]; !ok {
++					vuln.CVSS[src] = cvss
++				}
++			}
++		}
++		for _, ref := range vulns[i].References {
++			if !slices.Contains(vuln.References, ref) {
++				vuln.References = append(vuln.References, ref)
++			}
++		}
++		if vuln.PublishedDate == nil {
++			vuln.PublishedDate = vulns[i].PublishedDate
++		}
++		if vuln.LastModifiedDate == nil {
++			vuln.LastModifiedDate = vulns[i].LastModifiedDate
++		}
++
+ 		// Add the vulnerability detail
+ 		vulns[i].Vulnerability = vuln
+ 
+diff --git a/pkg/vulnerability/vulnerability_test.go b/pkg/vulnerability/vulnerability_test.go
+index 2ec59f6..5abbaf7 100644
+--- a/pkg/vulnerability/vulnerability_test.go
++++ b/pkg/vulnerability/vulnerability_test.go
+@@ -10,6 +10,7 @@ import (
+ 	"github.com/aquasecurity/trivy-db/pkg/utils"
+ 	"github.com/aquasecurity/trivy-db/pkg/vulnsrc/vulnerability"
+ 	"github.com/aquasecurity/trivy/internal/dbtest"
++	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+ 	"github.com/aquasecurity/trivy/pkg/types"
+ 	vuln "github.com/aquasecurity/trivy/pkg/vulnerability"
+ )
+@@ -476,6 +477,33 @@ func TestClient_FillInfo(t *testing.T) {
+ 				},
+ 			},
+ 		},
++		{
++			name:     "GetVulnerability returns an error, the detector's own severity is kept",
++			fixtures: []string{"testdata/fixtures/sad.yaml"},
++			vulns: []types.DetectedVulnerability{
++				{
++					VulnerabilityID: "CVE-2019-0004",
++					Status:          dbTypes.StatusAffected,
++					SeveritySource:  dbTypes.SourceID(ftypes.VendorLinux),
++					Vulnerability: dbTypes.Vulnerability{
++						Severity: dbTypes.SeverityLow.String(),
++					},
++				},
++			},
++			expectedVulnerabilities: []types.DetectedVulnerability{
++				{
++					VulnerabilityID: "CVE-2019-0004",
++					Status:          dbTypes.StatusAffected,
++					SeveritySource:  dbTypes.SourceID(ftypes.VendorLinux),
++					Vulnerability: dbTypes.Vulnerability{
++						Severity: dbTypes.SeverityLow.String(),
++						VendorSeverity: dbTypes.VendorSeverity{
++							dbTypes.SourceID(ftypes.VendorLinux): dbTypes.SeverityLow,
++						},
++					},
++				},
++			},
++		},
+ 	}
+ 
+ 	for _, tt := range tests {
+diff --git a/schema/trivy-config.json b/schema/trivy-config.json
+index 92d03ee..a9e6e35 100644
+--- a/schema/trivy-config.json
++++ b/schema/trivy-config.json
+@@ -152,6 +152,21 @@
+             "type": "string"
+           },
+           "description": "OCI repository(ies) to retrieve trivy-java-db in order of priority"
++        },
++        "vendor-url": {
++          "type": "string",
++          "description": "base location of the vendor OSV archives for all products (\u003curl\u003e/\u003cproduct\u003e/all.zip); http(s), file:// or a directory"
++        },
++        "vendor-strict": {
++          "type": "boolean",
++          "description": "fail when vendor OSV data is unavailable instead of warning and continuing"
++        },
++        "vendor-feed": {
++          "type": "array",
++          "items": {
++            "type": "string"
++          },
++          "description": "location of the vendor OSV archive of one product, as \"\u003cproduct\u003e=\u003curl\u003e\"; repeatable; products: Alpaquita, BellSoft Hardened Containers, Liberica JDK, Liberica NIK"
+         }
+       }
+     },
+@@ -953,6 +968,7 @@
+               "minimos",
+               "rootio",
+               "rapidfort",
++              "liberica-jdk",
+               "auto"
+             ]
+           },
+-- 
+2.55.0
+
