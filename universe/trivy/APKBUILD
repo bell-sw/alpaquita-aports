@@ -1,0 +1,88 @@
+pkgname=trivy
+pkgver=0.74.0
+pkgrel=9
+pkgdesc="Comprehensive vulnerability scanner for containers, filesystems, repositories and SBOMs"
+url="https://trivy.dev/"
+arch="all"
+license="Apache-2.0"
+makedepends="go osv-internal>=0.5.5"
+_osvmod=github.com/bell-sw/osv-internal
+subpackages="
+	$pkgname-bash-completion
+	$pkgname-zsh-completion
+	$pkgname-fish-completion
+	"
+options="net"
+source="https://github.com/aquasecurity/trivy/archive/v$pkgver/trivy-$pkgver.tar.gz
+	0100-fix-apk-support-the-apk-tools-3-database-location-an.patch
+	0101-feat-vendorapk-add-the-vendor-s-apk-based-distributi.patch
+	0102-build-compile-and-behave-the-same-with-Go-1.26-and-G.patch
+	0103-feat-vendordb-read-the-vendor-advisories-from-the-OS.patch
+	0104-feat-vendorjdk-detect-standalone-vendor-JDK-and-NIK-.patch
+	0105-fix-vendorapk-resolve-the-source-package-from-the-pu.patch
+	0106-feat-vendorjdk-match-standalone-vendor-runtimes-sent.patch
+	0107-feat-vendorjdk-one-package-type-per-product-family-o.patch
+	"
+
+# Trivy 0.74.0 is built with the jsonv2 experiment upstream (goreleaser.yml)
+export GOEXPERIMENT=jsonv2
+export GOFLAGS="$GOFLAGS -modcacherw -trimpath"
+export CGO_ENABLED=0
+
+prepare() {
+	default_prepare
+
+	go mod edit -replace $_osvmod=/usr/share/go-modules/$_osvmod
+}
+
+build() {
+	go build -ldflags " \
+		-X github.com/aquasecurity/trivy/pkg/version/app.ver=$pkgver" \
+		-o bin/trivy ./cmd/trivy
+
+	./bin/trivy completion bash > $pkgname.bash
+	./bin/trivy completion zsh > $pkgname.zsh
+	./bin/trivy completion fish > $pkgname.fish
+}
+
+check() {
+	# The packages touched by the vendor patches; the full upstream suite
+	# needs network fixtures and docker. -vet=off: with the go 1.26 directive,
+	# Go 1.27's vet flags every encoding/json/v2 use as "requires go1.27"
+	# (stdversion notes, not errors). pkg/iac/scanners/cloudformation/parser
+	# (also touched) needs integration/testimages.ini, which the release tarball
+	# does not ship; it is tested in the source tree (tests/unit.log).
+	go test -vet=off ./pkg/vendordb/... \
+		./pkg/detector/ospkg/vendorapk/... \
+		./pkg/detector/library/... \
+		./pkg/fanal/analyzer/language/java/vendorjdk/... \
+		./pkg/fanal/analyzer/os/release/... \
+		./pkg/fanal/analyzer/pkg/apk/... \
+		./pkg/scan/langpkg/... \
+		./pkg/scan/local/... \
+		./pkg/sbom/... \
+		./pkg/purl/... \
+		./pkg/flag/... \
+		./pkg/x/json/... \
+		./pkg/result/...
+}
+
+package() {
+	install -Dm755 bin/trivy -t "$pkgdir"/usr/bin/
+
+	install -Dm644 $pkgname.bash "$pkgdir"/usr/share/bash-completion/completions/$pkgname
+	install -Dm644 $pkgname.zsh "$pkgdir"/usr/share/zsh/site-functions/_$pkgname
+	install -Dm644 $pkgname.fish "$pkgdir"/usr/share/fish/vendor_completions.d/$pkgname.fish
+}
+
+sha512sums="
+bae4f9713760e22013f3f2ec2151d83dd9ca4677673ef69b2caa6bec337375d08d708a133a432c4d9f08354fc94913bac74b165fa9f55331b17becf806fe78fe  trivy-0.74.0.tar.gz
+acf1142dedc83863f0cea2397e87c8b072321edaab0a0426a89ca0776b9a645cdaaa5fd682f1de6b2dd4b4b67b08f95e5c60f4c39e250db0c4a399a1dc388a59  0100-fix-apk-support-the-apk-tools-3-database-location-an.patch
+ed91e26acaedfa166e1674b9afe3a4c1c27693620df2c17d398c1b3e53437d99b9b8f94bc0907ce0fe5f32fdcc32cdf641cb1346ec6c08c53a7e120a1584c07e  0101-feat-vendorapk-add-the-vendor-s-apk-based-distributi.patch
+5ca267cafa5e5d56a6e4a05b7e28c59af52469641916da77a7cac02d93b7075e0d86dd0b00d7a6cd5a4a3265b70c5fd792e7b925a358865e8dc444d46b8f920b  0102-build-compile-and-behave-the-same-with-Go-1.26-and-G.patch
+98c96de0aca2a46a408af9f64b7d49d09b27702d1674bbbf547edce5a4300cf19f4a5c66e66f63c45d718cc0174cebbf599683ccc6fa3a640091d194e4fcf0f0  0103-feat-vendordb-read-the-vendor-advisories-from-the-OS.patch
+5e870d47c0915f98eb832cbb556631147e40c3d59d198422ec0a5e3f6cddb0ce0dbca8fe69f01f0a172db5eb96b24d8ee3b7e7abde26507bc699e012347ac213  0104-feat-vendorjdk-detect-standalone-vendor-JDK-and-NIK-.patch
+b9cfd80be178982647a49295727ca1f511b0be032dfab0264c807cc1fcf9c4edb0fcf658fe37d6bc2a6b2d5e7ba911f24f7d9e15b0a32a126d72276481c81473  0105-fix-vendorapk-resolve-the-source-package-from-the-pu.patch
+3cb0029a3d00cc249a516c4d291f70322cb3606cdcbb210899651c1f8b8e27367b1b9c97a2d905209e8a1038946a0a483942331f1dc3ca46c6210af5807f711e  0106-feat-vendorjdk-match-standalone-vendor-runtimes-sent.patch
+32727d349c15a1f5b4e1881535305926f218e4ca7a5a0a5c4e5939223cfd355148174b86f0b59842a450b573d88dce074514c1e2fd5df8c959e79b47c445957d  0107-feat-vendorjdk-one-package-type-per-product-family-o.patch
+"

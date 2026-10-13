@@ -1,0 +1,122 @@
+From 152e05e45b5d931bae33f2b197d2bc91d81ca6cf Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 20:00:47 +0000
+Subject: [PATCH] build: compile and behave the same with Go 1.26 and Go 1.27
+
+Trivy 0.74.0 is written against the encoding/json/v2 experiment of Go 1.26.
+Alpaquita stream ships Go 1.27, where two things changed:
+
+  - json.SkipFunc, which a custom unmarshaler returns to fall back to the
+    default decoding, was replaced by errors.ErrUnsupported. pkg/x/json now
+    exports the sentinel as SkipDecode, picked with build tags
+    (skip_go126.go / skip_go127.go), and the CloudFormation parameter
+    unmarshaler uses it, as upstream did in dc3c56e ("chore: bump Go to
+    1.27") for 1.27 only.
+  - the struct tag option "inline" was renamed "embed". Go 1.27 silently
+    ignores "inline", which would have handed the Rego ignore policies a
+    nested "Data" object instead of the flattened finding. Each toolchain
+    ignores the option it does not know, so the field carries both.
+
+The go directive stays at 1.26. Under Go 1.27 "go vet" (and so "go test"
+with its default vet checks) reports every encoding/json/v2 use as
+"requires go1.27 or later"; those are stdversion notes, not build errors,
+so tests are run with -vet=off there.
+
+Verified: go vet ./... type-checks cleanly on Go 1.27.1 apart from those
+notes; go test ./pkg/x/json ./pkg/result
+./pkg/iac/scanners/cloudformation/parser passes on Go 1.26.3 and 1.27.1.
+---
+ pkg/iac/scanners/cloudformation/parser/parameter.go |  4 +++-
+ pkg/result/filter.go                                |  4 +++-
+ pkg/x/json/json.go                                  |  2 +-
+ pkg/x/json/skip_go126.go                            | 10 ++++++++++
+ pkg/x/json/skip_go127.go                            | 10 ++++++++++
+ 5 files changed, 27 insertions(+), 3 deletions(-)
+ create mode 100644 pkg/x/json/skip_go126.go
+ create mode 100644 pkg/x/json/skip_go127.go
+
+diff --git a/pkg/iac/scanners/cloudformation/parser/parameter.go b/pkg/iac/scanners/cloudformation/parser/parameter.go
+index 10b1368..0fe2bab 100644
+--- a/pkg/iac/scanners/cloudformation/parser/parameter.go
++++ b/pkg/iac/scanners/cloudformation/parser/parameter.go
+@@ -13,6 +13,7 @@ import (
+ 	"gopkg.in/yaml.v3"
+ 
+ 	"github.com/aquasecurity/trivy/pkg/iac/scanners/cloudformation/cftypes"
++	xjson "github.com/aquasecurity/trivy/pkg/x/json"
+ )
+ 
+ type Parameter struct {
+@@ -54,7 +55,8 @@ func unmarshalIntFirst(dec *jsontext.Decoder, v *any) error {
+ 		}
+ 		return nil
+ 	}
+-	return json.SkipFunc
++	// Fall back to the default decoding.
++	return xjson.SkipDecode
+ }
+ 
+ func (p *Parameter) Type() cftypes.CfType {
+diff --git a/pkg/result/filter.go b/pkg/result/filter.go
+index 4b31446..fd8c209 100644
+--- a/pkg/result/filter.go
++++ b/pkg/result/filter.go
+@@ -304,7 +304,9 @@ func filterFindingsByRego[T types.Finding](
+ 
+ func evaluate[T types.Finding](ctx context.Context, query rego.PreparedEvalQuery, finding T) (bool, error) {
+ 	type regoInput struct {
+-		Data T      `json:",inline"`
++		// "inline" is the Go 1.26 name of the option, "embed" the Go 1.27 one;
++		// each toolchain ignores the option it does not know.
++		Data T      `json:",inline,embed"`
+ 		Type string `json:"Type"`
+ 	}
+ 
+diff --git a/pkg/x/json/json.go b/pkg/x/json/json.go
+index e0d5e7d..4ed2341 100644
+--- a/pkg/x/json/json.go
++++ b/pkg/x/json/json.go
+@@ -106,7 +106,7 @@ func unmarshaler[T any](r *lineReader, visited set.Set[int], hooks ...DecodeHook
+ 
+ 		// Check visited set to avoid infinity loops
+ 		if visited.Contains(start) {
+-			return json.SkipFunc
++			return SkipDecode
+ 		}
+ 		visited.Append(start)
+ 
+diff --git a/pkg/x/json/skip_go126.go b/pkg/x/json/skip_go126.go
+new file mode 100644
+index 0000000..19cb105
+--- /dev/null
++++ b/pkg/x/json/skip_go126.go
+@@ -0,0 +1,10 @@
++//go:build !go1.27
++
++package json
++
++import "encoding/json/v2"
++
++// SkipDecode tells the decoder to fall back to its default decoding of the
++// value. Go 1.26 names the sentinel json.SkipFunc; Go 1.27 replaced it with
++// errors.ErrUnsupported (see skip_go127.go).
++var SkipDecode = json.SkipFunc
+diff --git a/pkg/x/json/skip_go127.go b/pkg/x/json/skip_go127.go
+new file mode 100644
+index 0000000..8a35423
+--- /dev/null
++++ b/pkg/x/json/skip_go127.go
+@@ -0,0 +1,10 @@
++//go:build go1.27
++
++package json
++
++import "errors"
++
++// SkipDecode tells the decoder to fall back to its default decoding of the
++// value. Go 1.27 dropped json.SkipFunc in favour of errors.ErrUnsupported
++// (see skip_go126.go for Go 1.26).
++var SkipDecode = errors.ErrUnsupported
+-- 
+2.43.0
+

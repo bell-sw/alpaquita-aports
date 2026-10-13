@@ -1,0 +1,2799 @@
+From 54e66c3de5abadb0648fa03600f19e00a6264443 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 20:00:47 +0000
+Subject: [PATCH] feat(vendorjdk): detect standalone vendor JDK and NIK
+ runtimes
+
+The vendor's JDK and Native Image Kit are also shipped standalone (tarballs,
+.deb/.rpm packages, runtimes copied into images of other distributions) and
+carry no apk metadata. Such runtimes are now detected and matched against
+the OSV ecosystems of the module's JDK and NIK families ("<family>:<major>"
+and "<family>:<nik major>-<java major>") served by the vendor OSV source.
+
+Detection is the shared one (github.com/bell-sw/osv-internal/vendorjdk):
+anchored on libjvm.so, vendor and HotSpot banner from its string table,
+corroborated by the release file (Java 9+) or the rt.jar manifest (Java
+8). Other vendors are never reported. The post-analyzer in
+pkg/fanal/analyzer/language/java/vendorjdk collects the files the detector
+reads and emits one application per runtime with a single package: name =
+variant (jdk, jre, jdk-lite, ... / NIK bundle core, standard, full),
+product version (21.0.2+14, 8u402+7, 23.1.0+1), ecosystem in SrcName and
+the module's purl
+pkg:generic/<namespace>/<jdk or nik name>@<version>?package_type=<variant>.
+The package types (ftypes.VendorJDK, VendorNIK) and their severity source
+ids take their values from the module's purl names. A GraalVM-based runtime
+is reported once, as NIK. macOS (libjvm.dylib) and Windows (jvm.dll)
+layouts are collected as well.
+
+Runtimes installed by apk on the vendor distributions live under
+/usr/lib/jvm and are covered by the OS package scan, so they are dropped
+from the language results on those two families.
+
+The tests build their runtimes with the module's testfix package.
+---
+ .github/workflows/semantic-pr.yaml            |   1 +
+ docs/guide/coverage/language/java.md          |  28 +
+ .../configuration/cli/trivy_filesystem.md     |   1 +
+ .../configuration/cli/trivy_image.md          |   1 +
+ .../configuration/cli/trivy_kubernetes.md     |   1 +
+ .../configuration/cli/trivy_repository.md     |   1 +
+ .../configuration/cli/trivy_rootfs.md         |   1 +
+ .../configuration/cli/trivy_sbom.md           |   1 +
+ .../references/configuration/cli/trivy_vm.md  |   1 +
+ docs/guide/scanner/vulnerability.md           |   1 +
+ pkg/detector/library/detect.go                |  12 +
+ .../testdata/BELL-CVE-2025-23165.json         | 243 ++++++
+ .../testdata/BELL-CVE-2025-24855.json         | 747 ++++++++++++++++++
+ .../release-types/BELL-CVE-2099-00010.json    |  46 ++
+ .../release-types/BELL-CVE-2099-00011.json    |  46 ++
+ pkg/detector/library/vendorjdk/vendorjdk.go   | 112 +++
+ .../library/vendorjdk/vendorjdk_test.go       | 347 ++++++++
+ pkg/fanal/analyzer/all/import.go              |   1 +
+ pkg/fanal/analyzer/const.go                   |   3 +
+ .../language/java/vendorjdk/fixtures_test.go  |  20 +
+ .../analyzer/language/java/vendorjdk/fs.go    |  13 +
+ .../language/java/vendorjdk/vendorjdk.go      | 140 ++++
+ .../language/java/vendorjdk/vendorjdk_test.go | 251 ++++++
+ pkg/fanal/types/const.go                      |   7 +-
+ pkg/flag/vulnerability_flags.go               |   2 +-
+ pkg/purl/purl.go                              |  39 +
+ pkg/purl/purl_test.go                         |  25 +
+ pkg/sbom/io/decode.go                         |   8 +
+ pkg/sbom/io/decode_test.go                    |  33 +
+ pkg/scan/langpkg/scan.go                      |  25 +-
+ pkg/scan/langpkg/scan_test.go                 |  62 ++
+ pkg/vendordb/vendordb.go                      |  72 ++
+ schema/trivy-config.json                      |   1 +
+ 33 files changed, 2289 insertions(+), 3 deletions(-)
+ create mode 100644 pkg/detector/library/vendorjdk/testdata/BELL-CVE-2025-23165.json
+ create mode 100644 pkg/detector/library/vendorjdk/testdata/BELL-CVE-2025-24855.json
+ create mode 100644 pkg/detector/library/vendorjdk/testdata/release-types/BELL-CVE-2099-00010.json
+ create mode 100644 pkg/detector/library/vendorjdk/testdata/release-types/BELL-CVE-2099-00011.json
+ create mode 100644 pkg/detector/library/vendorjdk/vendorjdk.go
+ create mode 100644 pkg/detector/library/vendorjdk/vendorjdk_test.go
+ create mode 100644 pkg/fanal/analyzer/language/java/vendorjdk/fixtures_test.go
+ create mode 100644 pkg/fanal/analyzer/language/java/vendorjdk/fs.go
+ create mode 100644 pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk.go
+ create mode 100644 pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk_test.go
+ create mode 100644 pkg/scan/langpkg/scan_test.go
+
+diff --git a/.github/workflows/semantic-pr.yaml b/.github/workflows/semantic-pr.yaml
+index 4f103c9..30d3d46 100644
+--- a/.github/workflows/semantic-pr.yaml
++++ b/.github/workflows/semantic-pr.yaml
+@@ -54,6 +54,7 @@ jobs:
+             alpine
+             vendorapk
+             vendordb
++            vendorjdk
+             bottlerocket
+             wolfi
+             chainguard
+diff --git a/docs/guide/coverage/language/java.md b/docs/guide/coverage/language/java.md
+index 1d319d1..1b2b61d 100644
+--- a/docs/guide/coverage/language/java.md
++++ b/docs/guide/coverage/language/java.md
+@@ -22,6 +22,34 @@ The following table provides an outline of the features Trivy offers.
+ These may be enabled or disabled depending on the target.
+ See [here](./index.md) for the detail.
+ 
++## Liberica JDK and Liberica NIK
++Standalone installations of [BellSoft Liberica JDK](https://bell-sw.com/libericajdk/) —
++tarballs, `.deb`/`.rpm` packages, `COPY`ed runtimes in any image — are detected
++and scanned against the advisories BellSoft publishes for the product
++(OSV ecosystem `Liberica JDK:<major>`). Trivy anchors on the HotSpot library
++(`libjvm.so`, `libjvm.dylib`, `jvm.dll`), reads the vendor and the runtime
++version from its string table and corroborates them with the `release` file
++(`IMPLEMENTOR`, `JAVA_RUNTIME_VERSION`) or, for Java 8, the `rt.jar` manifest.
++Runtimes of other vendors (Azul, Eclipse Adoptium, Oracle, Amazon, ...) are
++ignored. A BellSoft runtime with GraalVM markers is Liberica Native Image Kit:
++it is reported once, as `liberica-nik` (ecosystem
++`Liberica NIK:<nik major>-<java major>`, package `core`, `standard` or `full`,
++version such as `23.1.0+1`), never as a JDK.
++
++The package name is the distribution variant (`jdk`, `jre`, `jdk-lite`,
++`jdk-full`, `jdk-crac`, ...), the version is the product version (`21.0.2+14`,
++`8u402+7`) and the purl is `pkg:generic/bellsoft/liberica-jdk@<version>?package_type=<variant>`.
++Runtimes installed by apk on Alpaquita Linux or BellSoft Hardened Containers
++(`/usr/lib/jvm/...`) are covered by the OS package scan and are not reported
++twice. The advisories come from the same OSV source as the
++[Alpaquita](../os/alpaquita.md#vulnerability) ones; by default the Liberica
++archives are fetched from `https://packages.bell-sw.com/osv`
++(`--vendor-url`, `--vendor-feed`).
++
++| Artifact     | SBOM | Vulnerability | License |
++|--------------|:----:|:-------------:|:-------:|
++| Liberica JDK |  ✓   |       ✓       |    -    |
++
+ ## JAR/WAR/PAR/EAR
+ To find information about your JAR[^2] file, Trivy parses `pom.properties` and `MANIFEST.MF` files in your JAR[^2] file and takes required properties[^3].
+ Only the main section of `MANIFEST.MF` is used for artifact properties, because the individual sections that may follow it describe packages or files inside the archive rather than the archive itself.
+diff --git a/docs/guide/references/configuration/cli/trivy_filesystem.md b/docs/guide/references/configuration/cli/trivy_filesystem.md
+index ebdab5c..803dbc0 100644
+--- a/docs/guide/references/configuration/cli/trivy_filesystem.md
++++ b/docs/guide/references/configuration/cli/trivy_filesystem.md
+@@ -183,6 +183,7 @@ trivy filesystem [flags] PATH
+                                             - rootio
+                                             - rapidfort
+                                             - liberica-jdk
++                                            - liberica-nik
+                                             - auto
+                                            (default [auto])
+ ```
+diff --git a/docs/guide/references/configuration/cli/trivy_image.md b/docs/guide/references/configuration/cli/trivy_image.md
+index c3edd05..d4514dc 100644
+--- a/docs/guide/references/configuration/cli/trivy_image.md
++++ b/docs/guide/references/configuration/cli/trivy_image.md
+@@ -204,6 +204,7 @@ trivy image [flags] IMAGE_NAME
+                                             - rootio
+                                             - rapidfort
+                                             - liberica-jdk
++                                            - liberica-nik
+                                             - auto
+                                            (default [auto])
+ ```
+diff --git a/docs/guide/references/configuration/cli/trivy_kubernetes.md b/docs/guide/references/configuration/cli/trivy_kubernetes.md
+index c593e0d..beb675a 100644
+--- a/docs/guide/references/configuration/cli/trivy_kubernetes.md
++++ b/docs/guide/references/configuration/cli/trivy_kubernetes.md
+@@ -192,6 +192,7 @@ trivy kubernetes [flags] [CONTEXT]
+                                             - rootio
+                                             - rapidfort
+                                             - liberica-jdk
++                                            - liberica-nik
+                                             - auto
+                                            (default [auto])
+ ```
+diff --git a/docs/guide/references/configuration/cli/trivy_repository.md b/docs/guide/references/configuration/cli/trivy_repository.md
+index 415229c..919f28e 100644
+--- a/docs/guide/references/configuration/cli/trivy_repository.md
++++ b/docs/guide/references/configuration/cli/trivy_repository.md
+@@ -182,6 +182,7 @@ trivy repository [flags] (REPO_PATH | REPO_URL)
+                                             - rootio
+                                             - rapidfort
+                                             - liberica-jdk
++                                            - liberica-nik
+                                             - auto
+                                            (default [auto])
+ ```
+diff --git a/docs/guide/references/configuration/cli/trivy_rootfs.md b/docs/guide/references/configuration/cli/trivy_rootfs.md
+index 1624ffe..f7c9b38 100644
+--- a/docs/guide/references/configuration/cli/trivy_rootfs.md
++++ b/docs/guide/references/configuration/cli/trivy_rootfs.md
+@@ -184,6 +184,7 @@ trivy rootfs [flags] ROOTDIR
+                                             - rootio
+                                             - rapidfort
+                                             - liberica-jdk
++                                            - liberica-nik
+                                             - auto
+                                            (default [auto])
+ ```
+diff --git a/docs/guide/references/configuration/cli/trivy_sbom.md b/docs/guide/references/configuration/cli/trivy_sbom.md
+index 035279c..7568658 100644
+--- a/docs/guide/references/configuration/cli/trivy_sbom.md
++++ b/docs/guide/references/configuration/cli/trivy_sbom.md
+@@ -149,6 +149,7 @@ trivy sbom [flags] SBOM_PATH
+                                          - rootio
+                                          - rapidfort
+                                          - liberica-jdk
++                                         - liberica-nik
+                                          - auto
+                                         (default [auto])
+ ```
+diff --git a/docs/guide/references/configuration/cli/trivy_vm.md b/docs/guide/references/configuration/cli/trivy_vm.md
+index c0a5f7c..72ff800 100644
+--- a/docs/guide/references/configuration/cli/trivy_vm.md
++++ b/docs/guide/references/configuration/cli/trivy_vm.md
+@@ -168,6 +168,7 @@ trivy vm [flags] VM_IMAGE
+                                             - rootio
+                                             - rapidfort
+                                             - liberica-jdk
++                                            - liberica-nik
+                                             - auto
+                                            (default [auto])
+ ```
+diff --git a/docs/guide/scanner/vulnerability.md b/docs/guide/scanner/vulnerability.md
+index f210857..9111b4b 100644
+--- a/docs/guide/scanner/vulnerability.md
++++ b/docs/guide/scanner/vulnerability.md
+@@ -29,6 +29,7 @@ See [here](../coverage/os/index.md#supported-os) for the supported OSes.
+ | MinimOS                   | [secdb][minimos]                                             |
+ | Alpaquita Linux           | [BellSoft OSV database][bellsoft]                            |
+ | BellSoft Hardened Containers | [BellSoft OSV database][bellsoft]                         |
++| Liberica JDK (standalone) | [BellSoft OSV database][bellsoft]                            |
+ | Amazon Linux              | [Amazon Linux Security Center][amazon]                       |
+ | Echo                      | [Echo][echo]                                                 |
+ | Debian                    | [Security Bug Tracker][debian-tracker] / [OVAL][debian-oval] |
+diff --git a/pkg/detector/library/detect.go b/pkg/detector/library/detect.go
+index e85db70..7139877 100644
+--- a/pkg/detector/library/detect.go
++++ b/pkg/detector/library/detect.go
+@@ -5,13 +5,25 @@ import (
+ 
+ 	"golang.org/x/xerrors"
+ 
++	"github.com/aquasecurity/trivy/pkg/detector/library/vendorjdk"
+ 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+ 	"github.com/aquasecurity/trivy/pkg/log"
+ 	"github.com/aquasecurity/trivy/pkg/types"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
+ )
+ 
+ // Detect scans language-specific packages and returns vulnerabilities.
+ func Detect(ctx context.Context, libType ftypes.LangType, pkgs []ftypes.Package) ([]types.DetectedVulnerability, error) {
++	// Standalone vendor runtimes (JDK, NIK) are not in Trivy DB; their
++	// advisories come from the vendor OSV source.
++	if vendordb.IsVendorRuntime(libType) {
++		vulns, err := vendorjdk.NewScanner().Detect(ctx, libType, pkgs)
++		if err != nil {
++			return nil, xerrors.Errorf("failed to scan %s vulnerabilities: %w", libType, err)
++		}
++		return vulns, nil
++	}
++
+ 	driver, ok := NewDriver(libType)
+ 	if !ok {
+ 		return nil, nil
+diff --git a/pkg/detector/library/vendorjdk/testdata/BELL-CVE-2025-23165.json b/pkg/detector/library/vendorjdk/testdata/BELL-CVE-2025-23165.json
+new file mode 100644
+index 0000000..87014c0
+--- /dev/null
++++ b/pkg/detector/library/vendorjdk/testdata/BELL-CVE-2025-23165.json
+@@ -0,0 +1,243 @@
++{
++  "schema_version": "1.7.4",
++  "id": "BELL-CVE-2025-23165",
++  "modified": "2026-02-13T06:07:01.757634Z",
++  "published": "2025-05-16T06:00:00.234652Z",
++  "upstream": [
++    "CVE-2025-23165"
++  ],
++  "severity": [
++    {
++      "score": "CVSS:3.0/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L",
++      "type": "CVSS_V3"
++    }
++  ],
++  "references": [
++    {
++      "type": "ADVISORY",
++      "url": "https://docs.bell-sw.com/security/cves/CVE-2025-23165"
++    }
++  ],
++  "affected": [
++    {
++      "package": {
++        "ecosystem": "Liberica NIK:23-17",
++        "name": "core",
++        "purl": "pkg:generic/bellsoft/liberica-nik?package_type=core"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "0"
++            },
++            {
++              "fixed": "23.0.9"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-23165.json",
++        "derived_from": "Alpaquita:stream openjdk-nik-23-17"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica NIK:23-17",
++        "name": "standard",
++        "purl": "pkg:generic/bellsoft/liberica-nik?package_type=standard"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "0"
++            },
++            {
++              "fixed": "23.0.9"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-23165.json",
++        "derived_from": "Alpaquita:stream openjdk-nik-23-17"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica NIK:23-17",
++        "name": "full",
++        "purl": "pkg:generic/bellsoft/liberica-nik?package_type=full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "0"
++            },
++            {
++              "fixed": "23.0.9"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-23165.json",
++        "derived_from": "Alpaquita:stream openjdk-nik-23-17"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica NIK:23-21",
++        "name": "core",
++        "purl": "pkg:generic/bellsoft/liberica-nik?package_type=core"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "0"
++            },
++            {
++              "fixed": "23.1.8"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-23165.json",
++        "derived_from": "Alpaquita:stream openjdk-nik-23-21"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica NIK:23-21",
++        "name": "standard",
++        "purl": "pkg:generic/bellsoft/liberica-nik?package_type=standard"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "0"
++            },
++            {
++              "fixed": "23.1.8"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-23165.json",
++        "derived_from": "Alpaquita:stream openjdk-nik-23-21"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica NIK:23-21",
++        "name": "full",
++        "purl": "pkg:generic/bellsoft/liberica-nik?package_type=full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "0"
++            },
++            {
++              "fixed": "23.1.8"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-23165.json",
++        "derived_from": "Alpaquita:stream openjdk-nik-23-21"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica NIK:24-24",
++        "name": "core",
++        "purl": "pkg:generic/bellsoft/liberica-nik?package_type=core"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "0"
++            },
++            {
++              "fixed": "24.2.2"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-23165.json",
++        "derived_from": "Alpaquita:stream openjdk-nik-24-24"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica NIK:24-24",
++        "name": "standard",
++        "purl": "pkg:generic/bellsoft/liberica-nik?package_type=standard"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "0"
++            },
++            {
++              "fixed": "24.2.2"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-23165.json",
++        "derived_from": "Alpaquita:stream openjdk-nik-24-24"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica NIK:24-24",
++        "name": "full",
++        "purl": "pkg:generic/bellsoft/liberica-nik?package_type=full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "0"
++            },
++            {
++              "fixed": "24.2.2"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-23165.json",
++        "derived_from": "Alpaquita:stream openjdk-nik-24-24"
++      }
++    }
++  ],
++  "database_specific": {
++    "prototype": "Liberica JDK / Liberica NIK ecosystems generated from Alpaquita advisories",
++    "generator": "liberica-osv/generate.py"
++  }
++}
+\ No newline at end of file
+diff --git a/pkg/detector/library/vendorjdk/testdata/BELL-CVE-2025-24855.json b/pkg/detector/library/vendorjdk/testdata/BELL-CVE-2025-24855.json
+new file mode 100644
+index 0000000..0d957e2
+--- /dev/null
++++ b/pkg/detector/library/vendorjdk/testdata/BELL-CVE-2025-24855.json
+@@ -0,0 +1,747 @@
++{
++  "schema_version": "1.7.4",
++  "id": "BELL-CVE-2025-24855",
++  "modified": "2026-09-05T10:49:10.119410Z",
++  "published": "2025-03-14T17:42:18.239166Z",
++  "upstream": [
++    "CVE-2025-24855"
++  ],
++  "severity": [
++    {
++      "score": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
++      "type": "CVSS_V3"
++    }
++  ],
++  "references": [
++    {
++      "type": "ADVISORY",
++      "url": "https://docs.bell-sw.com/security/cves/CVE-2025-24855"
++    }
++  ],
++  "affected": [
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:11",
++        "name": "jdk",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19+7"
++            },
++            {
++              "fixed": "11.0.28+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk11"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:11",
++        "name": "jre",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19+7"
++            },
++            {
++              "fixed": "11.0.28+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk11"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:11",
++        "name": "jdk-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19+7"
++            },
++            {
++              "fixed": "11.0.28+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk11"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:11",
++        "name": "jre-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19+7"
++            },
++            {
++              "fixed": "11.0.28+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk11"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:11",
++        "name": "jdk-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19+7"
++            },
++            {
++              "fixed": "11.0.28+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk11-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:11",
++        "name": "jre-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "11.0.19+7"
++            },
++            {
++              "fixed": "11.0.28+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk11-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jdk",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7+7"
++            },
++            {
++              "fixed": "17.0.16+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jre",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7+7"
++            },
++            {
++              "fixed": "17.0.16+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jdk-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7+7"
++            },
++            {
++              "fixed": "17.0.16+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jre-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7+7"
++            },
++            {
++              "fixed": "17.0.16+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jdk-crac",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-crac"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.10+13"
++            },
++            {
++              "fixed": "17.0.16+13"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17-crac"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jdk-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7+7"
++            },
++            {
++              "fixed": "17.0.16+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:17",
++        "name": "jre-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "17.0.7+7"
++            },
++            {
++              "fixed": "17.0.16+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk17-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jdk",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21+37"
++            },
++            {
++              "fixed": "21.0.8+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jre",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21+37"
++            },
++            {
++              "fixed": "21.0.8+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jdk-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21+37"
++            },
++            {
++              "fixed": "21.0.8+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jre-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21+37"
++            },
++            {
++              "fixed": "21.0.8+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jdk-crac",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-crac"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21.0.2+15"
++            },
++            {
++              "fixed": "21.0.8+13"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21-crac"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jdk-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21+37"
++            },
++            {
++              "fixed": "21.0.8+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:21",
++        "name": "jre-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "21+37"
++            },
++            {
++              "fixed": "21.0.8+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk21-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:24",
++        "name": "jdk",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24+37"
++            },
++            {
++              "fixed": "24.0.2+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk24"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:24",
++        "name": "jre",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24+37"
++            },
++            {
++              "fixed": "24.0.2+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk24"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:24",
++        "name": "jdk-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24+37"
++            },
++            {
++              "fixed": "24.0.2+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk24"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:24",
++        "name": "jre-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24+37"
++            },
++            {
++              "fixed": "24.0.2+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk24"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:24",
++        "name": "jdk-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24+37"
++            },
++            {
++              "fixed": "24.0.2+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk24-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:24",
++        "name": "jre-lite",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-lite"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "24+37"
++            },
++            {
++              "fixed": "24.0.2+12"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk24-lite"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:8",
++        "name": "jdk",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u372+7"
++            },
++            {
++              "fixed": "8u462+11"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk8"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:8",
++        "name": "jre",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u372+7"
++            },
++            {
++              "fixed": "8u462+11"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk8"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:8",
++        "name": "jdk-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u372+7"
++            },
++            {
++              "fixed": "8u462+11"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk8"
++      }
++    },
++    {
++      "package": {
++        "ecosystem": "Liberica JDK:8",
++        "name": "jre-full",
++        "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jre-full"
++      },
++      "ranges": [
++        {
++          "type": "ECOSYSTEM",
++          "events": [
++            {
++              "introduced": "8u372+7"
++            },
++            {
++              "fixed": "8u462+11"
++            }
++          ]
++        }
++      ],
++      "database_specific": {
++        "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++        "derived_from": "Alpaquita:stream openjdk8"
++      }
++    }
++  ],
++  "database_specific": {
++    "prototype": "Liberica JDK ecosystem generated from Alpaquita advisories",
++    "generator": "liberica-osv/generate.py"
++  }
++}
+\ No newline at end of file
+diff --git a/pkg/detector/library/vendorjdk/testdata/release-types/BELL-CVE-2099-00010.json b/pkg/detector/library/vendorjdk/testdata/release-types/BELL-CVE-2099-00010.json
+new file mode 100644
+index 0000000..b14dd03
+--- /dev/null
++++ b/pkg/detector/library/vendorjdk/testdata/release-types/BELL-CVE-2099-00010.json
+@@ -0,0 +1,46 @@
++{
++ "schema_version": "1.7.4",
++ "id": "BELL-CVE-2099-00010",
++ "modified": "2026-09-05T10:49:10Z",
++ "published": "2026-01-20T00:00:00Z",
++ "upstream": [
++  "CVE-2099-00010"
++ ],
++ "severity": [
++  {
++   "score": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N",
++   "type": "CVSS_V3"
++  }
++ ],
++ "references": [
++  {
++   "type": "ADVISORY",
++   "url": "https://docs.bell-sw.com/security/cves/CVE-2099-00010"
++  }
++ ],
++ "affected": [
++  {
++   "package": {
++    "ecosystem": "Liberica JDK:21",
++    "name": "jdk",
++    "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk"
++   },
++   "ranges": [
++    {
++     "type": "ECOSYSTEM",
++     "events": [
++      {
++       "introduced": "21+37"
++      },
++      {
++       "fixed": "21.0.10+10"
++      }
++     ]
++    }
++   ],
++   "database_specific": {
++    "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2099-00010.json"
++   }
++  }
++ ]
++}
+diff --git a/pkg/detector/library/vendorjdk/testdata/release-types/BELL-CVE-2099-00011.json b/pkg/detector/library/vendorjdk/testdata/release-types/BELL-CVE-2099-00011.json
+new file mode 100644
+index 0000000..f0da6bc
+--- /dev/null
++++ b/pkg/detector/library/vendorjdk/testdata/release-types/BELL-CVE-2099-00011.json
+@@ -0,0 +1,46 @@
++{
++ "schema_version": "1.7.4",
++ "id": "BELL-CVE-2099-00011",
++ "modified": "2026-09-05T10:49:10Z",
++ "published": "2026-01-20T00:00:00Z",
++ "upstream": [
++  "CVE-2099-00011"
++ ],
++ "severity": [
++  {
++   "score": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N",
++   "type": "CVSS_V3"
++  }
++ ],
++ "references": [
++  {
++   "type": "ADVISORY",
++   "url": "https://docs.bell-sw.com/security/cves/CVE-2099-00011"
++  }
++ ],
++ "affected": [
++  {
++   "package": {
++    "ecosystem": "Liberica JDK:21",
++    "name": "jdk",
++    "purl": "pkg:generic/bellsoft/liberica-jdk?package_type=jdk"
++   },
++   "ranges": [
++    {
++     "type": "ECOSYSTEM",
++     "events": [
++      {
++       "introduced": "21+37"
++      },
++      {
++       "fixed": "21.0.11+11"
++      }
++     ]
++    }
++   ],
++   "database_specific": {
++    "source": "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2099-00011.json"
++   }
++  }
++ ]
++}
+diff --git a/pkg/detector/library/vendorjdk/vendorjdk.go b/pkg/detector/library/vendorjdk/vendorjdk.go
+new file mode 100644
+index 0000000..842b96a
+--- /dev/null
++++ b/pkg/detector/library/vendorjdk/vendorjdk.go
+@@ -0,0 +1,112 @@
++// Package vendorjdk detects vulnerabilities of standalone vendor runtimes
++// (JDK and Native Image Kit) found by the vendorjdk analyzer, matched by the
++// shared osv-internal module against the JDK ("<family>:<major>") and NIK
++// ("<family>:<nik major>-<java major>") ecosystems of the vendor OSV source.
++package vendorjdk
++
++import (
++	"context"
++
++	"golang.org/x/xerrors"
++
++	"github.com/bell-sw/osv-internal/match"
++	"github.com/bell-sw/osv-internal/osvdata"
++
++	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
++	"github.com/aquasecurity/trivy/pkg/log"
++	"github.com/aquasecurity/trivy/pkg/types"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
++)
++
++// Option configures a Scanner.
++type Option func(*Scanner)
++
++// WithSource replaces the advisory source (for tests).
++func WithSource(src vendordb.AdvisorySource) Option {
++	return func(s *Scanner) {
++		s.src = src
++	}
++}
++
++// Scanner matches standalone runtimes against the advisories of their family.
++type Scanner struct {
++	src    vendordb.AdvisorySource
++	logger *log.Logger
++}
++
++// NewScanner is the factory method for Scanner.
++func NewScanner(opts ...Option) *Scanner {
++	s := &Scanner{logger: log.WithPrefix("vendor-jdk")}
++	for _, opt := range opts {
++		opt(s)
++	}
++	return s
++}
++
++func (s *Scanner) source() vendordb.AdvisorySource {
++	if s.src != nil {
++		return s.src
++	}
++	return vendordb.Source()
++}
++
++// Detect returns the vulnerabilities of the given runtimes of one product
++// type; a package's name is the variant ("jdk", "core", ...) and its version
++// the product version ("21.0.2+14", "8u402+7", "23.1.0+1").
++func (s *Scanner) Detect(ctx context.Context, libType ftypes.LangType, pkgs []ftypes.Package) ([]types.DetectedVulnerability, error) {
++	if len(pkgs) == 0 {
++		return nil, nil
++	}
++	family, ok := vendordb.FamilyForLangType(libType)
++	if !ok {
++		return nil, xerrors.Errorf("%s is not a vendor runtime type", libType)
++	}
++	idx, err := vendordb.Index(ctx, s.source(), family)
++	if err != nil {
++		return nil, err
++	}
++	if idx == nil {
++		// unavailable archive (warned): no findings
++		return nil, nil
++	}
++
++	var vulns []types.DetectedVulnerability
++	for _, pkg := range pkgs {
++		if pkg.Version == "" {
++			s.logger.DebugContext(ctx, "Skipping a runtime without a version", log.String("name", pkg.Name),
++				log.FilePath(pkg.FilePath))
++			continue
++		}
++		findings, err := matchRuntime(idx, libType, pkg)
++		if err != nil {
++			s.logger.DebugContext(ctx, "Skipping a runtime the feed cannot evaluate",
++				log.String("name", pkg.Name), log.String("version", pkg.Version), log.Err(err))
++			continue
++		}
++		for _, f := range findings {
++			v := vendordb.Vulnerability(f)
++			v.PkgID = pkg.ID
++			v.PkgName = pkg.Name
++			v.InstalledVersion = pkg.Version
++			v.PkgPath = pkg.FilePath
++			v.Layer = pkg.Layer
++			v.PkgIdentifier = pkg.Identifier
++			vulns = append(vulns, v)
++		}
++	}
++	return vulns, nil
++}
++
++// matchRuntime evaluates one runtime against the index of its product family.
++// The ecosystem ("<family>:21", "<family>:23-21") is in SrcName; a
++// JDK without it (re-scanned from an SBOM purl) is placed by its version, a
++// NIK without it cannot be placed on a Java line and is skipped.
++func matchRuntime(idx *osvdata.Index, libType ftypes.LangType, pkg ftypes.Package) ([]match.Finding, error) {
++	if pkg.SrcName != "" {
++		return match.MatchProduct(idx, pkg.SrcName, pkg.Name, pkg.Version)
++	}
++	if libType == ftypes.VendorJDK {
++		return match.MatchJDK(idx, pkg.Name, pkg.Version)
++	}
++	return nil, xerrors.Errorf("%s %s@%s: the Java line of the runtime is unknown", libType, pkg.Name, pkg.Version)
++}
+diff --git a/pkg/detector/library/vendorjdk/vendorjdk_test.go b/pkg/detector/library/vendorjdk/vendorjdk_test.go
+new file mode 100644
+index 0000000..71a6792
+--- /dev/null
++++ b/pkg/detector/library/vendorjdk/vendorjdk_test.go
+@@ -0,0 +1,347 @@
++package vendorjdk_test
++
++import (
++	"archive/zip"
++	"context"
++	"encoding/json"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"golang.org/x/xerrors"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/osvdata"
++	"github.com/bell-sw/osv-internal/testfix"
++
++	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
++	"github.com/aquasecurity/trivy/pkg/detector/library/vendorjdk"
++	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
++	"github.com/aquasecurity/trivy/pkg/types"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
++)
++
++type indexSource struct {
++	idx map[string]*osvdata.Index
++	err error
++}
++
++func (s indexSource) Ecosystem(_ context.Context, family string) (*osvdata.Index, error) {
++	if s.err != nil {
++		return nil, s.err
++	}
++	idx, ok := s.idx[family]
++	if !ok {
++		return nil, xerrors.Errorf("unexpected family %s", family)
++	}
++	return idx, nil
++}
++
++// loadIndexes zips testdata/*.json into an archive and builds the index of
++// each product family from it (the prototype archives carry the same records).
++func loadIndexes(t *testing.T) map[string]*osvdata.Index {
++	t.Helper()
++	return map[string]*osvdata.Index{
++		osvinternal.EcosystemJDK: loadIndex(t, osvinternal.EcosystemJDK),
++		osvinternal.EcosystemNIK: loadIndex(t, osvinternal.EcosystemNIK),
++	}
++}
++
++func loadIndex(t *testing.T, family string) *osvdata.Index {
++	t.Helper()
++	return loadIndexFrom(t, "testdata/*.json", family)
++}
++
++func loadIndexFrom(t *testing.T, pattern, family string) *osvdata.Index {
++	t.Helper()
++	zipPath := filepath.Join(t.TempDir(), "all.zip")
++	f, err := os.Create(zipPath)
++	require.NoError(t, err)
++	zw := zip.NewWriter(f)
++	files, err := filepath.Glob(pattern)
++	require.NoError(t, err)
++	for _, name := range files {
++		b, err := os.ReadFile(name)
++		require.NoError(t, err)
++		w, err := zw.Create(filepath.Base(name))
++		require.NoError(t, err)
++		_, err = w.Write(testfix.RewriteOSV(b))
++		require.NoError(t, err)
++	}
++	require.NoError(t, zw.Close())
++	require.NoError(t, f.Close())
++	idx, err := osvdata.LoadArchive(zipPath, family)
++	require.NoError(t, err)
++	return idx
++}
++
++func TestScanner_Detect(t *testing.T) {
++	src := indexSource{idx: loadIndexes(t)}
++	jdk21 := ftypes.Package{
++		ID:       "jdk@21.0.2+14",
++		Name:     "jdk",
++		Version:  "21.0.2+14",
++		SrcName:  osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"),
++		FilePath: "opt/jdk-21.0.2",
++		Layer:    ftypes.Layer{DiffID: "sha256:aaaa"},
++	}
++	nikSource := &dbTypes.DataSource{
++		ID:   vendordb.SourceNIK,
++		Name: osvinternal.EcosystemNIK + " OSV database",
++		URL:  "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-23165.json",
++	}
++	tests := []struct {
++		name    string
++		libType ftypes.LangType
++		src     vendordb.AdvisorySource
++		pkgs    []ftypes.Package
++		want    []types.DetectedVulnerability
++		wantErr string
++	}{
++		{
++			name:    "NIK core 23.1.0+1 on the 21 line",
++			libType: ftypes.VendorNIK,
++			src:     src,
++			pkgs:    []ftypes.Package{{Name: "core", Version: "23.1.0+1", SrcName: osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21"), FilePath: "opt/nik"}},
++			want: []types.DetectedVulnerability{{
++				VulnerabilityID:  "CVE-2025-23165",
++				VendorIDs:        []string{"BELL-CVE-2025-23165"},
++				PkgName:          "core",
++				PkgPath:          "opt/nik",
++				InstalledVersion: "23.1.0+1",
++				FixedVersion:     "23.1.8",
++				DataSource:       nikSource,
++				SeveritySource:   vendordb.SourceNIK,
++				Vulnerability:    nikVuln(),
++			}},
++		},
++		{
++			name:    "NIK fixed version",
++			libType: ftypes.VendorNIK,
++			src:     src,
++			pkgs:    []ftypes.Package{{Name: "core", Version: "23.1.8+1", SrcName: osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21")}},
++			want:    nil,
++		},
++		{
++			name:    "NIK without its Java line is skipped",
++			libType: ftypes.VendorNIK,
++			src:     src,
++			pkgs:    []ftypes.Package{{Name: "core", Version: "23.1.0+1"}},
++			want:    nil,
++		},
++		{
++			name: "vulnerable jdk 21",
++			src:  src,
++			pkgs: []ftypes.Package{jdk21},
++			want: []types.DetectedVulnerability{
++				{
++					VulnerabilityID:  "CVE-2025-24855",
++					VendorIDs:        []string{"BELL-CVE-2025-24855"},
++					PkgID:            "jdk@21.0.2+14",
++					PkgName:          "jdk",
++					PkgPath:          "opt/jdk-21.0.2",
++					InstalledVersion: "21.0.2+14",
++					FixedVersion:     "21.0.8+12",
++					Layer:            ftypes.Layer{DiffID: "sha256:aaaa"},
++					DataSource: &dbTypes.DataSource{
++						ID:   vendordb.SourceJDK,
++						Name: osvinternal.EcosystemJDK + " OSV database",
++						URL:  "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++					},
++					SeveritySource: vendordb.SourceJDK,
++					Vulnerability: dbTypes.Vulnerability{
++						Severity:         "HIGH",
++						References:       []string{"https://docs.bell-sw.com/security/cves/CVE-2025-24855"},
++						PublishedDate:    timePtr("2025-03-14T17:42:18.239166Z"),
++						LastModifiedDate: timePtr("2026-09-05T10:49:10.119410Z"),
++						CVSS: dbTypes.VendorCVSS{
++							vendordb.SourceJDK: {
++								V3Vector: "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
++								V3Score:  7.8,
++							},
++						},
++					},
++				},
++			},
++		},
++		{
++			name: "fixed jdk 21",
++			src:  src,
++			pkgs: []ftypes.Package{{Name: "jdk", Version: "21.0.8+12"}},
++			want: nil,
++		},
++		{
++			name: "java 8 product notation",
++			src:  src,
++			pkgs: []ftypes.Package{{Name: "jdk", Version: "8u402+7"}},
++			want: []types.DetectedVulnerability{{
++				VulnerabilityID:  "CVE-2025-24855",
++				VendorIDs:        []string{"BELL-CVE-2025-24855"},
++				PkgName:          "jdk",
++				InstalledVersion: "8u402+7",
++				FixedVersion:     "8u462+11",
++				DataSource: &dbTypes.DataSource{
++					ID:   vendordb.SourceJDK,
++					Name: osvinternal.EcosystemJDK + " OSV database",
++					URL:  "https://github.com/bell-sw/osv-database/blob/master/BELL-CVE/BELL-CVE-2025-24855.json",
++				},
++				SeveritySource: vendordb.SourceJDK,
++				Vulnerability: dbTypes.Vulnerability{
++					Severity:         "HIGH",
++					References:       []string{"https://docs.bell-sw.com/security/cves/CVE-2025-24855"},
++					PublishedDate:    timePtr("2025-03-14T17:42:18.239166Z"),
++					LastModifiedDate: timePtr("2026-09-05T10:49:10.119410Z"),
++					CVSS: dbTypes.VendorCVSS{
++						vendordb.SourceJDK: {
++							V3Vector: "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
++							V3Score:  7.8,
++						},
++					},
++				},
++			}},
++		},
++		{
++			name: "crac variant has its own range",
++			src:  src,
++			pkgs: []ftypes.Package{{Name: "jdk-crac", Version: "21.0.2+14"}},
++			want: nil, // crac introduced at 21.0.2+15
++		},
++		{
++			name: "unknown variant",
++			src:  src,
++			pkgs: []ftypes.Package{{Name: "jdk-unknown", Version: "21.0.2+14"}},
++			want: nil,
++		},
++		{
++			name: "no version",
++			src:  src,
++			pkgs: []ftypes.Package{{Name: "jdk"}},
++			want: nil,
++		},
++		{
++			name:    "source error",
++			src:     indexSource{err: xerrors.New("archive not cached")},
++			pkgs:    []ftypes.Package{jdk21},
++			wantErr: "failed to load the " + osvinternal.Vendor + " advisories",
++		},
++		{
++			name: "unavailable archive: a warning, the runtime stays without findings",
++			src: indexSource{err: &osvdata.UnavailableError{
++				Family: osvinternal.EcosystemJDK, Reason: "HTTP 404",
++				URL: (&osvdata.Source{}).ArchiveURL(osvinternal.EcosystemJDK),
++			}},
++			pkgs: []ftypes.Package{jdk21},
++			want: nil,
++		},
++		{
++			name: "no packages, no source access",
++			src:  indexSource{err: xerrors.New("must not be called")},
++			pkgs: nil,
++			want: nil,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			libType := tt.libType
++			if libType == "" {
++				libType = ftypes.VendorJDK
++			}
++			got, err := vendorjdk.NewScanner(vendorjdk.WithSource(tt.src)).Detect(context.Background(), libType, tt.pkgs)
++			if tt.wantErr != "" {
++				require.ErrorContains(t, err, tt.wantErr)
++				return
++			}
++			require.NoError(t, err)
++			assert.Equal(t, tt.want, got)
++		})
++	}
++}
++
++// Version strings reach the matcher untouched, whatever the release type: a
++// CPU build (the previous PSU plus ".0.1", five components) counts as the PSU
++// of its cycle, and a CSPU build (fourth component) is newer than its PSU.
++func TestScanner_Detect_ReleaseTypes(t *testing.T) {
++	src := indexSource{idx: map[string]*osvdata.Index{
++		osvinternal.EcosystemJDK: loadIndexFrom(t, "testdata/release-types/*.json", osvinternal.EcosystemJDK),
++	}}
++	tests := []struct {
++		name    string
++		version string
++		want    map[string]string // CVE -> fixed version
++	}{
++		{
++			name:    "CPU 21.0.9.0.1+1 is the 21.0.10 cycle: fixed 21.0.10+10 does not match, fixed 21.0.11+11 does",
++			version: "21.0.9.0.1+1",
++			want:    map[string]string{"CVE-2099-00011": "21.0.11+11"},
++		},
++		{
++			name:    "PSU 21.0.9+11 precedes both fixes",
++			version: "21.0.9+11",
++			want:    map[string]string{"CVE-2099-00010": "21.0.10+10", "CVE-2099-00011": "21.0.11+11"},
++		},
++		{
++			name:    "CSPU 21.0.10.1+1 follows its PSU",
++			version: "21.0.10.1+1",
++			want:    map[string]string{"CVE-2099-00011": "21.0.11+11"},
++		},
++		{
++			name:    "CSPU 21.0.12.1+1 is past both fixes",
++			version: "21.0.12.1+1",
++			want:    map[string]string{},
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			pkgs := []ftypes.Package{{Name: "jdk", Version: tt.version, SrcName: osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21")}}
++			vulns, err := vendorjdk.NewScanner(vendorjdk.WithSource(src)).Detect(context.Background(), ftypes.VendorJDK, pkgs)
++			require.NoError(t, err)
++			got := make(map[string]string)
++			for _, v := range vulns {
++				assert.Equal(t, tt.version, v.InstalledVersion)
++				got[v.VulnerabilityID] = v.FixedVersion
++			}
++			assert.Equal(t, tt.want, got)
++		})
++	}
++}
++
++// nikVuln is the detail of BELL-CVE-2025-23165 as the prototype record carries it.
++func nikVuln() dbTypes.Vulnerability {
++	rec, err := os.ReadFile("testdata/BELL-CVE-2025-23165.json")
++	if err != nil {
++		panic(err)
++	}
++	var r struct {
++		Published  time.Time `json:"published"`
++		Modified   time.Time `json:"modified"`
++		Severity   []struct{ Score string }
++		References []struct{ URL string }
++	}
++	if err := json.Unmarshal(rec, &r); err != nil {
++		panic(err)
++	}
++	var refs []string
++	for _, ref := range r.References {
++		refs = append(refs, ref.URL)
++	}
++	return dbTypes.Vulnerability{
++		Severity:         "LOW", // CVSS:3.0/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L = 3.7
++		References:       refs,
++		PublishedDate:    &r.Published,
++		LastModifiedDate: &r.Modified,
++		CVSS: dbTypes.VendorCVSS{
++			vendordb.SourceNIK: {V3Vector: r.Severity[0].Score, V3Score: 3.7},
++		},
++	}
++}
++
++func timePtr(s string) *time.Time {
++	t, err := time.Parse(time.RFC3339Nano, s)
++	if err != nil {
++		panic(err)
++	}
++	return &t
++}
+diff --git a/pkg/fanal/analyzer/all/import.go b/pkg/fanal/analyzer/all/import.go
+index b0148e1..906292f 100644
+--- a/pkg/fanal/analyzer/all/import.go
++++ b/pkg/fanal/analyzer/all/import.go
+@@ -21,6 +21,7 @@ import (
+ 	_ "github.com/aquasecurity/trivy/pkg/fanal/analyzer/language/java/jar"
+ 	_ "github.com/aquasecurity/trivy/pkg/fanal/analyzer/language/java/pom"
+ 	_ "github.com/aquasecurity/trivy/pkg/fanal/analyzer/language/java/sbt"
++	_ "github.com/aquasecurity/trivy/pkg/fanal/analyzer/language/java/vendorjdk"
+ 	_ "github.com/aquasecurity/trivy/pkg/fanal/analyzer/language/julia/pkg"
+ 	_ "github.com/aquasecurity/trivy/pkg/fanal/analyzer/language/nodejs/bun"
+ 	_ "github.com/aquasecurity/trivy/pkg/fanal/analyzer/language/nodejs/npm"
+diff --git a/pkg/fanal/analyzer/const.go b/pkg/fanal/analyzer/const.go
+index 5e4b799..edea455 100644
+--- a/pkg/fanal/analyzer/const.go
++++ b/pkg/fanal/analyzer/const.go
+@@ -60,6 +60,7 @@ const (
+ 
+ 	// Java
+ 	TypeJar        Type = "jar"
++	TypeVendorJDK  Type = "vendor-jdk"
+ 	TypePom        Type = "pom"
+ 	TypeGradleLock Type = "gradle-lockfile"
+ 	TypeSbtLock    Type = "sbt-lockfile"
+@@ -197,6 +198,7 @@ var (
+ 		TypeComposer,
+ 		TypeComposerVendor,
+ 		TypeJar,
++		TypeVendorJDK,
+ 		TypePom,
+ 		TypeGradleLock,
+ 		TypeSbtLock,
+@@ -262,6 +264,7 @@ var (
+ 		TypePythonPkg,
+ 		TypeGoBinary,
+ 		TypeJar,
++		TypeVendorJDK,
+ 		TypeRustBinary,
+ 		TypeComposerVendor,
+ 	}
+diff --git a/pkg/fanal/analyzer/language/java/vendorjdk/fixtures_test.go b/pkg/fanal/analyzer/language/java/vendorjdk/fixtures_test.go
+new file mode 100644
+index 0000000..47de381
+--- /dev/null
++++ b/pkg/fanal/analyzer/language/java/vendorjdk/fixtures_test.go
+@@ -0,0 +1,20 @@
++package vendorjdk
++
++import (
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/testfix"
++)
++
++// The runtimes under test are built at run time by the module's testfix
++// package; no fixture is kept on disk.
++var runtimes = map[string]testfix.Runtime{
++	"jdk-21.0.2":      {Version: "21.0.2+14-LTS", JDK: true},
++	"jdk8u402":        {Version: "1.8.0_402-b07", JDK: true, Java8: true},
++	"jre-21.0.2-lite": {Version: "21.0.2+14-LTS"},
++	"zulu21":          {Version: "21.0.2+13-LTS", JDK: true, Vendor: "Azul Systems, Inc."},
++	"apk-jdk21-lite":  {Version: "21.0.2+14-LTS", StrippedRelease: true},
++	// GRAALVM_VERSION in the release file, bin/native-image and lib/svm/ but no
++	// java.vendor.version string: the NIK version comes from GRAALVM_VERSION.
++	"nik-23": {Version: "21.0.2+14-LTS", JDK: true, NIK: "23.1.2",
++		Extra: map[string]string{"lib/modules": "\x00" + osvinternal.RuntimeVendor + "\x00", "bin/native-image": "#!/bin/sh\n"}},
++}
+diff --git a/pkg/fanal/analyzer/language/java/vendorjdk/fs.go b/pkg/fanal/analyzer/language/java/vendorjdk/fs.go
+new file mode 100644
+index 0000000..15dbc63
+--- /dev/null
++++ b/pkg/fanal/analyzer/language/java/vendorjdk/fs.go
+@@ -0,0 +1,13 @@
++package vendorjdk
++
++import (
++	"io/fs"
++)
++
++// fsStat is fs.Stat with the leading slash the walker may leave stripped.
++func fsStat(fsys fs.FS, name string) (fs.FileInfo, error) {
++	for len(name) > 0 && name[0] == '/' {
++		name = name[1:]
++	}
++	return fs.Stat(fsys, name)
++}
+diff --git a/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk.go b/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk.go
+new file mode 100644
+index 0000000..c1a2858
+--- /dev/null
++++ b/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk.go
+@@ -0,0 +1,140 @@
++// Package vendorjdk detects standalone vendor JDK/JRE and NIK
++// runtimes (tarball or package installations not managed by apk). The
++// detection is the shared github.com/bell-sw/osv-internal module's; this
++// analyzer collects the files the detector reads and turns a runtime into a
++// Trivy package.
++package vendorjdk
++
++import (
++	"context"
++	"os"
++	"path"
++	"path/filepath"
++	"strings"
++
++	"golang.org/x/xerrors"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++	"github.com/package-url/packageurl-go"
++
++	"github.com/aquasecurity/trivy/pkg/dependency"
++	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
++	"github.com/aquasecurity/trivy/pkg/fanal/types"
++	"github.com/aquasecurity/trivy/pkg/log"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
++)
++
++func init() {
++	analyzer.RegisterPostAnalyzer(analyzer.TypeVendorJDK, newVendorJDKAnalyzer)
++}
++
++const version = 1
++
++// maxLauncherSize bounds the bin/java and bin/javac launchers copied for the
++// detector; the real ones are a few tens of kilobytes.
++const maxLauncherSize = 4 << 20
++
++// maxNativeImageSize bounds the native-image launcher of the vendor NIK.
++const maxNativeImageSize = 256 << 20
++
++type vendorJDKAnalyzer struct {
++	logger *log.Logger
++}
++
++func newVendorJDKAnalyzer(analyzer.AnalyzerOptions) (analyzer.PostAnalyzer, error) {
++	return &vendorJDKAnalyzer{logger: log.WithPrefix("vendor-jdk")}, nil
++}
++
++// PostAnalyze runs the shared detector over the collected files and emits one
++// application per runtime, with a single package named after the
++// distribution variant.
++func (a *vendorJDKAnalyzer) PostAnalyze(_ context.Context, input analyzer.PostAnalysisInput) (*analyzer.AnalysisResult, error) {
++	runtimes, err := osvjdk.Scan(input.FS)
++	if err != nil {
++		return nil, xerrors.Errorf("vendor-jdk scan error: %w", err)
++	}
++
++	var apps []types.Application
++	for _, rt := range runtimes {
++		// The module names the product (the JDK or NIK family) through the
++		// ecosystem of the runtime; Trivy keeps one package type per product.
++		langType, ok := vendordb.LangTypeForFamily(osvinternal.Family(rt.Ecosystem()))
++		if !ok {
++			a.logger.Debug("Skipping a runtime of an unsupported product", log.String("home", rt.Home),
++				log.String("ecosystem", rt.Ecosystem()))
++			continue
++		}
++		home := filepath.ToSlash(rt.Home)
++		// the release file is the location the apk database lists, so the
++		// system file filter drops package-manager installs
++		location := path.Join(home, "release")
++		if _, err := fsStat(input.FS, location); err != nil {
++			location = filepath.ToSlash(rt.LibJVM)
++		}
++		pkg := types.Package{
++			ID:       dependency.ID(langType, rt.Variant, rt.Version),
++			Name:     rt.Variant,
++			Version:  rt.Version,
++			FilePath: home,
++			// the ecosystem; a NIK version alone does not name the Java line
++			SrcName: rt.Ecosystem(),
++		}
++		// The purl is the module's; the applier only computes one when it is missing.
++		if p, err := packageurl.FromString(rt.PURL()); err == nil {
++			pkg.Identifier.PURL = &p
++		}
++		// The package model has no free-form property, so the release type the
++		// module derives (psu, cpu, cspu) is shown in the log only.
++		a.logger.Debug("Detected a vendor runtime", log.String("home", home), log.String("ecosystem", rt.Ecosystem()),
++			log.String("variant", rt.Variant), log.String("version", rt.Version),
++			log.String("release_type", rt.ReleaseType.String()))
++		apps = append(apps, types.Application{
++			FilePath: location,
++			Type:     langType,
++			Packages: []types.Package{pkg},
++		})
++	}
++	return &analyzer.AnalysisResult{Applications: apps}, nil
++}
++
++// Required collects the files the detector reads: the HotSpot library
++// (libjvm.so, libjvm.dylib on macOS, jvm.dll on Windows), the release file,
++// rt.jar (Java 8), the launchers that decide the variant and the markers of a
++// GraalVM-based runtime (NIK). Windows names are case-insensitive.
++func (a *vendorJDKAnalyzer) Required(filePath string, info os.FileInfo) bool {
++	p := filepath.ToSlash(filePath)
++	if osvjdk.IsCandidate(p) {
++		return true
++	}
++	base := strings.ToLower(path.Base(p))
++	dir := strings.ToLower(path.Base(path.Dir(p)))
++	switch {
++	case base == "libjvm.so" || base == "libjvm.dylib" || base == "jvm.dll":
++		return true
++	case base == "release" || base == "rt.jar":
++		return true
++	case dir == "bin" && (base == "native-image" || base == "native-image.exe" || base == "native-image.cmd"):
++		// The NIK launcher is itself a native image (about 25 MB) and holds the
++		// product version with its build number (NIKVendorVersionPrefix + "23.1.0-1").
++		return info == nil || info.Size() <= maxNativeImageSize
++	case dir == "bin" && (base == "java" || base == "javac" || base == "java.exe" || base == "javac.exe"):
++		return info == nil || info.Size() <= maxLauncherSize
++	case base == "jfxrt.jar" && dir == "ext":
++		return true
++	case strings.Contains(strings.ToLower(p), "/lib/svm/") || strings.HasPrefix(strings.ToLower(p), "lib/svm/"):
++		return info == nil || info.Size() <= maxLauncherSize
++	case strings.Contains(strings.ToLower(p), "/languages/") || strings.HasPrefix(strings.ToLower(p), "languages/"):
++		// NIK bundle markers (languages/js, python, ruby, llvm)
++		return info == nil || info.Size() <= maxLauncherSize
++	}
++	return false
++}
++
++func (a *vendorJDKAnalyzer) Type() analyzer.Type {
++	return analyzer.TypeVendorJDK
++}
++
++func (a *vendorJDKAnalyzer) Version() int {
++	return version
++}
+diff --git a/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk_test.go b/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk_test.go
+new file mode 100644
+index 0000000..a0728dc
+--- /dev/null
++++ b/pkg/fanal/analyzer/language/java/vendorjdk/vendorjdk_test.go
+@@ -0,0 +1,251 @@
++package vendorjdk
++
++import (
++	"context"
++	"io/fs"
++	"os"
++	"path"
++	"path/filepath"
++	"sort"
++	"testing"
++
++	"github.com/package-url/packageurl-go"
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	osvinternal "github.com/bell-sw/osv-internal"
++	"github.com/bell-sw/osv-internal/testfix"
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
++	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
++	"github.com/aquasecurity/trivy/pkg/fanal/types"
++	"github.com/aquasecurity/trivy/pkg/mapfs"
++)
++
++// testFS assembles the named runtimes under the given virtual roots, the
++// way the analyzer group hands a layer to a post-analyzer.
++func testFS(t *testing.T, dirs map[string]string) *mapfs.FS {
++	t.Helper()
++	mfs := mapfs.New()
++	for virtual, name := range dirs {
++		spec, ok := runtimes[name]
++		require.True(t, ok, name)
++		real := filepath.Join(t.TempDir(), name)
++		testfix.Write(t, real, spec)
++		err := filepath.WalkDir(real, func(p string, d fs.DirEntry, err error) error {
++			if err != nil {
++				return err
++			}
++			rel, err := filepath.Rel(real, p)
++			if err != nil {
++				return err
++			}
++			dst := path.Join(virtual, filepath.ToSlash(rel))
++			if d.IsDir() {
++				return mfs.MkdirAll(dst, 0o755)
++			}
++			return mfs.WriteFile(dst, p)
++		})
++		require.NoError(t, err)
++	}
++	return mfs
++}
++
++func TestVendorJDKAnalyzer_PostAnalyze(t *testing.T) {
++	tests := []struct {
++		name string
++		dirs map[string]string // virtual dir -> runtime spec
++		want []types.Application
++	}{
++		{
++			name: "JDK 21 standard",
++			dirs: map[string]string{"opt/jdk-21.0.2": "jdk-21.0.2"},
++			want: []types.Application{
++				{
++					Type:     types.VendorJDK,
++					FilePath: "opt/jdk-21.0.2/release",
++					Packages: []types.Package{
++						{
++							ID:         "jdk@21.0.2+14",
++							Name:       "jdk",
++							Version:    "21.0.2+14",
++							SrcName:    osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"),
++							FilePath:   "opt/jdk-21.0.2",
++							Identifier: types.PkgIdentifier{PURL: purlOf("jdk", "21.0.2+14")},
++						},
++					},
++				},
++			},
++		},
++		{
++			name: "JDK 8: no IMPLEMENTOR in release, vendor from libjvm.so and rt.jar",
++			dirs: map[string]string{"opt/jdk8u402": "jdk8u402"},
++			want: []types.Application{
++				{
++					Type:     types.VendorJDK,
++					FilePath: "opt/jdk8u402/release",
++					Packages: []types.Package{
++						{
++							ID:         "jdk@8u402+7",
++							Name:       "jdk",
++							Version:    "8u402+7",
++							SrcName:    osvinternal.Ecosystem(osvinternal.EcosystemJDK, "8"),
++							FilePath:   "opt/jdk8u402",
++							Identifier: types.PkgIdentifier{PURL: purlOf("jdk", "8u402+7")},
++						},
++					},
++				},
++			},
++		},
++		{
++			name: "JRE 21 lite: no javac, lite from the home name",
++			dirs: map[string]string{"usr/lib/jvm/jre-21.0.2-lite": "jre-21.0.2-lite"},
++			want: []types.Application{
++				{
++					Type:     types.VendorJDK,
++					FilePath: "usr/lib/jvm/jre-21.0.2-lite/release",
++					Packages: []types.Package{
++						{
++							ID:         "jre-lite@21.0.2+14",
++							Name:       "jre-lite",
++							Version:    "21.0.2+14",
++							SrcName:    osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"),
++							FilePath:   "usr/lib/jvm/jre-21.0.2-lite",
++							Identifier: types.PkgIdentifier{PURL: purlOf("jre-lite", "21.0.2+14")},
++						},
++					},
++				},
++			},
++		},
++		{
++			name: "another vendor is ignored",
++			dirs: map[string]string{"usr/lib/jvm/zulu21-ca-amd64": "zulu21"},
++			want: nil,
++		},
++		{
++			// GraalVM markers make it NIK: reported once, as NIK (core bundle, version
++			// from GRAALVM_VERSION), never as a JDK
++			name: "NIK (GraalVM) is reported as NIK, not as a JDK",
++			dirs: map[string]string{"opt/nik-23": "nik-23"},
++			want: []types.Application{
++				{
++					Type:     types.VendorNIK,
++					FilePath: "opt/nik-23/release",
++					Packages: []types.Package{
++						{
++							ID:         "core@23.1.2",
++							Name:       "core",
++							Version:    "23.1.2",
++							SrcName:    osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21"),
++							FilePath:   "opt/nik-23",
++							Identifier: types.PkgIdentifier{PURL: purlFrom(osvjdk.PURLNIK("core", "23.1.2"))},
++						},
++					},
++				},
++			},
++		},
++		{
++			name: "apk-installed runtime with a stripped release file is still a vendor runtime at this stage",
++			dirs: map[string]string{"usr/lib/jvm/jdk21-lite": "apk-jdk21-lite"},
++			want: []types.Application{
++				{
++					Type:     types.VendorJDK,
++					FilePath: "usr/lib/jvm/jdk21-lite/release",
++					Packages: []types.Package{
++						{
++							ID:         "jre-lite@21.0.2+14",
++							Name:       "jre-lite",
++							Version:    "21.0.2+14",
++							SrcName:    osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"),
++							FilePath:   "usr/lib/jvm/jdk21-lite",
++							Identifier: types.PkgIdentifier{PURL: purlOf("jre-lite", "21.0.2+14")},
++						},
++					},
++				},
++			},
++		},
++		{
++			name: "two runtimes in one layer",
++			dirs: map[string]string{
++				"opt/jdk-21.0.2": "jdk-21.0.2",
++				"opt/jdk8u402":   "jdk8u402",
++			},
++			want: []types.Application{
++				{
++					Type:     types.VendorJDK,
++					FilePath: "opt/jdk-21.0.2/release",
++					Packages: []types.Package{{ID: "jdk@21.0.2+14", Name: "jdk", Version: "21.0.2+14", SrcName: osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"), FilePath: "opt/jdk-21.0.2", Identifier: types.PkgIdentifier{PURL: purlOf("jdk", "21.0.2+14")}}},
++				},
++				{
++					Type:     types.VendorJDK,
++					FilePath: "opt/jdk8u402/release",
++					Packages: []types.Package{{ID: "jdk@8u402+7", Name: "jdk", Version: "8u402+7", SrcName: osvinternal.Ecosystem(osvinternal.EcosystemJDK, "8"), FilePath: "opt/jdk8u402", Identifier: types.PkgIdentifier{PURL: purlOf("jdk", "8u402+7")}}},
++				},
++			},
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			a, err := newVendorJDKAnalyzer(analyzer.AnalyzerOptions{})
++			require.NoError(t, err)
++			got, err := a.PostAnalyze(context.Background(), analyzer.PostAnalysisInput{FS: testFS(t, tt.dirs)})
++			require.NoError(t, err)
++			sort.Slice(got.Applications, func(i, j int) bool {
++				return got.Applications[i].FilePath < got.Applications[j].FilePath
++			})
++			assert.Equal(t, tt.want, got.Applications)
++		})
++	}
++}
++
++func TestVendorJDKAnalyzer_Required(t *testing.T) {
++	a := &vendorJDKAnalyzer{}
++	tests := []struct {
++		path string
++		size int64
++		want bool
++	}{
++		{"opt/jdk-21.0.2/lib/server/libjvm.so", 27_000_000, true},
++		{"opt/jdk8u402/jre/lib/amd64/server/libjvm.so", 17_000_000, true},
++		{"opt/jdk-21.0.2/release", 2_000, true},
++		{"opt/jdk8u402/jre/lib/rt.jar", 65_000_000, true},
++		{"opt/jdk-21.0.2/bin/javac", 13_000, true},
++		{"opt/jdk-21.0.2/bin/java", 13_000, true},
++		{"opt/jdk8u402/jre/bin/java", 9_000, true},
++		{"opt/nik/bin/native-image", 9_000, true},
++		{"opt/nik/lib/svm/bin/native-image", 25_403_584, true}, // the real launcher, a native image itself
++		{"opt/nik/lib/svm/bin/native-image-configure", 10_240, true},
++		{"opt/nik/lib/svm/builder/svm.jar", 30_000_000, false},
++		{"opt/jdk8u402/jre/lib/ext/jfxrt.jar", 18_000_000, true},
++		{"opt/jdk-21.0.2/lib/modules", 140_000_000, false},
++		{"opt/jdk-21.0.2/bin/jar", 13_000, false},
++		{"usr/bin/java", 900_000_000, false}, // a 900 MB "java" is not a launcher
++		{"app/release", 100, true},           // a release file anywhere is cheap to look at
++		{"usr/lib/libjvm.so.1", 100, false},
++	}
++	for _, tt := range tests {
++		t.Run(tt.path, func(t *testing.T) {
++			assert.Equal(t, tt.want, a.Required(tt.path, fakeInfo{size: tt.size}))
++		})
++	}
++}
++
++// purlOf is the purl the shared module assigns to a vendor JDK runtime.
++func purlOf(variant, version string) *packageurl.PackageURL {
++	return purlFrom(osvjdk.PURL(variant, version))
++}
++
++func purlFrom(s string) *packageurl.PackageURL {
++	p, err := packageurl.FromString(s)
++	if err != nil {
++		panic(err)
++	}
++	return &p
++}
++
++type fakeInfo struct {
++	os.FileInfo
++	size int64
++}
++
++func (f fakeInfo) Size() int64 { return f.size }
+diff --git a/pkg/fanal/types/const.go b/pkg/fanal/types/const.go
+index aa03475..3283229 100644
+--- a/pkg/fanal/types/const.go
++++ b/pkg/fanal/types/const.go
+@@ -1,6 +1,9 @@
+ package types
+ 
+-import osvdistro "github.com/bell-sw/osv-internal/distro"
++import (
++	osvdistro "github.com/bell-sw/osv-internal/distro"
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++)
+ 
+ type (
+ 	// TargetType represents the type of target
+@@ -140,6 +143,8 @@ const (
+ 	Hex            LangType = "hex"
+ 	Bitnami        LangType = "bitnami"
+ 	Julia          LangType = "julia"
++	VendorJDK      LangType = osvjdk.PURLNameJDK // standalone vendor JDK runtime
++	VendorNIK      LangType = osvjdk.PURLNameNIK // standalone vendor Native Image Kit runtime
+ 
+ 	K8sUpstream LangType = "kubernetes"
+ 	EKS         LangType = "eks" // Amazon Elastic Kubernetes Service
+diff --git a/pkg/flag/vulnerability_flags.go b/pkg/flag/vulnerability_flags.go
+index b910372..6e6f24c 100644
+--- a/pkg/flag/vulnerability_flags.go
++++ b/pkg/flag/vulnerability_flags.go
+@@ -134,5 +134,5 @@ func severitySources() []string {
+ 		at = len(ids)
+ 	}
+ 	ids = slices.Insert(ids, at, distros...)
+-	return append(ids, string(vendordb.SourceJDK), "auto")
++	return append(ids, string(vendordb.SourceJDK), string(vendordb.SourceNIK), "auto")
+ }
+diff --git a/pkg/purl/purl.go b/pkg/purl/purl.go
+index 0c3bb26..472b3a0 100644
+--- a/pkg/purl/purl.go
++++ b/pkg/purl/purl.go
+@@ -10,10 +10,13 @@ import (
+ 	"github.com/package-url/packageurl-go"
+ 	"golang.org/x/xerrors"
+ 
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
+ 	"github.com/aquasecurity/trivy/pkg/dependency"
+ 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+ 	"github.com/aquasecurity/trivy/pkg/scan/utils"
+ 	"github.com/aquasecurity/trivy/pkg/types"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
+ )
+ 
+ const (
+@@ -128,6 +131,13 @@ func New(t ftypes.TargetType, metadata types.Metadata, pkg ftypes.Package) (*Pac
+ 		var qs packageurl.Qualifiers
+ 		namespace, name, qs = parseJulia(name, pkg.ID) // for Julia, the ID is set to the package UUID
+ 		qualifiers = append(qualifiers, qs...)
++	case packageurl.TypeGeneric:
++		if vendordb.IsVendorRuntime(t) {
++			// pkg:generic/<namespace>/<name>@21.0.2%2B14?package_type=jdk
++			var qs packageurl.Qualifiers
++			namespace, name, qs = parseVendorRuntime(t, name)
++			qualifiers = append(qualifiers, qs...)
++		}
+ 	}
+ 
+ 	return (*PackageURL)(packageurl.NewPackageURL(ptype, namespace, name, ver, qualifiers, subpath)), nil
+@@ -178,6 +188,13 @@ func (p *PackageURL) LangType() ftypes.LangType {
+ 		return ftypes.Pub
+ 	case packageurl.TypeBitnami:
+ 		return ftypes.Bitnami
++	case packageurl.TypeGeneric:
++		if p.Namespace == osvjdk.PURLNamespace {
++			if t, ok := vendordb.LangTypeForPURLName(p.Name); ok {
++				return t
++			}
++		}
++		return TypeUnknown
+ 	case TypeK8s:
+ 		switch p.Namespace {
+ 		case NamespaceEKS:
+@@ -239,6 +256,14 @@ func (p *PackageURL) Package() *ftypes.Package {
+ 			PURL: p.Unwrap(),
+ 		},
+ 	}
++	if t := p.LangType(); vendordb.IsVendorRuntime(t) {
++		// The package name is the distribution variant carried as a qualifier.
++		if variant := p.Qualifiers.Map()[osvjdk.PURLQualifier]; variant != "" {
++			pkg.Name = variant
++			pkg.ID = dependency.ID(t, variant, p.Version)
++		}
++	}
++
+ 	for _, q := range p.Qualifiers {
+ 		switch q.Key {
+ 		case "arch":
+@@ -438,6 +463,18 @@ func parseNpm(pkgName string) (string, string) {
+ }
+ 
+ // ref. https://github.com/package-url/purl-spec/blob/7759d1cf81629267742eeeb0cdfccf5ebd624cc5/PURL-TYPES.rst#julia
++// parseVendorRuntime returns the purl components of a standalone vendor runtime
++// (JDK or NIK); the variant, which Trivy uses as the package name, becomes the
++// package_type qualifier.
++func parseVendorRuntime(t ftypes.TargetType, variant string) (string, string, packageurl.Qualifiers) {
++	return osvjdk.PURLNamespace, vendordb.PURLName(t), packageurl.Qualifiers{
++		{
++			Key:   osvjdk.PURLQualifier,
++			Value: variant,
++		},
++	}
++}
++
+ func parseJulia(pkgName, pkgUUID string) (string, string, packageurl.Qualifiers) {
+ 	namespace, name := parsePkgName(pkgName)
+ 	qualifiers := packageurl.Qualifiers{
+@@ -496,6 +533,8 @@ func purlType(t ftypes.TargetType) string {
+ 		return packageurl.TypeOCI
+ 	case ftypes.Julia:
+ 		return packageurl.TypeJulia
++	case ftypes.VendorJDK, ftypes.VendorNIK:
++		return packageurl.TypeGeneric
+ 	}
+ 	return string(t)
+ }
+diff --git a/pkg/purl/purl_test.go b/pkg/purl/purl_test.go
+index 9ab6801..0abc457 100644
+--- a/pkg/purl/purl_test.go
++++ b/pkg/purl/purl_test.go
+@@ -3,6 +3,8 @@ package purl_test
+ import (
+ 	"testing"
+ 
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
+ 	v1 "github.com/google/go-containerregistry/pkg/v1"
+ 	"github.com/package-url/packageurl-go"
+ 	"github.com/stretchr/testify/assert"
+@@ -1098,3 +1100,26 @@ func TestPackageURL_Match(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func TestNewPackageURL_VendorJDK(t *testing.T) {
++	pkg := ftypes.Package{
++		Name:    "jdk-lite",
++		Version: "21.0.2+14",
++	}
++	p, err := purl.New(ftypes.VendorJDK, types.Metadata{}, pkg)
++	require.NoError(t, err)
++	assert.Equal(t, osvjdk.PURL("jdk-lite", "21.0.2+14"), p.String())
++	assert.Equal(t, ftypes.VendorJDK, p.LangType())
++	assert.Equal(t, types.ClassLangPkg, p.Class())
++
++	back, err := purl.FromString(osvjdk.PURL("jre-full", "8u402+7"))
++	require.NoError(t, err)
++	assert.Equal(t, ftypes.VendorJDK, back.LangType())
++	got := back.Package()
++	assert.Equal(t, "jre-full", got.Name)
++	assert.Equal(t, "8u402+7", got.Version)
++
++	other, err := purl.FromString("pkg:generic/openssl@1.1.1")
++	require.NoError(t, err)
++	assert.Equal(t, ftypes.LangType(purl.TypeUnknown), other.LangType())
++}
+diff --git a/pkg/sbom/io/decode.go b/pkg/sbom/io/decode.go
+index 9b4a059..5f4d938 100644
+--- a/pkg/sbom/io/decode.go
++++ b/pkg/sbom/io/decode.go
+@@ -22,6 +22,7 @@ import (
+ 	"github.com/aquasecurity/trivy/pkg/sbom/core"
+ 	"github.com/aquasecurity/trivy/pkg/types"
+ 	"github.com/aquasecurity/trivy/pkg/uuid"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
+ )
+ 
+ var (
+@@ -256,6 +257,13 @@ func (m *Decoder) pkgName(pkg *ftypes.Package, c *core.Component) string {
+ 		return pkg.Name
+ 	}
+ 
++	// A standalone vendor runtime is named after its variant, which the purl
++	// carries as a qualifier (pkg:generic/<namespace>/<name>@...?package_type=jdk);
++	// the component name of a third-party SBOM is the product name.
++	if p.Type == packageurl.TypeGeneric && vendordb.IsVendorRuntimePURL(p.Namespace, p.Name) {
++		return pkg.Name
++	}
++
+ 	if c.Group != "" {
+ 		return c.Group + "/" + c.Name
+ 	}
+diff --git a/pkg/sbom/io/decode_test.go b/pkg/sbom/io/decode_test.go
+index d79092b..06fb78b 100644
+--- a/pkg/sbom/io/decode_test.go
++++ b/pkg/sbom/io/decode_test.go
+@@ -3,6 +3,8 @@ package io_test
+ import (
+ 	"testing"
+ 
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
+ 	"github.com/package-url/packageurl-go"
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/require"
+@@ -406,3 +408,34 @@ func TestDecoder_Decode_OSPackages(t *testing.T) {
+ 		})
+ 	}
+ }
++
++// A standalone vendor runtime listed by a third-party SBOM is named after
++// the variant in its purl, which is what the advisories are keyed on.
++func TestDecoder_Decode_VendorRuntimePURL(t *testing.T) {
++	bom := core.NewBOM(core.Options{})
++	bom.AddComponent(&core.Component{
++		Type:    core.TypeLibrary,
++		Group:   osvjdk.PURLNamespace,
++		Name:    osvjdk.PURLNameJDK,
++		Version: "21.0.11.0.1+1",
++		PkgIdentifier: ftypes.PkgIdentifier{
++			PURL: &packageurl.PackageURL{
++				Type:      packageurl.TypeGeneric,
++				Namespace: osvjdk.PURLNamespace,
++				Name:      osvjdk.PURLNameJDK,
++				Version:   "21.0.11.0.1+1",
++				Qualifiers: packageurl.Qualifiers{
++					{Key: "package_type", Value: "jdk"},
++				},
++			},
++		},
++	})
++
++	var got types.SBOM
++	require.NoError(t, sbomio.NewDecoder(bom).Decode(t.Context(), &got))
++	require.Len(t, got.Applications, 1)
++	assert.Equal(t, ftypes.VendorJDK, got.Applications[0].Type)
++	require.Len(t, got.Applications[0].Packages, 1)
++	assert.Equal(t, "jdk", got.Applications[0].Packages[0].Name)
++	assert.Equal(t, "21.0.11.0.1+1", got.Applications[0].Packages[0].Version)
++}
+diff --git a/pkg/scan/langpkg/scan.go b/pkg/scan/langpkg/scan.go
+index a1c55be..914d8be 100644
+--- a/pkg/scan/langpkg/scan.go
++++ b/pkg/scan/langpkg/scan.go
+@@ -6,11 +6,14 @@ import (
+ 
+ 	"golang.org/x/xerrors"
+ 
++	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
++
+ 	"github.com/aquasecurity/trivy/pkg/detector/library"
+ 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+ 	"github.com/aquasecurity/trivy/pkg/log"
+ 	"github.com/aquasecurity/trivy/pkg/set"
+ 	"github.com/aquasecurity/trivy/pkg/types"
++	"github.com/aquasecurity/trivy/pkg/vendordb"
+ 
+ 	// The bundled suppliers are registered eagerly at init time. To opt out,
+ 	// call library.DeregisterSupplier (e.g., library.DeregisterSupplier("seal"))
+@@ -40,7 +43,7 @@ func NewScanner() Scanner {
+ }
+ 
+ func (s *scanner) Scan(ctx context.Context, target types.ScanTarget, opts types.ScanOptions) (types.Results, error) {
+-	apps := target.Applications
++	apps := dropOSManagedRuntimes(ctx, target)
+ 	log.Info("Number of language-specific files", log.Int("num", len(apps)))
+ 	if len(apps) == 0 {
+ 		return nil, nil
+@@ -99,6 +102,26 @@ func (s *scanner) scanVulnerabilities(ctx context.Context, app ftypes.Applicatio
+ 	return vulns, err
+ }
+ 
++// dropOSManagedRuntimes removes the vendor runtime applications under
++// /usr/lib/jvm on the vendor distributions: they are apk packages already
++// covered by the OS scan.
++func dropOSManagedRuntimes(ctx context.Context, target types.ScanTarget) []ftypes.Application {
++	apps := make([]ftypes.Application, 0, len(target.Applications))
++	for _, app := range target.Applications {
++		if vendordb.IsVendorRuntime(app.Type) && isVendorOS(target.OS.Family) && osvjdk.ManagedByAPK(app.FilePath) {
++			log.DebugContext(ctx, "Skipping a runtime installed by the OS package manager",
++				log.FilePath(app.FilePath), log.String("os", string(target.OS.Family)))
++			continue
++		}
++		apps = append(apps, app)
++	}
++	return apps
++}
++
++func isVendorOS(family ftypes.OSType) bool {
++	return family == ftypes.VendorLinux || family == ftypes.VendorHardened
++}
++
+ func targetName(appType ftypes.LangType, filePath string) string {
+ 	if t, ok := PkgTargets[appType]; ok && filePath == "" {
+ 		// When the file path is empty, we will overwrite it with the pre-defined value.
+diff --git a/pkg/scan/langpkg/scan_test.go b/pkg/scan/langpkg/scan_test.go
+new file mode 100644
+index 0000000..d7ef24d
+--- /dev/null
++++ b/pkg/scan/langpkg/scan_test.go
+@@ -0,0 +1,62 @@
++package langpkg
++
++import (
++	"context"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++
++	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
++	"github.com/aquasecurity/trivy/pkg/types"
++)
++
++func TestDropOSManagedRuntimes(t *testing.T) {
++	apkRuntime := ftypes.Application{
++		Type:     ftypes.VendorJDK,
++		FilePath: "usr/lib/jvm/jdk21-lite/release",
++		Packages: []ftypes.Package{{Name: "jdk-lite", Version: "21.0.2+14", FilePath: "usr/lib/jvm/jdk21-lite"}},
++	}
++	optRuntime := ftypes.Application{
++		Type:     ftypes.VendorJDK,
++		FilePath: "opt/jdk-21.0.2/release",
++		Packages: []ftypes.Package{{Name: "jdk", Version: "21.0.2+14", FilePath: "opt/jdk-21.0.2"}},
++	}
++	jar := ftypes.Application{Type: ftypes.Jar, FilePath: "usr/lib/jvm/jdk21-lite/lib/foo.jar"}
++
++	tests := []struct {
++		name string
++		os   ftypes.OS
++		apps []ftypes.Application
++		want []ftypes.Application
++	}{
++		{
++			name: "vendor Linux: the apk-installed runtime is dropped, others stay",
++			os:   ftypes.OS{Family: ftypes.VendorLinux, Name: "23"},
++			apps: []ftypes.Application{apkRuntime, optRuntime, jar},
++			want: []ftypes.Application{optRuntime, jar},
++		},
++		{
++			name: "hardened containers: same rule",
++			os:   ftypes.OS{Family: ftypes.VendorHardened, Name: "stream"},
++			apps: []ftypes.Application{apkRuntime},
++			want: []ftypes.Application{},
++		},
++		{
++			name: "debian: a runtime under /usr/lib/jvm is standalone",
++			os:   ftypes.OS{Family: ftypes.Debian, Name: "11"},
++			apps: []ftypes.Application{apkRuntime, optRuntime},
++			want: []ftypes.Application{apkRuntime, optRuntime},
++		},
++		{
++			name: "no OS: nothing dropped",
++			apps: []ftypes.Application{apkRuntime},
++			want: []ftypes.Application{apkRuntime},
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got := dropOSManagedRuntimes(context.Background(), types.ScanTarget{OS: tt.os, Applications: tt.apps})
++			assert.Equal(t, tt.want, got)
++		})
++	}
++}
+diff --git a/pkg/vendordb/vendordb.go b/pkg/vendordb/vendordb.go
+index 7454e44..b76d5a0 100644
+--- a/pkg/vendordb/vendordb.go
++++ b/pkg/vendordb/vendordb.go
+@@ -24,16 +24,86 @@ import (
+ 	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
+ 
+ 	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
++	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+ 	"github.com/aquasecurity/trivy/pkg/log"
+ 	"github.com/aquasecurity/trivy/pkg/types"
+ 	xhttp "github.com/aquasecurity/trivy/pkg/x/http"
+ )
+ 
++// Standalone runtime families (the module's names); Trivy maps a family to a
++// package type and back for SBOMs.
++const (
++	// EcosystemNIK is the family of the Native Image Kit, "<family>:<nik major>-<java major>".
++	EcosystemNIK = osvinternal.EcosystemNIK
++	// PURLNameJDK and PURLNameNIK are the purl names under the module's namespace.
++	PURLNameJDK = osvjdk.PURLNameJDK
++	PURLNameNIK = osvjdk.PURLNameNIK
++)
++
++// LangTypeForFamily maps the ecosystem family of a detected runtime to the
++// Trivy package type; ok is false for a family Trivy does not scan.
++func LangTypeForFamily(family string) (ftypes.LangType, bool) {
++	switch family {
++	case osvinternal.EcosystemJDK:
++		return ftypes.VendorJDK, true
++	case EcosystemNIK:
++		return ftypes.VendorNIK, true
++	}
++	return "", false
++}
++
++// FamilyForLangType is the inverse of LangTypeForFamily.
++func FamilyForLangType(t ftypes.LangType) (string, bool) {
++	switch t {
++	case ftypes.VendorJDK:
++		return osvinternal.EcosystemJDK, true
++	case ftypes.VendorNIK:
++		return EcosystemNIK, true
++	}
++	return "", false
++}
++
++// PURLName returns the purl name of a standalone runtime type ("" for others).
++func PURLName(t ftypes.LangType) string {
++	switch t {
++	case ftypes.VendorJDK:
++		return PURLNameJDK
++	case ftypes.VendorNIK:
++		return PURLNameNIK
++	}
++	return ""
++}
++
++// LangTypeForPURLName is the inverse of PURLName.
++func LangTypeForPURLName(name string) (ftypes.LangType, bool) {
++	switch name {
++	case PURLNameJDK:
++		return ftypes.VendorJDK, true
++	case PURLNameNIK:
++		return ftypes.VendorNIK, true
++	}
++	return "", false
++}
++
++// IsVendorRuntimePURL reports whether the purl namespace and name are those of
++// a standalone vendor runtime (pkg:generic/<namespace>/<jdk or nik name>).
++func IsVendorRuntimePURL(namespace, name string) bool {
++	_, ok := LangTypeForPURLName(name)
++	return ok && namespace == osvjdk.PURLNamespace
++}
++
++// IsVendorRuntime reports whether t is one of the standalone vendor runtimes.
++func IsVendorRuntime(t ftypes.LangType) bool {
++	_, ok := FamilyForLangType(t)
++	return ok
++}
++
+ // Source IDs, one per ecosystem family.
+ const (
+ 	SourceLinux    dbTypes.SourceID = osvdistro.IDLinux
+ 	SourceHardened dbTypes.SourceID = osvdistro.IDHardened
+ 	SourceJDK      dbTypes.SourceID = osvjdk.PURLNameJDK
++	SourceNIK      dbTypes.SourceID = osvjdk.PURLNameNIK
+ )
+ 
+ // Options are the user-facing settings of the OSV source.
+@@ -214,6 +284,8 @@ func DataSource(ecosystem, recordURL string) *dbTypes.DataSource {
+ 		ds.ID = SourceHardened
+ 	case osvinternal.EcosystemJDK:
+ 		ds.ID = SourceJDK
++	case EcosystemNIK:
++		ds.ID = SourceNIK
+ 	}
+ 	if ds.ID != "" {
+ 		ds.Name = family + " OSV database"
+diff --git a/schema/trivy-config.json b/schema/trivy-config.json
+index a9e6e35..bc60ebe 100644
+--- a/schema/trivy-config.json
++++ b/schema/trivy-config.json
+@@ -969,6 +969,7 @@
+               "rootio",
+               "rapidfort",
+               "liberica-jdk",
++              "liberica-nik",
+               "auto"
+             ]
+           },
+-- 
+2.43.0
+

@@ -1,0 +1,411 @@
+From 23a277206ace7c26cc0508fbe5cdea6aa22f6a55 Mon Sep 17 00:00:00 2001
+From: BellSoft <info@bell-sw.com>
+Date: Sat, 10 Oct 2026 20:00:47 +0000
+Subject: [PATCH] fix(apk): support the apk-tools 3 database location and keep
+ name aliases
+
+Two changes to the apk analyzer, independent of any particular distro.
+
+apk-tools 3 moved the installed database from /lib/apk/db/installed to
+/var/lib/apk/db/installed, and distributions that ship it have no /lib/apk
+compatibility symlink, so images built on apk-tools 3 were scanned as
+having no OS packages. Add the new location and bump the analyzer version.
+
+The analyzer already parsed the "p:" (provides) field, but only to resolve
+the dependency graph. Advisories are published against source package
+names, and a package distributed under a name other than the one it is
+built from has the provides field as the only link between the two. Keep
+those aliases on the package. Namespaced capabilities ("so:libz.so.1",
+"cmd:apk", "pc:sqlite3") and paths ("/bin/sh") are not package names and
+are left out.
+---
+ pkg/fanal/analyzer/analyzer_test.go           |  5 +--
+ pkg/fanal/analyzer/pkg/apk/apk.go             | 34 +++++++++++++++---
+ pkg/fanal/analyzer/pkg/apk/apk_test.go        | 32 +++++++++++++++++
+ .../analyzer/pkg/apk/testdata/apk-provides    | 35 +++++++++++++++++++
+ pkg/fanal/artifact/image/image_test.go        | 34 +++++++++---------
+ pkg/fanal/artifact/local/fs_test.go           |  1 +
+ pkg/fanal/artifact/vm/vm_test.go              | 12 +++----
+ pkg/fanal/types/package.go                    |  4 +++
+ 8 files changed, 127 insertions(+), 30 deletions(-)
+ create mode 100644 pkg/fanal/analyzer/pkg/apk/testdata/apk-provides
+
+diff --git a/pkg/fanal/analyzer/analyzer_test.go b/pkg/fanal/analyzer/analyzer_test.go
+index fde7115..768b725 100644
+--- a/pkg/fanal/analyzer/analyzer_test.go
++++ b/pkg/fanal/analyzer/analyzer_test.go
+@@ -745,7 +745,7 @@ func TestAnalyzerGroup_AnalyzerVersions(t *testing.T) {
+ 				Analyzers: map[string]int{
+ 					"alpine":       1,
+ 					"apk-repo":     1,
+-					"apk":          3,
++					"apk":          4,
+ 					"bundler":      1,
+ 					"dpkg-license": 1,
+ 					"ubuntu":       1,
+@@ -771,7 +771,7 @@ func TestAnalyzerGroup_AnalyzerVersions(t *testing.T) {
+ 			},
+ 			want: analyzer.Versions{
+ 				Analyzers: map[string]int{
+-					"apk":     3,
++					"apk":     4,
+ 					"bundler": 1,
+ 				},
+ 				PostAnalyzers: map[string]int{
+@@ -811,6 +811,7 @@ func TestAnalyzerGroup_StaticPaths(t *testing.T) {
+ 				"etc/lsb-release",
+ 				"lib/apk/db/installed",
+ 				"usr/lib/apk/db/installed",
++				"var/lib/apk/db/installed",
+ 				"etc/alpine-release",
+ 
+ 				"usr/share/doc/",
+diff --git a/pkg/fanal/analyzer/pkg/apk/apk.go b/pkg/fanal/analyzer/pkg/apk/apk.go
+index 547009e..ed50ba6 100644
+--- a/pkg/fanal/analyzer/pkg/apk/apk.go
++++ b/pkg/fanal/analyzer/pkg/apk/apk.go
+@@ -27,9 +27,17 @@ func init() {
+ 	analyzer.RegisterAnalyzer(newAlpinePkgAnalyzer())
+ }
+ 
+-const analyzerVersion = 3
+-
+-var requiredFiles = []string{"lib/apk/db/installed", "usr/lib/apk/db/installed"}
++const analyzerVersion = 4
++
++// requiredFiles lists the locations of the apk installed database: the
++// apk-tools 2 ones and var/lib/apk/db/installed of apk-tools 3, which moved
++// the database out of /lib (distributions shipping it have no /lib/apk
++// symlink).
++var requiredFiles = []string{
++	"lib/apk/db/installed",
++	"usr/lib/apk/db/installed",
++	"var/lib/apk/db/installed",
++}
+ 
+ type alpinePkgAnalyzer struct{}
+ 
+@@ -98,7 +106,7 @@ func (a alpinePkgAnalyzer) parseApkInfo(ctx context.Context, scanner *bufio.Scan
+ 			pkg.InstalledFiles = append(pkg.InstalledFiles, absPath)
+ 			installedFiles = append(installedFiles, absPath)
+ 		case "p:": // provides (corresponds to provides in PKGINFO, concatenated by spaces into a single line)
+-			a.parseProvides(line, pkg.ID, provides)
++			pkg.Provides = a.parseProvides(line, pkg.ID, provides)
+ 		case "D:": // dependencies (corresponds to depend in PKGINFO, concatenated by spaces into a single line)
+ 			pkg.DependsOn = a.parseDependencies(line)
+ 		case "A:":
+@@ -149,13 +157,29 @@ func (a alpinePkgAnalyzer) parseLicense(line string) []string {
+ 	return licensing.LaxSplitLicenses(line[2:])
+ }
+ 
+-func (a alpinePkgAnalyzer) parseProvides(line, pkgID string, provides map[string]string) {
++// parseProvides records every provided name in the provides map used to resolve
++// the dependency graph, and returns the subset that are package name aliases so
++// that they can be kept on the package itself.
++func (a alpinePkgAnalyzer) parseProvides(line, pkgID string, provides map[string]string) []string {
++	var pkgProvides []string
+ 	for p := range strings.FieldsSeq(line[2:]) {
+ 		p = a.trimRequirement(p)
+ 
+ 		// Assume name ("P:") and version ("V:") are defined before provides ("p:")
+ 		provides[p] = pkgID
++
++		if isPkgNameProvide(p) {
++			pkgProvides = append(pkgProvides, p)
++		}
+ 	}
++	return pkgProvides
++}
++
++// isPkgNameProvide reports whether a provided name is an alternative package
++// name ("openjdk21-lite-jdk-no-deps") rather than a namespaced capability
++// ("so:libz.so.1", "cmd:apk", "pc:sqlite3") or a path ("/bin/sh").
++func isPkgNameProvide(name string) bool {
++	return name != "" && !strings.Contains(name, ":") && !strings.HasPrefix(name, "/")
+ }
+ 
+ func (a alpinePkgAnalyzer) parseDependencies(line string) []string {
+diff --git a/pkg/fanal/analyzer/pkg/apk/apk_test.go b/pkg/fanal/analyzer/pkg/apk/apk_test.go
+index fa73142..e9673ae 100644
+--- a/pkg/fanal/analyzer/pkg/apk/apk_test.go
++++ b/pkg/fanal/analyzer/pkg/apk/apk_test.go
+@@ -250,6 +250,7 @@ var pkgs = []types.Package{
+ 	{
+ 		ID:         "pkgconf@1.6.0-r0",
+ 		Name:       "pkgconf",
++		Provides:   []string{"pkgconfig"},
+ 		Version:    "1.6.0-r0",
+ 		SrcName:    "pkgconf",
+ 		SrcVersion: "1.6.0-r0",
+@@ -481,6 +482,12 @@ func TestRequired(t *testing.T) {
+ 			filePath: "usr/lib/apk/db/installed",
+ 			want:     true,
+ 		},
++		{
++			// apk-tools 3.x
++			name:     "apk-tools 3 database location",
++			filePath: "var/lib/apk/db/installed",
++			want:     true,
++		},
+ 		{
+ 			name:     "unrelated file",
+ 			filePath: "etc/os-release",
+@@ -501,3 +508,28 @@ func TestRequired(t *testing.T) {
+ 		})
+ 	}
+ }
++
++// TestParseApkInfo_Provides: the package-name entries of "p:" are kept on the
++// package, capabilities are not.
++func TestParseApkInfo_Provides(t *testing.T) {
++	f, err := os.Open("testdata/apk-provides")
++	require.NoError(t, err)
++	defer f.Close()
++
++	a := alpinePkgAnalyzer{}
++	gotPkgs, _ := a.parseApkInfo(t.Context(), bufio.NewScanner(f))
++
++	require.Len(t, gotPkgs, 2)
++
++	assert.Equal(t, "jdk21-lite-jdk-no-deps", gotPkgs[0].Name)
++	assert.Equal(t, "jdk21-lite", gotPkgs[0].SrcName)
++	assert.Equal(t, []string{
++		"java-jdk-no-deps",
++		"java21-jdk-no-deps",
++		"openjdk21-lite-jdk-no-deps",
++	}, gotPkgs[0].Provides)
++
++	// "cmd:apk" is a capability, not a package name
++	assert.Equal(t, "apk-tools", gotPkgs[1].Name)
++	assert.Empty(t, gotPkgs[1].Provides)
++}
+diff --git a/pkg/fanal/analyzer/pkg/apk/testdata/apk-provides b/pkg/fanal/analyzer/pkg/apk/testdata/apk-provides
+new file mode 100644
+index 0000000..bf7534f
+--- /dev/null
++++ b/pkg/fanal/analyzer/pkg/apk/testdata/apk-provides
+@@ -0,0 +1,35 @@
++C:Q1LxJm8XoOKI0jXPtjyMBLc/H4dqk=
++P:jdk21-lite-jdk-no-deps
++V:21.0.12.1_p1-r0
++A:x86_64
++S:50657
++I:623790
++T:BellSoft Liberica JDK 21 Lite (JDK without dependencies)
++U:https://bell-sw.com/
++L:GPL-2.0 WITH Classpath-Exception-2.0
++o:jdk21-lite
++m:BellSoft <info@bell-sw.com>
++t:1787226286
++c:1e7fb0763edf7142a37522b5eb78e80691e62382
++D:jdk21-lite-jre-no-deps=21.0.12.1_p1-r0
++p:java-jdk-no-deps java21-jdk-no-deps openjdk21-lite-jdk-no-deps=21.0.12.1_p1-r0
++F:usr/lib/jvm/jdk21-lite/bin
++R:javac
++a:0:0:755
++Z:Q15oBprdEyNIUWNJOSd5Fx/STXtwI=
++
++C:Q1XuahYUl0h4Gm0SbfO279BGXhy94=
++P:apk-tools
++V:3.0.7-r1
++A:x86_64
++T:APK Package Manager (Derivative from Alpine Package Keeper)
++U:https://gitlab.alpinelinux.org/alpine/apk-tools
++L:GPL-2.0-only
++o:apk-tools
++m:BellSoft <info@bell-sw.com>
++D:musl>=1.2.4 libcrypto3>=3.5 libapk=3.0.7-r1 so:libc.musl-x86_64.so.1
++p:cmd:apk=3.0.7-r1
++F:usr/sbin
++R:apk
++a:0:0:755
++Z:Q1FIuUYipOYoj5HhMBZl0Wgt9827U=
+diff --git a/pkg/fanal/artifact/image/image_test.go b/pkg/fanal/artifact/image/image_test.go
+index 5ddacd3..eb0253a 100644
+--- a/pkg/fanal/artifact/image/image_test.go
++++ b/pkg/fanal/artifact/image/image_test.go
+@@ -36,7 +36,7 @@ import (
+ 
+ // Common blob IDs used across multiple test cases to reduce duplication
+ const (
+-	alpineBaseLayerID     = "sha256:6c42077a82b21707f581759b12a99cc9a593ce35a0d7be4c19c01eb48bd5ba33"
++	alpineBaseLayerID     = "sha256:b13b3c0ed57aaa2b162f5d8239004198d00f5e9ed969c56130d6e898c04b1d84"
+ 	alpineBaseLayerDiffID = "sha256:beee9f30bc1f711043e78d4a2be0668955d4b761d587d6f60c2c8dc081efb203"
+ 	alpineArtifactID      = "sha256:3c709d2a158be3a97051e10cd0e30f047225cb9505101feb3fadcd395c2e0408"
+ 	composerImageID       = "sha256:a187dde48cd289ac374ad8539930628314bc581a481cdb41409c9289419ddb72"
+@@ -524,7 +524,7 @@ func TestArtifact_Inspect(t *testing.T) {
+ 			},
+ 			wantBlobs: []cachetest.WantBlob{
+ 				{
+-					ID: "sha256:75a461ca76eecc6cea981889d69aa1c2dd78c436108be8be1bbc29295520c7d4",
++					ID: "sha256:9552f2054cd70b1bf49f52ed78b8e2dc0f52606c63a51511255de798c31a4630",
+ 					BlobInfo: types.BlobInfo{
+ 						SchemaVersion: types.BlobJSONSchemaVersion,
+ 						Size:          3061760,
+@@ -618,7 +618,7 @@ func TestArtifact_Inspect(t *testing.T) {
+ 					},
+ 				},
+ 				{
+-					ID: "sha256:81afc1747d0fdec7a606c27570313634ae331fab6f13566b23d0f6b3e498c050",
++					ID: "sha256:e16f30e225d6009763c789ea7e92c522f95fc6690a58ad7b0000efa05335aa15",
+ 					BlobInfo: types.BlobInfo{
+ 						SchemaVersion: types.BlobJSONSchemaVersion,
+ 						Size:          15441920,
+@@ -719,7 +719,7 @@ func TestArtifact_Inspect(t *testing.T) {
+ 					},
+ 				},
+ 				{
+-					ID: "sha256:0778c3e388c54f736a3d6e74ed390a91fdb42c6809f8fb743d4f72acb41a5d6d",
++					ID: "sha256:eea03b39e8c726e1d8fba1b93565be06231e6664b839bb41cfdf097524e5e59c",
+ 					BlobInfo: types.BlobInfo{
+ 						SchemaVersion: types.BlobJSONSchemaVersion,
+ 						Size:          29696,
+@@ -940,7 +940,7 @@ func TestArtifact_Inspect(t *testing.T) {
+ 					},
+ 				},
+ 				{
+-					ID: "sha256:5a3e3f25fdc97a14d69d99c63dd640cd2d38af5b987b7a95084cce3d835970fb",
++					ID: "sha256:5f52a21b95185181f70ab990258fdb82013473b0e19c8e5843983f39f8c92205",
+ 					BlobInfo: types.BlobInfo{
+ 						SchemaVersion: types.BlobJSONSchemaVersion,
+ 						Size:          6656,
+@@ -1857,10 +1857,10 @@ func TestArtifact_Inspect(t *testing.T) {
+ 				Type: types.TypeContainerImage,
+ 				ID:   "sha256:0bebf0773ffd87baa7c64fbdbdf79a24ae125e3f99a8adebe52d1ccbe6bed16b",
+ 				BlobIDs: []string{
+-					"sha256:75a461ca76eecc6cea981889d69aa1c2dd78c436108be8be1bbc29295520c7d4",
+-					"sha256:81afc1747d0fdec7a606c27570313634ae331fab6f13566b23d0f6b3e498c050",
+-					"sha256:0778c3e388c54f736a3d6e74ed390a91fdb42c6809f8fb743d4f72acb41a5d6d",
+-					"sha256:5a3e3f25fdc97a14d69d99c63dd640cd2d38af5b987b7a95084cce3d835970fb",
++					"sha256:9552f2054cd70b1bf49f52ed78b8e2dc0f52606c63a51511255de798c31a4630",
++					"sha256:e16f30e225d6009763c789ea7e92c522f95fc6690a58ad7b0000efa05335aa15",
++					"sha256:eea03b39e8c726e1d8fba1b93565be06231e6664b839bb41cfdf097524e5e59c",
++					"sha256:5f52a21b95185181f70ab990258fdb82013473b0e19c8e5843983f39f8c92205",
+ 				},
+ 				ImageMetadata: artifact.ImageMetadata{
+ 					ID: "sha256:58701fd185bda36cab0557bb6438661831267aa4a9e0b54211c4d5317a48aff4",
+@@ -1968,7 +1968,7 @@ func TestArtifact_Inspect(t *testing.T) {
+ 			},
+ 			wantBlobs: []cachetest.WantBlob{
+ 				{
+-					ID: "sha256:a83985cade3970577a9af328db9c88c0bf15cad40f7d2cf6d76e83882bc8146d",
++					ID: "sha256:763ba8250d4ac1d9eb191bf20477ba2923754f6e998962455d62888fcec311ad",
+ 					BlobInfo: types.BlobInfo{
+ 						SchemaVersion: types.BlobJSONSchemaVersion,
+ 						Size:          3061760,
+@@ -1978,7 +1978,7 @@ func TestArtifact_Inspect(t *testing.T) {
+ 					},
+ 				},
+ 				{
+-					ID: "sha256:b109622c2d106193db505762f1f3e78cf0035a69e559caf07c305c92ddb89356",
++					ID: "sha256:719eedecc470cd3e9b5955c540f20a8136350f699343519c981b9f90ddb3afe0",
+ 					BlobInfo: types.BlobInfo{
+ 						SchemaVersion: types.BlobJSONSchemaVersion,
+ 						Size:          15441920,
+@@ -1988,7 +1988,7 @@ func TestArtifact_Inspect(t *testing.T) {
+ 					},
+ 				},
+ 				{
+-					ID: "sha256:115f689385cb66077c338c52f2c9d6f3018a18c89be7fe7d23f1645422d7d59d",
++					ID: "sha256:d8bc3f755a79b3a10834c1a32ffbf376819e20ab960de0b946bd4a4d75c9d438",
+ 					BlobInfo: types.BlobInfo{
+ 						SchemaVersion: types.BlobJSONSchemaVersion,
+ 						Size:          29696,
+@@ -1999,7 +1999,7 @@ func TestArtifact_Inspect(t *testing.T) {
+ 					},
+ 				},
+ 				{
+-					ID: "sha256:60129d309cd4f16d69262106d6074f37c6d37f6c9089a9710ec96ae067716636",
++					ID: "sha256:66751e6ebd080058a3f093b4dbc25789da7d8b0e59efcff8924f2acd88235e9c",
+ 					BlobInfo: types.BlobInfo{
+ 						SchemaVersion: types.BlobJSONSchemaVersion,
+ 						Size:          6656,
+@@ -2015,10 +2015,10 @@ func TestArtifact_Inspect(t *testing.T) {
+ 				Type: types.TypeContainerImage,
+ 				ID:   "sha256:0bebf0773ffd87baa7c64fbdbdf79a24ae125e3f99a8adebe52d1ccbe6bed16b",
+ 				BlobIDs: []string{
+-					"sha256:a83985cade3970577a9af328db9c88c0bf15cad40f7d2cf6d76e83882bc8146d",
+-					"sha256:b109622c2d106193db505762f1f3e78cf0035a69e559caf07c305c92ddb89356",
+-					"sha256:115f689385cb66077c338c52f2c9d6f3018a18c89be7fe7d23f1645422d7d59d",
+-					"sha256:60129d309cd4f16d69262106d6074f37c6d37f6c9089a9710ec96ae067716636",
++					"sha256:763ba8250d4ac1d9eb191bf20477ba2923754f6e998962455d62888fcec311ad",
++					"sha256:719eedecc470cd3e9b5955c540f20a8136350f699343519c981b9f90ddb3afe0",
++					"sha256:d8bc3f755a79b3a10834c1a32ffbf376819e20ab960de0b946bd4a4d75c9d438",
++					"sha256:66751e6ebd080058a3f093b4dbc25789da7d8b0e59efcff8924f2acd88235e9c",
+ 				},
+ 				ImageMetadata: artifact.ImageMetadata{
+ 					ID: "sha256:58701fd185bda36cab0557bb6438661831267aa4a9e0b54211c4d5317a48aff4",
+diff --git a/pkg/fanal/artifact/local/fs_test.go b/pkg/fanal/artifact/local/fs_test.go
+index d9e92c2..11b04c0 100644
+--- a/pkg/fanal/artifact/local/fs_test.go
++++ b/pkg/fanal/artifact/local/fs_test.go
+@@ -2579,6 +2579,7 @@ func TestArtifact_AnalysisStrategy(t *testing.T) {
+ 				"testdata/alpine/etc/alpine-release",
+ 				"testdata/alpine/lib/apk/db/installed",
+ 				"testdata/alpine/usr/lib/apk/db/installed",
++				"testdata/alpine/var/lib/apk/db/installed",
+ 			},
+ 		},
+ 		{
+diff --git a/pkg/fanal/artifact/vm/vm_test.go b/pkg/fanal/artifact/vm/vm_test.go
+index 5311e2a..4a6adc9 100644
+--- a/pkg/fanal/artifact/vm/vm_test.go
++++ b/pkg/fanal/artifact/vm/vm_test.go
+@@ -116,16 +116,16 @@ func TestArtifact_Inspect(t *testing.T) {
+ 			rootDir: "testdata/alpine",
+ 			wantBlobs: []cachetest.WantBlob{
+ 				{
+-					ID:       "sha256:e04ee0f05d1384ec4b48c99f9d05491bff1ddbc2331b8419bcde7548070e314b",
++					ID:       "sha256:48fee72b813d419399049978d3d819394f03b2e5c1677eaf792fb4af503d3524",
+ 					BlobInfo: expectedBlobInfo,
+ 				},
+ 			},
+ 			want: artifact.Reference{
+ 				Name: "rawdata.img",
+ 				Type: types.TypeVM,
+-				ID:   "sha256:e04ee0f05d1384ec4b48c99f9d05491bff1ddbc2331b8419bcde7548070e314b",
++				ID:   "sha256:48fee72b813d419399049978d3d819394f03b2e5c1677eaf792fb4af503d3524",
+ 				BlobIDs: []string{
+-					"sha256:e04ee0f05d1384ec4b48c99f9d05491bff1ddbc2331b8419bcde7548070e314b",
++					"sha256:48fee72b813d419399049978d3d819394f03b2e5c1677eaf792fb4af503d3524",
+ 				},
+ 			},
+ 		},
+@@ -135,16 +135,16 @@ func TestArtifact_Inspect(t *testing.T) {
+ 			rootDir: "testdata/alpine",
+ 			wantBlobs: []cachetest.WantBlob{
+ 				{
+-					ID:       "sha256:d1690d3201420ddb690be85be011afd36be4c8bff47c474d7fcfe9c7efea9a3f",
++					ID:       "sha256:e21f910185164358fe21301af84a148632b2aa20bcde806d55b9fb2d02b0f46b",
+ 					BlobInfo: expectedBlobInfo,
+ 				},
+ 			},
+ 			want: artifact.Reference{
+ 				Name: "ebs-012345",
+ 				Type: types.TypeVM,
+-				ID:   "sha256:d1690d3201420ddb690be85be011afd36be4c8bff47c474d7fcfe9c7efea9a3f",
++				ID:   "sha256:e21f910185164358fe21301af84a148632b2aa20bcde806d55b9fb2d02b0f46b",
+ 				BlobIDs: []string{
+-					"sha256:d1690d3201420ddb690be85be011afd36be4c8bff47c474d7fcfe9c7efea9a3f",
++					"sha256:e21f910185164358fe21301af84a148632b2aa20bcde806d55b9fb2d02b0f46b",
+ 				},
+ 			},
+ 		},
+diff --git a/pkg/fanal/types/package.go b/pkg/fanal/types/package.go
+index 4a2b11e..f8641a8 100644
+--- a/pkg/fanal/types/package.go
++++ b/pkg/fanal/types/package.go
+@@ -222,6 +222,10 @@ type Package struct {
+ 	// Note:　it may have interdependencies, which may lead to infinite loops.
+ 	DependsOn []string `json:",omitempty"`
+ 
++	// Provides lists the alternative package names the package is provided
++	// under (apk "p:" field, capabilities dropped).
++	Provides []string `json:",omitempty"`
++
+ 	Layer Layer `json:",omitzero"`
+ 
+ 	// Each package metadata have the file path, while the package from lock files does not have.
+-- 
+2.55.0
+
