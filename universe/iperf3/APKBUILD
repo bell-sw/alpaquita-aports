@@ -1,26 +1,21 @@
 pkgname=iperf3
 _pkgname=iperf
-pkgver=3.12
-pkgrel=1
-pkgdesc="A tool to measure IP bandwidth using UDP or TCP"
+pkgver=3.22
+pkgrel=0
+pkgdesc="Tool to measure IP bandwidth using UDP or TCP"
 url="https://github.com/esnet/iperf"
 arch="all"
-license="BSD-3-Clause"
+license="BSD-3-Clause-LBNL"
+makedepends="openssl-dev"
 subpackages="$pkgname-dev $pkgname-doc $pkgname-openrc"
 source="$pkgname-$pkgver.tar.gz::https://github.com/esnet/$_pkgname/archive/$pkgver.tar.gz
 	$pkgname.initd
 	$pkgname.confd
-	CVE-2023-38403.patch
-
-	remove-pg-flags.patch
 	"
 builddir="$srcdir/$_pkgname-$pkgver"
 
-# secfixes:
-#   3.12-r1:
-#     - CVE-2023-38403
-
 build() {
+	CFLAGS="$CFLAGS -flto=auto" \
 	./configure \
 		--build=$CBUILD \
 		--host=$CHOST \
@@ -33,8 +28,25 @@ build() {
 }
 
 check() {
-	make check
+	make check || { cat src/test-suite.log; return 1; }
 }
+
+# secfixes:
+#   3.22-r0:
+#     - CVE-2026-71217
+#     - CVE-2026-101276
+#     - CVE-2026-101283
+#     - CVE-2026-102253
+#   3.19.1-r0:
+#     - CVE-2025-54349
+#     - CVE-2025-54350
+#     - CVE-2025-54351
+#   3.18-r0:
+#     - CVE-2026-71218
+#   3.17-r0:
+#     - CVE-2024-26306
+#   3.12-r1:
+#     - CVE-2023-38403
 
 package() {
 	make DESTDIR="$pkgdir" install
@@ -46,9 +58,7 @@ package() {
 }
 
 sha512sums="
-9b0600a19750311557833b32ca5c4be809ab98643522f125645dd8f83c482017e42fbe5fc9484624731176a59b67203a468eb81eebf1a37b9c1b3eff818857ba  iperf3-3.12.tar.gz
+6b798e6740a41f5b0a14a9da7bc9a8bab5e4fb477f494ef8296b5b222b0890cb8a2d93eb37be243988f536ed177ee1b2b28622ea701f3f5c22b56a86cf9aaef1  iperf3-3.22.tar.gz
 6d9ce72666ad6138174c428b692e886fb36ae617fabaf2ebf2b6881dc101d0a38aad1cb36cad76eea634d62400a2c793b5f0714f8767495c136826e8c16dc03a  iperf3.initd
 4c6b766c154612f5f2e5f6150396f443ba37ec59ed0a8a994bf84612059db22827aee3dd3b7c3249e0bb6037163788d830efcb1caad5eba1c97d2349bdbc55f9  iperf3.confd
-0e2586d52a8cd2559db96ff93620a7e4974b271a789ceb015703b220fb848ca18bb9fe5df74826579e1eb87e8bdcacc7eaec97126050e55603c9a566672f054f  CVE-2023-38403.patch
-9334d51ec4bb4931272f972a83109dadd44123c9b46803a5b2d16e725576b860f93b62ae3d85be2a2d8a955cff24211da7675fe733a4f3ad8aaae005939a4097  remove-pg-flags.patch
 "
