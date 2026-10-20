@@ -4,7 +4,7 @@
 
 pkgname=pcre2
 pkgver=10.48
-pkgrel=0
+pkgrel=1
 pkgdesc="New Perl Compatible Regular Expression Library "
 url="https://pcre.org/"
 arch="all"
@@ -22,9 +22,14 @@ subpackages="
 	libpcre2-16:_libpcre
 	libpcre2-32:_libpcre
 	"
-source="https://github.com/PhilipHazel/pcre2/releases/download/pcre2-$pkgver/pcre2-$pkgver.tar.bz2"
+source="https://github.com/PhilipHazel/pcre2/releases/download/pcre2-$pkgver/pcre2-$pkgver.tar.bz2
+	pcre2-10.49-Fix-large-stack-allocation.patch
+	pcre2-10.49-Fix-large-stack-allocation_tests
+"
 
 # secfixes:
+#   10.48-r1:
+#     - CVE-2026-103111
 #   10.48-r0:
 #     - CVE-2026-89156
 #     - CVE-2026-89157
@@ -45,6 +50,20 @@ case "$CARCH" in
 	sh*) _enable_jit="";;
 	*) _enable_jit="--enable-jit";;
 esac
+
+prepare() {
+	default_prepare
+
+	case "$CARCH" in
+	arm*|x86)
+		# tests from original pcre2-10.49-Fix-large-stack-allocation.patch
+		# fail on 32bit architectures
+		;;
+	*)
+		patch -Np1 -i "$srcdir"/pcre2-10.49-Fix-large-stack-allocation_tests
+		;;
+	esac
+}
 
 build() {
 	# Note: Forced -O3 is recommended (needed?) for Julia.
@@ -89,4 +108,6 @@ tools() {
 
 sha512sums="
 b350b8bfc909f3ebf9dfe39c535f04cc4618997f0fa025d12b4d92aaaac3c15ae93b6def62ed220eabbe08df9277cda0b80de4eedb7ec7376daf7e6a78a868b8  pcre2-10.48.tar.bz2
+5e0062afd9c0ff5a50cf7e9d4ce58915433b7326c8efa60f578c32a3d82d979bf8dedf9765012732b413c489b9d63d6db1b80212a4e05e46642a68c55619e7ed  pcre2-10.49-Fix-large-stack-allocation.patch
+dea8557e8cae9d11db9fe1f6c95d7dabc3d65cf3e167910028c3d822ad524fd6a1ee46b46092231222891a79420f571270dfef3a33dc7162dbf1b49f1cf04e3e  pcre2-10.49-Fix-large-stack-allocation_tests
 "
