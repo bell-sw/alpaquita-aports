@@ -14,24 +14,24 @@ the build fails as follows:
 To fix this, zero-initialize sched_param and set only sched_priority,
 which works on both glibc and musl regardless of the struct layout.
 ---
- rust/scx_rustland_core/assets/bpf.rs | 22 +++-------------------
- 1 file changed, 3 insertions(+), 19 deletions(-)
+ rust/scx_rustland_core/assets/bpf.rs | 20 +++-----------------
+ 1 file changed, 3 insertions(+), 17 deletions(-)
 
 diff --git a/rust/scx_rustland_core/assets/bpf.rs b/rust/scx_rustland_core/assets/bpf.rs
-index da9cafc7b..c1b57f2fa 100644
+index b728978..ef1b4b9 100644
 --- a/rust/scx_rustland_core/assets/bpf.rs
 +++ b/rust/scx_rustland_core/assets/bpf.rs
-@@ -31,9 +31,6 @@ use libbpf_rs::ProgramInput;
+@@ -31,9 +31,6 @@ use libbpf_rs::libbpf_sys::bpf_object_open_opts;
  
  use libc::{c_char, pthread_self, pthread_setschedparam, sched_param};
  
 -#[cfg(target_env = "musl")]
 -use libc::timespec;
 -
+ use scx_utils::Topology;
+ use scx_utils::UserExitInfo;
  use scx_utils::compat;
- use scx_utils::scx_ops_attach;
- use scx_utils::scx_ops_load;
-@@ -473,22 +470,9 @@ impl<'cb> BpfScheduler<'cb> {
+@@ -472,22 +469,9 @@ impl<'cb> BpfScheduler<'cb> {
  
      // Set scheduling class for the scheduler itself to SCHED_EXT
      fn use_sched_ext() -> i32 {
