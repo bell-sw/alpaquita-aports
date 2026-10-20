@@ -3,11 +3,11 @@ pkgname=$_pkgname-base
 # NOTE: Upgrade only to even-numbered versions (e.g. 1.14.z, 1.16.z)!
 #  Odd-numbered versions are mainline (development) versions.
 # NOTE: When bumping, always rebuild all nginx modules (nginx-mod-* aports)!
-pkgver=1.30.4
+pkgver=1.30.6
 pkgrel=0
 # Revision of nginx-tests to use for check().
 _tests_rev=4d1de3f357afeb91865d024b27516d6b67aad86e
-_njs_ver=0.9.9
+_njs_ver=1.0.2
 # Dependency of the naxsi module. The project is active, but they hasn't
 # released a new version since 2017, so we rather bundle it instead of
 # packaging (https://github.com/libinjection/libinjection/issues/50).
@@ -71,6 +71,15 @@ source="https://nginx.org/download/nginx-$pkgver.tar.gz
 builddir="$srcdir/$_pkgname-$pkgver"
 
 # secfixes:
+#   1.30.6-r0:
+#     - CVE-2026-15176
+#     - CVE-2026-90439
+#     - CVE-2026-93479
+#     - CVE-2026-95101
+#     - CVE-2026-97205
+#     - CVE-2026-97629
+#     - CVE-2026-101019
+#     - CVE-2026-101025
 #   1.30.4-r0:
 #     - CVE-2026-42533
 #     - CVE-2026-56434
@@ -415,9 +424,9 @@ getvar() {
 }
 
 sha512sums="
-48c21de65fa188137a4088d02c28e2533a7164040bf19281637e025012e6d03afcacb0ee15463a107685a2a221037f24ce15fc89c46b6f7a36b94443d3993bf1  nginx-1.30.4.tar.gz
+1b04fcb5a7ee3df573b1a0d792cf1f1cfc02d30d03592f2f04b2b2842d9f42364957f4420e53af380b9fffd5eb4a3a5c11f6d71643168db25baeea748cf94fa2  nginx-1.30.6.tar.gz
 60a42f953f73bf375ea70105bbe1df9d55eb2230a5d9fd7d5ca1db5b5f6a012c87426b7ab80b6704122cad369c0cfe4f3f3bc148c6763e955bd603db0e33df04  nginx-tests-4d1de3f357afeb91865d024b27516d6b67aad86e.tar.gz
-67b921c127fabb0ac0a8e53f63291af3227db0d2a9d67f32bfc853072403d9634f19ef736513a4007673fc98e1d3be8a5b3ac4832b04956852e43706891c38be  nginx-njs-0.9.9.tar.gz
+17e81d8f2247d1fd593b1949c5c966fbf784378c4665051527c27578ec0ea374ab6efb6c5da93f69b38fa125bdfd4db55e749e522f527eb9b42daa6b74563055  nginx-njs-1.0.2.tar.gz
 c89fab6d3d4226e37f2a8d2122d825046fc9a787e464fc75351a19fbda5b47016ddb907e0a61241a007304af921e11a0715895ba7b6d4c1112afe816177ed02a  no-werror.patch
 c209a220b6afc9354a1c4c39817199327425485b3da44778d632cdfd1d95b8412c58ba9b27a5c96599e7a34cc039f5b7d914ad82153c610b27dfbe21fdcdca77  nginx.conf
 0907f69dc2d3dc1bad3a04fb6673f741f1a8be964e22b306ef9ae2f8e736e1f5733a8884bfe54f3553fff5132a0e5336716250f54272c3fec2177d6ba16986f3  default.conf
