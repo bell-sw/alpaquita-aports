@@ -1,6 +1,6 @@
 pkgname=nss
-pkgver=3.114
-pkgrel=2
+pkgver=3.124
+pkgrel=0
 pkgdesc="Mozilla Network Security Services"
 url="https://developer.mozilla.org/docs/Mozilla/Projects/NSS"
 arch="all"
@@ -13,6 +13,7 @@ makedepends="
 	linux-headers
 	gyp
 	perl
+	py3-packaging
 	sqlite-dev
 	zlib-dev
 	"
@@ -24,9 +25,6 @@ source="https://ftp.mozilla.org/pub/security/nss/releases/NSS_${pkgver//./_}_RTM
 	nss-util.pc.in
 	nss-softokn.pc.in
 	nss-config.in
-
-	0101-CVE-2026-2781.patch
-	0102-CVE-2026-16389.patch
 	"
 builddir="$srcdir/$pkgname-$pkgver/nss"
 
@@ -161,13 +159,11 @@ tools() {
 }
 
 sha512sums="
-9c9af5c117dea2d89bb093f9a73d9a431ce4eebcfea9295aa37a27a7afb242d353e6904fee7ae69cdb64949bd0ddb685880098553c7d5ac1aac39ea388a2a2d3  nss-3.114.tar.gz
-c00696182fb0b977e04b2ba2bf050b2d64f8db958b52ebe0fca834482652b57d9a0c7f1cec7b74407d59b9b699d6d5dc79ebe32fcbaa0f36c33ad4cd86a3089c  gyp-config.patch
+9959977b3cbcb0306c8aeba2c059d4f3646b3144c6401fbc73c14aea364caa92331875354afa79c095b6482b29ae743228d35c1bd510c5124cad5e7c37c5daa2  nss-3.124.tar.gz
+c32b10ed72ffd7c64f9bf70f1caf06e47be6a51e6c79003b899c5c2052597ead7ef64b5b4ca6fe31eb107c00c300d9f49cda4e85dadd6b3bec13335640657b0f  gyp-config.patch
 6c432488b5b2cdfc89928ea512f396dfa8b383766ad7edb6f051ff16e6e2f2bfe6f3d11e95e7183d271ad29dcd03e46ba67775db8052b100bc39b3d798d2fe55  no-werror.patch
 75dbd648a461940647ff373389cc73bc8ec609139cd46c91bcce866af02be6bcbb0524eb3dfb721fbd5b0bc68c20081ed6f7debf6b24317f2a7ba823e8d3c531  nss.pc.in
 0f2efa8563b11da68669d281b4459289a56f5a3a906eb60382126f3adcfe47420cdcedc6ab57727a3afeeffa2bbb4c750b43bef8b5f343a75c968411dfa30e09  nss-util.pc.in
 09c69d4cc39ec9deebc88696a80d0f15eb2d8c94d9daa234a2adfec941b63805eb4ce7f2e1943857b938bddcaee1beac246a0ec627b71563d9f846e6119a4a15  nss-softokn.pc.in
 2971669e128f06a9af40a5ba88218fa7c9eecfeeae8b0cf42e14f31ed12bf6fa4c5ce60289e078f50e2669a9376b56b45d7c29d726a7eac69ebe1d1e22dc710b  nss-config.in
-3be7612b3c443c8f66e0d69599b719de6578db68ca4299c0335331d203e75575b63f95beb90d42b98d2e39a46e534bc0b43c1fef90db8d5f80cd7c28a376c8a9  0101-CVE-2026-2781.patch
-a327e6583357502fc7681bd03d9eeb87f2bb5458555c2a1ab24548b52b417146ff90a4c19a0042c6397130e32f91dc6cb43c756bf64b70ab21b0332e892980b6  0102-CVE-2026-16389.patch
 "
