@@ -1,6 +1,6 @@
 pkgname=nss
-pkgver=3.85
-pkgrel=4
+pkgver=3.124
+pkgrel=0
 pkgdesc="Mozilla Network Security Services"
 url="https://developer.mozilla.org/docs/Mozilla/Projects/NSS"
 arch="all"
@@ -13,22 +13,20 @@ makedepends="
 	linux-headers
 	gyp
 	perl
+	py3-packaging
 	sqlite-dev
 	zlib-dev
 	"
 subpackages="$pkgname-dev $pkgname-tools"
 source="https://ftp.mozilla.org/pub/security/nss/releases/NSS_${pkgver//./_}_RTM/src/nss-$pkgver.tar.gz
-	CVE-2022-3479.patch
 	gyp-config.patch
+	no-werror.patch
 	nss.pc.in
 	nss-util.pc.in
 	nss-softokn.pc.in
 	nss-config.in
-
-	0100-CVE-2023-5388-blinding_ct.patch
-	0101-CVE-2026-2781.patch
-	0102-CVE-2026-16389.patch
 	"
+builddir="$srcdir/$pkgname-$pkgver/nss"
 
 # secfixes:
 #   3.85-r4:
@@ -62,7 +60,8 @@ source="https://ftp.mozilla.org/pub/security/nss/releases/NSS_${pkgver//./_}_RTM
 #     - CVE-2018-12384
 
 build() {
-	cd nss
+	CFLAGS="$CFLAGS -O2 -flto=auto" \
+	CXXFLAGS="$CXXFLAGS -O2 -flto=auto" \
 	./build.sh \
 		--opt \
 		--system-nspr \
@@ -71,7 +70,7 @@ build() {
 }
 
 check() {
-	cd nss/tests
+	cd tests
 	# other tests are failing for some reason and prompt an interactive password
 	export NSS_TESTS="cipher lowhash libpkix"
 	export NSS_CYCLES=standard
@@ -81,9 +80,10 @@ check() {
 package() {
 	replaces="nss-dev libnss"
 
-	NSS_VMAJOR=$(awk '/#define.*NSS_VMAJOR/ {print $3}' nss/lib/nss/nss.h)
-	NSS_VMINOR=$(awk '/#define.*NSS_VMINOR/ {print $3}' nss/lib/nss/nss.h)
-	NSS_VPATCH=$(awk '/#define.*NSS_VPATCH/ {print $3}' nss/lib/nss/nss.h)
+	local nss_vmajor=$(awk '/#define.*NSS_VMAJOR/ {print $3}' lib/nss/nss.h)
+	local nss_vminor=$(awk '/#define.*NSS_VMINOR/ {print $3}' lib/nss/nss.h)
+	local nss_vpatch=$(awk '/#define.*NSS_VPATCH/ {print $3}' lib/nss/nss.h)
+	local nspr_version="$(pkg-config --modversion nspr)"
 
 	# pkgconfig files
 	mkdir -p "$pkgdir"/usr/lib/pkgconfig
@@ -94,7 +94,7 @@ package() {
 			-e "s,%exec_prefix%,/usr/bin,g" \
 			-e "s,%includedir%,/usr/include/nss,g" \
 			-e "s,%SOFTOKEN_VERSION%,$pkgver,g" \
-			-e "s,%NSPR_VERSION%,$pkgver,g" \
+			-e "s,%NSPR_VERSION%,$nspr_version,g" \
 			-e "s,%NSS_VERSION%,$pkgver,g" \
 			-e "s,%NSSUTIL_VERSION%,$pkgver,g" \
 			> "$pkgdir"/usr/lib/pkgconfig/$_pc
@@ -109,15 +109,17 @@ package() {
 		-e "s,@prefix@,/usr/bin,g" \
 		-e "s,@exec_prefix@,/usr/bin,g" \
 		-e "s,@includedir@,/usr/include/nss,g" \
-		-e "s,@MOD_MAJOR_VERSION@,${NSS_VMAJOR},g" \
-		-e "s,@MOD_MINOR_VERSION@,${NSS_VMINOR},g" \
-		-e "s,@MOD_PATCH_VERSION@,${NSS_VPATCH},g" \
+		-e "s,@MOD_MAJOR_VERSION@,${nss_vmajor},g" \
+		-e "s,@MOD_MINOR_VERSION@,${nss_vminor},g" \
+		-e "s,@MOD_PATCH_VERSION@,${nss_vpatch},g" \
 		> "$pkgdir"/usr/bin/nss-config
 	chmod 755 "$pkgdir"/usr/bin/nss-config
 
+	cd ..
+
 	local minor=${pkgver#*.}
 	minor=${minor%.*}
-	for file in $(find dist/Release/lib -name "*.so"); do
+	find dist/Release/lib -name "*.so" | while IFS= read -r file; do
 		install -Dm755 $file \
 			"$pkgdir"/usr/lib/${file##*/}.$minor
 		ln -s ${file##*/}.$minor "$pkgdir"/usr/lib/${file##*/}
@@ -159,14 +161,11 @@ tools() {
 }
 
 sha512sums="
-97cfffa2beed1dba5d31e0c6e450553e5a8c78b427521640adb00c05d9d63cd64dc08388f0dbf96c93efb79f5daf4ba8db8d026b0b43d2e5c865a9b833fc77a1  nss-3.85.tar.gz
-a81b6e8ae722c215cf083b13053d7287af9a3548a212a7856e0dcf930b6148264297db7ef235ef9f9df6ddfcc9a6917cd71c1af32f8c76f0ad1cc5919e733046  CVE-2022-3479.patch
-fba19cc35986dde6e5994ce67ab29fb4417814e12d6ae82c406600832eb8db79a0fdea4fd5eb6c5e77d565bfebb9e154e190796f67c06097ddae1539084243bb  gyp-config.patch
+9959977b3cbcb0306c8aeba2c059d4f3646b3144c6401fbc73c14aea364caa92331875354afa79c095b6482b29ae743228d35c1bd510c5124cad5e7c37c5daa2  nss-3.124.tar.gz
+c32b10ed72ffd7c64f9bf70f1caf06e47be6a51e6c79003b899c5c2052597ead7ef64b5b4ca6fe31eb107c00c300d9f49cda4e85dadd6b3bec13335640657b0f  gyp-config.patch
+6c432488b5b2cdfc89928ea512f396dfa8b383766ad7edb6f051ff16e6e2f2bfe6f3d11e95e7183d271ad29dcd03e46ba67775db8052b100bc39b3d798d2fe55  no-werror.patch
 75dbd648a461940647ff373389cc73bc8ec609139cd46c91bcce866af02be6bcbb0524eb3dfb721fbd5b0bc68c20081ed6f7debf6b24317f2a7ba823e8d3c531  nss.pc.in
 0f2efa8563b11da68669d281b4459289a56f5a3a906eb60382126f3adcfe47420cdcedc6ab57727a3afeeffa2bbb4c750b43bef8b5f343a75c968411dfa30e09  nss-util.pc.in
 09c69d4cc39ec9deebc88696a80d0f15eb2d8c94d9daa234a2adfec941b63805eb4ce7f2e1943857b938bddcaee1beac246a0ec627b71563d9f846e6119a4a15  nss-softokn.pc.in
 2971669e128f06a9af40a5ba88218fa7c9eecfeeae8b0cf42e14f31ed12bf6fa4c5ce60289e078f50e2669a9376b56b45d7c29d726a7eac69ebe1d1e22dc710b  nss-config.in
-1892db13078699609d4dec8ace7bba374e09a9634d21fc09364fd5df1cf4b5f7c79c83ac000d52ccbe211aec3d04e0a9dc35b308071c18fdef367b761e689d73  0100-CVE-2023-5388-blinding_ct.patch
-9d3683563c115e55dcd2973155866295d8616f246f309e61dcf2f8874cdf0963804fb9ce680b8af341f720def745acfcf42c999b0bca9bf2dc66c8b760ccc611  0101-CVE-2026-2781.patch
-1abfe8e88ef5937411956c45339a46f2b87292bce8d88c1c1b55eb9247441e0826868efd9d89d3a38fb02e216aee8fd149e95dd6a29a7b9a4d6a7cf48d9daef7  0102-CVE-2026-16389.patch
 "
