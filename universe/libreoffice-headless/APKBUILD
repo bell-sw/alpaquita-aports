@@ -3,7 +3,7 @@ pkgname=libreoffice-headless
 # supported for 6 months and fresh works perfectly okay for that, while being
 # more up to date and needing fewer dependency workarounds.
 pkgver=7.6.7.2
-pkgrel=1
+pkgrel=2
 pkgdesc="LibreOffice (headless build) - Meta package for the full office suite"
 url="https://www.libreoffice.org/"
 # armhf disabled due to requiring armv6k as minimum arm architecture
@@ -119,11 +119,24 @@ source="https://download.documentfoundation.org/libreoffice/src/$_v/libreoffice-
 	icu74.patch
 
 	0100-CVE-2024-5261.patch
+	0101-CVE-2024-12426-part1.patch
+	0102-CVE-2024-12426-part2.patch
+	0103-CVE-2024-12426-part3.patch
+	0104-CVE-2026-63270.patch
+	0105-CVE-2026-63267-pre.patch
+	0106-CVE-2026-63267-part1.patch
+	0107-CVE-2026-63268-part1.patch
+	0108-CVE-2026-63268-part2.patch
 	"
 options="!check" # todo, huge testsuite, not much value, ..
 builddir="$srcdir/libreoffice-$pkgver"
 
 # secfixes:
+#   7.6.7.2-r2:
+#     - CVE-2024-12426
+#     - CVE-2026-63267
+#     - CVE-2026-63268
+#     - CVE-2026-63270
 #   7.6.7.2-r1:
 #     - CVE-2024-5261
 #   7.6.7.2-r0:
@@ -409,4 +422,12 @@ a322cda7f9bb8e191033b41d1076208c5edfbf8a0ef1d0c2a210b5be61d75a8918c3530db246fb7c
 d99d074e89e2713a3b6a56fa60d9d989ca6eefc8884ccbf88cb16c7b09da6dde4ba4ebc6a4d8408b61a08088df7cb1bcda60738f91e5569179fc45d7e9b901a3  musl-libintl.patch
 9f96ca0fde7014fcdef8a974f6e3fc4e3360186fedbaa3c65e29196384fca066cc819536695c614a904f3add80b8ee004f6588ab4fd32e52f69b655fe72fa885  icu74.patch
 88f08886cf249f59566ec7da8686256bd9149d18da7d58adaea2458cd2f238d4a3ed605a1d7bfd41f832e791b4e9990017c0bd906f0fe1e9a621b45547e50bee  0100-CVE-2024-5261.patch
+a815e46115ec65cf8744bc9025cc7b7951fe762a45d8f2d94d9fd294a9528c79eeee5376c8c35971a47e5924657b181e3ea954d18a9552b5aee6fa5baf1517c0  0101-CVE-2024-12426-part1.patch
+5576d57ecce000f94f7353cda22da1851b8b5ba9413a169d5f3f8e89ba31875a1e685debaddeb44fa51c0235318065ce1b185a40ace9a01cf94aba3a5d3974eb  0102-CVE-2024-12426-part2.patch
+1f11b9855ca5998a8ae0c651c47c30c134843af915876cb83bb487a550bb54bcd5ffc9cb1a333343b426133d0683da0ea297b57d5d00098a8baf39c202b3f813  0103-CVE-2024-12426-part3.patch
+916981fc64fbd2295aeb2023e2213b000e7370c1a78ffe6e492bfbbc8faaf9b6524064d0ec0bbee94e59166f10a542e5d02bdcab81b684fcf2052d38a11bfb6e  0104-CVE-2026-63270.patch
+d2adc3e3d34e402560e156aafd7edb4cc51d287b683c0c5a88a4380e1655f21bf8eebb4d2771ffbf402051c21d53f2a4d8820d0b9683d61994bfbcf8495d8035  0105-CVE-2026-63267-pre.patch
+f3210681e863e3f13cb92ee42087900de33d43cbd6288c51e66ae63d5a8c22dcde5eee5419de3fb193ed3049927be64366b7747be703a59916f76c6c23e67f75  0106-CVE-2026-63267-part1.patch
+23ff69283dfa323a599c248caf6645a7455f603de6d59ad0d98c321907c57eedf45823b58d96c1a3fe625235aa5575545a2302081a6355b92d6db5c28a27cb9e  0107-CVE-2026-63268-part1.patch
+5a262fd3a07e6431a130ff7f99bf38f2a969272dc94461925b1c6c3805f650d341c27acac57d95862a38f5f99a52044577047a0218fcbc4cf639d7ac89505307  0108-CVE-2026-63268-part2.patch
 "
