@@ -1,0 +1,55 @@
+From 579e6f79bddd589c29aeba0783664e717f3825ec Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Pawe=C5=82=20Gronowski?= <pawel.gronowski@docker.com>
+Date: Tue, 19 May 2026 16:03:30 +0200
+Subject: [PATCH] daemon: resolve in-container symlinks before os.Root mount
+ ops
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The security fix in GHSA-vp62-88p7-qqf5 switched openContainerFS to
+os.Root for mount-destination operations, but stopped walking the
+destination through in-container symlinks.
+
+os.Root refuses to follow absolute symlinks, so any container whose
+image had an absolute symlink along the mount target's path (e.g. the
+common /var/run -> /run in ubuntu/alpine/busybox) broke `docker cp`.
+
+Walk m.Destination through ctr.GetResourcePath first which follows
+symlinks to get a path relative to BaseFS, then keep using os.Root for
+the actual MkdirAll/OpenFile/Open calls.
+
+Signed-off-by: Paweł Gronowski <pawel.gronowski@docker.com>
+(cherry picked from commit fb3702d033601bb0e767f2ca398e3909a15be29c)
+---
+ daemon/containerfs_linux.go | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/moby-28.3.3/daemon/containerfs_linux.go b/moby-28.3.3/daemon/containerfs_linux.go
+index 7907cdd..05ea4e7 100644
+--- a/moby-28.3.3/daemon/containerfs_linux.go
++++ b/moby-28.3.3/daemon/containerfs_linux.go
+@@ -101,10 +101,16 @@ func (daemon *Daemon) openContainerFS(ctr *container.Container) (_ *containerFSV
+ 
+ 			// TODO(vvoland): Refactor this after security release.
+ 			for _, m := range mounts {
+-				// Destination is an absolute path within container
+-				// filesystem. For the os.Root to work, we need to convert it
+-				// to a path relative to root fs /
+-				relDest, err := filepath.Rel("/", m.Destination)
++				// Walk m.Destination through the container's symlinks before
++				// passing it to os.Root, which refuses absolute symlinks
++				// (e.g. the common /var/run -> /run). The resolution itself
++				// is lexical; subsequent os.Root operations still enforce
++				// the GHSA-vp62-88p7-qqf5 / GHSA-rg2x-37c3-w2rh protections.
++				resolved, err := ctr.GetResourcePath(m.Destination)
++				if err != nil {
++					return fmt.Errorf("resolve mount destination %q: %w", m.Destination, err)
++				}
++				relDest, err := filepath.Rel(ctr.BaseFS, resolved)
+ 				if err != nil {
+ 					return fmt.Errorf("make destination relative: %w", err)
+ 				}
+-- 
+2.55.0
+

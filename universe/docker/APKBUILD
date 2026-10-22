@@ -2,7 +2,7 @@ pkgname=docker
 pkgver=28.3.3
 _cli_commit=980b85681696fbd95927fd8ded8f6d91bdca95b0    # https://github.com/docker/cli/releases/tag/v$pkgver
 _moby_commit=bea959c7b793b32a893820b97c4eadc7c87fabb0   # https://github.com/moby/moby/releases/tag/v$pkgver
-pkgrel=16
+pkgrel=17
 pkgdesc="Pack, ship and run any application as a lightweight container"
 url="https://www.docker.io/"
 arch="all"
@@ -15,6 +15,10 @@ options="net chmod-clean"
 install="$pkgname-engine.pre-install"
 
 # secfixes:
+#   28.3.3-r17:
+#     - CVE-2026-41567
+#     - CVE-2026-41568
+#     - CVE-2026-42306
 #   28.3.3-r0:
 #     - CVE-2025-54388
 #   27.1.1-r0:
@@ -80,6 +84,10 @@ source="
 	docker.initd
 	docker.confd
 	docker-rootless-extras.conf
+	0100-CVE-2026-41567.patch
+	0101-CVE-2026-41568.patch
+	0102-CVE-2026-42306.patch
+	0103-resolve-symlinks-before-os-Root-mount-ops.patch
 	"
 
 builddir="$srcdir"
@@ -203,4 +211,8 @@ c94511b5951d998a892389927382f7b436633ed6e85a6b86a03c1ba1ef9304023a55aafe49b83f1f
 cb2b8e2e1529fc7f80b337104cb2b2c9bdeddaef9171d34bc8b7e0a7ebdeda963eefce97da4cf52cff4f4ea648f95067504773e23efc16e166d7863685f9a183  docker.initd
 43432a05e5776910d45364aee9070932aa89f70eb9e69d3b7ed8e17d9a70eaed4c8c29b3524888214c7ddba592399e781a72255f7eb8fafd80c9f532a9481fac  docker.confd
 45499bbd9d607cb782b014a2d5697d7279f327ac630accf249a13785d91e15fb0ba1ae2edc10b6b42fcf40b7ce23ef160a40d8cda17b3084d68fe8c54a84b8f4  docker-rootless-extras.conf
+766bc16ce4c9bd74ec034f8770e2520696103bebd9f1844a4b41b810195c55291c80f41803ae3c1b7e73b311a93f6f5179651c196d22a7672ce6de061cf74b2b  0100-CVE-2026-41567.patch
+c45c3616914e1e38c3231ca284ff62b697281193b2f2d2705c82336c00e628a4545e798bc59384c4a6d7367a08a157014208569f0bf9605f658649dda0ec196b  0101-CVE-2026-41568.patch
+57126aede210df7a52a951e02515500e2cdbc9ba171fbada580cd3c45843f66834fc1f8eed89590d02185ab73063aa9226d272d7fe901a173c7ddc78a40cd088  0102-CVE-2026-42306.patch
+9040bd2b5c1ebd427529dd858c67924b342c2537df6ed3c2b22f037d54cded3d63f40f2dc775c758dde57f00d7573c519944388abc8f01cc964f674d807d49a9  0103-resolve-symlinks-before-os-Root-mount-ops.patch
 "
