@@ -1,6 +1,6 @@
 pkgname=nodejs26
 pkgver=26.12.1
-pkgrel=0
+pkgrel=1
 pkgdesc="JavaScript runtime built on V8 engine (v26)"
 url="https://nodejs.org/"
 arch="all"
@@ -12,6 +12,7 @@ depends_dev="
 makedepends="
 	$depends_dev
 	ada-dev
+	brotli-dev
 	c-ares-dev
 	cargo
 	gtest-dev
@@ -78,6 +79,7 @@ prepare() {
 	# unbundle
 	rm \
 		deps/ada/ada.gyp \
+		deps/brotli/brotli.gyp \
 		deps/cares/cares.gyp \
 		deps/googletest/googletest.gyp \
 		deps/libffi/libffi.gyp \
@@ -129,6 +131,7 @@ _build() {
 	./configure \
 		--prefix=/usr \
 		--shared-ada \
+		--shared-brotli \
 		--shared-cares \
 		--shared-ffi \
 		--shared-gtest \
