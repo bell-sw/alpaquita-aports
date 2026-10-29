@@ -3,7 +3,7 @@
 
 pkgname=python3
 # the python3-tkinter's pkgver needs to be synchronized with this.
-pkgver=3.11.17
+pkgver=3.11.18
 _basever="${pkgver%.*}"
 pkgrel=0
 pkgdesc="Python programming language"
@@ -17,13 +17,13 @@ subpackages="
 	$pkgname-tests::noarch
 	$pkgname-gdbm
 	"
-# since 3.11.9, pyexpat exposes the reparse deferral API in expat >= 2.6.0
-depends="libexpat>=2.6.3"
+# since 3.11.18
+depends="libexpat>=2.9.0"
 makedepends="
 	!gettext-dev
 	bluez-headers
 	bzip2-dev
-	expat-dev
+	expat-dev>=2.9.0
 	gdbm-dev
 	libffi-dev
 	linux-headers
@@ -57,6 +57,9 @@ options="net" # Required for tests
 builddir="$srcdir/Python-$pkgver"
 
 # secfixes:
+#   3.11.18-r0:
+#     - CVE-2026-114583
+#     - CVE-2026-115557
 #   3.11.17-r0:
 #     - CVE-2026-15806
 #     - CVE-2026-17084
@@ -333,7 +336,7 @@ gdbm() {
 }
 
 sha512sums="
-17bcb2ee4edc7431bc8a166b46288643ae37cae46a8f707a61c3b146f34e47d7e980a72e97a6376e3ca79d7dee3af6e88a1ffaf888df083573ac681afe3ac6f3  Python-3.11.17.tar.xz
+af4a2ddc18de03bf4f25db7934db1534ac580a29a7475ebd82e1cdc229db6781f71ebe0f7288416b9e3b34c0544e82e7534caa4887e49e84b8e75da05dd5ff49  Python-3.11.18.tar.xz
 ab8eaa2858d5109049b1f9f553198d40e0ef8d78211ad6455f7b491af525bffb16738fed60fc84e960c4889568d25753b9e4a1494834fea48291b33f07000ec2  musl-find_library.patch
 563dc931e442a2b1a0837cc37b445768e3b76e33e4b6c5a3821428a46f3bb4512bc6f5a0160573b2567a2f20c0da27c19d5aa39a1bbaada8f409c1d3d83db7ad  0100-skip-test_url_host_with-test-cases.patch
 24d774c1aaff858fa36706e925a1e1a2d8d01a0ba738673d82ffae08c15a8557a27502bae5a48552d113118b3924fdfc9c3ded94a68ab879afd4263b6c2fe9d3  0101-AVX2-and-AVX512-support.diff
