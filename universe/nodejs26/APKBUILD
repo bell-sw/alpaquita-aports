@@ -1,6 +1,6 @@
 pkgname=nodejs26
-pkgver=26.11.1
-pkgrel=1
+pkgver=26.12.1
+pkgrel=0
 pkgdesc="JavaScript runtime built on V8 engine (v26)"
 url="https://nodejs.org/"
 arch="all"
@@ -53,6 +53,18 @@ builddir="$srcdir/node-v$pkgver"
 case "$CARCH" in
 s390x) makedepends="$makedepends icu" ;;
 esac
+
+# secfixes:
+#   26.12.1-r0:
+#     - CVE-2026-106069
+#     - CVE-2026-106072
+#     - CVE-2026-105482
+#     - CVE-2026-105483
+#     - CVE-2026-105481
+#     - CVE-2026-106074
+#     - CVE-2026-106070
+#     - CVE-2026-106071
+#     - CVE-2026-106073
 
 prepare() {
 	default_prepare
@@ -169,7 +181,7 @@ doc() {
 }
 
 sha512sums="
-a98c245732fef21dc6c0bafaa032ab1331a5efaed8d7758310dd65bf9d2bd16d5305ab06e1149b7fffe0ad0f0d945b874e30e1b9a72069a0ab064f357a225294  node-v26.11.1.tar.xz
+f6f76e258af33f7f877c65a2141d281ea307aae017a90bb8a75a7d4df271ad9d17c7d0edfd5751a977edd6bdb03c704d727628c4c7215c878d421787a35240f2  node-v26.12.1.tar.xz
 f908fa93f6194ec4f6c5e9d76ed7c918721c7f5d46afcc12de1f84683c185401a27a174b7a7c6a76085a4d0826f964e7088bf5596d4e6901a15bf751846299a6  nodejs.pc.in
 185083993f76a9baa2f88dc06279b3be7577d66ca94b1b898b81297256355033520f9b721ba21efc9e4fb3f55c655c5278c2174fd67d6d4d521431b01fd3eee2  elf.patch
 fc795e2e61d266d286350ec3e2f7df2e3a874df60325ad11af319c376fc35a71d2c21821171ac6f02c9c9b099c1de346c7447d791b28ea16b1db2ed53c7708db  google-sucks.patch
