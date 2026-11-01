@@ -13,7 +13,6 @@ makedepends="
 	py3-wheel
 	"
 checkdepends="
-	musl-locales
 	py3-flaky
 	py3-pytest-env
 	py3-pytest-mock
@@ -43,9 +42,14 @@ build() {
 check() {
 	python3 -m venv --clear --without-pip --system-site-packages .testenv
 	.testenv/bin/python3 -m installer .dist/*.whl
+	local deselect_locale_test
+	if [ "$CLIBC" = "musl" ]; then
+		deselect_locale_test="--deselect tests/unit/create/test_creator.py::test_default_activators_allow_legacy_locale"
+	fi
 	# test_reentrant_file_lock_is_thread_safe intermittently hangs on CI nodes
 	.testenv/bin/python3 -m pytest -n auto -v \
 		--deselect tests/unit/test_util.py::test_reentrant_file_lock_is_thread_safe \
+		$deselect_locale_test \
 		-k "not test_can_build_c_extensions"
 }
 
