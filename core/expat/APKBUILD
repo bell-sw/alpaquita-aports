@@ -2,9 +2,9 @@
 # files.
 
 pkgname=expat
-pkgver=2.9.0
+pkgver=2.10.0
 _tagver=R_${pkgver//./_}
-pkgrel=1
+pkgrel=0
 pkgdesc="XML Parser library written in C"
 url="https://libexpat.github.io/"
 arch="all"
@@ -12,7 +12,6 @@ license="MIT"
 depends="libexpat=$pkgver-r$pkgrel"
 checkdepends="bash"
 source="https://github.com/libexpat/libexpat/releases/download/$_tagver/expat-$pkgver.tar.xz
-	0100-CVE-2026-113351.patch
 	"
 # pull in xmlwf for dev
 depends_dev="$pkgname=$pkgver-r$pkgrel"
@@ -20,6 +19,10 @@ depends_dev="$pkgname=$pkgver-r$pkgrel"
 subpackages="$pkgname-static $pkgname-dev $pkgname-doc lib$pkgname:libs"
 
 # secfixes:
+#   2.10.0-r0:
+#     - CVE-2026-115506
+#     - CVE-2026-117610
+#     - CVE-2026-118370
 #   2.9.0-r1:
 #     - CVE-2026-113351
 #   2.9.0-r0:
@@ -124,6 +127,5 @@ package() {
 }
 
 sha512sums="
-677b5a39ea47aa238813412061eefba0ff2e819597efee69452eab7fd63b1387537eda0dfd4e5891b938be202dc87df4b5115bdae75c6b81643ac2363bb99b34  expat-2.9.0.tar.xz
-5c98d2b0d78bc5f1fa15efce022b7fce911ecb4dcd89f4c5f774b7e6bdf8b8cb0c12a950df85e75c6bcdda77c5b488c06c0feea26f5298210ba6bebf4db0f0a7  0100-CVE-2026-113351.patch
+bd61f361d823f67586dad246fa4d4abbe3d22f5a0f9a28401e7a2fc96753d5bae33fbe4068fae72f016998d0da9d8c92edc4abd2fe8a8e4aafc775a8ab547c44  expat-2.10.0.tar.xz
 "
