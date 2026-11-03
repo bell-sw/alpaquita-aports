@@ -1,6 +1,6 @@
 pkgname=protobuf
 pkgver=31.1
-pkgrel=4
+pkgrel=5
 pkgdesc="Library for extensible, efficient structure packing"
 url="https://github.com/protocolbuffers/protobuf"
 arch="all"
@@ -30,6 +30,7 @@ subpackages="
 	libprotoc
 	libprotobuf
 	libprotobuf-lite
+	libutf8_range
 	"
 source="$pkgname-$pkgver.tar.gz::https://github.com/protocolbuffers/protobuf/archive/refs/tags/v$pkgver.tar.gz
 	fix-tests.patch
@@ -105,6 +106,14 @@ lite() {
 	pkgdesc="Runtime library for C++ users with 'lite runtime' setting of protocol buffers"
 
 	amove usr/lib/libprotobuf-lite.so.*
+}
+
+libutf8_range() {
+        depends=""
+        pkgdesc="UTF-8 range and validity libraries used by protocol buffers"
+
+        amove usr/lib/libutf8_range.so.*
+        amove usr/lib/libutf8_validity.so.*
 }
 
 sha512sums="
