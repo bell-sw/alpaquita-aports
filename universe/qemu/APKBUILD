@@ -1,6 +1,6 @@
 pkgname=qemu
 pkgver=9.0.4
-pkgrel=4
+pkgrel=5
 pkgdesc="QEMU is a generic machine emulator and virtualizer"
 url="https://qemu.org/"
 arch="all"
@@ -240,6 +240,28 @@ source="https://download.qemu.org/qemu-$pkgver.tar.xz
 	0126-CVE-2026-18054-virtio-gpu-reject-requests-with-short.patch
 	0127-CVE-2026-66022-hw-net-virtio-net-Protect-from-DMA-re.patch
 	0128-CVE-2026-50624-hw-virtio-rng-Fix-host-use-after-free.patch
+	0129-CVE-2026-66020-hw-display-virtio-gpu-disable-blob-scanouts.patch
+	0130-CVE-2026-7180-hw-usb-hcd-ohci-assert-isochronous-TDs-never-deferred.patch
+	0131-CVE-2026-17588-hw-usb-hcd-xhci-reentrancy-guard-timer-functions.patch
+	0132-CVE-2026-93834-hw-9pfs-mutate-FID-path-main-thread.patch
+	0133-CVE-2026-66899-virtio-balloon-free-page-BH-teardown.patch
+	0134-CVE-2026-66900-virtio-net-strip-trailing-padding-RSC.patch
+	0135-CVE-2026-84788-io-channel-socket-zero-length-write.patch
+	0136-CVE-2026-84788-io-channel-websock-http-400-greeting.patch
+	0137-CVE-2026-84788-io-channel-websock-blocked-write-handshake.patch
+	0138-CVE-2026-84788-io-channel-websock-err-block-read.patch
+	0139-CVE-2026-77913-hw-display-vga-text-mode-OOB-write.patch
+	0140-CVE-2026-16271-hw-display-qxl-validate-stride.patch
+	0141-CVE-2026-12080-qga-change-effective-user-group.patch
+	0142-CVE-2026-81627-vapic-confine-region.patch
+	0143-CVE-2026-81627-vapic-unref-memoryregion.patch
+	0144-CVE-2026-7180-hw-usb-hcd-ohci-fail-iso-packets.patch
+	0145-CVE-2026-18204-dev-smartcard-reader-OOB-read.patch
+	0146-CVE-2026-18410-dev-smartcard-reader-assert-overflow.patch
+	0147-CVE-2026-18609-dev-smartcard-reader-interrupt-length.patch
+	0148-CVE-2026-101291-io-websock-unbounded-read.patch
+	0149-CVE-2026-111819-hw-usb-hcd-xhci-more-reentrancy-guards.patch
+	0150-CVE-2026-97889-hw-display-vga-OOB-external-resize.patch
 
 	$pkgname-guest-agent.confd
 	$pkgname-guest-agent.initd
@@ -248,6 +270,24 @@ source="https://download.qemu.org/qemu-$pkgver.tar.xz
 	"
 
 # secfixes:
+#   9.0.4-r5:
+#     - CVE-2026-7180
+#     - CVE-2026-101291
+#     - CVE-2026-111819
+#     - CVE-2026-12080
+#     - CVE-2026-16271
+#     - CVE-2026-17588
+#     - CVE-2026-18204
+#     - CVE-2026-18410
+#     - CVE-2026-18609
+#     - CVE-2026-66020
+#     - CVE-2026-66899
+#     - CVE-2026-66900
+#     - CVE-2026-77913
+#     - CVE-2026-81627
+#     - CVE-2026-84788
+#     - CVE-2026-93834
+#     - CVE-2026-97889
 #   9.0.4-r4:
 #     - CVE-2026-50624
 #     - CVE-2026-66022
@@ -668,6 +708,28 @@ abb542886454afa385b054d0a58dd740b936b7f57d6a25227f61c379d9577d2999f46091ea489a2b
 c6e461dc8ef7010ea027aabd2d9e77ab31f50444f0ec6dc27e0c9d15838e4334bceb2dacc6afea1104697f34db723410f6ed2fc59498d5eb2236c011674da884  0126-CVE-2026-18054-virtio-gpu-reject-requests-with-short.patch
 6d8ac71a5df637ba49f3ef8c82b28e69cf4a6a856c73b306134ffe33aa3c7b551d99b6284b2802f653431b8c55f1a695ac1d207ccb24e11aa4e3ebfd53cd0cd4  0127-CVE-2026-66022-hw-net-virtio-net-Protect-from-DMA-re.patch
 46b7c9fd08fc7e5e90525f2988f029ef69029f447e3bd4fbc8b9636ca2467cfcb4ef2abf9f2f0122fcf01d3c3218062221bb4f76ebe3f9b2fb3994973a42d36a  0128-CVE-2026-50624-hw-virtio-rng-Fix-host-use-after-free.patch
+da9beb5b590ae213ea0ef809cf97b9dd1fb044c79000e12d21d32d3f68a4501337f6d7a1eb46077235f3caf044142408d37f5498dae187c144f1af3d111c4b8e  0129-CVE-2026-66020-hw-display-virtio-gpu-disable-blob-scanouts.patch
+50cd0ec006925e675b27ea4a798023d5f906e4d5b5372724a931b6f13aee3b8319591fb0448aec7b4d22e5aa30a881710097850873851d219f0c91125d28ac54  0130-CVE-2026-7180-hw-usb-hcd-ohci-assert-isochronous-TDs-never-deferred.patch
+b625584eb048883c0fc8ee14031df56e583a85eab1901fc77b76f84996685355ef1c7ccdf84418371fe96da7543595cb3ab470b38f78a6993a1d56bde0e7e342  0131-CVE-2026-17588-hw-usb-hcd-xhci-reentrancy-guard-timer-functions.patch
+4b5d136c092615d1b311945d3e097fbd784329bc5dbaae5c0ee7360e3f478737871591aa71cbd68857eb4f383aa5c870dfdeb1e1dcba9785ed4efb7d777ba18a  0132-CVE-2026-93834-hw-9pfs-mutate-FID-path-main-thread.patch
+96128b263ec450bcd72bb34050325974a307ff53c43fbfa869483345dbb11652a49324d0a882a1ea2389fcfa3643f3e516ecca97abb18a0bab6435d446446393  0133-CVE-2026-66899-virtio-balloon-free-page-BH-teardown.patch
+696430d420da61e8fc614c66d81973311501760b5463a7b150168a7aaf5c58465196fd25f3c906470e4b4070900a89c86bcb0af9d9b2f1f0235b2c00acf4d77a  0134-CVE-2026-66900-virtio-net-strip-trailing-padding-RSC.patch
+d34cad08a447e7cac13ddc91556a8f0c175814352e73c8cd8e7042ffbdacf56d36152caa81ac4099d3743e01ffa3d7162925253c3f51ecdcd21f47985d6bc40a  0135-CVE-2026-84788-io-channel-socket-zero-length-write.patch
+9997a3479893c90c615264cc2901b90b4a80a930a9faa80a94896fe70abe16dc47cf0462f5a8918c48ae327934e1a51777202b20f7ca9aa1cc9b7d01cde90606  0136-CVE-2026-84788-io-channel-websock-http-400-greeting.patch
+acbf74b42d5b6f98d681020df1f15ec125727c925b8a954c149ac7ef7b572cd8f8ef2f0481ed1dcdf3af975065ab75dcead44aca66a6852233f54be6f74c9c2b  0137-CVE-2026-84788-io-channel-websock-blocked-write-handshake.patch
+26c22a2b7c3f465ae4220352925e55c6eed56cca0f38ad491f1c09e9180beb24244888ad5e5efb20729cd46d914e5fada1d5008156ea4cf9c52d1024b56780aa  0138-CVE-2026-84788-io-channel-websock-err-block-read.patch
+0e3ce1d4ef47fd58c946f2e7a6d5c40d72b57e7cad04eaa5338b16b12687d9b1d95feb7f9ccb33b9b86d1fcf9c9220a009c75ea632d37e8c15eeb29d6df6a490  0139-CVE-2026-77913-hw-display-vga-text-mode-OOB-write.patch
+b0b873d1788d1694e2dd7b879eedc32f574280ff9369c4281d0760863b6fb2ceaa3d9db7b5e9b1ab036533f9496fc2439c0f823f8a53e05fde9c5e41449833af  0140-CVE-2026-16271-hw-display-qxl-validate-stride.patch
+1850bffe8a11293f20bb97863c803ef086adfd8f782217a8d2b9ee1830166b37aa58a454dfa1cc99f461cc239571ee0fec4b1f70990a3f0f08f8e85d8c3aaa6e  0141-CVE-2026-12080-qga-change-effective-user-group.patch
+9e8d49bf2f4165130f06c4fc6adc9fa7d75bd16657b7764f907af4b5eae7fb9d00cf6fc8123f7862322e94912a8a12f3a173843fc4da522e65d037deb7169d4f  0142-CVE-2026-81627-vapic-confine-region.patch
+bd508392c878003d1c3de45071d52383f99ff4a0834d45540ff3bb7bc3b1b34ab5a0c1fb43810adffa0eb9b9a7e8783000eccf3e0017344d6141e2fd8dbb62a7  0143-CVE-2026-81627-vapic-unref-memoryregion.patch
+7597fa3c9b93542fe0db4f06d1b1d93964e7ae12b62c5e182e741ff9ad840ce34766a0c82b273cce4cddf10e0e44b35d0daae5bd94683b58fe2ebc873730993a  0144-CVE-2026-7180-hw-usb-hcd-ohci-fail-iso-packets.patch
+ba0e6312e3f0d48eb5a8bc18ff3c6f401bfaa2fdb1be75b5069cfbc2274ee6436a1decc29696d39e3d66408e788894632b6b6bebbe9c78b2a0c06cddbeee1fb7  0145-CVE-2026-18204-dev-smartcard-reader-OOB-read.patch
+da788491d0a66118099bd78a8c160d71fd7a908f3a8b4079c6760dd066e647fba32947bdf78433cc2f63cd1d5db73924a8e51b355d26dcc4e5d73a9475fe42db  0146-CVE-2026-18410-dev-smartcard-reader-assert-overflow.patch
+2460a4e1cd47765124552792e7019c12152e0d2f86ba58e157c4f9eda75c6409053db90a4a3c6ad0118e7ae4d160ebbbbe11aa23d6845e33bdf5e4fea9fb4686  0147-CVE-2026-18609-dev-smartcard-reader-interrupt-length.patch
+8a01f4da06652672df072f88cab7f5b59dcd53db518bfa55a69f0931d08e68060a02f7d852e3abbb5fb64b4f671b7e880a16b922796573553500367872551e7d  0148-CVE-2026-101291-io-websock-unbounded-read.patch
+6975339a855cef7da2761c196f9a352eb5202f7d7694654d791fd09658b611eae3ace26d1aac8427b4b429505ad14ddf62ac530c13730a32a696c37a126d3c64  0149-CVE-2026-111819-hw-usb-hcd-xhci-more-reentrancy-guards.patch
+37f77a26e1a9b2393dc8be9a5aa047b161446262f2c29bbca018255d8510b1847722623808eaaf77bce7f5d0a089b149bbae88c3ae92dbf4f11ea82d338391dc  0150-CVE-2026-97889-hw-display-vga-OOB-external-resize.patch
 d90c034cae3f9097466854ed1a9f32ab4b02089fcdf7320e8f4da13b2b1ff65067233f48809911485e4431d7ec1a22448b934121bc9522a2dc489009e87e2b1f  qemu-guest-agent.confd
 714436d809451e81cbb5aa2d8208ec0fa3fcd0aa9fb8a7d95509f58712841675fd6d528235dced7f8e1a92fdef1a0c2053c8e19e653432cc0b5888526bb3186b  qemu-guest-agent.initd
 9b7a89b20fcf737832cb7b4d5dc7d8301dd88169cbe5339eda69fbb51c2e537d8cb9ec7cf37600899e734209e63410d50d0821bce97e401421db39c294d97be2  80-kvm.rules
