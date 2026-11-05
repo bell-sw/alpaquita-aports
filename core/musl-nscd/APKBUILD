@@ -2,8 +2,8 @@
 # requests.
 
 pkgname=musl-nscd
-pkgver=1.1.1
-pkgrel=4
+pkgver=1.2.1
+pkgrel=0
 pkgdesc="Implementation of nscd for nsswitch modules for musl"
 url="https://github.com/pikhq/musl-nscd"
 arch="all"
@@ -16,6 +16,7 @@ subpackages="$pkgname-dev $pkgname-doc $pkgname-openrc"
 source="
 	$pkgname-$pkgver.tar.gz::https://github.com/pikhq/musl-nscd/archive/v$pkgver.tar.gz
 	musl-nscd.initd
+	musl-nscd.confd
 	"
 
 build() {
@@ -32,14 +33,15 @@ build() {
 package() {
 	make DESTDIR="$pkgdir" install
 
-	install -m644 -D COPYRIGHT \
+	install -Dm644 COPYRIGHT \
 		"$pkgdir"/usr/share/licenses/$pkgname/COPYRIGHT
 
-	install -m755 -D "$srcdir"/$pkgname.initd \
-		"$pkgdir"/etc/init.d/nscd
+	install -Dm755 "$srcdir"/$pkgname.initd "$pkgdir"/etc/init.d/nscd
+	install -Dm644 "$srcdir"/$pkgname.confd "$pkgdir"/etc/conf.d/nscd
 }
 
 sha512sums="
-f067b1491c6c46c3070aa2f61328b874eb6ad390c2efc928e2fee591ef5997b40400e29495546a861e803460efa46024c7a01c53ddae5b763ef63c2f274fceea  musl-nscd-1.1.1.tar.gz
-ac9a9b85070910d3be752047517f9f34f961d145e95bef57bcdcc10c0b0f6c5df503cf3923ef6b048be475172c8e5b929c20072992cdfdd350fb71c879cb0bec  musl-nscd.initd
+e5956c94ac4d78a205f6e03f9eed8647be9cac2b28edef59a58d5f709fe3de5c9ace9f124986062bde561c3451aea5edca9a4f921fd0af212ca0f74c7fbcf504  musl-nscd-1.2.1.tar.gz
+be46d9bf244ef8e0dbd7760a49cf6019249ce95fa2de432c9f0f7f0228a59a3fd257170ab4e218e872eaa059e5359a090a9a803507dd35c258784376e567bfb1  musl-nscd.initd
+d02268318d5502d747bfb0a705d2474c165e78249c6f2c03740e603c48f2b728ccab2b9492eeb381f84c2b63698fb39413edee16766be5313a3633dcfd06d1f2  musl-nscd.confd
 "
