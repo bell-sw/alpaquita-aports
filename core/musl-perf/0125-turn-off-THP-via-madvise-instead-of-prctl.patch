@@ -1,18 +1,18 @@
-From 807a2543d1a9d3449dedb6e7a3538f9af86054f8 Mon Sep 17 00:00:00 2001
+From e6337f09e8f5453039fc6aedbc4b913ed8184cb9 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Wed, 15 Jan 2025 17:23:42 +0000
 Subject: [PATCH] turn off THP via madvise instead of prctl
 
 ---
  mimalloc/src/options.c | 3 +++
- mimalloc/src/os.c      | 6 +++++-
- 2 files changed, 8 insertions(+), 1 deletion(-)
+ mimalloc/src/os.c      | 5 +++++
+ 2 files changed, 8 insertions(+)
 
 diff --git a/mimalloc/src/options.c b/mimalloc/src/options.c
-index 428fc27e..db1161b1 100644
+index 90578118..f0d74997 100644
 --- a/mimalloc/src/options.c
 +++ b/mimalloc/src/options.c
-@@ -182,10 +182,13 @@ void _mi_options_init(void) {
+@@ -189,10 +189,13 @@ void _mi_options_init(void) {
    mi_max_warning_count = mi_option_get(mi_option_max_warnings);
    #if MI_GUARDED
    if (mi_option_get(mi_option_guarded_sample_rate) > 0) {
@@ -27,7 +27,7 @@ index 428fc27e..db1161b1 100644
    #endif
    if (mi_option_is_enabled(mi_option_verbose)) { mi_options_print(); }
 diff --git a/mimalloc/src/os.c b/mimalloc/src/os.c
-index 9b1b4b46..1220c13f 100644
+index fe6ab7a7..1981d5ba 100644
 --- a/mimalloc/src/os.c
 +++ b/mimalloc/src/os.c
 @@ -9,6 +9,8 @@ terms of the MIT license. A copy of the license can be found in the file
@@ -39,17 +39,16 @@ index 9b1b4b46..1220c13f 100644
  #define mi_os_stat_increase(stat,amount)      _mi_stat_increase(&_mi_stats_main.stat, amount)
  #define mi_os_stat_decrease(stat,amount)      _mi_stat_decrease(&_mi_stats_main.stat, amount)
  #define mi_os_stat_counter_increase(stat,inc) _mi_stat_counter_increase(&_mi_stats_main.stat, inc)
-@@ -348,7 +350,9 @@ void* _mi_os_alloc_aligned(size_t size, size_t alignment, bool commit, bool allo
-   void* os_base = NULL;
-   void* p = mi_os_prim_alloc_aligned(size, alignment, commit, allow_large, &os_is_large, &os_is_zero, &os_base );
+@@ -358,6 +360,9 @@ void* _mi_os_alloc_aligned(size_t size, size_t alignment, bool commit, bool allo
+ 
+   void* p = mi_os_prim_alloc_aligned(size, alignment, commit, allow_large, memid );
    if (p == NULL) return NULL;
--
 +  #ifdef MI_LIBC_BUILD
 +  madvise(p, size, MADV_NOHUGEPAGE);
 +  #endif
-   *memid = _mi_memid_create_os(p, size, commit, os_is_zero, os_is_large);
-   memid->mem.os.base = os_base;
-   memid->mem.os.size += ((uint8_t*)p - (uint8_t*)os_base);  // todo: return from prim_alloc_aligned?
+ 
+   mi_assert_internal(memid->mem.os.size >= size);
+   mi_assert_internal(_mi_is_aligned(p,alignment));
 -- 
-2.25.1
+2.55.0
 

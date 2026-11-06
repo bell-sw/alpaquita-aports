@@ -15,6 +15,12 @@
 #define MI_NO_GETENV 1
 /* this is a hardened build */
 #define MI_SECURE 1
+/* keep randomizing the block order in page free lists (was part of
+ * MI_SECURE 1 before mimalloc 2.3.0, now MI_SECURE>=2; see 0130 patch) */
+#define MI_RANDOMIZE_FREE_LIST 1
+/* don't madvise(MADV_HUGEPAGE) OS allocations: THP is turned off for
+ * mimalloc memory via MADV_NOHUGEPAGE instead (see 0125 patch) */
+#define MI_NO_THP 1
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"

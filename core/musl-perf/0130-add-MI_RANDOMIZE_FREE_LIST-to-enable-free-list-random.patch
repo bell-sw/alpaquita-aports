@@ -1,0 +1,55 @@
+From 0b025856f3dc1ee781b10c8a22db3645a13f6724 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Sat, 17 Oct 2026 20:16:47 +0000
+Subject: [PATCH] add MI_RANDOMIZE_FREE_LIST to enable free list randomization
+ separately
+
+Since mimalloc 2.3.0 (commit d5cc6e2e, "introduce secure level 5")
+randomizing the block order when extending a page free list requires
+MI_SECURE>=2; before it was enabled at any MI_SECURE>0. Add an
+MI_RANDOMIZE_FREE_LIST macro (default: MI_SECURE>=2, so upstream
+behaviour is unchanged) so a MI_SECURE=1 build can keep the previous
+level-1 behaviour: randomized extension with MI_MIN_EXTEND 8.
+
+---
+ mimalloc/src/page.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/mimalloc/src/page.c b/mimalloc/src/page.c
+index 7d6262b4..50aeb1a1 100644
+--- a/mimalloc/src/page.c
++++ b/mimalloc/src/page.c
+@@ -652,8 +652,21 @@ static mi_decl_noinline void mi_page_free_list_extend( mi_page_t* const page, co
+ ----------------------------------------------------------- */
+ 
+ #define MI_MAX_EXTEND_SIZE    (4*1024)      // heuristic, one OS page seems to work well.
++
++// Randomize the order of blocks when extending a page free list. This is part of
++// MI_SECURE>=2 but can be enabled separately at lower secure levels.
++#if !defined(MI_RANDOMIZE_FREE_LIST)
++#if (MI_SECURE>=2)
++#define MI_RANDOMIZE_FREE_LIST 1
++#else
++#define MI_RANDOMIZE_FREE_LIST 0
++#endif
++#endif
++
+ #if (MI_SECURE>=2)
+ #define MI_MIN_EXTEND         (8*MI_SECURE) // extend at least by this many blocks
++#elif MI_RANDOMIZE_FREE_LIST
++#define MI_MIN_EXTEND         (8)
+ #else
+ #define MI_MIN_EXTEND         (4)
+ #endif
+@@ -693,7 +706,7 @@ static bool mi_page_extend_free(mi_heap_t* heap, mi_page_t* page, mi_tld_t* tld)
+   mi_assert_internal(extend < (1UL<<16));
+ 
+   // and append the extend the free list
+-  if (extend < MI_MIN_SLICES || MI_SECURE<2) { //!mi_option_is_enabled(mi_option_secure)) {
++  if (extend < MI_MIN_SLICES || !MI_RANDOMIZE_FREE_LIST) { //!mi_option_is_enabled(mi_option_secure)) {
+     mi_page_free_list_extend(page, bsize, extend, &tld->stats );
+   }
+   else {
+-- 
+2.55.0
+

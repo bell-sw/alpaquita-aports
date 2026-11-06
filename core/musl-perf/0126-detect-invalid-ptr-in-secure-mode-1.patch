@@ -1,4 +1,4 @@
-From a45174cd90561967d7babebed83082f653452301 Mon Sep 17 00:00:00 2001
+From f63c80e033fbd4d85a8a88acabcc4318d8dc4d17 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Mon, 27 Jan 2025 16:25:15 +0000
 Subject: [PATCH] detect invalid ptr in secure mode 1+
@@ -8,18 +8,18 @@ Subject: [PATCH] detect invalid ptr in secure mode 1+
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/mimalloc/src/free.c b/mimalloc/src/free.c
-index 5e5ae443..215c57a0 100644
+index 9f9350be..64b79106 100644
 --- a/mimalloc/src/free.c
 +++ b/mimalloc/src/free.c
-@@ -136,7 +136,7 @@ static inline mi_segment_t* mi_checked_ptr_segment(const void* p, const char* ms
+@@ -162,7 +162,7 @@ static inline mi_segment_t* mi_checked_ptr_segment(const void* p, const char* ms
      }
    }
    #endif
--  #if (MI_DEBUG>0 || MI_SECURE>=4)
+-  #if (MI_DEBUG>0 || MI_SECURE>=3)
 +  #if (MI_DEBUG>0 || MI_SECURE>=1)
    if mi_unlikely(_mi_ptr_cookie(segment) != segment->cookie) {
      _mi_error_message(EINVAL, "%s: pointer does not point to a valid heap space: %p\n", msg, p);
      return NULL;
 -- 
-2.25.1
+2.55.0
 

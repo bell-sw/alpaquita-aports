@@ -1,0 +1,47 @@
+From 51a210617334e5464ac809ffae386f21d572c9c4 Mon Sep 17 00:00:00 2001
+From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
+Date: Sat, 17 Oct 2026 19:53:26 +0000
+Subject: [PATCH] use sched_yield() instead of sleep(0) in libc build
+
+mimalloc 2.4.x added mi_atomic_yield_sleep(), which backs off with
+sleep(0) in the delayed-free CAS loops (page.c). In musl, sleep() goes
+through nanosleep(), a cancellation point, so it must not be reached
+from malloc()/free(). Yield with sched_yield() instead when built
+as the libc allocator.
+
+---
+ mimalloc/include/mimalloc/atomic.h | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/mimalloc/include/mimalloc/atomic.h b/mimalloc/include/mimalloc/atomic.h
+index 6607faba..e3ef6813 100644
+--- a/mimalloc/include/mimalloc/atomic.h
++++ b/mimalloc/include/mimalloc/atomic.h
+@@ -490,6 +490,10 @@ static inline void mi_sleep0(void) {
+ }
+ #endif
+ 
++#if defined(MI_LIBC_BUILD)
++#include <sched.h>  // sched_yield
++#endif
++
+ static inline void mi_atomic_yield_sleep( size_t* ticks, const size_t ticks_until_sleep ) {
+   const size_t n = *ticks;
+   if (n==0 || n > ticks_until_sleep) {
+@@ -502,7 +506,13 @@ static inline void mi_atomic_yield_sleep( size_t* ticks, const size_t ticks_unti
+     mi_atomic_yield();
+   }
+   else {
++    #if defined(MI_LIBC_BUILD)
++    // inside libc `sleep()` is a cancellation point (nanosleep), which must
++    // not be reached from malloc/free; just yield the CPU instead.
++    sched_yield();
++    #else
+     mi_sleep0();
++    #endif
+   }
+ }
+ 
+-- 
+2.55.0
+
