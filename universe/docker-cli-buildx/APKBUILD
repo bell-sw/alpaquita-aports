@@ -1,6 +1,6 @@
 pkgname=docker-cli-buildx
 pkgver=0.24.0
-pkgrel=18
+pkgrel=19
 _commit=d0e5e86c8b88ae4865040bc96917c338f4dd673c
 pkgdesc="A Docker CLI plugin for extended build capabilities"
 url="https://docs.docker.com/engine/reference/commandline/buildx_build"
@@ -10,6 +10,7 @@ makedepends="go"
 options="net"
 source="buildx-$pkgver.tar.gz::https://github.com/docker/buildx/archive/v$pkgver.tar.gz
 
+	0100-CVE-2026-103433.patch
 	9999-go-mod.patch
 	"
 
@@ -22,6 +23,8 @@ export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
 export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
 
 # secfixes:
+#   0.24.0-r19:
+#     - CVE-2026-103433
 #   0.24.0-r15:
 #     - CVE-2026-17106
 
@@ -50,5 +53,6 @@ package() {
 
 sha512sums="
 423dd8e8b7ebb5d94be5f6f791f746aaff3570b473172877806cf1a2d265fca1bb65902dd001da3263002867ecd82a18b9062467f4a6da276788109abde34a25  buildx-0.24.0.tar.gz
+66d625e556333b1737ef017705dde9cbf85765b33cdf34c5e2d2c24add9d83aa4a2ad6007a6cb6801a0ec6c9daa8aa2897139f6bfef5976b3f897da1e86f18ba  0100-CVE-2026-103433.patch
 7385e9ae345d8f665738f28946f1df454f5907890116777ca99cf5e9585b28f2293c353083461f2080deb4b8e54c0a975fb5d3645666d53f5c44c46e5676a2d7  9999-go-mod.patch
 "
