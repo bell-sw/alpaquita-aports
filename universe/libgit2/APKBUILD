@@ -78,6 +78,9 @@ build() {
 
 check() {
 	cd "$builddir"/build-shared
+	# remote::httpproxy only clears the uppercase proxy variables, while
+	# libgit2 reads the lowercase ones first
+	unset http_proxy https_proxy no_proxy HTTP_PROXY HTTPS_PROXY NO_PROXY
 	ctest
 }
 
