@@ -1,6 +1,6 @@
 pkgname=poppler
-pkgver=25.12.0
-pkgrel=2
+pkgver=26.11.0
+pkgrel=0
 pkgdesc="PDF rendering library based on xpdf 3.0"
 url="https://poppler.freedesktop.org/"
 arch="all"
@@ -9,9 +9,11 @@ depends_dev="cairo-dev glib-dev"
 makedepends="
 	$depends_dev
 	boost-dev
+	brotli-dev
 	cmake
 	fontconfig-dev
 	gobject-introspection-dev
+	harfbuzz-dev
 	lcms2-dev
 	libjpeg-turbo-dev
 	libpng-dev
@@ -24,13 +26,17 @@ makedepends="
 	zlib-dev
 	"
 subpackages="$pkgname-dev $pkgname-doc $pkgname-glib $pkgname-utils"
-source="https://poppler.freedesktop.org/poppler-$pkgver.tar.xz
-
-	0100-CVE-2026-10118.patch
-	"
+source="https://poppler.freedesktop.org/poppler-$pkgver.tar.xz"
 options="!check" # Requires dl of testfiles and only checks qt5 libs
 
 # secfixes:
+#   26.11.0-r0:
+#     - CVE-2026-93312
+#     - CVE-2026-93313
+#     - CVE-2026-93314
+#     - CVE-2026-102620
+#     - CVE-2026-102621
+#     - CVE-2026-107705
 #   25.12.0-r2:
 #     - CVE-2026-10118
 #   25.09.1-r1:
@@ -110,6 +116,5 @@ _cpp() {
 }
 
 sha512sums="
-4f68713d7efa5003a60773749d3bcff4041b165dfb65104a56cec576559c15164fc4a021244cc91f4ed76aab709757637396d7c5b6fbcf3eed23e3469072e4f3  poppler-25.12.0.tar.xz
-d24b96d9304ac3115a81addb16b47e1fdfe30ea89aeb40d546c3ed317cf4294480355839bcbb4fd73b7a34ecf8d4873340cfa353c9119ae484c95b2c87b511fa  0100-CVE-2026-10118.patch
+651561ac9be6a4741f4b79500a58dc3422a3605c8285fb224ffccc031c0dc952fe94805a265b03b6548fb4c8f59815eabd19b46c30a23afea2cf6b0d642b1c39  poppler-26.11.0.tar.xz
 "
