@@ -1,6 +1,6 @@
 --- a/lib/tiny-cloud/init-early
 +++ b/lib/tiny-cloud/init-early
-@@ -6,22 +6,30 @@ source /lib/tiny-cloud/init-common
+@@ -6,22 +6,31 @@ source /lib/tiny-cloud/init-common
  expand_root() {
      skip_action expand_root && return
  
@@ -11,6 +11,7 @@
 -    )
 -    local partition
 +    local dev=$(awk '$2 == "/" {print $1}' /proc/mounts 2>/dev/null)
++    dev=$(realpath "$dev")
 +    local filesystem=$(awk '$2 == "/" {print $3}' /proc/mounts 2>/dev/null)
 +    local partition=$(cat /sys/class/block/"${dev#/dev/}"/partition 2>/dev/null)
  
