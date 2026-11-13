@@ -1,6 +1,6 @@
 pkgname=xfsprogs
 pkgver=7.2.1
-pkgrel=0
+pkgrel=1
 pkgdesc="XFS filesystem utilities"
 url="https://xfs.org/index.php/Main_Page"
 arch="all"
@@ -26,7 +26,11 @@ subpackages="
 	"
 source="https://mirrors.edge.kernel.org/pub/linux/utils/fs/xfs/xfsprogs/xfsprogs-$pkgver.tar.xz
 	libxfs-remove-stale-xfs_trans_mod_sb-declaration.patch
+	0100-CVE-2026-108472.patch
 	"
+# secfixes:
+#   7.2.1-r1:
+#     - CVE-2026-108472
 
 build() {
 	export DEBUG=-DNDEBUG
@@ -84,4 +88,5 @@ extra() {
 sha512sums="
 c8d0779b50cb06df17ef24be48e878649fd5aa5e789806cc965655e93d695fe5751d0e606f288accea6f7c673bf8647b8e8f8e12f420d50cbdede84de79634fc  xfsprogs-7.2.1.tar.xz
 7fd9f26823ce2c6aa92494b5b83bd957d952c648fe2cd05cbff17eb8b8963bfbb378483897ccb8fbc86cc519de7556d37860426eabe1204876fd7c10fdc1fca1  libxfs-remove-stale-xfs_trans_mod_sb-declaration.patch
+0747506d00e233c4bf84e8a012b4e7e8ffe10e59e190d741fa3ca064921b753120b5f4cc19e9b24c99f7f618e3f933dfe111e37f4608c260c7fa891e004d595b  0100-CVE-2026-108472.patch
 "
