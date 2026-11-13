@@ -1,48 +1,37 @@
 pkgname=llhttp
-pkgver=9.2.1
-pkgrel=1
+pkgver=9.4.4
+_nodejs_commit="e9c277643b0249c50f6e6de5413be8a88ea11b6a"
+pkgrel=0
 pkgdesc="Port of http_parser to llparse"
 url="https://llhttp.org/"
 license="MIT"
 arch="all"
-makedepends="cmake clang samurai npm"
+makedepends="cmake samurai"
 subpackages="$pkgname-dev $pkgname-doc"
-source="https://github.com/nodejs/llhttp/archive/v$pkgver/llhttp-$pkgver.tar.gz"
+source="nodejs-$_nodejs_commit.tar.gz::https://github.com/nodejs/node/archive/$_nodejs_commit.tar.gz"
+builddir="$srcdir/node-$_nodejs_commit/deps/llhttp"
+options="!check !annobin"
 
 # secfixes:
+#   9.4.4-r0:
+#     - CVE-2026-123864
 #   9.2.1-r0:
 #     - CVE-2024-27982
 
-prepare() {
-	default_prepare
-
-	npm ci
-}
-
 build() {
-	make release RELEASE="$pkgver"
-
-	cmake -S release -B releasebuild -G Ninja \
+	cmake -B build -G Ninja \
 		-DCMAKE_BUILD_TYPE=MinSizeRel \
 		-DCMAKE_INSTALL_PREFIX=/usr \
-		-DBUILD_SHARED_LIBS=ON
-	cmake --build releasebuild
-}
-
-check() {
-	# Since clang is used in tests and clang doesn't have an annobin plugin,
-	# at least for clang18 and clang19, remove annobin plugin from CFLAGS
-	export CFLAGS="${CFLAGS//-fplugin=annobin/}"
-
-	npm test
+		-DLLHTTP_BUILD_SHARED_LIBS=ON
+	cmake --build build
 }
 
 package() {
-	DESTDIR="$pkgdir" cmake --install releasebuild
+	DESTDIR="$pkgdir" cmake --install build
 
-	install -Dm644 LICENSE-MIT "$pkgdir"/usr/share/doc/$pkgname/LICENSE
+	install -Dm644 LICENSE -t "$pkgdir"/usr/share/doc/$pkgname
 }
 
 sha512sums="
-653a0d65226644a7d71c538da343b2cff75bc7acc8cd6473ac19d166cc77c3e00c6a9087120d9abb63a9ac6b50e408c905d5925fa96d5d46d425ee7d0e3cdf9c  llhttp-9.2.1.tar.gz
+c571fd3d660f574a410dffd064696f87fbae3a53dfb4ca5171973f75f7c0d6c58dc1e30d16fea1d035d183df669726a6f75028cffca6923cb209e63262a99172  nodejs-e9c277643b0249c50f6e6de5413be8a88ea11b6a.tar.gz
 "
