@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.39.0
-pkgrel=18
+pkgrel=19
 _glibcver=${pkgver%.*}
 _patch_ver="glibc-2.39-303-gc0ebe959a3"
 pkgdesc="GNU C Library"
@@ -39,6 +39,8 @@ source="
 	0117-linux-fall-back-to-clone-on-clone3-EPERM.patch
 	0118-CVE-2026-8674-resolv-Fix-assertion-failure-on-search.patch
 	0119-CVE-2026-89092-nscd-replace-alloca-with-malloc-in-ai.patch
+	0120-CVE-2026-100290-posix-Fix-double-free-after-allocation-failu.patch
+	0121-CVE-2026-84243-intl-Restrict-path-traversal-when-using-LANGU.patch
 	"
 builddir="$srcdir/glibc-$_glibcver"
 options="!libc_musl lib64 ldpath-recursive !annobin"
@@ -54,6 +56,9 @@ subpackages="
 "
 
 # secfixes:
+#   2.39.0-r19:
+#     - CVE-2026-100290
+#     - CVE-2026-84243
 #   2.39.0-r18:
 #     - CVE-2026-115819
 #   2.39.0-r17:
@@ -343,4 +348,6 @@ ea399c090b326897fffaa80eab0ec3b0f86ce4048be0f01109da953b7eb7d9eb883378d38bcc2e6a
 e49c64c1cc56975b50cfdbec9ff76d6a3acd35ed55f40d9c7be2f67be7442346d0b4df7692487a2ad7829d351f3a3e3ffbe20ea99ad5d7818aacadfc563e930a  0117-linux-fall-back-to-clone-on-clone3-EPERM.patch
 afb48d43c73b77a519ed6fe920c999a8af66fda74ac39a436a7d73ce62468c9858fea5a069408e196bd3252ef1044f28535a55422607a1cb29bc7aaf47c6605d  0118-CVE-2026-8674-resolv-Fix-assertion-failure-on-search.patch
 d5cd0144eb0be5e0f0570b4aeb511d0370a29a92ef61222479df7d55b4af114c51fadaa568fa68c3735272f7527dfe916700960bf184ba2dbb722d7288a49c3c  0119-CVE-2026-89092-nscd-replace-alloca-with-malloc-in-ai.patch
+f7a14808b7844c3500369a744027ba3eb49c24f1cd5c6988a02a7c2fd70a73d6b5c573fe769033f054f053d53fd88d7bc76a19744e135f7d7b74efa119a3af89  0120-CVE-2026-100290-posix-Fix-double-free-after-allocation-failu.patch
+79fbcd02c08f56602ca3ad7ca1ecaa23cefb20eabba6b1e11c5a37172d585299cbef649596b61b25cc6a558d69b744c93dae96077ad3a9d0fefef7c0f29b9796  0121-CVE-2026-84243-intl-Restrict-path-traversal-when-using-LANGU.patch
 "
