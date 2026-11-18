@@ -382,7 +382,15 @@ check() {
 	# Test suite does not pass with ccache, thus remove it form $PATH.
 	export PATH="$(echo "$PATH" | sed 's|/usr/lib/ccache/bin:||g')"
 
-	PATH="$builddir/bin:$PATH" ./run.bash -no-rebuild
+	# XXX: if GOTMPDIR doesn't point to /tmp or a subdir thereof
+	# cmd/go/internal/work/security_test.go fails b/c it doesn't
+	# get the linker errors it expects for various shady things.
+	# Give in and kid-glove that test to run with GOTMPDIR that
+	# makes it happy (NB: alpine doesn't run any tests at all).
+	GOTMPDIR=/tmp \
+	PATH="$builddir/bin:$PATH" ./run.bash -no-rebuild -run 'cmd/go/internal/work'
+
+	PATH="$builddir/bin:$PATH" ./run.bash -no-rebuild -run '!cmd/go/internal/work'
 
 	# XXX: b/c fips tarballs think it's a good idea to be
 	# read-only they fail rm -rf during cleanup otherwise.
