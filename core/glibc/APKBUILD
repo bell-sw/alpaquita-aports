@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.39.0
-pkgrel=19
+pkgrel=20
 _glibcver=${pkgver%.*}
 _patch_ver="glibc-2.39-303-gc0ebe959a3"
 pkgdesc="GNU C Library"
@@ -41,6 +41,7 @@ source="
 	0119-CVE-2026-89092-nscd-replace-alloca-with-malloc-in-ai.patch
 	0120-CVE-2026-100290-posix-Fix-double-free-after-allocation-failu.patch
 	0121-CVE-2026-84243-intl-Restrict-path-traversal-when-using-LANGU.patch
+	0122-CVE-2026-121758-iconv-ISO-2022-CN-EXT-fix-SO-handling.patch
 	"
 builddir="$srcdir/glibc-$_glibcver"
 options="!libc_musl lib64 ldpath-recursive !annobin"
@@ -56,6 +57,8 @@ subpackages="
 "
 
 # secfixes:
+#   2.39.0-r20:
+#     - CVE-2026-121758
 #   2.39.0-r19:
 #     - CVE-2026-100290
 #     - CVE-2026-84243
@@ -181,6 +184,7 @@ check() {
 	# make check
 
 	make test t=libio/tst-fopen-ccs-empty # CVE-2026-18374
+	make test t=iconvdata/tst-iconv-iso-2022-cn-ext # CVE-2026-121758
 }
 
 _install_hwcaps()
@@ -350,4 +354,5 @@ afb48d43c73b77a519ed6fe920c999a8af66fda74ac39a436a7d73ce62468c9858fea5a069408e19
 d5cd0144eb0be5e0f0570b4aeb511d0370a29a92ef61222479df7d55b4af114c51fadaa568fa68c3735272f7527dfe916700960bf184ba2dbb722d7288a49c3c  0119-CVE-2026-89092-nscd-replace-alloca-with-malloc-in-ai.patch
 f7a14808b7844c3500369a744027ba3eb49c24f1cd5c6988a02a7c2fd70a73d6b5c573fe769033f054f053d53fd88d7bc76a19744e135f7d7b74efa119a3af89  0120-CVE-2026-100290-posix-Fix-double-free-after-allocation-failu.patch
 79fbcd02c08f56602ca3ad7ca1ecaa23cefb20eabba6b1e11c5a37172d585299cbef649596b61b25cc6a558d69b744c93dae96077ad3a9d0fefef7c0f29b9796  0121-CVE-2026-84243-intl-Restrict-path-traversal-when-using-LANGU.patch
+31afb66126259f780db30dba4704069fb053fdbf35ded3a09c672be63d547b481bf51c452bf9bd810901dd900899684bda0cc42708859540dd1a0ab5307775f5  0122-CVE-2026-121758-iconv-ISO-2022-CN-EXT-fix-SO-handling.patch
 "
