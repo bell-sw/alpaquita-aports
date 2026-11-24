@@ -25,7 +25,7 @@ source="
 	ldconfig.trigger.c
 "
 builddir="$srcdir/glibc-$_glibcver"
-options="!libc_musl lib64 ldpath-recursive !check !annobin"
+options="!libc_musl lib64 ldpath-recursive !annobin"
 [ "$BOOTSTRAP" != "nolibc" ] && triggers="$pkgname-utils.trigger=/usr/lib:/usr/lib64:/usr/local/lib"
 subpackages="
 	$pkgname-dbg
@@ -169,7 +169,11 @@ build() {
 
 check() {
 	cd glibc-build
-	make check
+	# make check
+
+	make test t=libio/tst-fopen-ccs-empty # CVE-2026-18374
+	make test t=iconvdata/tst-iconv-iso-2022-cn-ext # CVE-2026-121758
+	make test t=iconvdata/tst-iconv-ibm1390 # CVE-2026-124024
 }
 
 _install_hwcaps()
