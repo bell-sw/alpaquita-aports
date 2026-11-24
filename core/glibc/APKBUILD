@@ -4,7 +4,7 @@
 
 pkgname=glibc
 pkgver=2.37.0
-pkgrel=33
+pkgrel=34
 _glibcver=${pkgver%.*}
 _patch_ver="glibc-2.37-194-g8362f83825"
 pkgdesc="GNU C Library"
@@ -42,6 +42,7 @@ source="
 	0120-CVE-2026-100290-posix-Fix-double-free-after-allocation-failu.patch
 	0121-CVE-2026-84243-intl-Restrict-path-traversal-when-using-LANGU.patch
 	0122-CVE-2026-121758-iconv-ISO-2022-CN-EXT-fix-SO-handling.patch
+	0123-CVE-2026-124024-iconvdata-IBM1390-IBM1399-encoders-read-past-input.patch
 	"
 builddir="$srcdir/glibc-$_glibcver"
 options="!libc_musl lib64 ldpath-recursive !annobin"
@@ -56,6 +57,8 @@ subpackages="
 "
 
 # secfixes:
+#   2.37.0-r34:
+#     - CVE-2026-124024
 #   2.37.0-r33:
 #     - CVE-2026-121758
 #   2.37.0-r32:
@@ -183,6 +186,7 @@ check() {
 
 	make test t=libio/tst-fopen-ccs-empty # CVE-2026-18374
 	make test t=iconvdata/tst-iconv-iso-2022-cn-ext # CVE-2026-121758
+	make test t=iconvdata/tst-iconv-ibm1390 # CVE-2026-124024
 }
 
 _install_hwcaps()
@@ -328,4 +332,5 @@ da45237ce8c3743c12aefcafdb2b9062ce62474aad0725ac83cb187fa97b2cdd8ae10c8cbd57242e
 a26e228ebb448d4fdcaee367a3ec9270d2301ca5af11d23cc1f2acabfaf622f8fcb26067ca8343449745d0ac33250b328152486c86f8a3a2163f470dc96bd79a  0120-CVE-2026-100290-posix-Fix-double-free-after-allocation-failu.patch
 0fc737e4eac39ddac2e3a7f545167882d4ec266400b5342985981bf79e423c72b89c463633656ea4d90e5581eee299696ccc6c77ef13439f0b446899e1614226  0121-CVE-2026-84243-intl-Restrict-path-traversal-when-using-LANGU.patch
 3665a6daf03e67ec700e5459f53f401837ef2d29a1ba0da55834780db0d76b91c6175fd612744d4c2ff699dc2b266ce839c893d99c61d0873d6a74b8058461b9  0122-CVE-2026-121758-iconv-ISO-2022-CN-EXT-fix-SO-handling.patch
+ec767f16c6d38be2ffe3bac6cb41a16fd243bbeaf471c302a463fe9e6c77977c8349e4803e1b6df4e42433fd8a5243e8968296fed0bf422ad42ef69d8d3ea944  0123-CVE-2026-124024-iconvdata-IBM1390-IBM1399-encoders-read-past-input.patch
 "
