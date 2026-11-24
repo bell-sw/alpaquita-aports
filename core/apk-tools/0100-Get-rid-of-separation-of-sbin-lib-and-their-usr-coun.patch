@@ -1,4 +1,4 @@
-From ced767e4552e61fd1c9f607551c191c8add5d757 Mon Sep 17 00:00:00 2001
+From e3b09b985eeea0715c6444c5eb66fdc8a6d3f2c0 Mon Sep 17 00:00:00 2001
 From: Denis Kononenko <denis.kononenko@bell-sw.com>
 Date: Mon, 27 Dec 2021 14:10:24 +0000
 Subject: [PATCH] Get rid of separation of /sbin /lib and their /usr
@@ -31,10 +31,10 @@ index 9e977a02..09b2df2d 100644
  MANDIR		:= /usr/share/man
  DOCDIR		:= /usr/share/doc/apk
 diff --git a/doc/apk.8.scd b/doc/apk.8.scd
-index b6d76b68..6c6e69cc 100644
+index b73dcd4f..c7f13547 100644
 --- a/doc/apk.8.scd
 +++ b/doc/apk.8.scd
-@@ -505,22 +505,22 @@ timeout 120
+@@ -513,22 +513,22 @@ timeout 120
  	A lock file used to allow only one concurrent write transaction on
  	the system.
  
@@ -107,7 +107,7 @@ index 3369ae9b..aabfac55 100644
  		&ctx->dbi, apk_ctx_get_trust(ac));
  	if (r == 0) {
 diff --git a/src/database.c b/src/database.c
-index 65568587..0d7cae19 100644
+index 5300b6e9..99836a69 100644
 --- a/src/database.c
 +++ b/src/database.c
 @@ -45,7 +45,7 @@
@@ -119,7 +119,7 @@ index 65568587..0d7cae19 100644
  
  static struct apk_db_acl *apk_default_acl_dir, *apk_default_acl_file;
  
-@@ -1938,8 +1938,8 @@ static int setup_cache(struct apk_database *db)
+@@ -1978,8 +1978,8 @@ static int setup_cache(struct apk_database *db)
  const char *apk_db_layer_name(int layer)
  {
  	switch (layer) {
@@ -130,7 +130,7 @@ index 65568587..0d7cae19 100644
  	default:
  		assert(!"invalid layer");
  		return 0;
-@@ -2307,7 +2307,7 @@ int apk_db_write_config(struct apk_database *db)
+@@ -2343,7 +2343,7 @@ int apk_db_write_config(struct apk_database *db)
  		return 0;
  
  	if (db->ctx->open_flags & APK_OPENF_CREATE) {
@@ -140,10 +140,10 @@ index 65568587..0d7cae19 100644
  	} else if (db->lock_fd < 0) {
  		apk_err(out, "Refusing to write db without write lock!");
 diff --git a/src/package.c b/src/package.c
-index 4740f433..fb684e50 100644
+index 11fe20be..ef8cdb01 100644
 --- a/src/package.c
 +++ b/src/package.c
-@@ -738,9 +738,9 @@ int apk_ipkg_run_script(struct apk_installed_package *ipkg,
+@@ -747,9 +747,9 @@ int apk_ipkg_run_script(struct apk_installed_package *ipkg,
  			struct apk_database *db,
  			unsigned int type, char **argv)
  {
@@ -169,10 +169,10 @@ index f31fc257..79ab0775 100755
  		"@REPO @"*)
  			tag="${ln#* }"
 diff --git a/test/testlib.sh b/test/testlib.sh
-index 97e66e49..6311873f 100644
+index 50a8cef1..f859e951 100644
 --- a/test/testlib.sh
 +++ b/test/testlib.sh
-@@ -50,12 +50,12 @@ setup_apkroot() {
+@@ -67,12 +67,12 @@ setup_apkroot() {
  	APK="$APK --root $TEST_ROOT"
  
  	mkdir -p "$TEST_ROOT/etc/apk/cache" \
@@ -188,5 +188,5 @@ index 97e66e49..6311873f 100644
  	cd "$TEST_ROOT/tmp"
  }
 -- 
-2.53.0
+2.55.0
 

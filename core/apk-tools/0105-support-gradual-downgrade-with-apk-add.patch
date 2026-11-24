@@ -1,4 +1,4 @@
-From 262a007359885d4882e876035b1f27957a5934f1 Mon Sep 17 00:00:00 2001
+From f15e6bbeea39d6dce9986806d9d6c6a8ea1dcda6 Mon Sep 17 00:00:00 2001
 From: Alexey Kodanev <aleksei.kodanev@bell-sw.com>
 Date: Tue, 5 Apr 2022 14:37:27 +0300
 Subject: [PATCH] support gradual downgrade with apk add
@@ -94,10 +94,10 @@ index 3c4df35f..6a6caec7 100644
  		actx->virtpkg = optarg;
  		break;
 diff --git a/src/solver.c b/src/solver.c
-index 397c81e7..b6f02dbc 100644
+index 3516624f..0c0c7528 100644
 --- a/src/solver.c
 +++ b/src/solver.c
-@@ -243,18 +243,24 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
+@@ -255,18 +255,24 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
  				!pkg->ipkg &&
  				(pkg->ss.solver_flags & APK_SOLVERF_NEW_ADD);
  
@@ -124,7 +124,7 @@ index 397c81e7..b6f02dbc 100644
  	}
  
  	apk_array_foreach_item(name0, name->rinstall_if)
-@@ -278,9 +284,9 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
+@@ -290,9 +296,9 @@ static void discover_name(struct apk_solver_state *ss, struct apk_name *name)
  			discover_name(ss, dep->name);
  	}
  
@@ -136,7 +136,7 @@ index 397c81e7..b6f02dbc 100644
  }
  
  static void name_requirers_changed(struct apk_solver_state *ss, struct apk_name *name)
-@@ -699,7 +705,7 @@ static int compare_providers(struct apk_solver_state *ss,
+@@ -712,7 +718,7 @@ static int compare_providers(struct apk_solver_state *ss,
  		}
  
  		/* Prefer installed */
@@ -145,8 +145,8 @@ index 397c81e7..b6f02dbc 100644
  		    (pkgA->name == pkgB->name || pA->version != &apk_atom_null || pB->version != &apk_atom_null)) {
  			r = (pkgA->ipkg != NULL) - (pkgB->ipkg != NULL);
  			if (r) {
-@@ -835,15 +841,29 @@ static void assign_name(struct apk_solver_state *ss, struct apk_name *name, stru
- 		reevaluate_reverse_installif(ss, name);
+@@ -883,9 +889,20 @@ static bool shadowed_by_pending_conflict(struct apk_solver_state *ss, struct apk
+ 	return false;
  }
  
 +static struct apk_provider *apk_get_installed_provider(struct apk_name *name)
@@ -165,8 +165,9 @@ index 397c81e7..b6f02dbc 100644
 -	struct apk_provider chosen = { NULL, &apk_atom_null };
 +	struct apk_provider chosen = { NULL, &apk_atom_null }, *ip = NULL;
  	struct apk_package *pkg = NULL;
+ 	bool unshadowed_seen = false;
  
- 	dbg_printf("select_package: %s (requirers=%d, autosel=%d, iif=%d, order_id=%#x)\n",
+@@ -893,6 +910,9 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
  		name->name, name->ss.requirers, name->ss.has_auto_selectable, name->ss.has_iif, name->ss.order_id);
  
  	if (name->ss.requirers || name->ss.has_iif) {
@@ -176,9 +177,9 @@ index 397c81e7..b6f02dbc 100644
  		apk_array_foreach(p, name->providers) {
  			dbg_printf("  consider "PKG_VER_FMT" iif_triggered=%d, tag_ok=%d, selectable=%d, available=%d, flags=0x%x, provider_priority=%d, installed=%d\n",
  				PKG_VER_PRINTF(p->pkg),
-@@ -863,11 +883,28 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
- 				dbg_printf("    ignore: virtual package without provider_priority\n");
- 				continue;
+@@ -922,11 +942,28 @@ static void select_package(struct apk_solver_state *ss, struct apk_name *name)
+ 				unshadowed_seen = true;
+ 				chosen = (struct apk_provider){ NULL, &apk_atom_null };
  			}
 +
 +			if (ip) {
@@ -451,5 +452,5 @@ index 00000000..0e1ab178
 +@EXPECT
 +OK: 3 B in 3 packages
 -- 
-2.53.0
+2.55.0
 
