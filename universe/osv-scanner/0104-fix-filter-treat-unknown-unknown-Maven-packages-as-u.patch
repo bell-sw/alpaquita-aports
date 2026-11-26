@@ -1,7 +1,7 @@
-From ae583258c806a10c731b2f0ba27eda3dfbf14eb0 Mon Sep 17 00:00:00 2001
+From e0465b42c3f2b916734a3327aadd11806299b92f Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Sat, 10 Oct 2026 19:10:47 +0000
-Subject: [PATCH] fix(filter): treat "unknown:unknown" Maven packages as
+Subject: [PATCH 4/8] fix(filter): treat "unknown:unknown" Maven packages as
  unscannable
 
 java/archive reports jars without Maven coordinates (lib/jrt-fs.jar of
@@ -15,22 +15,22 @@ archive to be cached).
  2 files changed, 19 insertions(+), 1 deletion(-)
 
 diff --git a/internal/scalibrannotator/filter/filter.go b/internal/scalibrannotator/filter/filter.go
-index c5f9f99..c018fde 100644
+index 0d416b9b..80da7b5a 100644
 --- a/internal/scalibrannotator/filter/filter.go
 +++ b/internal/scalibrannotator/filter/filter.go
-@@ -94,7 +94,9 @@ func (a *Annotator) Annotate(_ context.Context, _ *annotator.ScanInput, results
+@@ -110,7 +110,9 @@ func (a *Annotator) Annotate(_ context.Context, _ *annotator.ScanInput, results
  		}
  
  		// Maven with name unknown or invalid ecosystem
--		if (imodels.Ecosystem(psr).Ecosystem == osvconstants.EcosystemMaven && imodels.Name(psr) == "unknown") ||
+-		if (parsedPkg.Ecosystem.Ecosystem == osvconstants.EcosystemMaven && parsedPkg.Name == "unknown") ||
 +		// java/archive reports jars without Maven coordinates as "unknown" (name)
-+		// or "unknown:unknown" (imodels.Name joins group and artifact)
-+		if (imodels.Ecosystem(psr).Ecosystem == osvconstants.EcosystemMaven && (imodels.Name(psr) == "unknown" || imodels.Name(psr) == "unknown:unknown")) ||
- 			(imodels.Ecosystem(psr).GetValidity() != nil && !imodels.Ecosystem(psr).IsEmpty()) {
++		// or "unknown:unknown" (group and artifact joined)
++		if (parsedPkg.Ecosystem.Ecosystem == osvconstants.EcosystemMaven && (parsedPkg.Name == "unknown" || parsedPkg.Name == "unknown:unknown")) ||
+ 			(parsedPkg.Ecosystem.GetValidity() != nil && !parsedPkg.Ecosystem.IsEmpty()) {
  			unscannableCount++
  			if a.showAllPackages {
 diff --git a/internal/scalibrannotator/filter/filter_test.go b/internal/scalibrannotator/filter/filter_test.go
-index 7a21425..cacb3b5 100644
+index 56862985..ecc0a789 100644
 --- a/internal/scalibrannotator/filter/filter_test.go
 +++ b/internal/scalibrannotator/filter/filter_test.go
 @@ -7,6 +7,7 @@ import (
@@ -55,7 +55,7 @@ index 7a21425..cacb3b5 100644
  	pkgLinuxKernel := &extractor.Package{
  		Name:     "linux",
  		Version:  "6.1.0",
-@@ -111,6 +119,14 @@ func TestAnnotator_Annotate(t *testing.T) {
+@@ -117,6 +125,14 @@ func TestAnnotator_Annotate(t *testing.T) {
  			// the git-only package is still unscannable
  			wantFilteredPackages: []*extractor.Package{pkgUnscannableShortHash},
  		},

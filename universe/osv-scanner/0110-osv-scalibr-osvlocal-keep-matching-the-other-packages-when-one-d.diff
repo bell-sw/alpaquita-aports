@@ -1,8 +1,8 @@
-From 20eeb15868bd125d65e6cfce32615dcf36144076 Mon Sep 17 00:00:00 2001
+From cfcd5e6603cacef695c6efc172e3685434013bac Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Sat, 10 Oct 2026 19:09:42 +0000
-Subject: [PATCH] osvlocal: keep matching the other packages when one database
- cannot be loaded
+Subject: [PATCH 02/10] osvlocal: keep matching the other packages when one
+ database cannot be loaded
 
 Enrich returned on the first package whose ecosystem database failed to
 load, so one unavailable archive (host unreachable, ecosystem not published
@@ -14,7 +14,7 @@ joined errors are reported through the plugin status at the end.
  1 file changed, 11 insertions(+), 2 deletions(-)
 
 diff --git a/enricher/vulnmatch/osvlocal/osvlocal.go b/enricher/vulnmatch/osvlocal/osvlocal.go
-index 685d6ac..5bcbc12 100644
+index 0162b00a..c89e9d6d 100644
 --- a/enricher/vulnmatch/osvlocal/osvlocal.go
 +++ b/enricher/vulnmatch/osvlocal/osvlocal.go
 @@ -17,6 +17,7 @@ package osvlocal
@@ -25,7 +25,7 @@ index 685d6ac..5bcbc12 100644
  	"fmt"
  	"maps"
  	"net/http"
-@@ -143,11 +144,19 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
+@@ -134,11 +135,19 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
  		return err
  	}
  
@@ -46,7 +46,7 @@ index 685d6ac..5bcbc12 100644
  		}
  
  		for _, vuln := range vulns {
-@@ -164,7 +173,7 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
+@@ -155,7 +164,7 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
  	// for the same package, so we deduplicate and merge the results.
  	inv.PackageVulns = dedupPackageVulns(inv.PackageVulns)
  

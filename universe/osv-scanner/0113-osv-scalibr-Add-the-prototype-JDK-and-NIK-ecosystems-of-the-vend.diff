@@ -1,8 +1,8 @@
-From 7809edf5a886b844bfc7da7d4d7290ae7a1ff8a0 Mon Sep 17 00:00:00 2001
+From 7a81491c1e57eb10bd0cd349aef52a74aac3bf69 Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Sat, 10 Oct 2026 19:45:38 +0000
-Subject: [PATCH] Add the prototype JDK and NIK ecosystems of the vendor to
- osvecosystem and semantic
+Subject: [PATCH 05/10] Add the prototype JDK and NIK ecosystems of the vendor
+ to osvecosystem and semantic
 
 Standalone vendor runtimes are covered by two prototype OSV ecosystems
 (liberica-osv/ECOSYSTEM.md): "<JDK family>:<java major>" (package name =
@@ -47,18 +47,18 @@ Neither is in the osv-schema constants yet.
  create mode 100644 semantic/version-vendorjdk_test.go
 
 diff --git a/enricher/vulnmatch/osvdev/osvdev.go b/enricher/vulnmatch/osvdev/osvdev.go
-index b68f706..f281f2e 100644
+index f853f15b..da4fefe1 100644
 --- a/enricher/vulnmatch/osvdev/osvdev.go
 +++ b/enricher/vulnmatch/osvdev/osvdev.go
 @@ -27,6 +27,7 @@ import (
- 	osvutil "github.com/google/osv-scalibr/enricher/vulnmatch/internal/osvutil"
+ 	osvutil "github.com/google/osv-scalibr/enricher/vulnmatch/osvutil"
  	"github.com/google/osv-scalibr/extractor"
  	"github.com/google/osv-scalibr/inventory"
 +	"github.com/google/osv-scalibr/inventory/osvecosystem"
  	"github.com/google/osv-scalibr/inventory/vex"
  	"github.com/google/osv-scalibr/plugin"
- 	scalibrversion "github.com/google/osv-scalibr/version"
-@@ -270,6 +271,12 @@ func pkgToQueries(pkg *extractor.Package) []*osvapipb.Query {
+ 	"golang.org/x/sync/errgroup"
+@@ -273,6 +274,12 @@ func pkgToQueries(pkg *extractor.Package) []*osvapipb.Query {
  		}}
  	}
  
@@ -73,7 +73,7 @@ index b68f706..f281f2e 100644
  		queries := make([]*osvapipb.Query, 0, len(names))
 diff --git a/enricher/vulnmatch/osvdev/osvdev_internal_test.go b/enricher/vulnmatch/osvdev/osvdev_internal_test.go
 new file mode 100644
-index 0000000..95b95cb
+index 00000000..95b95cb1
 --- /dev/null
 +++ b/enricher/vulnmatch/osvdev/osvdev_internal_test.go
 @@ -0,0 +1,40 @@
@@ -118,7 +118,7 @@ index 0000000..95b95cb
 +	}
 +}
 diff --git a/enricher/vulnmatch/osvlocal/internal/vulns/vulnerability.go b/enricher/vulnmatch/osvlocal/internal/vulns/vulnerability.go
-index c8e40f2..0a6020c 100644
+index a6133c13..e72d700e 100644
 --- a/enricher/vulnmatch/osvlocal/internal/vulns/vulnerability.go
 +++ b/enricher/vulnmatch/osvlocal/internal/vulns/vulnerability.go
 @@ -46,6 +46,27 @@ func eventVersion(e *osvpb.Event) string {
@@ -164,7 +164,7 @@ index c8e40f2..0a6020c 100644
  		} else if e.GetIntroduced() != "" {
  			order, _ := vp.CompareStr(e.GetIntroduced())
 diff --git a/go.mod b/go.mod
-index 2ec0b84..6179e02 100644
+index acaad12a..cb0350ef 100644
 --- a/go.mod
 +++ b/go.mod
 @@ -95,6 +95,7 @@ require (
@@ -176,7 +176,7 @@ index 2ec0b84..6179e02 100644
  	github.com/charmbracelet/colorprofile v0.4.3 // indirect
  	github.com/charmbracelet/x/ansi v0.11.7 // indirect
 diff --git a/inventory/osvecosystem/parsed.go b/inventory/osvecosystem/parsed.go
-index 7c6fe09..f282448 100644
+index 7c6fe093..f2824482 100644
 --- a/inventory/osvecosystem/parsed.go
 +++ b/inventory/osvecosystem/parsed.go
 @@ -20,6 +20,7 @@ import (
@@ -234,7 +234,7 @@ index 7c6fe09..f282448 100644
  		return fmt.Errorf("base ecosystem does not exist in osvschema: %q", p.Ecosystem)
 diff --git a/inventory/osvecosystem/parsed_vendorjdk_test.go b/inventory/osvecosystem/parsed_vendorjdk_test.go
 new file mode 100644
-index 0000000..d5937c6
+index 00000000..d5937c6f
 --- /dev/null
 +++ b/inventory/osvecosystem/parsed_vendorjdk_test.go
 @@ -0,0 +1,66 @@
@@ -305,7 +305,7 @@ index 0000000..d5937c6
 +	}
 +}
 diff --git a/semantic/parse.go b/semantic/parse.go
-index d8de064..47c98bf 100644
+index d8de0641..47c98bf2 100644
 --- a/semantic/parse.go
 +++ b/semantic/parse.go
 @@ -20,6 +20,8 @@ import (
@@ -329,7 +329,7 @@ index d8de064..47c98bf 100644
  		return ParseRedHatVersion(str), nil
  	case "Maven":
 diff --git a/semantic/parse_test.go b/semantic/parse_test.go
-index 961aa32..37d6c9a 100644
+index 961aa321..37d6c9a7 100644
 --- a/semantic/parse_test.go
 +++ b/semantic/parse_test.go
 @@ -18,6 +18,8 @@ import (
@@ -352,7 +352,7 @@ index 961aa32..37d6c9a 100644
  	"MinimOS",
 diff --git a/semantic/testdata/vendorjdk-versions.txt b/semantic/testdata/vendorjdk-versions.txt
 new file mode 100644
-index 0000000..bc18985
+index 00000000..bc189854
 --- /dev/null
 +++ b/semantic/testdata/vendorjdk-versions.txt
 @@ -0,0 +1,60 @@
@@ -418,7 +418,7 @@ index 0000000..bc18985
 +0 < 21.0.9.0.1+1
 diff --git a/semantic/testdata/vendornik-versions.txt b/semantic/testdata/vendornik-versions.txt
 new file mode 100644
-index 0000000..72ec7c1
+index 00000000..72ec7c11
 --- /dev/null
 +++ b/semantic/testdata/vendornik-versions.txt
 @@ -0,0 +1,13 @@
@@ -437,7 +437,7 @@ index 0000000..72ec7c1
 +0 < 23.1.0+1
 diff --git a/semantic/version-vendorjdk.go b/semantic/version-vendorjdk.go
 new file mode 100644
-index 0000000..ea8996f
+index 00000000..ea8996fe
 --- /dev/null
 +++ b/semantic/version-vendorjdk.go
 @@ -0,0 +1,164 @@
@@ -607,7 +607,7 @@ index 0000000..ea8996f
 +}
 diff --git a/semantic/version-vendorjdk_test.go b/semantic/version-vendorjdk_test.go
 new file mode 100644
-index 0000000..8f74b00
+index 00000000..8f74b004
 --- /dev/null
 +++ b/semantic/version-vendorjdk_test.go
 @@ -0,0 +1,201 @@

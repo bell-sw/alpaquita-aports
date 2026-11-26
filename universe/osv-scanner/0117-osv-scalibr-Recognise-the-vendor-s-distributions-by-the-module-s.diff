@@ -1,21 +1,23 @@
-From 925bd85b60c98f26a6336def8dc0524f98a2fd19 Mon Sep 17 00:00:00 2001
+From 471aea36eaebf146064f1d52e0cc7608470830f5 Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Fri, 16 Oct 2026 16:31:08 +0000
-Subject: [PATCH] Recognise the vendor's distributions by the module's identity
+Subject: [PATCH 09/10] Recognise the vendor's distributions by the module's
+ identity
 
 osvecosystem.EcosystemVendorLinux / EcosystemVendorHardened (valid ecosystems,
 apk versions, provided-name aliases) are recognised from the module's os-release
 ids and are local-only (osvecosystem.IsLocalOnly) when the module's default source
 is not the osv.dev bucket.
 ---
- .../vulnmatch/internal/osvutil/osvutil.go     |  4 +-
- .../internal/osvutil/querynames_test.go       |  9 ++-
  .../vulnmatch/osvdev/osvdev_alias_test.go     | 10 ++-
  .../vulnmatch/osvdev/osvdev_internal_test.go  | 12 ++-
  enricher/vulnmatch/osvlocal/alias_test.go     | 79 ++++++++++---------
  .../osvlocal/internal/vulns/alias_test.go     | 14 ++--
  enricher/vulnmatch/osvlocal/vendor.go         |  8 +-
  enricher/vulnmatch/osvlocal/vendor_test.go    | 48 +++++------
+ enricher/vulnmatch/osvlocal/zip_test.go       |  6 +-
+ enricher/vulnmatch/osvutil/osvutil.go         |  4 +-
+ enricher/vulnmatch/osvutil/querynames_test.go |  9 ++-
  .../filesystem/os/apk/apk_vendor_test.go      | 10 ++-
  .../filesystem/os/ecosystem/ecosystem.go      |  9 ++-
  .../filesystem/os/ecosystem/ecosystem_test.go | 18 +++--
@@ -23,71 +25,8 @@ is not the osv.dev bucket.
  .../osvecosystem/parsed_vendorjdk_test.go     |  5 +-
  semantic/parse.go                             |  4 +-
  semantic/parse_test.go                        |  4 +-
- 15 files changed, 144 insertions(+), 119 deletions(-)
+ 16 files changed, 147 insertions(+), 122 deletions(-)
 
-diff --git a/enricher/vulnmatch/internal/osvutil/osvutil.go b/enricher/vulnmatch/internal/osvutil/osvutil.go
-index 313383f0..cd938616 100644
---- a/enricher/vulnmatch/internal/osvutil/osvutil.go
-+++ b/enricher/vulnmatch/internal/osvutil/osvutil.go
-@@ -153,8 +153,8 @@ func version(pkg *extractor.Package, ecosystem string) string {
- // apk origin is "liberica<major>[-lite]" and the binary package provides
- // "openjdk21-lite-jdk-no-deps". Alpine keys strictly on the origin.
- var providesAliasEcosystems = map[osvconstants.Ecosystem]bool{
--	osvconstants.EcosystemAlpaquita:                  true,
--	osvconstants.EcosystemBellSoftHardenedContainers: true,
-+	osvecosystem.EcosystemVendorLinux:    true,
-+	osvecosystem.EcosystemVendorHardened: true,
- }
- 
- // QueryNames returns the names a vulnerability source should be queried
-diff --git a/enricher/vulnmatch/internal/osvutil/querynames_test.go b/enricher/vulnmatch/internal/osvutil/querynames_test.go
-index 0b4c1172..f9b7afb4 100644
---- a/enricher/vulnmatch/internal/osvutil/querynames_test.go
-+++ b/enricher/vulnmatch/internal/osvutil/querynames_test.go
-@@ -17,6 +17,7 @@ package osvutil_test
- import (
- 	"testing"
- 
-+	osvdistro "github.com/bell-sw/osv-internal/distro"
- 	"github.com/google/go-cmp/cmp"
- 	"github.com/google/osv-scalibr/enricher/vulnmatch/internal/osvutil"
- 	"github.com/google/osv-scalibr/extractor"
-@@ -40,7 +41,7 @@ func TestQueryNames(t *testing.T) {
- 			pkg: &extractor.Package{
- 				PURLType: purl.TypeApk, Name: "liberica21-lite-jdk-no-deps", Version: "21.0.2_p14-r1",
- 				Metadata: &apkmetadata.Metadata{
--					OSID: "alpaquita", OSVersionID: "23",
-+					OSID: osvdistro.IDLinux, OSVersionID: "23",
- 					PackageName: "liberica21-lite-jdk-no-deps", OriginName: "liberica21-lite",
- 					Provides: []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"},
- 				},
-@@ -53,7 +54,7 @@ func TestQueryNames(t *testing.T) {
- 			pkg: &extractor.Package{
- 				PURLType: purl.TypeApk, Name: "liberica21", Version: "21.0.2_p14-r1",
- 				Metadata: &apkmetadata.Metadata{
--					OSID: "bellsoft-hardened-containers", OSVersionID: "stream",
-+					OSID: osvdistro.IDHardened, OSVersionID: "stream",
- 					PackageName: "liberica21", OriginName: "liberica21",
- 					Provides: []string{"openjdk21", "java-jdk"},
- 				},
-@@ -65,7 +66,7 @@ func TestQueryNames(t *testing.T) {
- 			pkg: &extractor.Package{
- 				PURLType: purl.TypeApk, Name: "glibc-utils", Version: "2.43.0-r10",
- 				Metadata: &apkmetadata.Metadata{
--					OSID: "alpaquita", OSVersionID: "stream",
-+					OSID: osvdistro.IDLinux, OSVersionID: "stream",
- 					PackageName: "glibc-utils", OriginName: "glibc",
- 					Provides: []string{"glibc-utils", "glibc"},
- 				},
-@@ -88,7 +89,7 @@ func TestQueryNames(t *testing.T) {
- 			name: "alpaquita package without provides",
- 			pkg: &extractor.Package{
- 				PURLType: purl.TypeApk, Name: "zlib", Version: "1.3.2-r1",
--				Metadata: &apkmetadata.Metadata{OSID: "alpaquita", OSVersionID: "25", PackageName: "zlib", OriginName: "zlib"},
-+				Metadata: &apkmetadata.Metadata{OSID: osvdistro.IDLinux, OSVersionID: "25", PackageName: "zlib", OriginName: "zlib"},
- 			},
- 			want: []string{"zlib"},
- 		},
 diff --git a/enricher/vulnmatch/osvdev/osvdev_alias_test.go b/enricher/vulnmatch/osvdev/osvdev_alias_test.go
 index 439a5581..e36dee20 100644
 --- a/enricher/vulnmatch/osvdev/osvdev_alias_test.go
@@ -179,7 +118,7 @@ index 9b52d4e8..5bbbe583 100644
  		t.Errorf("Linux family matched locally: pkgToQueries() = %d queries, want none", len(got))
  	}
 diff --git a/enricher/vulnmatch/osvlocal/alias_test.go b/enricher/vulnmatch/osvlocal/alias_test.go
-index 9f2831bd..0578cf1e 100644
+index cbb46d97..259940b6 100644
 --- a/enricher/vulnmatch/osvlocal/alias_test.go
 +++ b/enricher/vulnmatch/osvlocal/alias_test.go
 @@ -23,10 +23,13 @@ import (
@@ -275,7 +214,7 @@ index 9f2831bd..0578cf1e 100644
 +// module serves the distributions itself (local-only), as --vendor-url would.
 +func aliasMatcher(t *testing.T, dir string, download bool, host string) *localMatcher {
 +	t.Helper()
-+	m, err := newlocalMatcher(dir, userAgent, download, host, http.DefaultClient)
++	m, err := newlocalMatcher(dir, download, host, http.DefaultClient)
 +	if err != nil {
 +		t.Fatalf("newlocalMatcher: %v", err)
 +	}
@@ -292,7 +231,7 @@ index 9f2831bd..0578cf1e 100644
  		_, _ = fakeserver.WriteOSVsZip(t, w, vendorOSVs())
  	})
  
--	m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
+-	m, err := newlocalMatcher(testDir, true, ts.URL, http.DefaultClient)
 -	if err != nil {
 -		t.Fatalf("newlocalMatcher: %v", err)
 -	}
@@ -316,7 +255,7 @@ index 9f2831bd..0578cf1e 100644
 -		cacheWrite(t, path.Join(hostDir, "Alpaquita", "all.zip"), archive)
 +		cacheWrite(t, path.Join(hostDir, famLinux, "all.zip"), archive)
  
--		m, err := newlocalMatcher(filepath.Join(testDir, "cache"), userAgent, true, "file://"+hostDir, http.DefaultClient)
+-		m, err := newlocalMatcher(filepath.Join(testDir, "cache"), true, "file://"+hostDir, http.DefaultClient)
 -		if err != nil {
 -			t.Fatalf("newlocalMatcher: %v", err)
 -		}
@@ -335,7 +274,7 @@ index 9f2831bd..0578cf1e 100644
 -		cacheWrite(t, path.Join(testDir, "osv-scanner", "Alpaquita", "all.zip"), archive)
 +		cacheWrite(t, path.Join(testDir, "osv-scanner", famLinux, "all.zip"), archive)
  
--		m, err := newlocalMatcher(testDir, userAgent, false, "http://127.0.0.1:1", http.DefaultClient)
+-		m, err := newlocalMatcher(testDir, false, "http://127.0.0.1:1", http.DefaultClient)
 -		if err != nil {
 -			t.Fatalf("newlocalMatcher: %v", err)
 -		}
@@ -347,7 +286,7 @@ index 9f2831bd..0578cf1e 100644
  
  	t.Run("missing offline", func(t *testing.T) {
  		testDir := createTestDir(t)
--		m, err := newlocalMatcher(testDir, userAgent, false, "http://127.0.0.1:1", http.DefaultClient)
+-		m, err := newlocalMatcher(testDir, false, "http://127.0.0.1:1", http.DefaultClient)
 -		if err != nil {
 -			t.Fatalf("newlocalMatcher: %v", err)
 -		}
@@ -362,7 +301,7 @@ index 9f2831bd..0578cf1e 100644
 -		cacheWrite(t, path.Join(testDir, "osv-scalibr", "Alpaquita", "all.zip"), archive)
 +		cacheWrite(t, path.Join(testDir, "osv-scalibr", famLinux, "all.zip"), archive)
  
--		m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
+-		m, err := newlocalMatcher(testDir, true, ts.URL, http.DefaultClient)
 -		if err != nil {
 -			t.Fatalf("newlocalMatcher: %v", err)
 -		}
@@ -374,7 +313,7 @@ index 9f2831bd..0578cf1e 100644
  
  	t.Run("no cache and 404 is an error", func(t *testing.T) {
  		testDir := createTestDir(t)
--		m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
+-		m, err := newlocalMatcher(testDir, true, ts.URL, http.DefaultClient)
 -		if err != nil {
 -			t.Fatalf("newlocalMatcher: %v", err)
 -		}
@@ -564,6 +503,99 @@ index 56567358..102ca58d 100644
  	if err := e.Enrich(t.Context(), nil, inv); err != nil {
  		t.Fatalf("Enrich() = %v, want no error for vendor families", err)
  	}
+diff --git a/enricher/vulnmatch/osvlocal/zip_test.go b/enricher/vulnmatch/osvlocal/zip_test.go
+index 7bc4adc7..0098c0c4 100644
+--- a/enricher/vulnmatch/osvlocal/zip_test.go
++++ b/enricher/vulnmatch/osvlocal/zip_test.go
+@@ -354,14 +354,14 @@ func TestLoadZippedDB_NoCacheFallback(t *testing.T) {
+ 	cacheWrite(t, storedAt, fakeserver.ZipOSVs(t, map[string]*osvpb.Vulnerability{"GHSA-1.json": {Id: "GHSA-1"}}))
+ 
+ 	// default: the cached copy
+-	db, err := newZippedDB(t.Context(), testDir, "my-db", ts.URL, userAgent, false, nil, http.DefaultClient)
++	db, err := newZippedDB(t.Context(), testDir, "my-db", ts.URL, false, nil, http.DefaultClient)
+ 	if err != nil {
+ 		t.Fatalf("unexpected error \"%v\"", err)
+ 	}
+ 	expectDBToHaveOSVs(t, db, []*osvpb.Vulnerability{{Id: "GHSA-1"}})
+ 
+ 	var status *httpStatusError
+-	_, err = loadZippedDB(t.Context(), &zipDB{Name: "my-db", ArchiveURL: ts.URL, StoredAt: storedAt, UserAgent: userAgent, httpClient: http.DefaultClient, NoCacheFallback: true}, nil)
++	_, err = loadZippedDB(t.Context(), &zipDB{Name: "my-db", ArchiveURL: ts.URL, StoredAt: storedAt, httpClient: http.DefaultClient, NoCacheFallback: true}, nil)
+ 	if !errors.As(err, &status) || status.code != http.StatusNotFound {
+ 		t.Errorf("NoCacheFallback, host answers 404: err = %v, want the HTTP 404 error, not the cached copy", err)
+ 	}
+@@ -372,7 +372,7 @@ func TestLoadZippedDB_NoCacheFallback(t *testing.T) {
+ 	}
+ 
+ 	// the cached copy is untouched and still used when the fallback is allowed
+-	db, err = newZippedDB(t.Context(), testDir, "my-db", "file://"+path.Join(testDir, "missing.zip"), userAgent, false, nil, http.DefaultClient)
++	db, err = newZippedDB(t.Context(), testDir, "my-db", "file://"+path.Join(testDir, "missing.zip"), false, nil, http.DefaultClient)
+ 	if err != nil {
+ 		t.Fatalf("unexpected error \"%v\"", err)
+ 	}
+diff --git a/enricher/vulnmatch/osvutil/osvutil.go b/enricher/vulnmatch/osvutil/osvutil.go
+index 2551a1cd..31e97dbd 100644
+--- a/enricher/vulnmatch/osvutil/osvutil.go
++++ b/enricher/vulnmatch/osvutil/osvutil.go
+@@ -236,8 +236,8 @@ func version(pkg *extractor.Package, name string, eco osvecosystem.Parsed) strin
+ // apk origin is "liberica<major>[-lite]" and the binary package provides
+ // "openjdk21-lite-jdk-no-deps". Alpine keys strictly on the origin.
+ var providesAliasEcosystems = map[osvconstants.Ecosystem]bool{
+-	osvconstants.EcosystemAlpaquita:                  true,
+-	osvconstants.EcosystemBellSoftHardenedContainers: true,
++	osvecosystem.EcosystemVendorLinux:    true,
++	osvecosystem.EcosystemVendorHardened: true,
+ }
+ 
+ // QueryNames returns the names a vulnerability source should be queried
+diff --git a/enricher/vulnmatch/osvutil/querynames_test.go b/enricher/vulnmatch/osvutil/querynames_test.go
+index e3c7eb05..aaadd5da 100644
+--- a/enricher/vulnmatch/osvutil/querynames_test.go
++++ b/enricher/vulnmatch/osvutil/querynames_test.go
+@@ -17,6 +17,7 @@ package osvutil_test
+ import (
+ 	"testing"
+ 
++	osvdistro "github.com/bell-sw/osv-internal/distro"
+ 	"github.com/google/go-cmp/cmp"
+ 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvutil"
+ 	"github.com/google/osv-scalibr/extractor"
+@@ -40,7 +41,7 @@ func TestQueryNames(t *testing.T) {
+ 			pkg: &extractor.Package{
+ 				PURLType: purl.TypeApk, Name: "liberica21-lite-jdk-no-deps", Version: "21.0.2_p14-r1",
+ 				Metadata: &apkmetadata.Metadata{
+-					OSID: "alpaquita", OSVersionID: "23",
++					OSID: osvdistro.IDLinux, OSVersionID: "23",
+ 					PackageName: "liberica21-lite-jdk-no-deps", OriginName: "liberica21-lite",
+ 					Provides: []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"},
+ 				},
+@@ -53,7 +54,7 @@ func TestQueryNames(t *testing.T) {
+ 			pkg: &extractor.Package{
+ 				PURLType: purl.TypeApk, Name: "liberica21", Version: "21.0.2_p14-r1",
+ 				Metadata: &apkmetadata.Metadata{
+-					OSID: "bellsoft-hardened-containers", OSVersionID: "stream",
++					OSID: osvdistro.IDHardened, OSVersionID: "stream",
+ 					PackageName: "liberica21", OriginName: "liberica21",
+ 					Provides: []string{"openjdk21", "java-jdk"},
+ 				},
+@@ -65,7 +66,7 @@ func TestQueryNames(t *testing.T) {
+ 			pkg: &extractor.Package{
+ 				PURLType: purl.TypeApk, Name: "glibc-utils", Version: "2.43.0-r10",
+ 				Metadata: &apkmetadata.Metadata{
+-					OSID: "alpaquita", OSVersionID: "stream",
++					OSID: osvdistro.IDLinux, OSVersionID: "stream",
+ 					PackageName: "glibc-utils", OriginName: "glibc",
+ 					Provides: []string{"glibc-utils", "glibc"},
+ 				},
+@@ -88,7 +89,7 @@ func TestQueryNames(t *testing.T) {
+ 			name: "alpaquita package without provides",
+ 			pkg: &extractor.Package{
+ 				PURLType: purl.TypeApk, Name: "zlib", Version: "1.3.2-r1",
+-				Metadata: &apkmetadata.Metadata{OSID: "alpaquita", OSVersionID: "25", PackageName: "zlib", OriginName: "zlib"},
++				Metadata: &apkmetadata.Metadata{OSID: osvdistro.IDLinux, OSVersionID: "25", PackageName: "zlib", OriginName: "zlib"},
+ 			},
+ 			want: []string{"zlib"},
+ 		},
 diff --git a/extractor/filesystem/os/apk/apk_vendor_test.go b/extractor/filesystem/os/apk/apk_vendor_test.go
 index 46ca66fb..830c5b75 100644
 --- a/extractor/filesystem/os/apk/apk_vendor_test.go
@@ -609,7 +641,7 @@ index 46ca66fb..830c5b75 100644
  	}
  
 diff --git a/extractor/filesystem/os/ecosystem/ecosystem.go b/extractor/filesystem/os/ecosystem/ecosystem.go
-index 2d8b1c99..fd143c71 100644
+index 05394096..0379de79 100644
 --- a/extractor/filesystem/os/ecosystem/ecosystem.go
 +++ b/extractor/filesystem/os/ecosystem/ecosystem.go
 @@ -18,6 +18,7 @@ package ecosystem
@@ -620,7 +652,7 @@ index 2d8b1c99..fd143c71 100644
  	apkmeta "github.com/google/osv-scalibr/extractor/filesystem/os/apk/metadata"
  	dpkgmeta "github.com/google/osv-scalibr/extractor/filesystem/os/dpkg/metadata"
  	modulemeta "github.com/google/osv-scalibr/extractor/filesystem/os/kernel/module/metadata"
-@@ -55,14 +56,14 @@ func MakeEcosystem(metadata any) osvecosystem.Parsed {
+@@ -61,14 +62,14 @@ func MakeEcosystem(metadata any) osvecosystem.Parsed {
  		if version == "" {
  			return osvecosystem.FromEcosystem(osvconstants.EcosystemAlpine)
  		}
@@ -640,7 +672,7 @@ index 2d8b1c99..fd143c71 100644
  		return osvecosystem.Parsed{Ecosystem: osvconstants.EcosystemAlpine, Suffix: m.TrimDistroVersion(version)}
  
 diff --git a/extractor/filesystem/os/ecosystem/ecosystem_test.go b/extractor/filesystem/os/ecosystem/ecosystem_test.go
-index 403ff2b9..a586f392 100644
+index 9585e664..cdbe2cac 100644
 --- a/extractor/filesystem/os/ecosystem/ecosystem_test.go
 +++ b/extractor/filesystem/os/ecosystem/ecosystem_test.go
 @@ -17,6 +17,8 @@ package ecosystem_test
@@ -832,5 +864,5 @@ index 37d6c9a7..516653f0 100644
  	"Bitnami",
  	"Chainguard",
 -- 
-2.55.0
+2.43.0
 

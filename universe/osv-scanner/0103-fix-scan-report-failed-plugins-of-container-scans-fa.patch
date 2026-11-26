@@ -1,8 +1,8 @@
-From 079a16f410860ee0dc5974614195c64b06aff589 Mon Sep 17 00:00:00 2001
+From 8c221e24a3a74dee71fc342870724eeed8db29dd Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Sat, 10 Oct 2026 19:10:46 +0000
-Subject: [PATCH] fix(scan): report failed plugins of container scans, fail on
- a missing offline database
+Subject: [PATCH 3/8] fix(scan): report failed plugins of container scans, fail
+ on a missing offline database
 
 DoContainerScan ignored the plugin statuses of the osv-scalibr run: a
 vulnerability matcher that could not load its database was never mentioned
@@ -13,54 +13,56 @@ cached databases (--offline-vulnerabilities without
 zero. With downloads enabled the failure is only logged, so that an
 ecosystem not published on the download host does not abort the scan.
 ---
- pkg/osvscanner/osvscanner.go | 15 +++++++++++++++
- pkg/osvscanner/scan.go       | 20 ++++++++++++++++++++
- 2 files changed, 35 insertions(+)
+ pkg/osvscanner/osvscanner.go |  2 +-
+ pkg/osvscanner/scan.go       | 24 ++++++++++++++++++++++--
+ 2 files changed, 23 insertions(+), 3 deletions(-)
 
 diff --git a/pkg/osvscanner/osvscanner.go b/pkg/osvscanner/osvscanner.go
-index e2d6df1..0a9d108 100644
+index 0b835376..9e7bbfa7 100644
 --- a/pkg/osvscanner/osvscanner.go
 +++ b/pkg/osvscanner/osvscanner.go
-@@ -263,6 +263,21 @@ func DoContainerScan(actions ScannerActions) (models.VulnerabilityResults, error
- 		return models.VulnerabilityResults{}, ErrNoPackagesFound
+@@ -268,7 +268,7 @@ func DoContainerScan(actions ScannerActions) (models.VulnerabilityResults, error
+ 		return models.VulnerabilityResults{}, errors.New(scalibrSR.Status.FailureReason)
  	}
  
-+	// --- Check status of the plugins ---
-+	for _, status := range scalibrSR.PluginStatus {
-+		if status.Status.Status == plugin.ScanStatusSucceeded {
-+			continue
-+		}
-+		msg := status.Status.FailureReason
-+		for _, fileError := range status.Status.FileErrors {
-+			msg += fmt.Sprintf("\n\t%s: %s", fileError.FilePath, fileError.ErrorMessage)
-+		}
-+		cmdlogger.Errorf("Error during scan: (%s) %s", status.Name, msg)
+-	if err := logPluginStatus(scalibrSR.PluginStatus, nil, ""); err != nil {
++	if err := logPluginStatus(scalibrSR.PluginStatus, nil, "", actions); err != nil {
+ 		return models.VulnerabilityResults{}, err
+ 	}
+ 
+diff --git a/pkg/osvscanner/scan.go b/pkg/osvscanner/scan.go
+index 378fad77..9dd9374d 100644
+--- a/pkg/osvscanner/scan.go
++++ b/pkg/osvscanner/scan.go
+@@ -376,7 +376,7 @@ SBOMLoop:
+ 			return nil, nil, errors.New(sr.Status.FailureReason)
+ 		}
+ 
+-		if err := logPluginStatus(sr.PluginStatus, specificPaths, root); err != nil {
++		if err := logPluginStatus(sr.PluginStatus, specificPaths, root, actions); err != nil {
+ 			return nil, nil, err
+ 		}
+ 
+@@ -573,7 +573,7 @@ func dedupPackageVulns(vulns []*inventory.PackageVuln) []*inventory.PackageVuln
+ 	return result
+ }
+ 
+-func logPluginStatus(statuses []*plugin.Status, specificPaths []string, root string) error {
++func logPluginStatus(statuses []*plugin.Status, specificPaths []string, root string, actions ScannerActions) error {
+ 	var criticalError bool
+ 	for _, status := range statuses {
+ 		if status == nil || status.Status == nil || status.Status.Status == plugin.ScanStatusSucceeded {
+@@ -604,6 +604,26 @@ func logPluginStatus(statuses []*plugin.Status, specificPaths []string, root str
+ 		if criticalError {
+ 			return errors.New("extraction failed on specified lockfile")
+ 		}
 +		if err := vulnMatchFailure(status, actions); err != nil {
-+			return models.VulnerabilityResults{}, err
++			return err
 +		}
 +	}
 +
- 	// --- Save Scalibr Scan Results ---
- 	scanResults.Inventory = scalibrSR.Inventory
- 
-diff --git a/pkg/osvscanner/scan.go b/pkg/osvscanner/scan.go
-index 3be2334..2d0c665 100644
---- a/pkg/osvscanner/scan.go
-+++ b/pkg/osvscanner/scan.go
-@@ -376,6 +376,9 @@ SBOMLoop:
- 				if criticalError {
- 					return nil, nil, errors.New("extraction failed on specified lockfile")
- 				}
-+				if err := vulnMatchFailure(status, actions); err != nil {
-+					return nil, nil, err
-+				}
- 			}
- 		}
- 
-@@ -571,3 +574,20 @@ func dedupPackageVulns(vulns []*inventory.PackageVuln) []*inventory.PackageVuln
- 
- 	return result
- }
++	return nil
++}
 +
 +// vulnMatchFailure returns an error when a failed vulnerability matcher must
 +// fail the scan: a missing or unreadable cached offline database
@@ -74,10 +76,9 @@ index 3be2334..2d0c665 100644
 +
 +	if actions.CompareOffline && !actions.DownloadDatabases {
 +		return fmt.Errorf("vulnerability matching failed (%s): %s", status.Name, status.Status.FailureReason)
-+	}
-+
-+	return nil
-+}
+ 	}
+ 
+ 	return nil
 -- 
 2.43.0
 

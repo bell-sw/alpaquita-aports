@@ -1,8 +1,8 @@
-From 267f6cf138f3cba3ea2798e3af81af65f7ed6c10 Mon Sep 17 00:00:00 2001
+From 83429ee25176165258496cc83fcf440ae7c649d9 Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Sat, 10 Oct 2026 19:10:46 +0000
-Subject: [PATCH] feat(offline): --local-db-url for the offline database host,
- honour OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY
+Subject: [PATCH 2/8] feat(offline): --local-db-url for the offline database
+ host, honour OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY
 
 * --local-db-url / OSV_SCANNER_LOCAL_DB_URL: base URL (or file:// path) the
   offline databases are fetched from as <url>/<ecosystem>/all.zip; defaults
@@ -12,38 +12,31 @@ Subject: [PATCH] feat(offline): --local-db-url for the offline database host,
   variable docs/offline-mode.md documents (2.5.0 only honoured
   OSV_SCALIBR_LOCAL_DB_CACHE_DIRECTORY).
 ---
- cmd/osv-scanner/internal/helper/flags.go   | 13 ++++++++++---
- cmd/osv-scanner/internal/helper/getters.go |  1 +
- pkg/osvscanner/osvscanner.go               |  4 ++++
- pkg/osvscanner/scan.go                     |  9 ++++++++-
- 4 files changed, 23 insertions(+), 4 deletions(-)
+ cmd/osv-scanner/internal/helper/flags.go   | 6 ++++++
+ cmd/osv-scanner/internal/helper/getters.go | 1 +
+ pkg/osvscanner/osvscanner.go               | 4 ++++
+ pkg/osvscanner/scan.go                     | 9 ++++++++-
+ 4 files changed, 19 insertions(+), 1 deletion(-)
 
 diff --git a/cmd/osv-scanner/internal/helper/flags.go b/cmd/osv-scanner/internal/helper/flags.go
-index c7601c2..2043311 100644
+index 20a650f6..7cf95c0b 100644
 --- a/cmd/osv-scanner/internal/helper/flags.go
 +++ b/cmd/osv-scanner/internal/helper/flags.go
-@@ -157,9 +157,16 @@ func BuildCommonScanFlags(defaultExtractors []string) []cli.Flag {
- 			Usage: "downloads vulnerability databases for offline comparison",
+@@ -162,6 +162,12 @@ func BuildCommonScanFlags(defaultExtractors []string) []cli.Flag {
+ 			Sources: cli.EnvVars("OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY"),
+ 			Hidden:  true,
  		},
- 		&cli.StringFlag{
--			Name:   "local-db-path",
--			Usage:  "sets the path that local databases should be stored",
--			Hidden: true,
-+			Name:    "local-db-path",
-+			Usage:   "sets the path that local databases should be stored",
-+			Hidden:  true,
-+			Sources: cli.EnvVars("OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY"),
-+		},
 +		&cli.StringFlag{
 +			Name:    "local-db-url",
 +			Usage:   "base URL (or file:// path) the offline databases are downloaded from, as <url>/<ecosystem>/all.zip; defaults to the osv.dev export bucket",
 +			Hidden:  true,
 +			Sources: cli.EnvVars("OSV_SCANNER_LOCAL_DB_URL"),
- 		},
++		},
  		&cli.StringSliceFlag{
  			Name:  "call-analysis",
+ 			Usage: "Enable call analysis for specific languages (e.g. --call-analysis=go). Supported: go, rust (*). (*) Will run build scripts.",
 diff --git a/cmd/osv-scanner/internal/helper/getters.go b/cmd/osv-scanner/internal/helper/getters.go
-index 2ffe080..4f147fb 100644
+index cd9ff49f..3b176703 100644
 --- a/cmd/osv-scanner/internal/helper/getters.go
 +++ b/cmd/osv-scanner/internal/helper/getters.go
 @@ -42,6 +42,7 @@ func GetCommonScannerActions(cmd *cli.Command, scanLicensesAllowlist []string) o
@@ -55,7 +48,7 @@ index 2ffe080..4f147fb 100644
  		ScanLicensesSummary:   cmd.IsSet("licenses"),
  		ScanLicensesAllowlist: scanLicensesAllowlist,
 diff --git a/pkg/osvscanner/osvscanner.go b/pkg/osvscanner/osvscanner.go
-index 8197e4c..e2d6df1 100644
+index f1ad3c7a..0b835376 100644
 --- a/pkg/osvscanner/osvscanner.go
 +++ b/pkg/osvscanner/osvscanner.go
 @@ -56,6 +56,10 @@ type ScannerActions struct {
@@ -70,10 +63,10 @@ index 8197e4c..e2d6df1 100644
  	// network-backed plugins
  	PluginNetworkDisabled bool
 diff --git a/pkg/osvscanner/scan.go b/pkg/osvscanner/scan.go
-index 87db1d8..3be2334 100644
+index 5770ff27..378fad77 100644
 --- a/pkg/osvscanner/scan.go
 +++ b/pkg/osvscanner/scan.go
-@@ -36,6 +36,9 @@ import (
+@@ -37,6 +37,9 @@ import (
  	"github.com/google/osv-scanner/v2/pkg/osvscanner/internal/scanners"
  )
  
@@ -83,7 +76,7 @@ index 87db1d8..3be2334 100644
  var ErrExtractorNotFound = errors.New("could not determine extractor suitable to this file")
  
  func configurePlugins(plugins []plugin.Plugin, accessors ExternalAccessors, actions ScannerActions) {
-@@ -75,12 +78,16 @@ func getPlugins(
+@@ -76,12 +79,16 @@ func getPlugins(
  		},
  	)
  

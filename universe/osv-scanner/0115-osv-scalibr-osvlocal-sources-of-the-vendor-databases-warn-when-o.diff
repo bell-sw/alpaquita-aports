@@ -1,8 +1,8 @@
-From d723b533b9cd7849f2c92abad02f6d6bf7c10bd6 Mon Sep 17 00:00:00 2001
+From 2672b2d414e71a25e280c801e453cdedc26ab5e3 Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Sat, 10 Oct 2026 22:24:46 +0000
-Subject: [PATCH] osvlocal: sources of the vendor databases, warn when one is
- unavailable
+Subject: [PATCH 07/10] osvlocal: sources of the vendor databases, warn when
+ one is unavailable
 
 Settings for the ecosystem families of the vendor's products (the
 module's Ecosystems: its two distributions and the standalone JDK and
@@ -27,21 +27,53 @@ config and are set with the new Configure(Options).
   The packages stay in the inventory without findings and the other
   packages are matched. Options.VendorStrict keeps it an error.
 ---
- enricher/vulnmatch/osvlocal/alias_test.go  |   6 +-
+ enricher/vulnmatch/osvlocal/alias_test.go  |  18 +-
  enricher/vulnmatch/osvlocal/matcher.go     |  25 +-
  enricher/vulnmatch/osvlocal/osvlocal.go    |  15 +
  enricher/vulnmatch/osvlocal/vendor.go      | 170 ++++++++++
  enricher/vulnmatch/osvlocal/vendor_test.go | 343 +++++++++++++++++++++
  enricher/vulnmatch/osvlocal/zip.go         |   2 +-
- 6 files changed, 558 insertions(+), 3 deletions(-)
+ 6 files changed, 564 insertions(+), 9 deletions(-)
  create mode 100644 enricher/vulnmatch/osvlocal/vendor.go
  create mode 100644 enricher/vulnmatch/osvlocal/vendor_test.go
 
 diff --git a/enricher/vulnmatch/osvlocal/alias_test.go b/enricher/vulnmatch/osvlocal/alias_test.go
-index aa5869d..9f2831b 100644
+index aa5869d5..cbb46d97 100644
 --- a/enricher/vulnmatch/osvlocal/alias_test.go
 +++ b/enricher/vulnmatch/osvlocal/alias_test.go
-@@ -193,6 +193,8 @@ func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
+@@ -123,7 +123,7 @@ func TestLocalMatcher_ProvidesAlias(t *testing.T) {
+ 		_, _ = fakeserver.WriteOSVsZip(t, w, vendorOSVs())
+ 	})
+ 
+-	m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
++	m, err := newlocalMatcher(testDir, true, ts.URL, http.DefaultClient)
+ 	if err != nil {
+ 		t.Fatalf("newlocalMatcher: %v", err)
+ 	}
+@@ -162,7 +162,7 @@ func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
+ 		hostDir := filepath.Join(testDir, "host")
+ 		cacheWrite(t, path.Join(hostDir, "Alpaquita", "all.zip"), archive)
+ 
+-		m, err := newlocalMatcher(filepath.Join(testDir, "cache"), userAgent, true, "file://"+hostDir, http.DefaultClient)
++		m, err := newlocalMatcher(filepath.Join(testDir, "cache"), true, "file://"+hostDir, http.DefaultClient)
+ 		if err != nil {
+ 			t.Fatalf("newlocalMatcher: %v", err)
+ 		}
+@@ -178,7 +178,7 @@ func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
+ 		testDir := createTestDir(t)
+ 		cacheWrite(t, path.Join(testDir, "osv-scanner", "Alpaquita", "all.zip"), archive)
+ 
+-		m, err := newlocalMatcher(testDir, userAgent, false, "http://127.0.0.1:1", http.DefaultClient)
++		m, err := newlocalMatcher(testDir, false, "http://127.0.0.1:1", http.DefaultClient)
+ 		if err != nil {
+ 			t.Fatalf("newlocalMatcher: %v", err)
+ 		}
+@@ -189,10 +189,12 @@ func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
+ 
+ 	t.Run("missing offline", func(t *testing.T) {
+ 		testDir := createTestDir(t)
+-		m, err := newlocalMatcher(testDir, userAgent, false, "http://127.0.0.1:1", http.DefaultClient)
++		m, err := newlocalMatcher(testDir, false, "http://127.0.0.1:1", http.DefaultClient)
  		if err != nil {
  			t.Fatalf("newlocalMatcher: %v", err)
  		}
@@ -60,7 +92,21 @@ index aa5869d..9f2831b 100644
  func TestLocalMatcher_DownloadFailureUsesCache(t *testing.T) {
  	archive := fakeserver.ZipOSVs(t, vendorOSVs())
  
-@@ -227,6 +230,7 @@ func TestLocalMatcher_DownloadFailureUsesCache(t *testing.T) {
+@@ -212,7 +215,7 @@ func TestLocalMatcher_DownloadFailureUsesCache(t *testing.T) {
+ 		testDir := createTestDir(t)
+ 		cacheWrite(t, path.Join(testDir, "osv-scalibr", "Alpaquita", "all.zip"), archive)
+ 
+-		m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
++		m, err := newlocalMatcher(testDir, true, ts.URL, http.DefaultClient)
+ 		if err != nil {
+ 			t.Fatalf("newlocalMatcher: %v", err)
+ 		}
+@@ -223,10 +226,11 @@ func TestLocalMatcher_DownloadFailureUsesCache(t *testing.T) {
+ 
+ 	t.Run("no cache and 404 is an error", func(t *testing.T) {
+ 		testDir := createTestDir(t)
+-		m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
++		m, err := newlocalMatcher(testDir, true, ts.URL, http.DefaultClient)
  		if err != nil {
  			t.Fatalf("newlocalMatcher: %v", err)
  		}
@@ -69,12 +115,12 @@ index aa5869d..9f2831b 100644
  			t.Errorf("expected an error, got none")
  		}
 diff --git a/enricher/vulnmatch/osvlocal/matcher.go b/enricher/vulnmatch/osvlocal/matcher.go
-index a105800..6a6ff8c 100644
+index 97ae59a6..e9b948c5 100644
 --- a/enricher/vulnmatch/osvlocal/matcher.go
 +++ b/enricher/vulnmatch/osvlocal/matcher.go
-@@ -43,6 +43,13 @@ type localMatcher struct {
- 	// userAgent sets the user agent requests for db zips are made with
- 	userAgent  string
+@@ -41,6 +41,13 @@ type localMatcher struct {
+ 	// failedDBs keeps track of the errors when getting databases for each ecosystem
+ 	failedDBs  map[osvconstants.Ecosystem]error
  	httpClient *http.Client
 +	// vendorStrict makes an unavailable archive of a vendor family an
 +	// error instead of a warning
@@ -85,8 +131,8 @@ index a105800..6a6ff8c 100644
 +	vendorFeeds map[string]string
  }
  
- func newlocalMatcher(localDBPath string, userAgent string, downloadDB bool, zippedDBRemoteHost string, httpClient *http.Client) (*localMatcher, error) {
-@@ -111,17 +118,33 @@ func (matcher *localMatcher) loadDBFromCache(ctx context.Context, eco osvconstan
+ func newlocalMatcher(localDBPath string, downloadDB bool, zippedDBRemoteHost string, httpClient *http.Client) (*localMatcher, error) {
+@@ -113,16 +120,32 @@ func (matcher *localMatcher) loadDBFromCache(ctx context.Context, eco osvconstan
  		return nil, matcher.failedDBs[eco]
  	}
  
@@ -97,7 +143,6 @@ index a105800..6a6ff8c 100644
  		string(eco),
 -		fmt.Sprintf("%s/%s/all.zip", matcher.zippedDBRemoteHost, eco),
 +		url,
- 		matcher.userAgent,
  		!matcher.downloadDB,
  		invs,
  		matcher.httpClient,
@@ -122,21 +167,21 @@ index a105800..6a6ff8c 100644
  		matcher.failedDBs[eco] = err
  		log.Errorf("could not load db for %s ecosystem: %v", eco, err)
 diff --git a/enricher/vulnmatch/osvlocal/osvlocal.go b/enricher/vulnmatch/osvlocal/osvlocal.go
-index e4837bb..3de789e 100644
+index c89e9d6d..05bd250d 100644
 --- a/enricher/vulnmatch/osvlocal/osvlocal.go
 +++ b/enricher/vulnmatch/osvlocal/osvlocal.go
 @@ -25,8 +25,10 @@ import (
  
  	cpb "github.com/google/osv-scalibr/binary/proto/config_go_proto"
  	"github.com/google/osv-scalibr/enricher"
-+	osvutil "github.com/google/osv-scalibr/enricher/vulnmatch/internal/osvutil"
++	osvutil "github.com/google/osv-scalibr/enricher/vulnmatch/osvutil"
  	"github.com/google/osv-scalibr/extractor"
  	"github.com/google/osv-scalibr/inventory"
 +	"github.com/google/osv-scalibr/inventory/osvecosystem"
  	"github.com/google/osv-scalibr/inventory/vex"
  	"github.com/google/osv-scalibr/plugin"
  	"github.com/google/osv-scalibr/plugin/config"
-@@ -49,6 +51,12 @@ type Enricher struct {
+@@ -47,6 +49,12 @@ type Enricher struct {
  	localPath  string
  	download   bool
  	httpClient *http.Client
@@ -149,7 +194,7 @@ index e4837bb..3de789e 100644
  }
  
  // New makes a new osvlocal.Enricher with the given config.
-@@ -146,11 +154,18 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
+@@ -134,11 +142,18 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
  	if err != nil {
  		return err
  	}
@@ -170,7 +215,7 @@ index e4837bb..3de789e 100644
  		if err != nil {
 diff --git a/enricher/vulnmatch/osvlocal/vendor.go b/enricher/vulnmatch/osvlocal/vendor.go
 new file mode 100644
-index 0000000..a840f04
+index 00000000..a840f04c
 --- /dev/null
 +++ b/enricher/vulnmatch/osvlocal/vendor.go
 @@ -0,0 +1,170 @@
@@ -346,7 +391,7 @@ index 0000000..a840f04
 +}
 diff --git a/enricher/vulnmatch/osvlocal/vendor_test.go b/enricher/vulnmatch/osvlocal/vendor_test.go
 new file mode 100644
-index 0000000..15e2d8d
+index 00000000..15e2d8d4
 --- /dev/null
 +++ b/enricher/vulnmatch/osvlocal/vendor_test.go
 @@ -0,0 +1,343 @@
@@ -694,10 +739,10 @@ index 0000000..15e2d8d
 +	}
 +}
 diff --git a/enricher/vulnmatch/osvlocal/zip.go b/enricher/vulnmatch/osvlocal/zip.go
-index 80aab20..0447264 100644
+index 05b630ab..14cbeeda 100644
 --- a/enricher/vulnmatch/osvlocal/zip.go
 +++ b/enricher/vulnmatch/osvlocal/zip.go
-@@ -176,7 +176,7 @@ func (db *zipDB) download(ctx context.Context) ([]byte, error) {
+@@ -170,7 +170,7 @@ func (db *zipDB) download(ctx context.Context) ([]byte, error) {
  	defer resp.Body.Close()
  
  	if resp.StatusCode != http.StatusOK {

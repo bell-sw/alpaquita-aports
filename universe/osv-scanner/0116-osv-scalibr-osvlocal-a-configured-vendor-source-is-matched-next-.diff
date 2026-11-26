@@ -1,7 +1,7 @@
-From ef481b0c0a72e90f316a54020dd1969598d42118 Mon Sep 17 00:00:00 2001
+From ea3c1d70cd1e1ad5e317fa484f1c923880c40d18 Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Tue, 13 Oct 2026 12:45:06 +0000
-Subject: [PATCH] osvlocal: a configured vendor source is matched next to
+Subject: [PATCH 08/10] osvlocal: a configured vendor source is matched next to
  api.osv.dev
 
 A vendor family whose archive location was given in the Options
@@ -28,19 +28,19 @@ osv-scalibr and osv-schema know (distroKnown).
 ---
  enricher/vulnmatch/osvdev/osvdev.go           |  32 +-
  .../vulnmatch/osvdev/osvdev_internal_test.go  |  38 ++-
- enricher/vulnmatch/osvlocal/matcher.go        |  23 +-
+ enricher/vulnmatch/osvlocal/matcher.go        |  21 +-
  enricher/vulnmatch/osvlocal/osvlocal.go       |   9 +-
  enricher/vulnmatch/osvlocal/vendor.go         |  33 ++-
  enricher/vulnmatch/osvlocal/vendor_test.go    | 274 ++++++++++++++----
- enricher/vulnmatch/osvlocal/zip.go            |  43 ++-
+ enricher/vulnmatch/osvlocal/zip.go            |  44 ++-
  enricher/vulnmatch/osvlocal/zip_test.go       |  37 +++
- 8 files changed, 395 insertions(+), 94 deletions(-)
+ 8 files changed, 394 insertions(+), 94 deletions(-)
 
 diff --git a/enricher/vulnmatch/osvdev/osvdev.go b/enricher/vulnmatch/osvdev/osvdev.go
-index f281f2e..6e5e3ae 100644
+index da4fefe1..6d970bc9 100644
 --- a/enricher/vulnmatch/osvdev/osvdev.go
 +++ b/enricher/vulnmatch/osvdev/osvdev.go
-@@ -37,6 +37,7 @@ import (
+@@ -36,6 +36,7 @@ import (
  
  	cpb "github.com/google/osv-scalibr/binary/proto/config_go_proto"
  	"github.com/google/osv-scalibr/plugin/config"
@@ -48,7 +48,7 @@ index f281f2e..6e5e3ae 100644
  	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
  	osvapipb "osv.dev/bindings/go/api"
  )
-@@ -60,6 +61,26 @@ var _ enricher.Enricher = &Enricher{}
+@@ -59,6 +60,26 @@ var _ enricher.Enricher = &Enricher{}
  type Enricher struct {
  	client              Client
  	initialQueryTimeout time.Duration
@@ -75,7 +75,7 @@ index f281f2e..6e5e3ae 100644
  }
  
  // New creates a new Enricher with the given configuration.
-@@ -132,7 +153,7 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
+@@ -131,7 +152,7 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
  	pkgs := make([]*extractor.Package, 0, len(inv.Packages))
  	queries := make([]*osvapipb.Query, 0, len(inv.Packages))
  	for _, pkg := range inv.Packages {
@@ -84,16 +84,16 @@ index f281f2e..6e5e3ae 100644
  			pkgs = append(pkgs, pkg)
  			queries = append(queries, query)
  		}
-@@ -259,7 +280,7 @@ func (e *Enricher) makeVulnerabilitiesRequest(ctx context.Context, vulnIDs []str
+@@ -258,7 +279,7 @@ func (e *Enricher) makeVulnerabilitiesRequest(ctx context.Context, vulnIDs []str
  // pkgToQueries converts a package into the OSV queries to run for it, in
  // preference order: a single commit query, or one version query per candidate
  // package name (see osvutil.QueryNames). Returns nil for unqueryable packages.
 -func pkgToQueries(pkg *extractor.Package) []*osvapipb.Query {
 +func (e *Enricher) pkgToQueries(pkg *extractor.Package) []*osvapipb.Query {
- 	np := osvutil.ParsePackage(pkg)
- 
- 	// If the ecosystem is GIT, we prioritize commit queries.
-@@ -271,9 +292,10 @@ func pkgToQueries(pkg *extractor.Package) []*osvapipb.Query {
+ 	if osvutil.IsLocal(pkg) {
+ 		return nil
+ 	}
+@@ -274,9 +295,10 @@ func pkgToQueries(pkg *extractor.Package) []*osvapipb.Query {
  		}}
  	}
  
@@ -108,7 +108,7 @@ index f281f2e..6e5e3ae 100644
  	}
  
 diff --git a/enricher/vulnmatch/osvdev/osvdev_internal_test.go b/enricher/vulnmatch/osvdev/osvdev_internal_test.go
-index 95b95cb..9b52d4e 100644
+index 95b95cb1..9b52d4e8 100644
 --- a/enricher/vulnmatch/osvdev/osvdev_internal_test.go
 +++ b/enricher/vulnmatch/osvdev/osvdev_internal_test.go
 @@ -21,20 +21,54 @@ import (
@@ -169,10 +169,10 @@ index 95b95cb..9b52d4e 100644
 +	}
 +}
 diff --git a/enricher/vulnmatch/osvlocal/matcher.go b/enricher/vulnmatch/osvlocal/matcher.go
-index 6a6ff8c..07996e4 100644
+index e9b948c5..756ebb32 100644
 --- a/enricher/vulnmatch/osvlocal/matcher.go
 +++ b/enricher/vulnmatch/osvlocal/matcher.go
-@@ -119,21 +119,22 @@ func (matcher *localMatcher) loadDBFromCache(ctx context.Context, eco osvconstan
+@@ -121,20 +121,21 @@ func (matcher *localMatcher) loadDBFromCache(ctx context.Context, eco osvconstan
  	}
  
  	url := matcher.archiveURL(eco)
@@ -181,7 +181,6 @@ index 6a6ff8c..07996e4 100644
 -		matcher.dbBasePath,
 -		string(eco),
 -		url,
--		matcher.userAgent,
 -		!matcher.downloadDB,
 -		invs,
 -		matcher.httpClient,
@@ -191,7 +190,6 @@ index 6a6ff8c..07996e4 100644
 +		ArchiveURL: url,
 +		Offline:    !matcher.downloadDB,
 +		StoredAt:   path.Join(matcher.dbBasePath, string(eco), "all.zip"),
-+		UserAgent:  matcher.userAgent,
 +		httpClient: matcher.httpClient,
 +		// strict mode must not be satisfied by a cached copy: the cache is keyed
 +		// by ecosystem, so the copy may be stale or from another source
@@ -207,18 +205,18 @@ index 6a6ff8c..07996e4 100644
  		if !matcher.vendorStrict {
  			log.Warnf("%s", warning)
 diff --git a/enricher/vulnmatch/osvlocal/osvlocal.go b/enricher/vulnmatch/osvlocal/osvlocal.go
-index 3de789e..dccc31e 100644
+index 05bd250d..5ef6c661 100644
 --- a/enricher/vulnmatch/osvlocal/osvlocal.go
 +++ b/enricher/vulnmatch/osvlocal/osvlocal.go
-@@ -33,6 +33,7 @@ import (
+@@ -32,6 +32,7 @@ import (
+ 	"github.com/google/osv-scalibr/inventory/vex"
  	"github.com/google/osv-scalibr/plugin"
  	"github.com/google/osv-scalibr/plugin/config"
- 	scalibrversion "github.com/google/osv-scalibr/version"
 +	"github.com/ossf/osv-schema/bindings/go/osvconstants"
  )
  
  const (
-@@ -162,7 +163,7 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
+@@ -150,7 +151,7 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
  	// being matched: collect the error and report it at the end.
  	var errs []error
  	for _, pkg := range inv.Packages {
@@ -227,7 +225,7 @@ index 3de789e..dccc31e 100644
  			continue
  		}
  
-@@ -194,6 +195,12 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
+@@ -182,6 +183,12 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
  	return errors.Join(slices.Compact(errs)...)
  }
  
@@ -241,7 +239,7 @@ index 3de789e..dccc31e 100644
  func dedupPackageVulns(vulns []*inventory.PackageVuln) []*inventory.PackageVuln {
  	if len(vulns) == 0 {
 diff --git a/enricher/vulnmatch/osvlocal/vendor.go b/enricher/vulnmatch/osvlocal/vendor.go
-index a840f04..29fdbc8 100644
+index a840f04c..29fdbc83 100644
 --- a/enricher/vulnmatch/osvlocal/vendor.go
 +++ b/enricher/vulnmatch/osvlocal/vendor.go
 @@ -25,6 +25,7 @@ import (
@@ -306,7 +304,7 @@ index a840f04..29fdbc8 100644
  
  // ParseVendorFeeds parses "<family>=<location>" pairs into Options.VendorFeeds;
 diff --git a/enricher/vulnmatch/osvlocal/vendor_test.go b/enricher/vulnmatch/osvlocal/vendor_test.go
-index 15e2d8d..5656735 100644
+index 15e2d8d4..56567358 100644
 --- a/enricher/vulnmatch/osvlocal/vendor_test.go
 +++ b/enricher/vulnmatch/osvlocal/vendor_test.go
 @@ -18,12 +18,15 @@ import (
@@ -737,7 +735,7 @@ index 15e2d8d..5656735 100644
  		t.Errorf("with a cached archive: err = %v, %d findings, want 1", err, len(inv.PackageVulns))
  	}
 diff --git a/enricher/vulnmatch/osvlocal/zip.go b/enricher/vulnmatch/osvlocal/zip.go
-index 0447264..00f01dc 100644
+index 14cbeeda..25524b90 100644
 --- a/enricher/vulnmatch/osvlocal/zip.go
 +++ b/enricher/vulnmatch/osvlocal/zip.go
 @@ -45,6 +45,10 @@ type zipDB struct {
@@ -751,7 +749,7 @@ index 0447264..00f01dc 100644
  	// the path to the zip archive on disk
  	StoredAt string
  	// the vulnerabilities that are loaded into this database
-@@ -108,23 +112,31 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
+@@ -106,23 +110,31 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
  		}
  	}
  
@@ -793,7 +791,7 @@ index 0447264..00f01dc 100644
  	}
  
  	if err == nil {
-@@ -141,7 +153,7 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
+@@ -139,7 +151,7 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
  	body, err := db.download(ctx)
  
  	if err != nil {
@@ -802,17 +800,16 @@ index 0447264..00f01dc 100644
  			// a stale cache is better than no database at all
  			log.Warnf("could not update the %s OSV database, using the cached copy: %v", db.Name, err)
  
-@@ -303,14 +315,19 @@ func (db *zipDB) load(ctx context.Context, names []string) error {
+@@ -297,13 +309,18 @@ func (db *zipDB) load(ctx context.Context, names []string) error {
  }
  
- func newZippedDB(ctx context.Context, dbBasePath, name, url, userAgent string, offline bool, invs []*extractor.Package, httpClient *http.Client) (*zipDB, error) {
+ func newZippedDB(ctx context.Context, dbBasePath, name, url string, offline bool, invs []*extractor.Package, httpClient *http.Client) (*zipDB, error) {
 -	db := &zipDB{
 +	return loadZippedDB(ctx, &zipDB{
  		Name:       name,
  		ArchiveURL: url,
  		Offline:    offline,
  		StoredAt:   path.Join(dbBasePath, name, "all.zip"),
- 		UserAgent:  userAgent,
  		httpClient: httpClient,
 -	}
 +	}, invs)
@@ -824,8 +821,16 @@ index 0447264..00f01dc 100644
  	names := make([]string, 0, len(invs))
  
  	// map the packages to their names ahead of loading,
+@@ -319,7 +336,6 @@ func newZippedDB(ctx context.Context, dbBasePath, name, url string, offline bool
+ 	return db, nil
+ }
+ 
+-// VulnerabilitiesAffectingPackage returns the vulnerabilities that affects the provided package
+ // VulnerabilitiesAffectingPackage returns the vulnerabilities affecting the
+ // package, looked up under its normalized name.
+ func VulnerabilitiesAffectingPackage(allVulns []*osvpb.Vulnerability, pkg *extractor.Package) []*osvpb.Vulnerability {
 diff --git a/enricher/vulnmatch/osvlocal/zip_test.go b/enricher/vulnmatch/osvlocal/zip_test.go
-index 7a0458e..033853c 100644
+index 3ede154b..7bc4adc7 100644
 --- a/enricher/vulnmatch/osvlocal/zip_test.go
 +++ b/enricher/vulnmatch/osvlocal/zip_test.go
 @@ -16,6 +16,7 @@ package osvlocal
@@ -836,7 +841,7 @@ index 7a0458e..033853c 100644
  	"net/http"
  	"os"
  	"path"
-@@ -345,6 +346,42 @@ func TestNewZippedDB_Online_WithCacheButNoHashHeader(t *testing.T) {
+@@ -342,6 +343,42 @@ func TestNewZippedDB_Online_WithCacheButNoHashHeader(t *testing.T) {
  	})
  }
  

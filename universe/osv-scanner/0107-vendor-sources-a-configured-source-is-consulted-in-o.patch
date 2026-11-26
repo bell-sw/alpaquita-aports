@@ -1,8 +1,8 @@
-From 4ad58e7d2f9377edd71f0e8b81a02cfc4be8b83e Mon Sep 17 00:00:00 2001
+From 7643e063a05094a0c733712591788dc9bc5256a1 Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Tue, 13 Oct 2026 12:45:06 +0000
-Subject: [PATCH] vendor sources: a configured source is consulted in online
- scans
+Subject: [PATCH 7/8] vendor sources: a configured source is consulted in
+ online scans
 
 A source given with --vendor-url or --vendor-feed is used in every scan,
 not only with --offline-vulnerabilities:
@@ -24,7 +24,7 @@ not only with --offline-vulnerabilities:
  4 files changed, 99 insertions(+), 17 deletions(-)
 
 diff --git a/cmd/osv-scanner/internal/helper/flags.go b/cmd/osv-scanner/internal/helper/flags.go
-index 1cb76770..03560f50 100644
+index 6d785cf0..9b0c534f 100644
 --- a/cmd/osv-scanner/internal/helper/flags.go
 +++ b/cmd/osv-scanner/internal/helper/flags.go
 @@ -171,12 +171,12 @@ func BuildCommonScanFlags(defaultExtractors []string) []cli.Flag {
@@ -43,7 +43,7 @@ index 1cb76770..03560f50 100644
  		},
  		&cli.BoolFlag{
 diff --git a/pkg/osvscanner/osvscanner.go b/pkg/osvscanner/osvscanner.go
-index 1a162742..73176fa6 100644
+index 38ec3e8e..b9b36be5 100644
 --- a/pkg/osvscanner/osvscanner.go
 +++ b/pkg/osvscanner/osvscanner.go
 @@ -63,14 +63,16 @@ type ScannerActions struct {
@@ -69,7 +69,7 @@ index 1a162742..73176fa6 100644
  
  	// network-backed plugins
 diff --git a/pkg/osvscanner/scan.go b/pkg/osvscanner/scan.go
-index ce506b24..af0a08a7 100644
+index bfc75e3a..d130526c 100644
 --- a/pkg/osvscanner/scan.go
 +++ b/pkg/osvscanner/scan.go
 @@ -5,6 +5,7 @@ import (
@@ -120,8 +120,8 @@ index ce506b24..af0a08a7 100644
  		actions.PluginsEnabled = append(actions.PluginsEnabled, "vulnmatch/osvdev", "vulnmatch/osvlocal")
  	}
  
-@@ -588,11 +593,52 @@ func dedupPackageVulns(vulns []*inventory.PackageVuln) []*inventory.PackageVuln
- 	return result
+@@ -624,11 +629,52 @@ func logPluginStatus(statuses []*plugin.Status, specificPaths []string, root str
+ 	return nil
  }
  
 -// checkVendorOptions validates the --vendor-feed pairs.
@@ -143,11 +143,11 @@ index ce506b24..af0a08a7 100644
 +			return err
 +		}
 +	}
-+
-+	return nil
-+}
  
 -	return err
++	return nil
++}
++
 +// checkVendorLocation returns an error when location is a local path (plain
 +// or file://) that does not exist. Remote locations are not checked.
 +func checkVendorLocation(option, location string) error {

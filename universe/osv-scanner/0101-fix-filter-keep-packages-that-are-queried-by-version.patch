@@ -1,8 +1,8 @@
-From 1ba31ea96584f1e75588f70831efdf1693f87c92 Mon Sep 17 00:00:00 2001
+From 2f6f003c84989d329f2ba0656b8caf4dde578050 Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Sat, 10 Oct 2026 19:10:46 +0000
-Subject: [PATCH] fix(filter): keep packages that are queried by version when
- their commit is short
+Subject: [PATCH 1/8] fix(filter): keep packages that are queried by version
+ when their commit is short
 
 A package with an ecosystem, name and version is queried by version; its
 commit is metadata only. The filter nevertheless dropped every such package
@@ -16,44 +16,50 @@ filtered:
 
 Git-only packages (no version) are still filtered.
 ---
- internal/scalibrannotator/filter/filter.go    | 14 ++++++++++-
+ internal/scalibrannotator/filter/filter.go    | 13 +++++++++-
  .../scalibrannotator/filter/filter_test.go    | 25 +++++++++++++++++++
- 2 files changed, 38 insertions(+), 1 deletion(-)
+ 2 files changed, 37 insertions(+), 1 deletion(-)
 
 diff --git a/internal/scalibrannotator/filter/filter.go b/internal/scalibrannotator/filter/filter.go
-index 5a3c18c..c5f9f99 100644
+index 81ec13ae..0d416b9b 100644
 --- a/internal/scalibrannotator/filter/filter.go
 +++ b/internal/scalibrannotator/filter/filter.go
-@@ -105,7 +105,10 @@ func (a *Annotator) Annotate(_ context.Context, _ *annotator.ScanInput, results
+@@ -11,6 +11,7 @@ import (
+ 
+ 	scalibr "github.com/google/osv-scalibr"
+ 	"github.com/google/osv-scalibr/annotator"
++	"github.com/google/osv-scalibr/enricher/vulnmatch/osvutil"
+ 	"github.com/google/osv-scalibr/extractor"
+ 	"github.com/google/osv-scalibr/inventory"
+ 	"github.com/google/osv-scalibr/plugin"
+@@ -120,7 +121,10 @@ func (a *Annotator) Annotate(_ context.Context, _ *annotator.ScanInput, results
  		}
  
  		// Short commit hashes warning
--		if imodels.Commit(psr) != "" && len(imodels.Commit(psr)) < 40 {
+-		if parsedPkg.Commit != "" && len(parsedPkg.Commit) < 40 {
 +		// A package with an ecosystem, name and version is queried by version;
 +		// its commit is metadata only (apk records the build commit in "c:",
 +		// which may be "-dirty").
-+		if imodels.Commit(psr) != "" && len(imodels.Commit(psr)) < 40 && !queryableByVersion(psr) {
- 			warnings = append(warnings, fmt.Sprintf("Skipping %s: short commit hash %q cannot be queried; OSV API requires a full 40-character SHA.", imodels.Name(psr), imodels.Commit(psr)))
++		if parsedPkg.Commit != "" && len(parsedPkg.Commit) < 40 && !queryableByVersion(parsedPkg) {
+ 			warnings = append(warnings, fmt.Sprintf("Skipping %s: short commit hash %q cannot be queried; OSV API requires a full 40-character SHA.", parsedPkg.Name, parsedPkg.Commit))
  			unscannableCount++
  			if a.showAllPackages {
-@@ -171,6 +174,15 @@ func (a *Annotator) Annotate(_ context.Context, _ *annotator.ScanInput, results
+@@ -185,6 +189,13 @@ func (a *Annotator) Annotate(_ context.Context, _ *annotator.ScanInput, results
+ 	return nil
  }
  
- // FilteredPackages returns the list of packages filtered out that should be preserved.
 +// queryableByVersion reports whether the package can be looked up by
 +// ecosystem, name and version, in which case its commit (if any) is not used.
-+func queryableByVersion(pkg *extractor.Package) bool {
-+	eco := imodels.Ecosystem(pkg)
-+
-+	return !eco.IsEmpty() && eco.GetValidity() == nil && eco.String() != "GIT" &&
-+		imodels.Name(pkg) != "" && imodels.Version(pkg) != ""
++func queryableByVersion(pkg osvutil.NormalizedPackage) bool {
++	return !pkg.Ecosystem.IsEmpty() && pkg.Ecosystem.GetValidity() == nil && pkg.Ecosystem.String() != "GIT" &&
++		pkg.Name != "" && pkg.Version != ""
 +}
 +
+ // FilteredPackages returns the list of packages filtered out that should be preserved.
  func (a *Annotator) FilteredPackages() []*extractor.Package {
- 	return a.filteredPackages
- }
+ 	a.mu.Lock()
 diff --git a/internal/scalibrannotator/filter/filter_test.go b/internal/scalibrannotator/filter/filter_test.go
-index 1a9bf21..7a21425 100644
+index bf872ecc..56862985 100644
 --- a/internal/scalibrannotator/filter/filter_test.go
 +++ b/internal/scalibrannotator/filter/filter_test.go
 @@ -7,6 +7,7 @@ import (
@@ -86,7 +92,7 @@ index 1a9bf21..7a21425 100644
  	pkgLinuxKernel := &extractor.Package{
  		Name:     "linux",
  		Version:  "6.1.0",
-@@ -86,6 +102,15 @@ func TestAnnotator_Annotate(t *testing.T) {
+@@ -92,6 +108,15 @@ func TestAnnotator_Annotate(t *testing.T) {
  			wantPackages:         []*extractor.Package{pkgScannable},
  			wantFilteredPackages: []*extractor.Package{pkgUnscannableNoVersion, pkgUnscannableShortHash},
  		},

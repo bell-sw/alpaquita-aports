@@ -1,7 +1,7 @@
-From 8790c186689c68ab7bb36a61c6abf3387ca36376 Mon Sep 17 00:00:00 2001
+From 23dc690e374410cf30299fa8a431f4e51ab7b337 Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Sat, 10 Oct 2026 19:45:38 +0000
-Subject: [PATCH] Add the java/vendorjdk extractor for standalone vendor
+Subject: [PATCH 06/10] Add the java/vendorjdk extractor for standalone vendor
  runtimes
 
 Glue around the static detector of github.com/bell-sw/osv-internal/vendorjdk.
@@ -19,13 +19,14 @@ The tests build their runtimes with the module's testfix package; nothing
 is checked in.
 ---
  .../osvlocal/internal/vulns/vendorjdk_test.go | 109 +++++++
+ enricher/vulnmatch/osvutil/osvutil.go         |   6 +
  extractor/convert.go                          |   7 +
  .../java/vendorjdk/metadata/metadata.go       |  90 ++++++
  .../language/java/vendorjdk/testdata_test.go  |  72 +++++
  .../language/java/vendorjdk/vendorjdk.go      | 211 +++++++++++++
  .../language/java/vendorjdk/vendorjdk_test.go | 289 ++++++++++++++++++
  extractor/filesystem/list/list.go             |   2 +
- 7 files changed, 780 insertions(+)
+ 8 files changed, 786 insertions(+)
  create mode 100644 enricher/vulnmatch/osvlocal/internal/vulns/vendorjdk_test.go
  create mode 100644 extractor/filesystem/language/java/vendorjdk/metadata/metadata.go
  create mode 100644 extractor/filesystem/language/java/vendorjdk/testdata_test.go
@@ -34,7 +35,7 @@ is checked in.
 
 diff --git a/enricher/vulnmatch/osvlocal/internal/vulns/vendorjdk_test.go b/enricher/vulnmatch/osvlocal/internal/vulns/vendorjdk_test.go
 new file mode 100644
-index 0000000..6f17c01
+index 00000000..6f17c018
 --- /dev/null
 +++ b/enricher/vulnmatch/osvlocal/internal/vulns/vendorjdk_test.go
 @@ -0,0 +1,109 @@
@@ -147,8 +148,25 @@ index 0000000..6f17c01
 +		}
 +	}
 +}
+diff --git a/enricher/vulnmatch/osvutil/osvutil.go b/enricher/vulnmatch/osvutil/osvutil.go
+index 8d691694..2551a1cd 100644
+--- a/enricher/vulnmatch/osvutil/osvutil.go
++++ b/enricher/vulnmatch/osvutil/osvutil.go
+@@ -126,6 +126,12 @@ func purlToName(pkgName string, p *purl.PackageURL, eco osvecosystem.Parsed) str
+ 		return pkgName
+ 	}
+ 
++	// The namespace of a vendor runtime's PURL is the vendor ("bellsoft"), not
++	// part of the name the vendor's advisories use.
++	if osvecosystem.IsLocalOnly(eco.Ecosystem) {
++		return pkgName
++	}
++
+ 	purlNamespace := p.Namespace
+ 	switch eco.Ecosystem {
+ 	case osvconstants.EcosystemMaven:
 diff --git a/extractor/convert.go b/extractor/convert.go
-index b3442e8..49620ba 100644
+index e5246d55..aea584f2 100644
 --- a/extractor/convert.go
 +++ b/extractor/convert.go
 @@ -20,6 +20,7 @@ import (
@@ -181,7 +199,7 @@ index b3442e8..49620ba 100644
  		purl.TypeSnap, purl.TypePacman, purl.TypePortage:
 diff --git a/extractor/filesystem/language/java/vendorjdk/metadata/metadata.go b/extractor/filesystem/language/java/vendorjdk/metadata/metadata.go
 new file mode 100644
-index 0000000..2c89323
+index 00000000..2c893231
 --- /dev/null
 +++ b/extractor/filesystem/language/java/vendorjdk/metadata/metadata.go
 @@ -0,0 +1,90 @@
@@ -277,7 +295,7 @@ index 0000000..2c89323
 +}
 diff --git a/extractor/filesystem/language/java/vendorjdk/testdata_test.go b/extractor/filesystem/language/java/vendorjdk/testdata_test.go
 new file mode 100644
-index 0000000..6d5e41d
+index 00000000..521dbebf
 --- /dev/null
 +++ b/extractor/filesystem/language/java/vendorjdk/testdata_test.go
 @@ -0,0 +1,72 @@
@@ -355,7 +373,7 @@ index 0000000..6d5e41d
 +}
 diff --git a/extractor/filesystem/language/java/vendorjdk/vendorjdk.go b/extractor/filesystem/language/java/vendorjdk/vendorjdk.go
 new file mode 100644
-index 0000000..e28d12a
+index 00000000..e28d12a4
 --- /dev/null
 +++ b/extractor/filesystem/language/java/vendorjdk/vendorjdk.go
 @@ -0,0 +1,211 @@
@@ -572,7 +590,7 @@ index 0000000..e28d12a
 +}
 diff --git a/extractor/filesystem/language/java/vendorjdk/vendorjdk_test.go b/extractor/filesystem/language/java/vendorjdk/vendorjdk_test.go
 new file mode 100644
-index 0000000..f2c7417
+index 00000000..f2c74177
 --- /dev/null
 +++ b/extractor/filesystem/language/java/vendorjdk/vendorjdk_test.go
 @@ -0,0 +1,289 @@
@@ -866,10 +884,10 @@ index 0000000..f2c7417
 +	_ = os.Getenv
 +}
 diff --git a/extractor/filesystem/list/list.go b/extractor/filesystem/list/list.go
-index 4e08545..f2ff536 100644
+index fe7c21ff..9f5c5b28 100644
 --- a/extractor/filesystem/list/list.go
 +++ b/extractor/filesystem/list/list.go
-@@ -54,6 +54,7 @@ import (
+@@ -57,6 +57,7 @@ import (
  	"github.com/google/osv-scalibr/extractor/filesystem/language/java/gradleverificationmetadataxml"
  	"github.com/google/osv-scalibr/extractor/filesystem/language/java/gradleversioncatalog"
  	"github.com/google/osv-scalibr/extractor/filesystem/language/java/pomxml"
@@ -877,7 +895,7 @@ index 4e08545..f2ff536 100644
  	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/bunlock"
  	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/denojson"
  	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/denotssource"
-@@ -227,6 +228,7 @@ var (
+@@ -237,6 +238,7 @@ var (
  	// JavaArtifact extractors for Java.
  	JavaArtifact = InitMap{
  		javaarchive.Name: {protoCfg(javaarchive.New)},

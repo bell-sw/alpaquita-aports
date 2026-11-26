@@ -1,7 +1,7 @@
-From 34d896528707bce0c9f02d90f8813d2ba441b5fb Mon Sep 17 00:00:00 2001
+From f669e10fc80c434f6085b3e6a64ff9702d8525be Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Sat, 10 Oct 2026 19:10:47 +0000
-Subject: [PATCH] Enable the java/vendorjdk extractor (standalone vendor
+Subject: [PATCH 5/8] Enable the java/vendorjdk extractor (standalone vendor
  runtimes) in the artifact and lockfile presets
 
 The osv-scalibr extractor reports the vendor's standalone JDK/JRE and NIK
@@ -29,7 +29,7 @@ go.mod: require github.com/bell-sw/osv-internal (imported by osv-scalibr).
  5 files changed, 17 insertions(+), 2 deletions(-)
 
 diff --git a/go.mod b/go.mod
-index ce7a54c..51fbb10 100644
+index 44b5a2a8..98a093b2 100644
 --- a/go.mod
 +++ b/go.mod
 @@ -59,6 +59,7 @@ require (
@@ -41,23 +41,23 @@ index ce7a54c..51fbb10 100644
  	github.com/cespare/xxhash/v2 v2.3.0 // indirect
  	github.com/charmbracelet/bubbles v1.0.0 // indirect
 diff --git a/go.sum b/go.sum
-index 1a510ee..e379a39 100644
+index 8b7d0d12..0cf71966 100644
 --- a/go.sum
 +++ b/go.sum
 @@ -240,8 +240,6 @@ github.com/google/go-cpy v0.0.0-20211218193943-a9c933c06932 h1:5/4TSDzpDnHQ8rKEE
  github.com/google/go-cpy v0.0.0-20211218193943-a9c933c06932/go.mod h1:cC6EdPbj/17GFCPDK39NRarlMI+kt+O60S12cNB5J9Y=
  github.com/google/jsonschema-go v0.4.3 h1:/DBOLZTfDow7pe2GmaJNhltueGTtDKICi8V8p+DQPd0=
  github.com/google/jsonschema-go v0.4.3/go.mod h1:r5quNTdLOYEz95Ru18zA0ydNbBuYoo9tgaYcxEYhJVE=
--github.com/google/osv-scalibr v0.4.6-0.20260727075515-eb1ca153f805 h1:KHcvuNZptSEZfSM1VZAYWCjJXeSKMjMuWMYfXgtB0ac=
--github.com/google/osv-scalibr v0.4.6-0.20260727075515-eb1ca153f805/go.mod h1:zwpKksQMgyYI0lwFZ5ImtfPnHSt4BUXw6O+AHgrGC+s=
+-github.com/google/osv-scalibr v0.5.4-0.20261009010329-5be78a00e3c2 h1:Wuc6ytG0LYkegdUfSqzg/D6JKfoK+kQnkshSTvluqFg=
+-github.com/google/osv-scalibr v0.5.4-0.20261009010329-5be78a00e3c2/go.mod h1:rihL22GqgUv42jUlgm2yWy/iSlAY0a2VVNQIAWuID2s=
  github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3 h1:LMLX+LgTNWpfvCBdFebv6EsYotImrt/Ppc5cXIriCSo=
  github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3/go.mod h1:jl5iWTm0/hd5PjEYEOuwAJ57L/CibdZfrqZ5XA5GrCk=
  github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 diff --git a/internal/scalibrplugin/__snapshots__/resolve_test.snap b/internal/scalibrplugin/__snapshots__/resolve_test.snap
-index fe2f748..b0b1291 100755
+index e70a0495..65bf8cad 100755
 --- a/internal/scalibrplugin/__snapshots__/resolve_test.snap
 +++ b/internal/scalibrplugin/__snapshots__/resolve_test.snap
-@@ -26,6 +26,7 @@ java/archive
+@@ -27,6 +27,7 @@ java/archive
  java/gradlelockfile
  java/gradleverificationmetadataxml
  java/pomxml
@@ -65,7 +65,7 @@ index fe2f748..b0b1291 100755
  javascript/bunlock
  javascript/nodemodules
  javascript/packagelockjson
-@@ -70,6 +71,7 @@ weakcredentials/winlocal
+@@ -72,6 +73,7 @@ weakcredentials/winlocal
  baseimage
  go/binary
  java/archive
@@ -73,7 +73,7 @@ index fe2f748..b0b1291 100755
  javascript/nodemodules
  misc/brew-source
  os/apk
-@@ -110,6 +112,7 @@ weakcredentials/winlocal
+@@ -113,6 +115,7 @@ weakcredentials/winlocal
  baseimage
  go/binary
  java/archive
@@ -81,7 +81,7 @@ index fe2f748..b0b1291 100755
  javascript/nodemodules
  misc/brew-source
  os/apk
-@@ -139,6 +142,7 @@ vulnmatch/osvlocal
+@@ -143,6 +146,7 @@ vulnmatch/osvlocal
  baseimage
  go/binary
  java/archive
@@ -89,7 +89,7 @@ index fe2f748..b0b1291 100755
  javascript/nodemodules
  misc/brew-source
  os/apk
-@@ -171,6 +175,7 @@ haskell/stacklock
+@@ -177,6 +181,7 @@ haskell/stacklock
  java/gradlelockfile
  java/gradleverificationmetadataxml
  java/pomxml
@@ -98,10 +98,10 @@ index fe2f748..b0b1291 100755
  javascript/packagelockjson
  javascript/pnpmlock
 diff --git a/internal/scalibrplugin/presets.go b/internal/scalibrplugin/presets.go
-index 6b0b49a..a34701f 100644
+index c4eb5f1a..64ff86f6 100644
 --- a/internal/scalibrplugin/presets.go
 +++ b/internal/scalibrplugin/presets.go
-@@ -27,6 +27,7 @@ import (
+@@ -28,6 +28,7 @@ import (
  	"github.com/google/osv-scalibr/extractor/filesystem/language/java/gradlelockfile"
  	"github.com/google/osv-scalibr/extractor/filesystem/language/java/gradleverificationmetadataxml"
  	"github.com/google/osv-scalibr/extractor/filesystem/language/java/pomxml"
@@ -109,7 +109,7 @@ index 6b0b49a..a34701f 100644
  	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/bunlock"
  	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/packagelockjson"
  	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/pnpmlock"
-@@ -137,6 +138,9 @@ var ExtractorPresets = map[string]extractors.InitMap{
+@@ -140,6 +141,9 @@ var ExtractorPresets = map[string]extractors.InitMap{
  		apk.Name: {protoCfg(apk.New)},
  		// Debian
  		dpkg.Name: {protoCfg(dpkg.New)},
@@ -119,7 +119,7 @@ index 6b0b49a..a34701f 100644
  	},
  	"directory": {
  		gitrepo.Name:  {protoCfg(gitrepo.New)},
-@@ -148,6 +152,8 @@ var ExtractorPresets = map[string]extractors.InitMap{
+@@ -151,6 +155,8 @@ var ExtractorPresets = map[string]extractors.InitMap{
  		wheelegg.Name: {protoCfg(wheelegg.New)},
  		// Java
  		archive.Name: {protoCfg(archive.New)},
@@ -129,7 +129,7 @@ index 6b0b49a..a34701f 100644
  		gobinary.Name: {protoCfg(gobinary.New)},
  		// Javascript
 diff --git a/internal/scalibrplugin/resolve_test.go b/internal/scalibrplugin/resolve_test.go
-index de09697..047413d 100644
+index a4584088..a09a9fc3 100644
 --- a/internal/scalibrplugin/resolve_test.go
 +++ b/internal/scalibrplugin/resolve_test.go
 @@ -23,6 +23,7 @@ import (
@@ -140,7 +140,7 @@ index de09697..047413d 100644
  	"github.com/google/osv-scalibr/extractor/filesystem/language/php/composerlock"
  	"github.com/google/osv-scalibr/extractor/filesystem/language/python/requirements"
  	"github.com/google/osv-scalibr/extractor/filesystem/language/python/wheelegg"
-@@ -529,6 +530,7 @@ func TestResolve_Extractors(t *testing.T) {
+@@ -530,6 +531,7 @@ func TestResolve_Extractors(t *testing.T) {
  			want: []string{
  				apk.Name,
  				archive.Name,
@@ -148,7 +148,7 @@ index de09697..047413d 100644
  				baseimage.Name,
  				cargoauditable.Name,
  				dpkg.Name,
-@@ -551,6 +553,7 @@ func TestResolve_Extractors(t *testing.T) {
+@@ -553,6 +555,7 @@ func TestResolve_Extractors(t *testing.T) {
  			want: []string{
  				apk.Name,
  				archive.Name,
@@ -156,15 +156,15 @@ index de09697..047413d 100644
  				baseimage.Name,
  				cargoauditable.Name,
  				dpkg.Name,
-@@ -585,6 +588,7 @@ func TestResolve_Extractors(t *testing.T) {
- 				chisel.Name,
+@@ -589,6 +592,7 @@ func TestResolve_Extractors(t *testing.T) {
  				gobinary.Name,
  				homebrew.Name,
+ 				rpm.Name,
 +				vendorjdk.Name,
  				nodemodules.Name,
  				apkanno.Name,
  				dpkganno.Name,
-@@ -601,6 +605,7 @@ func TestResolve_Extractors(t *testing.T) {
+@@ -605,6 +609,7 @@ func TestResolve_Extractors(t *testing.T) {
  			want: []string{
  				apk.Name,
  				archive.Name,

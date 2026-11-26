@@ -1,7 +1,7 @@
-From 538b08b5c2ab9799e233d3cdb16fe0b3adff1e81 Mon Sep 17 00:00:00 2001
+From 52886b0154630c7a50df8a3c66585e3807a50c50 Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Sat, 10 Oct 2026 19:09:42 +0000
-Subject: [PATCH] osvlocal: accept file:// archive hosts, hosts without a
+Subject: [PATCH 03/10] osvlocal: accept file:// archive hosts, hosts without a
  checksum header and the osv-scanner cache layout
 
 Three small gaps in how the offline database archives are fetched and found:
@@ -22,7 +22,7 @@ Three small gaps in how the offline database archives are fetched and found:
  3 files changed, 101 insertions(+), 10 deletions(-)
 
 diff --git a/enricher/vulnmatch/osvlocal/alias_test.go b/enricher/vulnmatch/osvlocal/alias_test.go
-index 21d4f18..88626bb 100644
+index 21d4f18f..88626bba 100644
 --- a/enricher/vulnmatch/osvlocal/alias_test.go
 +++ b/enricher/vulnmatch/osvlocal/alias_test.go
 @@ -17,6 +17,7 @@ package osvlocal
@@ -86,18 +86,18 @@ index 21d4f18..88626bb 100644
 +	})
 +}
 diff --git a/enricher/vulnmatch/osvlocal/zip.go b/enricher/vulnmatch/osvlocal/zip.go
-index 76cc32e..a5836e1 100644
+index ecf179c4..dbddabfc 100644
 --- a/enricher/vulnmatch/osvlocal/zip.go
 +++ b/enricher/vulnmatch/osvlocal/zip.go
 @@ -33,6 +33,7 @@ import (
- 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/vulns"
+ 	osvutil "github.com/google/osv-scalibr/enricher/vulnmatch/osvutil"
  	"github.com/google/osv-scalibr/extractor"
  	"github.com/google/osv-scalibr/inventory/osvecosystem"
 +	"github.com/google/osv-scalibr/log"
  	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
  	"google.golang.org/protobuf/encoding/protojson"
  )
-@@ -93,9 +94,20 @@ func fetchLocalArchiveCRC32CHash(data []byte) uint32 {
+@@ -91,9 +92,20 @@ func fetchLocalArchiveCRC32CHash(data []byte) uint32 {
  	return crc32.Checksum(data, crc32.MakeTable(crc32.Castagnoli))
  }
  
@@ -118,7 +118,7 @@ index 76cc32e..a5836e1 100644
  	if db.Offline {
  		if err != nil {
  			return nil, errOfflineDatabaseNotFound
-@@ -104,14 +116,24 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
+@@ -102,14 +114,24 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
  		return cache, nil
  	}
  
@@ -147,7 +147,7 @@ index 76cc32e..a5836e1 100644
  			return cache, nil
  		}
  	}
-@@ -145,14 +167,25 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
+@@ -139,14 +161,25 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
  		return nil, fmt.Errorf("could not read OSV database archive from response: %w", err)
  	}
  
@@ -177,16 +177,16 @@ index 76cc32e..a5836e1 100644
  
  func mightAffectPackages(v *osvpb.Vulnerability, names []string) bool {
 diff --git a/enricher/vulnmatch/osvlocal/zip_test.go b/enricher/vulnmatch/osvlocal/zip_test.go
-index 2d0918e..7a0458e 100644
+index d255c440..3ede154b 100644
 --- a/enricher/vulnmatch/osvlocal/zip_test.go
 +++ b/enricher/vulnmatch/osvlocal/zip_test.go
-@@ -329,11 +329,20 @@ func TestNewZippedDB_Online_WithCacheButNoHashHeader(t *testing.T) {
+@@ -326,11 +326,20 @@ func TestNewZippedDB_Online_WithCacheButNoHashHeader(t *testing.T) {
  		"GHSA-3.json": {Id: "GHSA-3"},
  	}))
  
--	_, err := newZippedDB(t.Context(), testDir, "my-db", ts.URL, userAgent, false, nil, http.DefaultClient)
+-	_, err := newZippedDB(t.Context(), testDir, "my-db", ts.URL, false, nil, http.DefaultClient)
 +	// no checksum header: the archive is downloaded again
-+	db, err := newZippedDB(t.Context(), testDir, "my-db", ts.URL, userAgent, false, nil, http.DefaultClient)
++	db, err := newZippedDB(t.Context(), testDir, "my-db", ts.URL, false, nil, http.DefaultClient)
  
 -	if err == nil {
 -		t.Errorf("expected an error but did not get one")

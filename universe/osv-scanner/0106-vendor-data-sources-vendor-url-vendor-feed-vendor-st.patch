@@ -1,7 +1,7 @@
-From 368c29ac19f138c657504e8d98318f3af57c2153 Mon Sep 17 00:00:00 2001
+From 54c82fda5c65ec170d595453d1918dbd9c566d0d Mon Sep 17 00:00:00 2001
 From: BellSoft <info@bell-sw.com>
 Date: Sat, 10 Oct 2026 22:24:46 +0000
-Subject: [PATCH] vendor data sources: --vendor-url, --vendor-feed,
+Subject: [PATCH 6/8] vendor data sources: --vendor-url, --vendor-feed,
  --vendor-strict
 
 * Scans that query api.osv.dev also run vulnmatch/osvlocal, restricted to
@@ -24,13 +24,13 @@ Subject: [PATCH] vendor data sources: --vendor-url, --vendor-feed,
  cmd/osv-scanner/internal/helper/flags.go   | 16 ++++++
  cmd/osv-scanner/internal/helper/getters.go |  3 ++
  pkg/osvscanner/osvscanner.go               | 19 +++++++
- pkg/osvscanner/scan.go                     | 29 +++++++++-
+ pkg/osvscanner/scan.go                     | 28 +++++++++-
  pkg/osvscanner/vendor_internal_test.go     | 62 ++++++++++++++++++++++
- 5 files changed, 128 insertions(+), 1 deletion(-)
+ 5 files changed, 127 insertions(+), 1 deletion(-)
  create mode 100644 pkg/osvscanner/vendor_internal_test.go
 
 diff --git a/cmd/osv-scanner/internal/helper/flags.go b/cmd/osv-scanner/internal/helper/flags.go
-index 20433110..1cb76770 100644
+index 7cf95c0b..6d785cf0 100644
 --- a/cmd/osv-scanner/internal/helper/flags.go
 +++ b/cmd/osv-scanner/internal/helper/flags.go
 @@ -6,6 +6,7 @@ import (
@@ -64,7 +64,7 @@ index 20433110..1cb76770 100644
  			Name:  "call-analysis",
  			Usage: "Enable call analysis for specific languages (e.g. --call-analysis=go). Supported: go, rust (*). (*) Will run build scripts.",
 diff --git a/cmd/osv-scanner/internal/helper/getters.go b/cmd/osv-scanner/internal/helper/getters.go
-index 4f147fbe..a299a38c 100644
+index 3b176703..433c39ef 100644
 --- a/cmd/osv-scanner/internal/helper/getters.go
 +++ b/cmd/osv-scanner/internal/helper/getters.go
 @@ -43,6 +43,9 @@ func GetCommonScannerActions(cmd *cli.Command, scanLicensesAllowlist []string) o
@@ -78,7 +78,7 @@ index 4f147fbe..a299a38c 100644
  		ScanLicensesSummary:   cmd.IsSet("licenses"),
  		ScanLicensesAllowlist: scanLicensesAllowlist,
 diff --git a/pkg/osvscanner/osvscanner.go b/pkg/osvscanner/osvscanner.go
-index 0a9d1089..1a162742 100644
+index 9e7bbfa7..38ec3e8e 100644
 --- a/pkg/osvscanner/osvscanner.go
 +++ b/pkg/osvscanner/osvscanner.go
 @@ -60,6 +60,18 @@ type ScannerActions struct {
@@ -110,10 +110,10 @@ index 0a9d1089..1a162742 100644
  	// TODO(v2): Move the logic of the offline flag changing other flags into here from the main.go/scan.go
  	if actions.CompareOffline {
  		if actions.ScanLicensesSummary {
-@@ -171,6 +186,10 @@ func DoScan(actions ScannerActions) (models.VulnerabilityResults, error) {
- }
+@@ -175,6 +190,10 @@ func DoContainerScan(actions ScannerActions) (models.VulnerabilityResults, error
+ 		return models.VulnerabilityResults{}, errors.New("container image must be provided")
+ 	}
  
- func DoContainerScan(actions ScannerActions) (models.VulnerabilityResults, error) {
 +	if err := checkVendorOptions(actions); err != nil {
 +		return models.VulnerabilityResults{}, err
 +	}
@@ -122,10 +122,10 @@ index 0a9d1089..1a162742 100644
  		ConfigManager: config.Manager{
  			DefaultConfig: config.Config{},
 diff --git a/pkg/osvscanner/scan.go b/pkg/osvscanner/scan.go
-index 2d0c665c..ce506b24 100644
+index 9dd9374d..bfc75e3a 100644
 --- a/pkg/osvscanner/scan.go
 +++ b/pkg/osvscanner/scan.go
-@@ -11,12 +11,14 @@ import (
+@@ -11,6 +11,7 @@ import (
  	"slices"
  	"strings"
  
@@ -133,14 +133,7 @@ index 2d0c665c..ce506b24 100644
  	scalibr "github.com/google/osv-scalibr"
  	"github.com/google/osv-scalibr/annotator"
  	cpb "github.com/google/osv-scalibr/binary/proto/config_go_proto"
- 	"github.com/google/osv-scalibr/enricher"
- 	"github.com/google/osv-scalibr/enricher/packagedeprecation"
- 	"github.com/google/osv-scalibr/enricher/reachability/java"
-+	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal"
- 	"github.com/google/osv-scalibr/extractor"
- 	"github.com/google/osv-scalibr/extractor/filesystem"
- 	"github.com/google/osv-scalibr/extractor/filesystem/simplefileapi"
-@@ -48,6 +50,16 @@ func configurePlugins(plugins []plugin.Plugin, accessors ExternalAccessors, acti
+@@ -49,6 +50,16 @@ func configurePlugins(plugins []plugin.Plugin, accessors ExternalAccessors, acti
  			ScanGitDir: !actions.IncludeGitRoot,
  			OSVClient:  accessors.OSVDevClient,
  		})
@@ -157,7 +150,7 @@ index 2d0c665c..ce506b24 100644
  	}
  }
  
-@@ -150,7 +162,8 @@ func getPlugins(
+@@ -151,7 +162,8 @@ func getPlugins(
  	if actions.CompareOffline {
  		actions.PluginsEnabled = append(actions.PluginsEnabled, "vulnmatch/osvlocal")
  	} else {
@@ -167,8 +160,8 @@ index 2d0c665c..ce506b24 100644
  	}
  
  	plugins := scalibrplugin.Resolve(actions.PluginsEnabled, actions.PluginsDisabled, finalScalibrConfig)
-@@ -575,6 +588,13 @@ func dedupPackageVulns(vulns []*inventory.PackageVuln) []*inventory.PackageVuln
- 	return result
+@@ -612,6 +624,13 @@ func logPluginStatus(statuses []*plugin.Status, specificPaths []string, root str
+ 	return nil
  }
  
 +// checkVendorOptions validates the --vendor-feed pairs.
@@ -181,7 +174,7 @@ index 2d0c665c..ce506b24 100644
  // vulnMatchFailure returns an error when a failed vulnerability matcher must
  // fail the scan: a missing or unreadable cached offline database
  // (--offline-vulnerabilities without --download-offline-databases). With
-@@ -589,5 +609,12 @@ func vulnMatchFailure(status *plugin.Status, actions ScannerActions) error {
+@@ -626,5 +645,12 @@ func vulnMatchFailure(status *plugin.Status, actions ScannerActions) error {
  		return fmt.Errorf("vulnerability matching failed (%s): %s", status.Name, status.Status.FailureReason)
  	}
  
