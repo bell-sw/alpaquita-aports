@@ -1,0 +1,50 @@
+From 5e2f6ec0bd692f329832792fb70d54f3dab04544 Mon Sep 17 00:00:00 2001
+From: Clint Adams <clint@debian.org>
+Date: Sun, 5 Jul 2026 16:57:41 -0400
+Subject: [PATCH] For {f,l,}listxattr, do not short-circuit if real xattrs are
+ empty.  closes: #1138512.
+
+---
+ libfakeroot.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/libfakeroot.c b/libfakeroot.c
+index 4c57104..13bd7b2 100644
+--- a/libfakeroot.c
++++ b/libfakeroot.c
+@@ -1986,8 +1986,8 @@ ssize_t listxattr(const char *path, char *list, size_t size)
+ 
+   r = next_listxattr(path, list, size);
+   if (fakeroot_disabled
+-      || r >= 0
+-      || (errno != EPERM && errno != EOPNOTSUPP))
++      || r > 0
++      || (r < 0 && errno != EPERM && errno != EOPNOTSUPP))
+     return r;
+   errno = 0;
+ 
+@@ -2012,8 +2012,8 @@ ssize_t llistxattr(const char *path, char *list, size_t size)
+ 
+   r = next_llistxattr(path, list, size);
+   if (fakeroot_disabled
+-      || r >= 0
+-      || (errno != EPERM && errno != EOPNOTSUPP))
++      || r > 0
++      || (r < 0 && errno != EPERM && errno != EOPNOTSUPP))
+     return r;
+   errno = 0;
+ 
+@@ -2038,8 +2038,8 @@ ssize_t flistxattr(int fd, char *list, size_t size)
+ 
+   r = next_flistxattr(fd, list, size);
+   if (fakeroot_disabled
+-      || r >= 0
+-      || (errno != EPERM && errno != EOPNOTSUPP))
++      || r > 0
++      || (r < 0 && errno != EPERM && errno != EOPNOTSUPP))
+     return r;
+   errno = 0;
+ 
+-- 
+2.49.0
+
